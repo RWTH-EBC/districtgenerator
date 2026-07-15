@@ -10,7 +10,6 @@ import time
 import warnings
 import numpy as np
 import openpyxl
-import threading
 import pandas as pd
 import random as rd
 import holidays as hol
@@ -855,9 +854,6 @@ class Datahandler:
         self.buildings_completed = 0
         self.save_progress()
 
-        # with mp.Manager() as manager:
-        #     self.global_occ_lock = manager.Lock()
-
         # Minimal, picklable context passed to each worker process.
         context = {
             "site": self.site,
@@ -1221,7 +1217,11 @@ class Datahandler:
                     ts_dict[f'Car_availability_car_{i}'] = car['availability_profile']
 
         df_ts = pd.DataFrame(ts_dict)
-        df_ts.to_csv(os.path.join(path, f"{name}_timeseries.csv"), index=False, sep=';')
+        df_ts.to_csv(
+            os.path.join(path, f"{name}_timeseries.csv"),
+            sep=';',
+            index=False
+        )
 
         # Singular Data points (static)
         static_dict = {
@@ -1259,6 +1259,7 @@ class Datahandler:
             index=False
         )
 
+
     def saveHeatingProfile(self, heat, cooling, name, gmlId, path):
         """
         Save heating demand to csv.
@@ -1288,7 +1289,10 @@ class Datahandler:
 
         df_ts['heating'] = heat
         df_ts['cooling'] = cooling
-        df_ts.to_csv(ts_path, index=False, float_format='%.3f', sep=';')
+        df_ts.to_csv(ts_path,
+                     index=False,
+                     sep=';',
+                     float_format='%.3f')
 
         static_path = os.path.join(path, f"{name}_static.csv")
         if os.path.exists(static_path):
@@ -2120,7 +2124,27 @@ def _init_worker(lock):
 
 def _run_demand_worker(context, building, calcUserProfiles, saveUserProfiles, gen_cars=True, allow_hybrid=True):
     """
-    Standalone worker for multiprocessing (spawn-compatible).
+    Standalone worker for multiprocessing.
+
+    Runs in a separate process, so it must not access `self`. All required
+    data is passed explicitly via `context` to keep the pickled payload
+    small and avoid pickling the whole Datahandler instance.
+
+    Parameters
+    ----------
+    context : dict
+        Picklable subset of Datahandler state (site, calendar, time,
+        decentral_device_data, resultPath, initial_day, design_building_data).
+    building : dict
+        Single building entry from self.district.
+    calcUserProfiles : bool
+    saveUserProfiles : bool
+    gen_cars : bool
+
+    Returns
+    -------
+    dict
+        Result payload merged back into self.district in the main process.
     """
     global worker_lock
     warnings.filterwarnings("ignore", category=FutureWarning)

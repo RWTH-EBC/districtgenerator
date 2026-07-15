@@ -5,8 +5,6 @@ import os
 import json
 import math
 from itertools import zip_longest
-from pathlib import Path
-import matplotlib.pyplot as plt
 import pandas as pd
 
 from districtgenerator.classes.certificate_generator import CertificateBuilder
@@ -21,7 +19,6 @@ class KPIs:
         ----------
         data : Datahandler object
             Datahandler object which contains all relevant information to compute the key performance indicators (KPIs).
-
 
         Returns
         -------
@@ -110,9 +107,6 @@ class KPIs:
         inputData["year_weights"] = year_weights
 
         self.inputData = inputData
-
-        # AIX HEAT Modification
-        self.calculateAllKPIs(data)
 
     def prepareData(self, data):
         """
@@ -405,118 +399,54 @@ class KPIs:
         counts["EV"] = sum((lambda ev: len(ev) if any(x > 0 for x in ev) else 0)(d["user"].ev_capacity)for d in district)
         counts["BAT"] = scenario['f_BAT'].apply(lambda x: 1 if x > 0 else 0).sum()
 
-        ## AIX HEAT
-        # calc_annual_investment = {dev: 0 for dev in ["BOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]}
-        # to include all devices with inv_var in decentral_device_data
-        investable_devices_list = [
-            dev
-            for dev, properties in decentral_device_data.items()
-            if 'inv_var' in properties
-        ]
-        calc_annual_investment = {dev: 0 for dev in investable_devices_list}
-
-        # Refactor
-        for n, building_id in enumerate(data.scenario["id"]):
-            ## Initialize cost dictionary for this building
-            self.kpis_per_building[building_id]['costs'] = {}
-            building_annual_cost = 0
-
-            capacities = {}
-            # ADD new technologies here!!
-            capacities["BOI"] = district[n]["capacities"]["BOI"] / 1000
-            capacities["BBOI"] = district[n]["capacities"]["BBOI"] / 1000
-            capacities["H2BOI"] = district[n]["capacities"]["H2BOI"] / 1000
-            capacities["OBOI"] = district[n]["capacities"]["OBOI"] / 1000
-            capacities["HP"] = district[n]["capacities"]["HP"] / 1000
-            capacities["EH"] = district[n]["capacities"]["EH"] / 1000
-            capacities["EH_DHW"] = district[n]["capacities"]["EH_DHW"] / 1000
-            capacities["CC"] = district[n]["capacities"]["CC"] / 1000
-            capacities["CHP"] = district[n]["capacities"]["CHP"] / 1000
-            capacities["FC"] = district[n]["capacities"]["FC"] / 1000
-            capacities["DH"] = district[n]["capacities"]["DH"]/ decentral_device_data["DH"]["eta_th"] / 1000 # Price is payed for the power of the connection not for the actual thermal power delivered
-            capacities["PV"] = district[n]["capacities"]["PV"]["area"]
-            capacities["STC"] = district[n]["capacities"]["STC"]["area"]
-            capacities["EV"] = district[n]["capacities"]["EV"] / 1000
-            capacities["BAT"] = district[n]["capacities"]["BAT"] / 1000
-            capacities["TES"] = (district[n]["capacities"]["TES"] / physics["rho_water"] / physics["c_p_water"] /
-                                 decentral_device_data["TES"]["T_diff_max"] * 3600)
-            capacities["TES_DHW"] = (
-                        district[n]["capacities"]["TES_DHW"] / physics["rho_water"] / physics["c_p_water"] /
-                        decentral_device_data["TES_DHW"]["T_diff_max"] * 3600)
-
-            for dev in investable_devices_list:
-                try:
-                    # Check if the device exists for this building based on its capacity
-                    if capacities.get(dev) and capacities[dev] > 0:
-                        annual_cost_device = self.calc_annual_cost_device(
-                            decentral_device_data[dev],
-                            data.ecoData,
-                            capacities[dev])
-
-                        # Add to building and district totals
-                        building_annual_cost += annual_cost_device
-                        calc_annual_investment[dev] += annual_cost_device
-
-                        ## Store per-device cost for the building
-                        self.kpis_per_building[building_id]['costs'][f'annual_cost_{dev}_eur'] = annual_cost_device
-                except Exception as e:
-                    print("Error calculating annual cost for device", dev, "in building", building_id, ":", e)
-            ## Store total annualized fixed cost for the building
-            self.kpis_per_building[building_id]['costs']['annual_fixed_costs_eur'] = building_annual_cost
-        ## END AIX HEAT
-
-        capacities = {}
-        for n in range(len(district)):
-            capacities[n] = {}
-            capacities[n]["BOI"] = district[n]["capacities"]["BOI"] / 1000
-            capacities[n]["BBOI"] = district[n]["capacities"]["BBOI"] / 1000
-            capacities[n]["H2BOI"] = district[n]["capacities"]["H2BOI"] / 1000
-            capacities[n]["OBOI"] = district[n]["capacities"]["OBOI"] / 1000
-            capacities[n]["HP"] = district[n]["capacities"]["HP"] / 1000
-            capacities[n]["EH"] = district[n]["capacities"]["EH"] / 1000
-            capacities[n]["CC"] = district[n]["capacities"]["CC"] / 1000
-            capacities[n]["CHP"] = district[n]["capacities"]["CHP"] / 1000
-            capacities[n]["FC"] = district[n]["capacities"]["FC"] / 1000
-            capacities[n]["DH"] = district[n]["capacities"]["DH"]/ decentral_device_data["DH"]["eta_th"] / 1000 # Price is payed for the power of the connection not for the actual thermal power delivered
-            capacities[n]["PV"] = district[n]["capacities"]["PV"]["area"]
-            capacities[n]["STC"] = district[n]["capacities"]["STC"]["area"]
-            capacities[n]["EV"] =  district[n]["capacities"]["EV"] / 1000
-            capacities[n]["BAT"] = district[n]["capacities"]["BAT"] / 1000
-            capacities[n]["TES"] = (district[n]["capacities"]["TES"] / physics["rho_water"] / physics["c_p_water"] /
-                                    decentral_device_data["TES"]["T_diff_max"] * 3600)
-
-        calc_annual_investment = {}
-        calc_annual_investment_unsubsidized = {}
-        self.decentral_individual_devices_annualized_cost = {} #Dictionary to store annualized cost per device and building
+        self.decentral_individual_devices_annualized_cost = {}
         self.annual_fixed_costs_decentral = 0
         self.annual_fixed_costs_decentral_unsubsidized = 0
 
-        devices = ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "EH_DHW", "CC", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES", "TES_DHW"]
-        #todo: test
-        # print("Installable Devices: \n")
-        # print(investable_devices_list)
-        # print("ALl devices: \n")
-        # print(devices)
+        devices = ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "EH_DHW", "CC", "CHP", "FC", "DH", "PV", "STC", "EV",
+                   "BAT", "TES", "TES_DHW"]
 
-        # Iteration over all buildings and then over all devices
-        for n in range(len(district)):
+        # Refactor
+        for n, building in enumerate(district):
+            building_id = scenario["id"][n]
+            ## Initialize cost dictionary for this building
+            self.kpis_per_building[building_id]['costs'] = {}
             self.decentral_individual_devices_annualized_cost[n] = {}
-            calc_annual_investment[n] = 0
-            calc_annual_investment_unsubsidized[n] = 0
 
-            # HP temperature measures
-            # Only count measures if HP exists and sink temperature higher than 45°C
-            if capacities[n]["HP"] > 0 and district[n]["envelope"].hp_measures == True:
-                heatload_kw = district[n]["envelope"].heatload / 1000  # kW
-                inv_eur_per_kw = data.decentral_device_data["HP"]["measures_inv_fix"]
-                inv_total = inv_eur_per_kw * heatload_kw  # €
+            building_subsidized_cost = 0
+            building_unsubsidized_cost = 0
 
+            capacities = {}
+            # ADD new technologies here!!
+            capacities["BOI"] =     building["capacities"]["BOI"] / 1000
+            capacities["BBOI"] =    building["capacities"]["BBOI"] / 1000
+            capacities["H2BOI"] =   building["capacities"]["H2BOI"] / 1000
+            capacities["OBOI"] =    building["capacities"]["OBOI"] / 1000
+            capacities["HP"] =      building["capacities"]["HP"] / 1000
+            capacities["EH"] =      building["capacities"]["EH"] / 1000
+            capacities["EH_DHW"] =  building["capacities"]["EH_DHW"] / 1000
+            capacities["CC"] =      building["capacities"]["CC"] / 1000
+            capacities["CHP"] =     building["capacities"]["CHP"] / 1000
+            capacities["FC"] =      building["capacities"]["FC"] / 1000
+            capacities["DH"] =      building["capacities"]["DH"]/ decentral_device_data["DH"]["eta_th"] / 1000 # Price is payed for the power of the connection not for the actual thermal power delivered
+            capacities["PV"] =      building["capacities"]["PV"]["area"]
+            capacities["STC"] =     building["capacities"]["STC"]["area"]
+            capacities["EV"] =      building["capacities"]["EV"] / 1000
+            capacities["BAT"] =     building["capacities"]["BAT"] / 1000
+            capacities["TES"] =    (building["capacities"]["TES"] / physics["rho_water"] / physics["c_p_water"] /
+                                 decentral_device_data["TES"]["T_diff_max"] * 3600)
+            capacities["TES_DHW"] = (
+                        building["capacities"]["TES_DHW"] / physics["rho_water"] / physics["c_p_water"] /
+                        decentral_device_data["TES_DHW"]["T_diff_max"] * 3600)
+
+            # 1. HP Temperatur-Maßnahmen (Sonderfall)
+            if capacities.get("HP", 0) > 0 and building["envelope"].hp_measures == True:
+                heatload_kw = building["envelope"].heatload / 1000
+                inv_total = decentral_device_data["HP"]["measures_inv_fix"] * heatload_kw
                 ann_cost_meas = self.calc_annualized_investment(inv_total, data.ecoData)
 
-                # Add to totals
-                calc_annual_investment[n] += ann_cost_meas
-                calc_annual_investment_unsubsidized[n] += ann_cost_meas
-
+                building_subsidized_cost += ann_cost_meas
+                building_unsubsidized_cost += ann_cost_meas
                 self.decentral_individual_devices_annualized_cost[n]["T_reduction_measures"] = {
                     "cap": heatload_kw,
                     "subsidized_annual_cost": ann_cost_meas,
@@ -524,34 +454,33 @@ class KPIs:
                 }
 
             for dev in devices:
-                cap = capacities[n][dev]
+                cap = capacities.get(dev, 0)
                 if cap > 0:
-                    subsidized_cost = self.calc_annual_cost_device(
-                        decentral_device_data[dev],
-                        data.ecoData,
-                        cap,
-                        mode="subsidized")
+                    subsidized_cost = self.calc_annual_cost_device(decentral_device_data[dev], data.ecoData, cap,
+                                                                   mode="subsidized")
+                    unsubsidized_cost = self.calc_annual_cost_device(decentral_device_data[dev], data.ecoData, cap,
+                                                                     mode="unsubsidized")
 
-                    unsubsidized_cost = self.calc_annual_cost_device(
-                        decentral_device_data[dev],
-                        data.ecoData,
-                        cap,
-                        mode="unsubsidized")
+                    # Sonderfall: Wenn HP installiert, EH-Kosten auf 0 setzen
+                    if dev == "EH" and capacities.get("HP", 0) > 0:
+                        subsidized_cost = unsubsidized_cost = 0.0
 
-                    # If HP is installed, EH investment is assumed to be included in HP
-                    # → keep EH capacity visible, but set EH annualized costs to 0
-                    if dev == "EH" and capacities[n].get("HP", 0) > 0:
-                        subsidized_cost = 0.0
-                        unsubsidized_cost = 0.0
+                    building_subsidized_cost += subsidized_cost
+                    building_unsubsidized_cost += unsubsidized_cost
 
-                    calc_annual_investment[n] += subsidized_cost
-                    calc_annual_investment_unsubsidized[n] += unsubsidized_cost
-                    self.decentral_individual_devices_annualized_cost[n][dev] = {"cap":cap,
-                                                                        "subsidized_annual_cost":subsidized_cost,
-                                                                        "unsubsidized_annual_cost":unsubsidized_cost}
+                    # In Gebäude-KPIs ablegen
+                    self.kpis_per_building[building_id]['costs'][f'annual_cost_{dev}_eur'] = subsidized_cost
+                    # In Quartiers-Lister ablegen
+                    self.decentral_individual_devices_annualized_cost[n][dev] = {
+                        "cap": cap,
+                        "subsidized_annual_cost": subsidized_cost,
+                        "unsubsidized_annual_cost": unsubsidized_cost
+                    }
 
-            self.annual_fixed_costs_decentral += calc_annual_investment[n] # Annualized investment costs with subsidies
-            self.annual_fixed_costs_decentral_unsubsidized += calc_annual_investment_unsubsidized[n] # Annualized investment costs without subsidies
+                # Summen für Gebäude und Quartier aktualisieren
+            self.kpis_per_building[building_id]['costs']['annual_fixed_costs_eur'] = building_subsidized_cost
+            self.annual_fixed_costs_decentral += building_subsidized_cost
+            self.annual_fixed_costs_decentral_unsubsidized += building_unsubsidized_cost
 
         # Central devices individual costs
         self.central_individual_devices_annualized_cost = {}
@@ -835,6 +764,7 @@ class KPIs:
         """
 
         # list with central operation costs for each cluster in each year [€]
+
         operationCosts_clusters = {}
         self.operationCosts = {}
 
@@ -1002,7 +932,7 @@ class KPIs:
             elif "+" in building["buildingFeatures"]["building"]: #TODO: This requires a working mixed building implementation
                 total_area_mixed += building["buildingFeatures"]["area"]
                 total_number_flats += building["user"].nb_res_flats
-                for flat in building["user"].nb_occ:
+                for flat in building["user"].nb_res_occ:
                     total_number_occ += flat
                 b_kpis['area_m2'] = building["buildingFeatures"]["area"]
                 b_kpis['building_type'] = "mixed"
@@ -1278,6 +1208,19 @@ class KPIs:
 
             # Update the main dictionary
             self.kpis_per_building[building_id] = b_kpis
+        # Prüft für das erste Jahr, ob die Summe der Gebäudebezüge exakt dem
+        # berechneten Innenbezug des Quartiers entspricht.
+        first_year = self.inputData["simulated_years"][0]
+        sum_bldg_grid_demand = sum(
+            self.kpis_per_building[b_id][first_year]['tech']['grid_demand_kWh']
+            for b_id in data.scenario["id"]
+        )
+
+        # np.isclose erlaubt eine winzige Toleranz (rtol=1e-3) für Fließkomma-Rundungen.
+        # Wenn die Werte nicht stimmen, bricht das Skript ab und warnt dich sofort:
+        assert np.isclose(sum_bldg_grid_demand, self.W_dem_buildings_year[first_year], rtol=1e-3), \
+            f"Fehler in der Aggregation: Summe der Gebäude ({sum_bldg_grid_demand:.2f} kWh) " \
+            f"entspricht nicht dem berechneten Quartiers-Innenbezug ({self.W_dem_buildings_year[first_year]:.2f} kWh)!"
 
     def calculateGasolineCosts(self, data):
         """Compute annual gasoline costs (€) for each simulated year."""

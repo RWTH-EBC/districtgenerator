@@ -856,7 +856,7 @@ def calc_WT_power(devs, param, data):
         WT_power[i] = get_turbine_power(wind_speed_corr[i], power_curve)
 
     for d in range(data.time["clusterNumber"]):
-        for t in range(24*7):
+        for t in range(len(wind_speed_corr_clustered[d])):
             WT_power_clustered[d][t] = get_turbine_power(wind_speed_corr_clustered[d][t], power_curve)
 
     WT_power_norm = WT_power / 500  # power_curve with 500 kW as maximum output
