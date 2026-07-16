@@ -903,7 +903,7 @@ class Users:
         self.cooling = Q_C
         self.annual_heat_demand = np.sum(Q_H)
         self.annual_cooling_demand = np.sum(Q_C)
-        
+
         # indoor temperature
         self.T_i = T_i
 
