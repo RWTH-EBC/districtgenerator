@@ -114,6 +114,9 @@ class Users:
         self.EV_carcharging_ondemand = None
         self.ev_capacity = None
         self.ice_carprofile = None
+
+        self.T_i = None
+
         self.individual_car_profiles = []
 
         # Initialize SIA class and read data
@@ -900,6 +903,9 @@ class Users:
         self.cooling = Q_C
         self.annual_heat_demand = np.sum(Q_H)
         self.annual_cooling_demand = np.sum(Q_C)
+        
+        # indoor temperature
+        self.T_i = T_i
 
 if __name__ == '__main__':
 
