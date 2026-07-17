@@ -503,13 +503,6 @@ class Sun:
 
         # Input validation
         ## ADDITION AIX HEAT --> IF DATA COMES FROM PLATFORM; WE CANNOT USE PV1, PV2, but PV and STC. Only Issue --> how to assertain the partition (currently 1 / 1)
-        # FOR NOW DONT CHECK IF STC + PV exceeds AREA, BUT NEEDED EVENTUALLY todo
-        if usageFactorPV1 + usageFactorPV2 + usageFactorSTC > 1.0:
-            raise ValueError(
-                f"The sum of usageFactorPV1 ({usageFactorPV1}), usageFactorPV2 ({usageFactorPV2}) and usageFactorSTC ({usageFactorSTC}) "
-                f"is {usageFactorPV1 + usageFactorPV2 + usageFactorSTC:.2f}, which exceeds 1. "
-                f"Please ensure their sum does not exceed 1."
-            )
 
         temperatureProfile = site["T_e"]
 

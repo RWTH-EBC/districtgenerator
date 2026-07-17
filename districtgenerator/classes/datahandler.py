@@ -1056,8 +1056,10 @@ class Datahandler:
                         area_roof=roof_areas,
                         betas=roof_inclinations,
                         gammas=cardinal_directions,
-                        usageFactorPV=1, #set to 1 because roof area is netto
-                        usageFactorSTC=1,
+                        usageFactorPV1=building["buildingFeatures"].get("f_PV1", 0),
+                        usageFactorPV2=building["buildingFeatures"].get("f_PV2", 0),
+                        usageFactorPV=building["buildingFeatures"].get("f_PV", 0.6),
+                        usageFactorSTC=building["buildingFeatures"].get("f_STC", 0.3),
                         devices=self.decentral_device_data,
                     )
 
@@ -1099,8 +1101,9 @@ class Datahandler:
                                             #DEFAULT VALUES FOR VALUE CHECK IN DATAHANDLER?? TODO
                                             usageFactorPV1=building["buildingFeatures"].get("f_PV1", 0),
                                             usageFactorPV2=building["buildingFeatures"].get("f_PV2", 0),
-                                            usageFactorPV=building["buildingFeatures"].get("f_PV", 0),
-                                            usageFactorSTC=building["buildingFeatures"].get("f_STC", 0.2))
+                                            usageFactorPV=building["buildingFeatures"].get("f_PV", 0.6),
+                                            usageFactorSTC=building["buildingFeatures"].get("f_STC", 0.3)
+                                            )
 
                 # optionally save generation profiles
                 if saveGenerationProfiles == True:
