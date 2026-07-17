@@ -1304,7 +1304,7 @@ class Datahandler:
 
         # Check if district uses central energy supply (heat grid)
         has_heat_grid = any(
-            building["buildingFeatures"]["heater"] == "heat_grid" or building["buildingFeatures"]["heater"] == "heat_grid_SH"
+            building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_SH", "heat_grid_DHWB")
             for building in self.district)
 
         if has_heat_grid:
@@ -2307,7 +2307,7 @@ class Datahandler:
         # only get the position of buildings connected to the heat grid
         buildings_info = []
         for building in self.district:
-            if building["buildingFeatures"]["heater"] == "heat_grid" or building["buildingFeatures"]["heater"] == "heat_grid_SH":
+            if building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_SH", "heat_grid_DHWB"):
                 pos = building["buildingFeatures"]["position"]
                 building_dict = {"building": building["unique_name"],
                                  "position": pos}
@@ -2358,7 +2358,7 @@ class Datahandler:
         buildings_info = []
         i = 0
         for building in self.district:
-            if building["buildingFeatures"]["heater"] == "heat_grid" or building["buildingFeatures"]["heater"] == "heat_grid_SH":
+            if building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_SH", "heat_grid_DHWB"):
                 pos = building["buildingFeatures"]["position"]
                 building_dict = {"id": i,
                                  "building": building["unique_name"],

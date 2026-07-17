@@ -221,8 +221,14 @@ def build_model(model, data, devs, param, dem):
     ################################################################################
     model.constraints = pyo.ConstraintList()
 
+    network_model = str(data.heat_grid_data.get("network_model", "2leiter")).lower()
+    is_5g_fixed = network_model == "5g_fixed"
+    rev_cool_cap_ratio = 1.0    #Todo: erstmal nur provisorisch hier lokal hinterlegt
+
     # Add capacity constraints for all devices as specified in devs
     for dev in model.all_devs:
+        if is_5g_fixed and dev == "CC":
+            continue
         if not devs[dev]["feasible"]:  # if device is not feasible, set capacity to 0
             model.constraints.add(model.cap[dev] == 0)
         else:
@@ -232,6 +238,9 @@ def build_model(model, data, devs, param, dem):
             max_cap = devs[dev].get("max_cap")
             if min_cap is not None: model.constraints.add(model.cap[dev] >= min_cap)
             if max_cap is not None: model.constraints.add(model.cap[dev] <= max_cap)
+
+    if is_5g_fixed:
+        model.constraints.add(model.cap["CC"] == rev_cool_cap_ratio * model.cap["HP"])  # CC ist nur noch der interne Kühlmodus der reversiblen HP
 
     # Set area constraints for devices that require area as specified in devs
     for dev in model.area_devs:
@@ -260,6 +269,9 @@ def build_model(model, data, devs, param, dem):
                 model.constraints.add(model.power["to_grid", y, d, t] <= model.grid_limit_el)
                 model.constraints.add(model.gas["from_grid", y, d, t] <= model.grid_limit_gas)
                 model.constraints.add(model.gas["to_grid", y, d, t] <= model.grid_limit_gas)
+
+                if is_5g_fixed:
+                    model.constraints.add(model.heat["HP", y, d, t] + model.cool["CC", y, d, t] / rev_cool_cap_ratio <= model.cap["HP"])
 
     # Correlation to translate area to capacity for PV and STC
     model.constraints.add(model.cap["PV"] == model.area["PV"] * devs["PV"]["G_stc"] * devs["PV"]["eta"])
@@ -625,12 +637,23 @@ def build_model(model, data, devs, param, dem):
 
     # Investment and operational costs for each device (Annualized)
     for dev in model.all_devs:
+        if is_5g_fixed and dev == "CC":     #da durch reversible HP bereits abgedeckt
+            model.constraints.add(model.inv[dev] == 0)
+            model.constraints.add(model.inv_base[dev] == 0)
+            model.constraints.add(model.c_inv[dev] == 0)
+            model.constraints.add(model.c_inv_base[dev] == 0)
+            model.constraints.add(model.c_om[dev] == 0)
+            model.constraints.add(model.c_total[dev] == 0)
+            continue
+
         model.constraints.add(model.inv[dev] == devs[dev]["inv_var"] * model.cap[dev])  # investment costs
         model.constraints.add(model.inv_base[dev] == devs[dev]["inv_base"] * model.cap[dev])  # unsubsidized investment costs
         model.constraints.add(model.c_inv[dev] == model.inv[dev] * devs[dev]["ann_factor"])  # annualized investment costs
         model.constraints.add(model.c_inv_base[dev] == model.inv_base[dev] * devs[dev]["ann_factor"])  # unsubsidized annualized investment costs
         model.constraints.add(model.c_om[dev] == devs[dev]["cost_om"] * model.inv_base[dev])  # operation and maintenance costs. Use the unsubsidized costs for O&M calculation
         model.constraints.add(model.c_total[dev] == model.c_inv[dev] + model.c_om[dev])  # total annualized costs for investment and O&M
+
+
 
     # Combined total annualized investment and O&M costs for all devices
     model.constraints.add(model.total_annual_costs_devices == sum(model.c_total[dev] for dev in model.all_devs))

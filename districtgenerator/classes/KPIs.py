@@ -415,7 +415,7 @@ class KPIs:
                 }
 
             # Low-temperature measures for heat-grid buildings
-            if ((district[n]["buildingFeatures"]["heater"] == "heat_grid" or district[n]["buildingFeatures"]["heater"] == "heat_grid_SH") and district[n]["envelope"].heating_curve["clustered"]["low_temp_measures_binding"] == True and bool(data.heat_grid_data.get("enable_low_temp_measures"))):
+            if ((district[n]["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_SH", "heat_grid_DHWB")) and district[n]["envelope"].heating_curve["clustered"]["low_temp_measures_binding"] == True and bool(data.heat_grid_data.get("enable_low_temp_measures"))):
                 heatload_kw = district[n]["envelope"].heatload / 1000
                 inv_eur_per_kw = data.heat_grid_data["low_temp_measures_inv_fix"]
                 inv_total = inv_eur_per_kw * heatload_kw
@@ -494,17 +494,45 @@ class KPIs:
                     }
 
             # Add heat grid costs if available
-            if hasattr(data, 'heat_grid_data') and data.heat_grid_data:
-                heat_grid_ann_cost = data.heat_grid_data.get("ann_costs", 0)
-                heat_grid_om_cost = data.heat_grid_data.get("om_costs", 0)
-                heat_grid_total_cost = data.heat_grid_data.get("costs", 0)
+            #if hasattr(data, 'heat_grid_data') and data.heat_grid_data:
+            #    heat_grid_ann_cost = data.heat_grid_data.get("ann_costs", 0)
+            #    heat_grid_om_cost = data.heat_grid_data.get("om_costs", 0)
+            #    heat_grid_total_cost = data.heat_grid_data.get("costs", 0)
 
                 # Only add if costs exist
-                if heat_grid_total_cost > 0 or (heat_grid_ann_cost + heat_grid_om_cost) > 0:
+            #    if heat_grid_total_cost > 0 or (heat_grid_ann_cost + heat_grid_om_cost) > 0:
+            #        self.central_individual_devices_annualized_cost["Heat_Grid"] = {
+            #            "cap": '',  # Use total investment cost as "capacity" indicator
+            #            "subsidized_annual_cost": heat_grid_ann_cost + heat_grid_om_cost,
+            #            "unsubsidized_annual_cost": heat_grid_ann_cost + heat_grid_om_cost  # Same for heat grid (no subsidies)
+            #        }
+
+            if hasattr(data, "heat_grid_data") and data.heat_grid_data:
+                heat_grid_ann_cost = float(data.heat_grid_data.get("ann_costs", 0.0))
+                heat_grid_om_cost = float(data.heat_grid_data.get("om_costs", 0.0))
+
+                hp_5g_capacity = float(data.heat_grid_data.get("HP_5G_capacity", 0.0))
+                hp_5g_ann_cost = float(data.heat_grid_data.get("HP_5G_ann_costs", 0.0))
+                hp_5g_om_cost = float(data.heat_grid_data.get("HP_5G_om_costs", 0.0))
+
+                heat_grid_total_cost = heat_grid_ann_cost + heat_grid_om_cost
+                hp_5g_total_cost = hp_5g_ann_cost + hp_5g_om_cost
+
+                # HP_5G costs are already included in heat_grid_total_cost.
+                heat_grid_without_hp_5g = max(heat_grid_total_cost - hp_5g_total_cost, 0.0)
+
+                if heat_grid_without_hp_5g > 0.0:
                     self.central_individual_devices_annualized_cost["Heat_Grid"] = {
-                        "cap": '',  # Use total investment cost as "capacity" indicator
-                        "subsidized_annual_cost": heat_grid_ann_cost + heat_grid_om_cost,
-                        "unsubsidized_annual_cost": heat_grid_ann_cost + heat_grid_om_cost  # Same for heat grid (no subsidies)
+                        "cap": "",
+                        "subsidized_annual_cost": heat_grid_without_hp_5g,
+                        "unsubsidized_annual_cost": heat_grid_without_hp_5g
+                    }
+
+                if hp_5g_capacity > 0.0 or hp_5g_total_cost > 0.0:
+                    self.central_individual_devices_annualized_cost["HP_5G"] = {
+                        "cap": hp_5g_capacity,
+                        "subsidized_annual_cost": hp_5g_total_cost,
+                        "unsubsidized_annual_cost": hp_5g_total_cost
                     }
 
         except KeyError:
@@ -824,7 +852,7 @@ class KPIs:
                             share_heat = (Q_kWh * price_dh) / (Q_kWh * price_dh + E_kWh * price_el + 1e-9)
                             fuel_cost_heat += cw * share_heat * fuel_input * price_h2
 
-                    if heater_type in ["HP", "BHP", "OHP", "H2HP", "GHP", "EH", "EWH", "heat_grid_SH"]:
+                    if heater_type in ["HP", "BHP", "OHP", "H2HP", "GHP", "EH", "EWH", "heat_grid_SH", "heat_grid_DHWB"]:
                         el_heat_from_grid_cluster = 0.0
                         for t in range(T):
                             hp_t = res.get("HP", {}).get("P_el", [0] * T)[t]
@@ -906,6 +934,10 @@ class KPIs:
                     Q_total_eh += Q_building
                 elif heater == "heat_grid_SH":
                     Q_building = np.sum(data.district[n]["user"].heat) * dt / 3600 / 1000
+                    Q_total_eh += Q_building
+                elif heater == "heat_grid_DHWB":
+                    grid_heat_profile = np.asarray(data.district[n]["user"].net_building_demand, dtype=float)
+                    Q_building = np.sum(grid_heat_profile) * dt / 3600.0
                     Q_total_eh += Q_building
 
             fuel_cost_heat = 0.0

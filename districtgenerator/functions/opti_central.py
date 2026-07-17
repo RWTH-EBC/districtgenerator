@@ -128,6 +128,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     network_model = str(heatingNetworkData.get("network_model", "2leiter")).lower()
     is_5g_fixed = network_model == "5g_fixed"
+    rev_cool_cap_ratio = 1.0   #Todo: provisorisch noch hier hinterlegt
 
     ################################################################################
     # Setting up the model
@@ -290,6 +291,21 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     def heater_type(n):
         return str(buildingData[n]["buildingFeatures"].get("heater", "")).strip()
+
+    has_dhwb = any(heater_type(n) == "heat_grid_DHWB" for n in range(nbuildings))
+
+    if has_dhwb:
+        profile_key = "dhw_grid_fraction_cluster"
+
+        if profile_key not in heatingNetworkData:
+            raise KeyError(
+                "Missing heat-grid profile "
+                "'dhw_grid_fraction_cluster' for heat_grid_DHWB."
+            )
+        dhw_grid_fraction = np.asarray(heatingNetworkData[profile_key][cluster], dtype=float)
+
+    else:
+        dhw_grid_fraction = np.zeros(len(T_e), dtype=float)
 
     ################################################################################
     # CREATE SETS
@@ -639,6 +655,16 @@ def build_model(model, data, year, cluster, sim_ecoData):
         constraint_rule_soc_max = create_eh_storage_soc_max_constraint(device)
         setattr(model, f"eh_storage_soc_max_{device}", pyo.Constraint(model.t, rule=constraint_rule_soc_max))
 
+    def eh_reversible_hp_capacity_rule(model, t):
+
+        if not is_5g_fixed:
+            return pyo.Constraint.Skip
+
+        cap_hp_w = energyHubData["capacities"]["HP"]["cap"] * 1000.0
+
+        return model.eh_heat_HP[t] + model.eh_cool_CC[t] / rev_cool_cap_ratio <= cap_hp_w
+
+    model.eh_reversible_hp_capacity = pyo.Constraint(model.t, rule=eh_reversible_hp_capacity_rule)
     model.eh_stc_generation = pyo.Constraint(model.t, rule=eh_stc_generation_rule)
     model.eh_pv_generation = pyo.Constraint(model.t, rule=eh_pv_generation_rule)
     model.eh_wt_generation = pyo.Constraint(model.t, rule=eh_wt_generation_rule)
@@ -659,13 +685,14 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     def ewh_capacity_rule(model, n, t):
         """
-        Electric water heater is only allowed to provide decentralized DHW
-        for heat_grid_SH buildings.
+        Electric water heater provides:
+            - complete decentralized DHW for heat_grid_SH
+            - only the required DHW booster heat for heat_grid_DHWB
         """
 
         cap_ewh = float(buildingData[n]["capacities"].get("EWH", 0.0))
 
-        if heater_type(n) != "heat_grid_SH":
+        if heater_type(n) not in ("heat_grid_SH", "heat_grid_DHWB"):
             return model.heat_dom_DHW["EWH", n, t] == 0.0
 
         return model.heat_dom_DHW["EWH", n, t] <= cap_ewh
@@ -749,12 +776,36 @@ def build_model(model, data, year, cluster, sim_ecoData):
     def heat_grid_capacity_rule(model, n, t):
         heater = heater_type(n)
 
-        if heater == "heat_grid":
+        if heater in ("heat_grid", "heat_grid_DHWB"):
             return pyo.Constraint.Skip
         elif heater == "heat_grid_SH":
             return model.heat_dom_DHW["heat_grid", n, t] == 0
         else:
             return (model.heat_dom_SH["heat_grid", n, t] + model.heat_dom_DHW["heat_grid", n, t] == 0) # if no local heat grid connection, no heat can be used
+
+
+    def dhwb_grid_dhw_rule(model, n, t):
+        if heater_type(n) != "heat_grid_DHWB":
+            return pyo.Constraint.Skip
+
+        grid_fraction = float(dhw_grid_fraction[t])
+        dhw_demand = float(Q_DHW[n][t])
+
+        return (model.heat_dom_DHW["heat_grid", n, t] == dhw_demand * grid_fraction)
+
+
+    def dhwb_booster_dhw_rule(model, n, t):
+        if heater_type(n) != "heat_grid_DHWB":
+            return pyo.Constraint.Skip
+
+        booster_fraction = 1.0 - float(dhw_grid_fraction[t])
+        dhw_demand = float(Q_DHW[n][t])
+
+        return (model.heat_dom_DHW["EWH", n, t] == dhw_demand * booster_fraction)
+
+
+
+
 
     def cool_grid_capacity_rule(model, n, t):
         if is_5g_fixed and heater_type(n) == "heat_grid":
@@ -793,6 +844,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.pv_capacity = pyo.Constraint(model.n, model.t, rule=pv_capacity_rule, doc="PV electrical generation limit")
     model.heat_grid_capacity = pyo.Constraint(model.n, model.t, rule=heat_grid_capacity_rule, doc="Local heat grid capacity constraint")
     model.cool_grid_capacity = pyo.Constraint(model.n, model.t, rule=cool_grid_capacity_rule, doc="Local 5G cooling grid capacity constraint")
+    model.dhwb_grid_dhw = pyo.Constraint(model.n, model.t, rule=dhwb_grid_dhw_rule)
+    model.dhwb_booster_dhw = pyo.Constraint(model.n, model.t, rule=dhwb_booster_dhw_rule)
 
     ################################################################################
     # Energy Conversion for Energyhub devices
@@ -1755,6 +1808,9 @@ def solve_model_and_extract_results(model, data, year, cluster):
     results_dict["P_pump"] = []
     results_dict["P_eh_from_grid"] = []
     results_dict["P_eh_to_grid"] = []
+    results_dict["P_decentral_HP_5G"] = []
+
+
 
     for t in time_steps:
         results_dict["P_dem_total"].append(round(pyo.value(model.residual_power[t]), 0))
@@ -1773,6 +1829,7 @@ def solve_model_and_extract_results(model, data, year, cluster):
         results_dict["P_network_demand_heating"].append(round(pyo.value(model.heat_grid_demand[t]), 0))
         results_dict["P_network_demand_cooling"].append(round(pyo.value(model.cool_grid_demand[t]), 0))
         results_dict["P_pump"].append(round(pyo.value(model.network_pump_power[t]), 0))
+        results_dict["P_decentral_HP_5G"].append(round(pyo.value(model.decentral_hp_power_5g[t]), 0))
         results_dict["P_eh_from_grid"].append(round(pyo.value(model.eh_power_from_grid[t]), 0))
         results_dict["P_eh_to_grid"].append(round(pyo.value(model.eh_power_to_grid[t]), 0))
 
@@ -2024,7 +2081,7 @@ def get_profiles_eh(results_dict: dict, data = None) -> pd.DataFrame:
     """
 
     power_producers = ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "FC"]
-    power_consumers = ["HP", "GroundHP", "EB", "CC", "ELYZ"]
+    power_consumers = ["HP", "GroundHP", "EB", "CC", "ELYZ", "HP_5G"]
     power_storage = ["BAT"]
 
     heat_producers = ["STC", "HP", "GroundHP", "EB", "CHP", "BOI", "GHP","BCHP", "BBOI", "WCHP", "WBOI", "FC"]
@@ -2059,6 +2116,7 @@ def get_profiles_eh(results_dict: dict, data = None) -> pd.DataFrame:
             eh_df[f"Power_kW_{dev}"] = to_kw([d - c for d, c in zip(results_dict["eh_dch"][dev], results_dict["eh_ch"][dev])])
 
     add_column("Power_kW_network_pump", to_kw([-1 * abs(x) for x in results_dict["P_pump"]]))
+    add_column("Power_kW_HP_5G", to_kw([-1 * abs(x) for x in results_dict.get("P_decentral_HP_5G", [])]))
     # EH grid exchange is tracked separately from the neighborhood totals.
     eh_demand_from_grid = to_kw([abs(x) for x in results_dict["P_eh_from_grid"]]) # Import from grid acts as a generation in the EH as it provides power to the EH devices
     eh_export_to_grid = to_kw([-1 * abs(x) for x in results_dict["P_eh_to_grid"]])

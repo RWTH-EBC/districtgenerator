@@ -36,7 +36,7 @@ def load_params(data):
 
 
     # Detect network model
-    network_model = heat_grid_data.get("network_model", "2leiter")
+    network_model = str(heat_grid_data.get("network_model", "2leiter")).lower()
     is_5g_fixed = network_model == "5g_fixed"
     is_2leiter = not is_5g_fixed
 
@@ -85,17 +85,7 @@ def load_params(data):
 
     if is_5g_fixed:
 
-        # Positive net_thermal_balance_5g: buildings extract heat from the 5G network
-        # Negative net_thermal_balance_5g: buildings eject heat into the 5G network
-
-        net_thermal_balance_5g = _as_ehdo_profile(heat_grid_data["net_thermal_balance_5g"],"net_thermal_balance_5g")
-        network_total_exchange_5g = _as_ehdo_profile(heat_grid_data.get("network_total_exchange_5g", np.zeros(T_len, dtype=float)),"network_total_exchange_5g")
-
-        # Positive: EH must supply heat to the 5G network.
-        # Negative: EH must remove / reject heat from the 5G network.
-        eh_residual_thermal_5g = (net_thermal_balance_5g + network_total_exchange_5g)
-
-        data.heat_grid_data["eh_residual_thermal_5g"] = eh_residual_thermal_5g
+        eh_residual_thermal_5g = np.asarray(heat_grid_data["eh_residual_thermal_5g"], dtype=float)
 
         heating_total = np.maximum(eh_residual_thermal_5g, 0.0)
         cooling_total = np.maximum(-eh_residual_thermal_5g, 0.0)
@@ -105,14 +95,14 @@ def load_params(data):
 
         # Optional decentralized HP electricity.
         # Keep default False if EHDO should only account for central EH electricity.
-        include_decentral_hp_el = bool(heat_grid_data.get("include_decentral_HP_el_in_EHDO", False))
+        #include_decentral_hp_el = bool(heat_grid_data.get("include_decentral_HP_el_in_EHDO", False))
 
-        if include_decentral_hp_el:
-            decentral_hp_power = _as_ehdo_profile(heat_grid_data.get("net_decentral_HP_el_5g", np.zeros(T_len, dtype=float)),"net_decentral_HP_el_5g")
-        else:
-            decentral_hp_power = np.zeros(T_len, dtype=float)
+        #if include_decentral_hp_el:
+        #    decentral_hp_power = _as_ehdo_profile(heat_grid_data.get("net_decentral_HP_el_5g", np.zeros(T_len, dtype=float)),"net_decentral_HP_el_5g")
+        #else:
+        #    decentral_hp_power = np.zeros(T_len, dtype=float)
 
-        electricity_total = pump_power + decentral_hp_power
+        electricity_total = pump_power #+ decentral_hp_power
 
         # Use old EHDO temperature names as aliases.
         #     T_supply_EH = warm rail
@@ -124,8 +114,8 @@ def load_params(data):
         data.heat_grid_data["T_supply_EH"] = param_uncl["T_supply_EH"]
         data.heat_grid_data["T_return_EH"] = param_uncl["T_return_EH"]
 
-        data.heat_grid_data["total_losses_heating_network"] = np.maximum(network_total_exchange_5g, 0.0)
-        data.heat_grid_data["total_losses_cooling_network"] = np.maximum(-network_total_exchange_5g, 0.0)
+        data.heat_grid_data["total_losses_heating_network"] = np.maximum(data.heat_grid_data["network_total_exchange_5g"], 0.0)
+        data.heat_grid_data["total_losses_cooling_network"] = np.maximum(-data.heat_grid_data["network_total_exchange_5g"], 0.0)
 
 
     else:
@@ -143,7 +133,7 @@ def load_params(data):
         for b in range(len(data.district)):
             # Only relevant if buildings are connected to the heat grid
             heater = data.district[b]["buildingFeatures"]["heater"]
-            if heater == "heat_grid" or heater == "heat_grid_SH":
+            if heater in ("heat_grid", "heat_grid_SH", "heat_grid_DHWB"):
                 local_heat = data.district[b]["user"].heat / 1000
                 local_dhw = data.district[b]["user"].dhw / 1000
                 local_stc = data.district[b]["generationSTC"] / 1000
@@ -174,8 +164,13 @@ def load_params(data):
         # todo: here we ignore the buildings electricity demands
         electricity_total = pump_power #+ electricityAppliances + electricityEV - generationPV
 
-        param_uncl["T_supply_EH"] = data.heat_grid_data["T_supply_EH"]
-        param_uncl["T_return_EH"] = data.heat_grid_data["T_return_EH"]
+        if is_5g_fixed:
+            param_uncl["T_supply_EH"] = np.asarray(heat_grid_data["T_warm_fixed_5g"], dtype=float)
+            param_uncl["T_return_EH"] = np.asarray(heat_grid_data["T_cold_fixed_5g"], dtype=float)
+
+        else:
+            param_uncl["T_supply_EH"] = np.asarray(heat_grid_data["T_supply_EH"], dtype=float)
+            param_uncl["T_return_EH"] = np.asarray(heat_grid_data["T_return_EH"], dtype=float)
 
     dem_uncl["heat"] = heating_total
     dem_uncl["cool"] = cooling_total
@@ -267,9 +262,17 @@ def load_params(data):
     heat_grid["T_hot_heating_network"] = clustered_series[7]     # °C
     heat_grid["T_cold_heating_network"] = clustered_series[8]    # °C
 
+    is_reversible_central_HP_5g = True      #Todo: Provisorisch hier nur lokal gesetzt
+
     if is_5g_fixed:
         heat_grid["T_warm_5g"] = clustered_series[7]
         heat_grid["T_cold_5g"] = clustered_series[8]
+
+        if is_reversible_central_HP_5g:
+            heat_grid["T_hot_cooling_network"] = clustered_series[7]
+            heat_grid["T_cold_cooling_network"] = clustered_series[8]
+
+
 
     all_models = {}
     for key, value in central_device_data.items():
@@ -577,6 +580,18 @@ def load_params(data):
         # COP for each support year (same values for all years since weather is constant)
         COP_base = np.ones((data.time["clusterNumber"], clusterHorizon)) * all_models["CC"]["COP"]
         devs["CC"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
+
+    if is_reversible_central_HP_5g:
+        if not devs["HP"]["feasible"]:
+            raise ValueError(
+                "The reversible central 5G heat pump requires "
+                "the central HP to be feasible."
+            )
+
+    # The existing CC COP is used as the EER of the HP cooling mode       #Todo: Prüfen: realistisch?
+    devs["HP"]["COP_cooling"] = copy.deepcopy(
+        devs["CC"]["COP"]
+    )
 
     # Absorption chiller
     devs["AC"] = {

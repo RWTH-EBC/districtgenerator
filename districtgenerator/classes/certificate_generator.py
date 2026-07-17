@@ -3561,6 +3561,7 @@ class DataExtractor(ReportComponent):
                 })
 
             all_cost_devices = set(self.kpis.central_individual_devices_annualized_cost.keys())
+            all_cost_devices.discard("HP_5G")
 
             # Iterate through all feasible devices
             for dev, config in central_configs.items():
@@ -3603,19 +3604,44 @@ class DataExtractor(ReportComponent):
 
             # Add all devices that are in the cost breakdown but not in the feasible central device data
             for dev in all_cost_devices:
-                cost = round(self.kpis.central_individual_devices_annualized_cost[dev]['subsidized_annual_cost'], 2)
-                if cost == 0:
-                    continue  # Skip devices that have zero cost
-                elif cost > 0:
-                    cost_unit = " €/a"
+                #cost = round(self.kpis.central_individual_devices_annualized_cost[dev]['subsidized_annual_cost'], 2)
+                #if cost == 0:
+                #    continue  # Skip devices that have zero cost
+                #elif cost > 0:
+                #    cost_unit = " €/a"
 
+                #name, base_unit = self.get_central_device_name(dev)
+                #cap = 0
+                #display_cap, display_unit = self._determine_unit(cap=cap * 1000,
+                #                                                 base_unit=base_unit)  # Convert kW to W for unit determination
+
+                #if display_cap <= 0:
+                #    display_cap = "-"
+
+                device_cost_info = self.kpis.central_individual_devices_annualized_cost[dev]
+
+                cost = round(device_cost_info["subsidized_annual_cost"], 2)
+                cap_raw = device_cost_info.get("cap", 0.0)
+
+                if cap_raw in ("", None):
+                    cap = 0.0
+                else:
+                    cap = float(cap_raw)
+
+                if cost == 0.0 and cap <= 0.0:
+                    continue
+
+                cost_unit = " €/a"
                 name, base_unit = self.get_central_device_name(dev)
-                cap = 0
-                display_cap, display_unit = self._determine_unit(cap=cap * 1000,
-                                                                 base_unit=base_unit)  # Convert kW to W for unit determination
 
-                if display_cap <= 0:
+                display_cap, display_unit = self._determine_unit(
+                    cap=cap * 1000.0,
+                    base_unit=base_unit
+                )
+
+                if cap <= 0.0:
                     display_cap = "-"
+                    display_unit = ""
 
                 append_energyhub_row(
                     device_name=name,
@@ -3679,6 +3705,23 @@ class DataExtractor(ReportComponent):
 
                     aggregated_data[dev_name]["total_cap"] += cap_float
                     aggregated_data[dev_name]["total_cost"] += cost_float
+
+
+            # Add decentralized 5G heat pumps.
+            hp_5g_info = self.kpis.central_individual_devices_annualized_cost.get("HP_5G")
+
+            if hp_5g_info is not None:
+                hp_5g_capacity = float(hp_5g_info.get("cap", 0.0))
+                hp_5g_cost = float(hp_5g_info.get("subsidized_annual_cost", 0.0))
+
+                hp_5g_count = sum(1 for building in self.data.district if building["buildingFeatures"].get("heater") == "heat_grid")
+
+                if hp_5g_capacity > 0.0 or hp_5g_cost > 0.0:
+                    aggregated_data["HP_5G"] = {
+                        "count": hp_5g_count,
+                        "total_cap": hp_5g_capacity,
+                        "total_cost": hp_5g_cost
+                    }
 
             device_list = []
 
@@ -3854,7 +3897,8 @@ class DataExtractor(ReportComponent):
             "CC": "W<sub>th</sub>",
             "AirCC": "W<sub>th</sub>",
             "AC": "W<sub>th</sub>",
-            "Heat_Grid": "W<sub>th</sub>"
+            "Heat_Grid": "W<sub>th</sub>",
+            "HP_5G": "W<sub>th</sub>"
         }
 
         name = self.translate(f"device_{dev}")
@@ -3879,6 +3923,7 @@ class DataExtractor(ReportComponent):
             "STC": "m²",
             "PV": "m²",
             "HP": "W<sub>th</sub>",
+            "HP_5G": "W<sub>th</sub>",
             "HP35": "W<sub>th</sub>",
             "HP55": "W<sub>th</sub>",
             "EH": "W<sub>th</sub>",

@@ -82,10 +82,13 @@ def network_5G(data, compute_costs=True, save_debug=True):
     # 8) Calculate pipe heat losses from network-level temperatures
     data, param = calc_heat_loss_pipe_5g_fixed(data, param)
 
-    # 9) Pump power
+    # 9) Calculate signed residual thermal demand at the Energy Hub
+    data, param = compute_eh_residual_thermal_5g(data, param)
+
+    # 10) Pump power
     data, param = compute_pump_power_5g_fixed(data, param)
 
-    # 10) Plot network results
+    # 11) Plot network results
     plot_network_results_5g_fixed(data, param)
 
     if save_debug:
@@ -503,6 +506,15 @@ def load_parameter_5g_fixed(data):
     net_thermal_balance_5g = np.zeros(T_len, dtype=float)
 
     net_decentral_HP_el = np.zeros(T_len, dtype=float)
+
+
+    invalid_5g_heaters = [building["buildingFeatures"]["heater"] for building in data.district if building["buildingFeatures"]["heater"] in ("heat_grid_SH", "heat_grid_DHWB")]
+
+    if invalid_5g_heaters:
+        raise ValueError(
+            "The 5G network model only supports heater='heat_grid'. "
+            "heat_grid_SH and heat_grid_DHWB belong to the conventional models."
+        )
 
 
     # ------------------------------------------------------------------
@@ -1373,6 +1385,25 @@ def calc_heat_loss_pipe_5g_fixed(data, param):
     return data, param
 
 
+def compute_eh_residual_thermal_5g(data, param):
+    """
+    Calculate the signed thermal demand at the 5G Energy Hub
+    positive: Energy Hub must supply heat to the 5G network
+    negative: Energy Hub must remove heat from the 5G network
+    """
+
+    net_thermal_balance_5g = np.asarray(param["net_thermal_balance_5g"], dtype=float)
+    network_total_exchange_5g = np.asarray(param["network_total_exchange_5g"], dtype=float)
+    eh_residual_thermal_5g = net_thermal_balance_5g + network_total_exchange_5g
+
+
+    param["eh_residual_thermal_5g"] = eh_residual_thermal_5g
+    data.heat_grid_data["eh_residual_thermal_5g"] = eh_residual_thermal_5g
+
+    return data, param
+
+
+
 
 def compute_pump_power_5g_fixed(data, param):
     """
@@ -1933,6 +1964,10 @@ def compute_and_save_network_costs_5g_fixed(data, param):
     # Substation costs
     # ------------------------------------------------------------------
     C_substations = 0.0
+    hp_5g_capacity_total = 0.0
+
+    h_loss_subst = float(data.heat_grid_data.get("h_loss_subst", 0.0))
+    hp_5g_safety_factor = float(data.heat_grid_data.get("HP_5G_safety_factor", 1.0))
 
     for building in buildings_connected:
 
@@ -1940,6 +1975,9 @@ def compute_and_save_network_costs_5g_fixed(data, param):
                 building["bes_obj"].design_load_heating / 1000.0
                 + building["bes_obj"].design_load_dhw / 1000.0
         )  # kW
+
+        hp_5g_capacity = heat_cap * (1.0 + h_loss_subst / 100.0) * hp_5g_safety_factor
+        hp_5g_capacity_total += hp_5g_capacity
 
         cooling_profile = getattr(
             building["user"],
@@ -1963,6 +2001,23 @@ def compute_and_save_network_costs_5g_fixed(data, param):
             len(buildings_connected)
             * data.heat_grid_data["cost_om_subst"]
     )
+
+    # ------------------------------------------------------------------
+    # Decentralized 5G heat-pump costs
+    # ------------------------------------------------------------------
+    hp_data = data.decentral_device_data["HP"]
+
+    inv_hp_5g_subsidized = hp_5g_capacity_total * hp_data["inv_var"]
+    inv_hp_5g_unsubsidized = hp_5g_capacity_total * hp_data["inv_base"]
+
+    hp_5g_ann_factor = param.get(
+        "decentral_HP_ann_factor",
+        calc_annual_factor(data, hp_data["life_time"])
+    )
+
+    hp_5g_ann_costs = inv_hp_5g_subsidized * hp_5g_ann_factor
+    hp_5g_om_costs = inv_hp_5g_unsubsidized * hp_data.get("cost_om", 0.0)
+    hp_5g_om_costs += hp_5g_capacity_total * hp_data.get("cap_fee", 0.0)
 
     # ------------------------------------------------------------------
     # Pipe costs
@@ -2032,12 +2087,14 @@ def compute_and_save_network_costs_5g_fixed(data, param):
             pipes_om_costs
             + pump_om_costs
             + substation_om_costs
+            + hp_5g_om_costs
     )
 
     network_ann_costs = (
             pipes_ann_costs
             + pump_ann_costs
             + substation_ann_costs
+            + hp_5g_ann_costs
     )
 
     network_total_costs = (
@@ -2046,6 +2103,9 @@ def compute_and_save_network_costs_5g_fixed(data, param):
             + pump_electricity_costs
     )
 
+    data.heat_grid_data["HP_5G_capacity"] = hp_5g_capacity_total
+    data.heat_grid_data["HP_5G_ann_costs"] = hp_5g_ann_costs
+    data.heat_grid_data["HP_5G_om_costs"] = hp_5g_om_costs
     data.heat_grid_data["om_costs"] = network_om_costs
     data.heat_grid_data["ann_costs"] = network_ann_costs
     data.heat_grid_data["network_total_costs"] = network_total_costs
@@ -2054,6 +2114,8 @@ def compute_and_save_network_costs_5g_fixed(data, param):
     # Plot annual network cost stack
     # ------------------------------------------------------------------
     costs = {
+        "Annualized investment for decentralized 5G heat pumps": hp_5g_ann_costs,
+        "Operation and maintenance cost for decentralized 5G heat pumps": hp_5g_om_costs,
         "Annualized investment for substations": substation_ann_costs,
         "Operation and maintenance cost for substations": substation_om_costs,
         "Annualized investment for pipes": pipes_ann_costs,
@@ -2178,62 +2240,26 @@ def compute_and_save_network_costs_5g_fixed(data, param):
         np.sum(param.get("net_decentral_HP_el_5g", 0.0))
     )
 
-    network_total_exchange_5g = np.asarray(
-        param.get(
-            "network_total_exchange_5g",
-            np.zeros_like(T_soil, dtype=float)
-        ),
-        dtype=float
-    )
-
-    # Positive = EH must supply heat to the network.
-    # Negative = EH / recooling must remove heat from the network.
-    eh_residual_thermal_5g = (
-            np.asarray(
-                param.get(
-                    "net_thermal_balance_5g",
-                    np.zeros_like(T_soil, dtype=float)
-                ),
-                dtype=float
-            )
-            + network_total_exchange_5g
-    )
+    network_total_exchange_5g = np.asarray(param["network_total_exchange_5g"], dtype=float)
+    eh_residual_thermal_5g = np.asarray(param["eh_residual_thermal_5g"], dtype=float)
 
     data.heat_grid_data["eh_residual_thermal_5g"] = eh_residual_thermal_5g
     param["eh_residual_thermal_5g"] = eh_residual_thermal_5g
 
-    total_EH_heat_supply_5g = float(
-        np.sum(np.maximum(eh_residual_thermal_5g, 0.0))
-    )
+    total_EH_heat_supply_5g = float(np.sum(np.maximum(eh_residual_thermal_5g, 0.0)))
+    total_EH_heat_rejection_5g = float(np.sum(np.maximum(-eh_residual_thermal_5g, 0.0)))
+    total_building_exchange_5g = total_heat_extraction_5g+ total_heat_rejection_5g
 
-    total_EH_heat_rejection_5g = float(
-        np.sum(np.maximum(-eh_residual_thermal_5g, 0.0))
-    )
 
-    total_building_exchange_5g = (
-            total_heat_extraction_5g
-            + total_heat_rejection_5g
-    )
+    annual_heat_exchange_signed_5g = float(param.get("annual_heat_exchange_pipes_signed_5g", 0.0))
+    annual_heat_loss_pos_5g = float(param.get("annual_heat_loss_pos_5g", 0.0))
+    annual_heat_gain_pos_5g = float(param.get("annual_heat_gain_pos_5g", 0.0))
+    annual_warm_pipe_exchange_signed_5g = float(param.get("annual_warm_pipe_exchange_signed_5g", 0.0))
+    annual_cold_pipe_exchange_signed_5g = float(param.get("annual_cold_pipe_exchange_signed_5g", 0.0))
 
-    annual_heat_exchange_signed_5g = float(
-        param.get("annual_heat_exchange_pipes_signed_5g", 0.0)
-    )
-
-    annual_heat_loss_pos_5g = float(
-        param.get("annual_heat_loss_pos_5g", 0.0)
-    )
-
-    annual_heat_gain_pos_5g = float(
-        param.get("annual_heat_gain_pos_5g", 0.0)
-    )
-
-    annual_warm_pipe_exchange_signed_5g = float(
-        param.get("annual_warm_pipe_exchange_signed_5g", 0.0)
-    )
-
-    annual_cold_pipe_exchange_signed_5g = float(
-        param.get("annual_cold_pipe_exchange_signed_5g", 0.0)
-    )
+    data.heat_grid_data["HP_5G_capacity"] = float(hp_5g_capacity_total)
+    data.heat_grid_data["HP_5G_ann_costs"] = float(hp_5g_ann_costs)
+    data.heat_grid_data["HP_5G_om_costs"] = float(hp_5g_om_costs)
 
     # ------------------------------------------------------------------
     # JSON output
@@ -2447,6 +2473,21 @@ def compute_and_save_network_costs_5g_fixed(data, param):
             "value": float(network_total_costs),
             "unit": "€",
             "description": "Total annual network costs including pump electricity"
+        },
+        "decentral_HP_5G_capacity": {
+            "value": float(hp_5g_capacity_total),
+            "unit": "kW",
+            "description": "Total thermal capacity of decentralized 5G heat pumps"
+        },
+        "decentral_HP_5G_ann_costs": {
+            "value": float(hp_5g_ann_costs),
+            "unit": "€",
+            "description": "Annualized investment of decentralized 5G heat pumps"
+        },
+        "decentral_HP_5G_om_costs": {
+            "value": float(hp_5g_om_costs),
+            "unit": "€",
+            "description": "Annual O&M costs of decentralized 5G heat pumps"
         },
     }
 
