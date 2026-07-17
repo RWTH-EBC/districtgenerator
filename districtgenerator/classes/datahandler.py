@@ -982,10 +982,13 @@ class Datahandler:
                     print("No district geometry found — running simple heating network design.")
                     heating_network_simple.heating_network(self)
                 else:
-                    print("Generating and optimizing heating network...")
-                    self.generateNetwork(topology_option="node")
-                    self.prepareClusteringInputs()
-                    self.optimization_heatingnetwork()
+                    print("The districtgenerator currently does not support heating networks based on building positions — running simple heating network design.")
+                    heating_network_simple.heating_network(self)
+
+                    # print("Generating and optimizing heating network...")
+                    # self.generateNetwork(topology_option="node")
+                    # self.prepareClusteringInputs()
+                    # self.optimization_heatingnetwork()
 
             else: 
                 ts_length = len(self.district[0]["user"].heat)
