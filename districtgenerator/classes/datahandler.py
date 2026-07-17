@@ -1060,7 +1060,7 @@ class Datahandler:
         ax1.grid(True, alpha=0.3)
         plt.tight_layout()
         plt.savefig("Abwärmeprofil.pdf", format='pdf', dpi=300, bbox_inches='tight')
-        plt.show()
+        #plt.show()
 
 
     def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, topology_option="road", gen_cars=True):
@@ -2356,49 +2356,6 @@ def generate_industrial_profile(self, waste_heat_source, prod, timesteps, shift_
         }
         cold_curve = {}
 
-        def calculate_Q_max(i, j):
-            Q = 0       # initialize the waste heat Q with zero
-
-            # last iteration: the given stream is cooled down to T_collector_water_return + deltaT_pinch and Q is returned
-            if i == len(industry_data[loc]["Temperatur"])-1:
-                Q_stream = (industry_data[loc]["Temperatur"][i] - (T_collector_water_return + deltaT_pinch))/industry_data[loc]["CP"][j]
-                Q += Q_stream
-
-                hot_curve["T_hot"].append(industry_data[loc]["Temperatur"][i])
-                hot_curve["T_cold"].append(T_collector_water_return + deltaT_pinch)
-                hot_curve["CP"].append(industry_data[loc]["CP"][j])
-                hot_curve["Q"].append(Q_stream)
-
-                return Q
-
-            # if the temperature of the stream i+1 is lower than the minimum temperature for direct integration, the given stream is cooled down to T_collector_water_return + deltaT_pinch and Q is returned
-            if (industry_data[loc]["Temperatur"][i+1] < T_collector_water_return + deltaT_pinch):
-                Q_stream = (industry_data[loc]["Temperatur"][i]- (T_collector_water_return + deltaT_pinch))/industry_data[loc]["CP"][j]
-                Q += Q_stream
-
-                hot_curve["T_hot"].append(industry_data[loc]["Temperatur"][i])
-                hot_curve["T_cold"].append(T_collector_water_return + deltaT_pinch)
-                hot_curve["CP"].append(industry_data[loc]["CP"][j])
-                hot_curve["Q"].append(Q_stream)
-
-                return Q
-
-            # in every other case, the stream can be cooled to T[i+1] and calculate_Q_max is called recursively
-            else:
-                Q_stream = (industry_data[loc]["Temperatur"][i]- industry_data[loc]["Temperatur"][i+1])/industry_data[loc]["CP"][j]
-                Q+= Q_stream
-
-                hot_curve["T_hot"].append(industry_data[loc]["Temperatur"][i])
-                hot_curve["T_cold"].append(industry_data[loc]["Temperatur"][i+1])
-                hot_curve["CP"].append(industry_data[loc]["CP"][j])
-                hot_curve["Q"].append(Q_stream)
-
-                if industry_data[loc]["CP"][j] <= industry_data[loc]["CP"][i+1]:
-                    Q += calculate_Q_max(i+1, j)
-                else:
-                    Q += calculate_Q_max(i+1, i+1)
-
-            return Q
 
         # corrected implementation of the composite curve calculation:
         # in temperature intervals with multiple overlapping waste heat streams,
@@ -2409,7 +2366,6 @@ def generate_industrial_profile(self, waste_heat_source, prod, timesteps, shift_
             Q = 0    # initialize the waste heat Q with zero
 
             x = industry_data[loc]["Temperatur"]
-            print(x)
             for i in range(len(x)):
                 if i < len(x)-1:
                     if x[i+1] >= T_collector_water_return + deltaT_pinch:
@@ -2425,7 +2381,6 @@ def generate_industrial_profile(self, waste_heat_source, prod, timesteps, shift_
 
             hot_curve["Q"] = np.zeros_like(hot_curve["T_hot"])
             hot_curve["CP"] = np.zeros_like(hot_curve["T_hot"])
-            print(hot_curve["T_hot"], hot_curve["T_cold"])
 
             for i in range(len(hot_curve["Q"])):
                 for j in range(len(hot_curve["Q"])):
@@ -2442,8 +2397,6 @@ def generate_industrial_profile(self, waste_heat_source, prod, timesteps, shift_
                     hot_curve["CP"][i] = (hot_curve["T_hot"][i]-hot_curve["T_cold"][i])/hot_curve["Q"][i]
             return Q
 
-
-        #Q = calculate_Q_max(0, 0)
         Q = calculate_Q_max_new()
 
 
@@ -2539,7 +2492,7 @@ def generate_industrial_profile(self, waste_heat_source, prod, timesteps, shift_
             #plt.gca().set_xticklabels([])  # X-Achse ohne Zahlen
             #plt.gca().set_yticklabels([])  # Y-Achse ohne Zahlen
             plt.savefig("abbildung.pdf", format='pdf', dpi=300, bbox_inches='tight')
-            plt.show()
+            #plt.show()
 
         # remove "#" to plot composite curve of each industrial plant
         #plot_composite_curves(hot_curve, cold_curve)
@@ -2594,13 +2547,6 @@ def generate_industrial_profile(self, waste_heat_source, prod, timesteps, shift_
 
     # Hochrechnung
     waste_heat_annual = m * prod
-
-#    from collections import Counter
-#    count = []
-#    for i in industry_data:
-#        count.append(industry_data[i]["Schichtmodell"])
-#    max_count = Counter(count).most_common(1)[0][0]
-#    print(max_count, count)
 
     ### calculate waste heat profile based on early waste heat amount and shift type ###
     waste_heat_profile = []

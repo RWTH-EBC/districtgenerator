@@ -69,7 +69,7 @@ def network_optimization(data):
     f_init = float(data.heat_grid_data["pipe"]["f_fric"])
 
     # Set maximum iteration count
-    max_iter = 4
+    max_iter = 30
     tol = 5e-4
     converged = False
 
@@ -774,6 +774,7 @@ def calc_flow(data, param, heat_loss_pipe=None, heat_loss_pipe_cluster=None, sav
 
     return data, param
 
+### ALL changes to optimization_diameter can be discarded ###
 def optimization_diameter(data, param):
     """
     Optimize the diameter of each pipeline segments.
