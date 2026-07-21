@@ -143,14 +143,15 @@ class Datahandler:
 
         self.load_all_data(env_path=env_path, scenario_name=scenario_name)
 
-        # 1. Demands liegen unter: results/demands/<scenario>/<demand_variant>
-        self.demands_path = os.path.join(self.resultPath, 'demands', self.scenario_name, self.demand_variant)
+        # 1. Demands liegen unter: results/demands/<demand_variant>/<scenario> (szenario-zentriert!)
+        self.demands_path = os.path.join(self.resultPath, 'demands', self.demand_variant, self.scenario_name)
 
-        # 2. Generation & Opti nutzen den kombinierten Namen: <demand_variant>_<system_variant>
-        combined_name = f"{self.demand_variant}_{self.system_variant}"
+        # 2. Generation & Opti nutzen den Doppel-Unterstrich (__): <demand_variant>__<system_variant>
+        combined_name = f"{self.demand_variant}__{self.system_variant}"
 
-        self.generation_path = os.path.join(self.resultPath, 'generation', self.scenario_name, combined_name)
-        self.optimization_path = os.path.join(self.resultPath, 'optimization', self.scenario_name, combined_name)
+        # 3. Zuerst combined_name (das Szenario), danach scenario_name (die Zonen-ID):
+        self.generation_path = os.path.join(self.resultPath, 'generation', combined_name, self.scenario_name)
+        self.optimization_path = os.path.join(self.resultPath, 'optimization', combined_name, self.scenario_name)
 
         os.makedirs(self.demands_path, exist_ok=True)
         os.makedirs(self.generation_path, exist_ok=True)
