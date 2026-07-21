@@ -508,7 +508,7 @@ def load_parameter_5g_fixed(data):
     net_decentral_HP_el = np.zeros(T_len, dtype=float)
 
 
-    invalid_5g_heaters = [building["buildingFeatures"]["heater"] for building in data.district if building["buildingFeatures"]["heater"] in ("heat_grid_SH", "heat_grid_DHWB")]
+    invalid_5g_heaters = [building["buildingFeatures"]["heater"] for building in data.district if building["buildingFeatures"]["heater"] in ("heat_grid_SH", "heat_grid_DHWB", "heat_grid_BHP")]
 
     if invalid_5g_heaters:
         raise ValueError(

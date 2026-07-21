@@ -397,7 +397,7 @@ class KPIs:
 
             # HP temperature measures
             # Only count measures if HP exists and low temperature measures applied
-            if (capacities[n]["HP"] > 0 and district[n]["envelope"].heating_curve["clustered"]["low_temp_measures_binding"] == True and bool(data.decentral_device_data.get("HP", {}).get("enable_low_temp_measures"))):
+            if (capacities[n]["HP"] > 0 and district[n]["envelope"].heating_curve["clustered"]["low_temp_measures_binding"] == True  and district[n]["buildingFeatures"]["heater"] != "heat_grid_BHP" and bool(data.decentral_device_data.get("HP", {}).get("enable_low_temp_measures"))):
                 heatload_kw = district[n]["envelope"].heatload / 1000  # kW
                 inv_eur_per_kw = data.decentral_device_data["HP"]["low_temp_measures_inv_fix"]
                 inv_total = inv_eur_per_kw * heatload_kw  # €
@@ -415,7 +415,7 @@ class KPIs:
                 }
 
             # Low-temperature measures for heat-grid buildings
-            if ((district[n]["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_SH", "heat_grid_DHWB")) and district[n]["envelope"].heating_curve["clustered"]["low_temp_measures_binding"] == True and bool(data.heat_grid_data.get("enable_low_temp_measures"))):
+            if ((district[n]["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_SH", "heat_grid_DHWB", "heat_grid_BHP")) and district[n]["envelope"].heating_curve["clustered"]["low_temp_measures_binding"] == True and bool(data.heat_grid_data.get("enable_low_temp_measures"))):
                 heatload_kw = district[n]["envelope"].heatload / 1000
                 inv_eur_per_kw = data.heat_grid_data["low_temp_measures_inv_fix"]
                 inv_total = inv_eur_per_kw * heatload_kw
@@ -852,7 +852,7 @@ class KPIs:
                             share_heat = (Q_kWh * price_dh) / (Q_kWh * price_dh + E_kWh * price_el + 1e-9)
                             fuel_cost_heat += cw * share_heat * fuel_input * price_h2
 
-                    if heater_type in ["HP", "BHP", "OHP", "H2HP", "GHP", "EH", "EWH", "heat_grid_SH", "heat_grid_DHWB"]:
+                    if heater_type in ["HP", "BHP", "OHP", "H2HP", "GHP", "EH", "EWH", "heat_grid_SH", "heat_grid_DHWB", "heat_grid_BHP"]:
                         el_heat_from_grid_cluster = 0.0
                         for t in range(T):
                             hp_t = res.get("HP", {}).get("P_el", [0] * T)[t]
@@ -935,7 +935,7 @@ class KPIs:
                 elif heater == "heat_grid_SH":
                     Q_building = np.sum(data.district[n]["user"].heat) * dt / 3600 / 1000
                     Q_total_eh += Q_building
-                elif heater == "heat_grid_DHWB":
+                elif heater in ("heat_grid_DHWB", "heat_grid_BHP"):
                     grid_heat_profile = np.asarray(data.district[n]["user"].net_building_demand, dtype=float)
                     Q_building = np.sum(grid_heat_profile) * dt / 3600.0
                     Q_total_eh += Q_building

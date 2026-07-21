@@ -221,9 +221,7 @@ def build_model(model, data, devs, param, dem):
     ################################################################################
     model.constraints = pyo.ConstraintList()
 
-    network_model = str(data.heat_grid_data.get("network_model", "2leiter")).lower()
-    is_5g_fixed = network_model == "5g_fixed"
-    rev_cool_cap_ratio = 1.0    #Todo: erstmal nur provisorisch hier lokal hinterlegt
+    is_5g_fixed = data.heat_grid_data["heatgrid_generation"] == "5G"
 
     # Add capacity constraints for all devices as specified in devs
     for dev in model.all_devs:
@@ -240,7 +238,7 @@ def build_model(model, data, devs, param, dem):
             if max_cap is not None: model.constraints.add(model.cap[dev] <= max_cap)
 
     if is_5g_fixed:
-        model.constraints.add(model.cap["CC"] == rev_cool_cap_ratio * model.cap["HP"])  # CC ist nur noch der interne Kühlmodus der reversiblen HP
+        model.constraints.add(model.cap["CC"] == data.heat_grid_data["central_HP_rev_cool_cap_ratio"] * model.cap["HP"])  # CC ist nur noch der interne Kühlmodus der reversiblen HP
 
     # Set area constraints for devices that require area as specified in devs
     for dev in model.area_devs:
@@ -271,7 +269,7 @@ def build_model(model, data, devs, param, dem):
                 model.constraints.add(model.gas["to_grid", y, d, t] <= model.grid_limit_gas)
 
                 if is_5g_fixed:
-                    model.constraints.add(model.heat["HP", y, d, t] + model.cool["CC", y, d, t] / rev_cool_cap_ratio <= model.cap["HP"])
+                    model.constraints.add(model.heat["HP", y, d, t] + model.cool["CC", y, d, t] / data.heat_grid_data["central_HP_rev_cool_cap_ratio"] <= model.cap["HP"])
 
     # Correlation to translate area to capacity for PV and STC
     model.constraints.add(model.cap["PV"] == model.area["PV"] * devs["PV"]["G_stc"] * devs["PV"]["eta"])

@@ -417,6 +417,7 @@ class HeatGridConfig(BaseSettings):
     physical dimensions, material properties, and costs.
     """
 
+    heatgrid_generation: str = "4G" #Generation of the heat grid. Value can either be "4G" or "5G".
     supply_temperature: str | float = "auto"  # "auto": Temperature determined from buildings heating curves; "float": number is interpreted as the maximum network supply temperature for the selected temperature_mode.
     supply_temperature_safety_margin: float = 0.0  # To consider losses in the 2-pipe model an additional temperature margin in K is added to the calculated EH supply temperature only when supply_temperature="auto"; numeric supply_temperature values are used directly as EH supply temperatures.
     delta_T: float = 15.0  # Temperature reduction from numeric supply_temperature to the minimum supply temperature. Example: supply_temperature=70 and delta_T=10 gives a minimum of 60.
@@ -462,6 +463,9 @@ class HeatGridConfig(BaseSettings):
     pipe__pipe_lifetime: int = 30       # Pipe lifetime in years.
     pipe__cost_om_pipe: float = 0.005    # Pipe O&M share (fraction of investment cost per year).
     pipe: dict = {}
+
+    central_HP_is_reversible: bool = True   # Determines whether the central Heatgrid HP can be reversed, e.g. provide cooling instead of heating
+    central_HP_rev_cool_cap_ratio: float = 1.0  #Sets the factor at which the central Heatgrid HP can provide colling instead of heating. Values should be between 0.0 and 1.0
 
 
     @model_validator(mode='after')

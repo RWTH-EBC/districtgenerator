@@ -36,9 +36,7 @@ def load_params(data):
 
 
     # Detect network model
-    network_model = str(heat_grid_data.get("network_model", "2leiter")).lower()
-    is_5g_fixed = network_model == "5g_fixed"
-    is_2leiter = not is_5g_fixed
+    is_5g_fixed = data.heat_grid_data["heatgrid_generation"] == "5G"
 
     ################################################################
     # GENERAL PARAMETERS
@@ -133,7 +131,7 @@ def load_params(data):
         for b in range(len(data.district)):
             # Only relevant if buildings are connected to the heat grid
             heater = data.district[b]["buildingFeatures"]["heater"]
-            if heater in ("heat_grid", "heat_grid_SH", "heat_grid_DHWB"):
+            if heater in ("heat_grid", "heat_grid_SH", "heat_grid_DHWB", "heat_grid_BHP"):
                 local_heat = data.district[b]["user"].heat / 1000
                 local_dhw = data.district[b]["user"].dhw / 1000
                 local_stc = data.district[b]["generationSTC"] / 1000
@@ -262,13 +260,11 @@ def load_params(data):
     heat_grid["T_hot_heating_network"] = clustered_series[7]     # °C
     heat_grid["T_cold_heating_network"] = clustered_series[8]    # °C
 
-    is_reversible_central_HP_5g = True      #Todo: Provisorisch hier nur lokal gesetzt
-
     if is_5g_fixed:
         heat_grid["T_warm_5g"] = clustered_series[7]
         heat_grid["T_cold_5g"] = clustered_series[8]
 
-        if is_reversible_central_HP_5g:
+        if data.heat_grid_data["central_HP_is_reversible"]:
             heat_grid["T_hot_cooling_network"] = clustered_series[7]
             heat_grid["T_cold_cooling_network"] = clustered_series[8]
 
@@ -581,7 +577,7 @@ def load_params(data):
         COP_base = np.ones((data.time["clusterNumber"], clusterHorizon)) * all_models["CC"]["COP"]
         devs["CC"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
-    if is_reversible_central_HP_5g:
+    if data.heat_grid_data["central_HP_is_reversible"]:
         if not devs["HP"]["feasible"]:
             raise ValueError(
                 "The reversible central 5G heat pump requires "

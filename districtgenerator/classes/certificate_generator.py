@@ -3328,7 +3328,7 @@ class DataExtractor(ReportComponent):
             })
 
             # manual adjustments:
-            if features.get("heater") == "heat_grid":
+            if features.get("heater") in ("heat_grid", "heat_grid_SH" , "heat_grid_DHWB" , "heat_grid_BHP" ):
                 building_dict[
                     "fTES"] = 0  # if building is connected to heat grid, no local TES even if otherwise specified
 

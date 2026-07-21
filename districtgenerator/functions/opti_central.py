@@ -126,9 +126,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     energyHubData = data.centralDevices
     heatingNetworkData = data.heat_grid_data
 
-    network_model = str(heatingNetworkData.get("network_model", "2leiter")).lower()
-    is_5g_fixed = network_model == "5g_fixed"
-    rev_cool_cap_ratio = 1.0   #Todo: provisorisch noch hier hinterlegt
+    is_5g_fixed = data.heat_grid_data["heatgrid_generation"] == "5G"
 
     ################################################################################
     # Setting up the model
@@ -292,20 +290,27 @@ def build_model(model, data, year, cluster, sim_ecoData):
     def heater_type(n):
         return str(buildingData[n]["buildingFeatures"].get("heater", "")).strip()
 
-    has_dhwb = any(heater_type(n) == "heat_grid_DHWB" for n in range(nbuildings))
+    has_dhw_booster = any(heater_type(n) in ("heat_grid_DHWB", "heat_grid_BHP") for n in range(nbuildings))
+    has_bhp = any(heater_type(n) == "heat_grid_BHP" for n in range(nbuildings))
 
-    if has_dhwb:
-        profile_key = "dhw_grid_fraction_cluster"
+    if is_5g_fixed and has_bhp:
+        raise NotImplementedError("heat_grid_BHP with network-source HP is not implemented for the fixed 5G profile model.")
 
-        if profile_key not in heatingNetworkData:
-            raise KeyError(
-                "Missing heat-grid profile "
-                "'dhw_grid_fraction_cluster' for heat_grid_DHWB."
-            )
-        dhw_grid_fraction = np.asarray(heatingNetworkData[profile_key][cluster], dtype=float)
-
+    if has_dhw_booster:
+        fraction_key = "dhw_grid_fraction_cluster"
+        if fraction_key not in heatingNetworkData:
+            raise KeyError(f"Missing profile '{fraction_key}'.")
+        dhw_grid_fraction = np.asarray(heatingNetworkData[fraction_key][cluster],dtype=float)
     else:
-        dhw_grid_fraction = np.zeros(len(T_e), dtype=float)
+        dhw_grid_fraction = np.zeros(len(time_steps), dtype=float)
+
+    if has_bhp:
+        cop_key = "COP_BHP_DHW_cluster"
+        if cop_key not in heatingNetworkData:
+            raise KeyError(f"Missing profile '{cop_key}'.")
+        COP_BHP_DHW = np.asarray(heatingNetworkData[cop_key][cluster],dtype=float)
+    else:
+        COP_BHP_DHW = np.ones(len(time_steps),dtype=float)
 
     ################################################################################
     # CREATE SETS
@@ -662,7 +667,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
         cap_hp_w = energyHubData["capacities"]["HP"]["cap"] * 1000.0
 
-        return model.eh_heat_HP[t] + model.eh_cool_CC[t] / rev_cool_cap_ratio <= cap_hp_w
+        return model.eh_heat_HP[t] + model.eh_cool_CC[t] / data.heat_grid_data["central_HP_rev_cool_cap_ratio"] <= cap_hp_w
 
     model.eh_reversible_hp_capacity = pyo.Constraint(model.t, rule=eh_reversible_hp_capacity_rule)
     model.eh_stc_generation = pyo.Constraint(model.t, rule=eh_stc_generation_rule)
@@ -709,6 +714,9 @@ def build_model(model, data, year, cluster, sim_ecoData):
         if cap_hp <= 0:
             return model.heat_dom_SH["HP", n, t] + model.heat_dom_DHW["HP", n, t] == 0
 
+        if heater_type(n) == "heat_grid_BHP":
+            return (model.heat_dom_DHW["HP", n, t] <= cap_hp)
+
         Tout = float(T_e[t])
         T_biv = float(data.design_building_data["T_bivalent"])
         a_HP = 0.04
@@ -718,6 +726,39 @@ def build_model(model, data, year, cluster, sim_ecoData):
         return model.heat_dom_SH["HP", n, t] + model.heat_dom_DHW["HP", n, t] <= Q_max
 
     model.heat_cap_HP = pyo.Constraint(model.n, model.t, rule=hp_heat_capacity_constraint)
+
+
+    def sh_decentral_dhw_rule(model, n, t):
+        if heater_type(n) != "heat_grid_SH":
+            return pyo.Constraint.Skip
+
+        return model.heat_dom_DHW["EWH",n,t] == float(Q_DHW[n][t])
+
+    def dhwb_booster_dhw_rule(model, n, t):
+        if heater_type(n) != "heat_grid_DHWB":
+            return pyo.Constraint.Skip
+
+        return model.heat_dom_DHW["EWH",n,t] == float(Q_DHW[n][t]) * (1.0 - float(dhw_grid_fraction[t]))
+
+    def bhp_grid_dhw_rule(model, n, t):
+        if heater_type(n) != "heat_grid_BHP":
+            return pyo.Constraint.Skip
+
+        return model.heat_dom_DHW["heat_grid",n,t] == float(Q_DHW[n][t]) * float(dhw_grid_fraction[t])
+
+    def bhp_booster_dhw_rule(model, n, t):
+        if heater_type(n) != "heat_grid_BHP":
+            return pyo.Constraint.Skip
+
+        return model.heat_dom_DHW["HP",n,t] == float(Q_DHW[n][t]) * (1.0 - float(dhw_grid_fraction[t]))
+
+    def bhp_no_hp_sh_rule(model, n, t):
+        if heater_type(n) != "heat_grid_BHP":
+            return pyo.Constraint.Skip
+
+        return (model.heat_dom_SH["HP",n,t] == 0.0)
+
+
 
     def create_dom_cool_capacity_constraint(device_name):
         """Factory-function that creates a constraint function"""
@@ -776,7 +817,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     def heat_grid_capacity_rule(model, n, t):
         heater = heater_type(n)
 
-        if heater in ("heat_grid", "heat_grid_DHWB"):
+        if heater in ("heat_grid", "heat_grid_DHWB", "heat_grid_BHP"):
             return pyo.Constraint.Skip
         elif heater == "heat_grid_SH":
             return model.heat_dom_DHW["heat_grid", n, t] == 0
@@ -785,7 +826,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
 
     def dhwb_grid_dhw_rule(model, n, t):
-        if heater_type(n) != "heat_grid_DHWB":
+        if heater_type(n) not in ("heat_grid_DHWB", "heat_grid_BHP"):
             return pyo.Constraint.Skip
 
         grid_fraction = float(dhw_grid_fraction[t])
@@ -802,6 +843,31 @@ def build_model(model, data, year, cluster, sim_ecoData):
         dhw_demand = float(Q_DHW[n][t])
 
         return (model.heat_dom_DHW["EWH", n, t] == dhw_demand * booster_fraction)
+
+    def bhp_booster_dhw_rule(model, n, t):
+
+        if heater_type(n) != "heat_grid_BHP":
+            return pyo.Constraint.Skip
+
+        booster_fraction = 1.0 - float(dhw_grid_fraction[t])
+        dhw_demand = float(Q_DHW[n][t])
+
+        return (model.heat_dom_DHW["HP", n, t] == dhw_demand * booster_fraction)
+
+    def bhp_no_hp_sh_rule(model, n, t):
+
+        if heater_type(n) != "heat_grid_BHP":
+            return pyo.Constraint.Skip
+
+        return model.heat_dom_SH["HP", n, t] == 0.0
+
+    def bhp_source_heat_rule(model, n, t):    #Expresssion und keine Rule!
+        if heater_type(n) != "heat_grid_BHP":
+            return 0.0
+
+        return model.heat_dom_DHW["HP",n,t] - model.power_dom["HP",n,t]
+
+    model.bhp_source_heat = pyo.Expression(model.n, model.t, rule=bhp_source_heat_rule)
 
 
 
@@ -846,6 +912,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.cool_grid_capacity = pyo.Constraint(model.n, model.t, rule=cool_grid_capacity_rule, doc="Local 5G cooling grid capacity constraint")
     model.dhwb_grid_dhw = pyo.Constraint(model.n, model.t, rule=dhwb_grid_dhw_rule)
     model.dhwb_booster_dhw = pyo.Constraint(model.n, model.t, rule=dhwb_booster_dhw_rule)
+    model.bhp_booster_dhw = pyo.Constraint(model.n, model.t, rule=bhp_booster_dhw_rule)
+    model.bhp_no_hp_sh = pyo.Constraint(model.n, model.t, rule=bhp_no_hp_sh_rule)
 
     ################################################################################
     # Energy Conversion for Energyhub devices
@@ -961,17 +1029,18 @@ def build_model(model, data, year, cluster, sim_ecoData):
         if buildingData[n]["capacities"]["HP"] <= 0:
             return model.heat_dom_SH["HP", n, t] + model.heat_dom_DHW["HP", n, t] == 0
 
-        # heating curve for this building
+        heater = heater_type(n)
+
+        if heater == "heat_grid_BHP":
+            cop_bhp = float(COP_BHP_DHW[t])
+            return model.power_dom["HP", n, t] == model.heat_dom_DHW["HP",n,t] / cop_bhp
+
+        # Existing ambient-source HP model
         hc = buildingData[n]["envelope"].heating_curve["clustered"]
-
         Tsink_curve = float(hc["Ts_curve"][t])
-
         Tsink_curve_reduced = float(hc["Ts_curve_reduced"][t])
 
-        # apply low-temp measures?
-        measures_on = (
-                bool(param_dec_devs.get("HP", {}).get("enable_low_temp_measures"))
-                and hc.get("low_temp_measures_binding"))
+        measures_on = bool(param_dec_devs.get("HP", {}).get("enable_low_temp_measures")) and hc.get("low_temp_measures_binding")
 
         Tsink_SH = Tsink_curve_reduced if measures_on else Tsink_curve
         Tsink_DHW = float(param_dec_devs["TES_DHW"]["T_DHW_needed"])
@@ -983,13 +1052,12 @@ def build_model(model, data, year, cluster, sim_ecoData):
         cop_sh_raw = param_dec_devs["HP"]["grade"] * (273.15 + Tsink_SH) / dT_SH
         cop_dhw_raw = param_dec_devs["HP"]["grade"] * (273.15 + Tsink_DHW) / dT_DHW
 
-        COP_SH = min(cop_sh_raw, 7.0)
-        COP_DHW = min(cop_dhw_raw, 7.0)
+        COP_SH = min(max(cop_sh_raw, 1.05), 7.0)
+        COP_DHW = min(max(cop_dhw_raw, 1.05),7.0)
 
-        return model.power_dom["HP", n, t] == (
-                model.heat_dom_SH["HP", n, t] / COP_SH +
-                model.heat_dom_DHW["HP", n, t] / COP_DHW
-        )
+        return model.power_dom["HP", n, t] == model.heat_dom_SH["HP",n,t] / COP_SH + model.heat_dom_DHW["HP",n,t,] / COP_DHW
+
+
 
     model.hp_conversion = pyo.Constraint(model.n, model.t, rule=hp_conversion_rule,
                                          doc="HP conversion using age+retrofit dependent sink temperature")
@@ -1460,7 +1528,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.trafo_binary2 = pyo.Constraint(model.t, rule=trafo_binary2_rule, doc="Power_limitation_to_grid")
 
     def heat_grid_demand_rule(model, t):
-        return model.heat_grid_demand[t] == sum(model.heat_dom_SH["heat_grid", n, t] + model.heat_dom_DHW["heat_grid", n, t] for n in model.n)
+        return model.heat_grid_demand[t] == sum(model.heat_dom_SH["heat_grid",n,t] + model.heat_dom_DHW["heat_grid",n,t] + model.bhp_source_heat[n,t] for n in model.n)
+
 
     def cool_grid_demand_rule(model, t):
         return model.cool_grid_demand[t] == sum(model.cool_dom["heat_grid", n, t] for n in model.n)
@@ -1945,11 +2014,14 @@ def solve_model_and_extract_results(model, data, year, cluster):
     for n in range(nbuildings):
         results_dict[n].setdefault("HP", {})
         results_dict[n]["HP"]["COP"] = []
+        results_dict[n].setdefault("BHP",{})
+        results_dict[n]["BHP"]["Q_source"] = []
 
         for t in time_steps:
             Pel = pyo.value(model.power_dom["HP", n, t])
             Qth = (pyo.value(model.heat_dom_SH["HP", n, t]) +
                     pyo.value(model.heat_dom_DHW["HP", n, t]))
+            results_dict[n]["BHP"]["Q_source"].append(round(pyo.value(model.bhp_source_heat[n, t]),0))
 
             if Pel and Pel > 1e-6:
                 results_dict[n]["HP"]["COP"].append(round(Qth / Pel, 3))

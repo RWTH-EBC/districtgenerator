@@ -227,7 +227,7 @@ def load_parameter_2leiter(data):
 
     # Calculate building heat demand connected to the district heating grid
     for building in data.district:
-        if building["buildingFeatures"]["heater"] not in ["heat_grid", "heat_grid_SH", "heat_grid_DHWB"]:
+        if building["buildingFeatures"]["heater"] not in ["heat_grid", "heat_grid_SH", "heat_grid_DHWB", "heat_grid_BHP"]:
             continue
 
         heating = building["user"].heat / 1000  # kW
@@ -235,10 +235,10 @@ def load_parameter_2leiter(data):
         generationSTC = building["generationSTC"] / 1000  # kW
 
         if building["buildingFeatures"]["heater"] == "heat_grid":
-            net_building_demand = np.maximum(heating + dhw - generationSTC, 0.0)
+            net_building_demand = np.maximum(heating + dhw , 0.0) # - generationSTC, 0.0)
 
-        elif building["buildingFeatures"]["heater"] in ("heat_grid_SH", "heat_grid_DHWB"):
-            net_building_demand = np.maximum(heating - generationSTC, 0.0)
+        elif building["buildingFeatures"]["heater"] in ("heat_grid_SH", "heat_grid_DHWB", "heat_grid_BHP"):
+            net_building_demand = np.maximum(heating, 0.0)  #- generationSTC, 0.0)
 
         building["user"].net_building_demand = net_building_demand  # kW
 
@@ -260,11 +260,12 @@ def load_parameter_2leiter(data):
     Q_DHW_by_node = {}
     Q_DHW_decentral_by_node = {}
     Q_by_node = {}
+    Q_BHP_source_by_node = {}
     UA_SH_by_node = {}
     UA_DHW_by_node = {}
 
     for building in data.district:
-        if building["buildingFeatures"]["heater"] not in ["heat_grid", "heat_grid_SH", "heat_grid_DHWB"]:
+        if building["buildingFeatures"]["heater"] not in ["heat_grid", "heat_grid_SH", "heat_grid_DHWB", "heat_grid_BHP"]:
             continue
 
         pos_building = tuple(building["buildingFeatures"]["position"])
@@ -298,7 +299,7 @@ def load_parameter_2leiter(data):
         if building["buildingFeatures"]["heater"] == "heat_grid":
             Ts_req = np.maximum(Ts_req_SH, Ts_req_DHW)
 
-        elif building["buildingFeatures"]["heater"] in ("heat_grid_SH", "heat_grid_DHWB"):
+        elif building["buildingFeatures"]["heater"] in ("heat_grid_SH", "heat_grid_DHWB", "heat_grid_BHP"):
             Ts_req = Ts_req_SH
 
         # Building heat load
@@ -314,7 +315,7 @@ def load_parameter_2leiter(data):
             Q_DHW_grid = np.zeros(T_len, dtype=float)
             Q_DHW_decentral = Q_DHW_total
 
-        elif building["buildingFeatures"]["heater"] == "heat_grid_DHWB":
+        elif building["buildingFeatures"]["heater"] in ("heat_grid_DHWB", "heat_grid_BHP"):
             Q_DHW_grid = np.zeros(T_len, dtype=float)
             Q_DHW_decentral = dhw_load.copy()       #Vorläufig komplett dezentral, Änderung danach
 
@@ -342,7 +343,7 @@ def load_parameter_2leiter(data):
             UA_SH = 0.0
 
         # Design UA for DHW heat exchanger
-        if (building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_DHWB") and np.any(Q_DHW_total > 0.0)):
+        if (building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_DHWB", "heat_grid_BHP") and np.any(Q_DHW_total > 0.0)):
             Q_DHW_design_W = building["bes_obj"].design_load_dhw * (1.0 + h_loss_subst / 100.0)
             T_cold_DHW_secondary_design = float(T_cold_water)
             T_hot_DHW_secondary_design = float(T_dhw_required)
@@ -373,6 +374,7 @@ def load_parameter_2leiter(data):
         Q_DHW_by_node[node_key] = Q_DHW_grid
         Q_DHW_decentral_by_node[node_key] = Q_DHW_decentral
         Q_by_node[node_key] = Q_total
+        Q_BHP_source_by_node[node_key] = np.zeros(T_len, dtype=float)
 
         UA_SH_by_node[node_key] = UA_SH
         UA_DHW_by_node[node_key] = UA_DHW
@@ -387,6 +389,7 @@ def load_parameter_2leiter(data):
     param["Q_DHW_by_node"] = Q_DHW_by_node
     param["Q_DHW_decentral_by_node"] = Q_DHW_decentral_by_node
     param["Q_by_node"] = Q_by_node
+    param["Q_BHP_source_by_node"] = Q_BHP_source_by_node
     param["UA_SH_by_node"] = UA_SH_by_node
     param["UA_DHW_by_node"] = UA_DHW_by_node
     param["heat_loss_substation"] = heat_loss_substation
@@ -399,6 +402,23 @@ def load_parameter_2leiter(data):
     T_sup_required = np.max(Ts_matrix, axis=0)
 
     T_sup_design_base = configured_supply_temperature_2leiter(data, T_sup_required)
+
+
+
+    dT_pinch = 4.0 #K #Todo: bekanntes COP Modell verwenden?
+
+    T_evaporator_BHP = (T_sup_design_base- dT_pinch)
+    T_condenser_BHP = (T_dhw_required + dT_pinch)
+
+    temperature_lift_BHP = np.maximum(T_condenser_BHP - T_evaporator_BHP, 0.1)
+    COP_BHP_DHW_raw = (0.4 * (273.15 + T_condenser_BHP) / temperature_lift_BHP)
+    COP_BHP_DHW = np.clip(COP_BHP_DHW_raw,1.05, 7.0)
+
+    if np.any(COP_BHP_DHW <= 1.0):
+        raise ValueError("COP_BHP_DHW must be greater than 1.")
+    data.heat_grid_data["COP_BHP_DHW"] = COP_BHP_DHW
+
+
 
     param["T_sup_design_base"] = T_sup_design_base
 
@@ -420,10 +440,11 @@ def load_parameter_2leiter(data):
     data.heat_grid_data["T_DHW_after_grid"] = T_DHW_after_grid
     data.heat_grid_data["dhw_grid_fraction"] = grid_fraction
 
-    P_DHW_booster_el_by_node = {}
 
     for building in data.district:
-        if building["buildingFeatures"]["heater"] != "heat_grid_DHWB":
+        heater = building["buildingFeatures"]["heater"]
+
+        if heater not in ("heat_grid_SH", "heat_grid_DHWB", "heat_grid_BHP"):
             continue
 
         node_key = node_lookup.get(tuple(building["buildingFeatures"]["position"]))
@@ -431,43 +452,49 @@ def load_parameter_2leiter(data):
         if node_key is None:
             continue
 
-        # Useful DHW demand without substation losses [kW].
-        dhw_load = np.asarray(building["user"].dhw, dtype=float) / 1000.0
+        # Useful DHW demand without substation losses [kW]
+        dhw_load = np.asarray(building["user"].dhw) / 1000.0
 
-        # Useful heat supplied by the grid and the electric booster
-        Q_DHW_grid_useful = dhw_load * grid_fraction
-        Q_DHW_booster = dhw_load * (1.0 - grid_fraction)
+        if heater == "heat_grid_SH":
+            Q_DHW_grid_useful = np.zeros(T_len,dtype=float)
+            Q_DHW_booster = dhw_load.copy()
+            Q_BHP_source_useful = np.zeros(T_len, dtype=float)
 
-        # Grid-side DHW demand including substation losses
+        elif heater == "heat_grid_DHWB":
+            Q_DHW_grid_useful = dhw_load * grid_fraction
+            Q_DHW_booster = dhw_load * (1.0 - grid_fraction)
+            Q_BHP_source_useful = np.zeros(T_len, dtype=float)
+
+        elif heater == "heat_grid_BHP":
+            Q_DHW_grid_useful = dhw_load * grid_fraction
+            Q_DHW_booster = dhw_load * (1.0 - grid_fraction)
+            Q_BHP_source_useful = Q_DHW_booster* (1.0 - 1.0 / COP_BHP_DHW)
+
+
+        # Substation-loss convention
         Q_DHW_grid = Q_DHW_grid_useful * (1.0 + h_loss_subst / 100.0)
+        Q_BHP_source_grid = Q_BHP_source_useful * (1.0 + h_loss_subst / 100.0)
 
-        # Update existing node profiles
-        T_sec_supply_DHW_by_node[node_key] = T_DHW_after_grid
+        # Store building-level profiles in W
+        building["user"].dhw_grid_preheat = Q_DHW_grid_useful * 1000.0
+        building["user"].dhw_booster_demand = Q_DHW_booster * 1000.0
+        building["user"].bhp_source_heat = Q_BHP_source_useful * 1000.0
+
+        # Update network node profiles
         Q_DHW_by_node[node_key] = Q_DHW_grid
         Q_DHW_decentral_by_node[node_key] = Q_DHW_booster
-        Q_by_node[node_key] = Q_SH_by_node[node_key] + Q_DHW_grid
+        Q_BHP_source_by_node[node_key] = Q_BHP_source_grid
 
-        # Electrical booster power
-        P_DHW_booster_el_by_node[node_key] = Q_DHW_booster / eta_DHWB
+        if heater in ("heat_grid_DHWB", "heat_grid_BHP"):
+            T_sec_supply_DHW_by_node[node_key] = T_DHW_after_grid
 
-        # The first demand loop contained only SH for DHWB buildings
-        building["user"].net_building_demand += Q_DHW_grid_useful
+        Q_by_node[node_key] = Q_SH_by_node[node_key] + Q_DHW_grid + Q_BHP_source_grid
 
-        # Add DHW-related substation losses and grid demand.
-        heat_loss_substation += Q_DHW_grid_useful * h_loss_subst / 100.0
-        net_heat_demand += Q_DHW_grid
-
-
-    if P_DHW_booster_el_by_node:
-        booster_profiles = list(P_DHW_booster_el_by_node.values())
-        P_DHW_booster_el = np.sum(booster_profiles, axis=0)
-    else:
-        P_DHW_booster_el = np.zeros(T_len, dtype=float)
-
-    param["P_DHW_booster_el_by_node"] = P_DHW_booster_el_by_node
-    param["P_DHW_booster_el"] = P_DHW_booster_el
-    data.heat_grid_data["P_DHW_booster_el"] = P_DHW_booster_el
-
+        # Useful network demand used by EH/KPI calculations
+        building["user"].net_building_demand += Q_DHW_grid_useful + Q_BHP_source_useful
+        additional_useful_grid_heat = Q_DHW_grid_useful + Q_BHP_source_useful
+        heat_loss_substation += additional_useful_grid_heat * h_loss_subst/100.0
+        net_heat_demand += Q_DHW_grid + Q_BHP_source_grid
 
 
 
@@ -593,14 +620,20 @@ def calc_flow_2leiter(data, param):
     param["building_massflow_max_HX"] = {}
     param["T_return_SH_actual"] = {}
     param["T_return_DHW_actual"] = {}
+    param["building_massflow_BHP"] = {}
+    param["building_massflow_max_BHP"] = {}
+    param["T_return_BHP_actual"] = {}
 
     for n in param["Q_by_node"].keys():
 
         Q_SH = np.asarray(param["Q_SH_by_node"][n], dtype=float)
         Q_DHW = np.asarray(param["Q_DHW_by_node"][n], dtype=float)
+        Q_BHP_source = np.asarray(param["Q_BHP_source_by_node"][n], dtype=float)
 
         Q_SH_eff = np.where(Q_SH < 0.01, 0.0, Q_SH)
         Q_DHW_eff = np.where(Q_DHW < 0.01, 0.0, Q_DHW)
+        Q_BHP_eff = np.where(Q_BHP_source < 0.01, 0.0, Q_BHP_source)
+
 
         Tsi_SH = np.asarray(param["T_sec_return_SH_by_node"][n], dtype=float)
         Tso_SH = np.asarray(param["T_sec_supply_SH_by_node"][n], dtype=float)
@@ -616,6 +649,10 @@ def calc_flow_2leiter(data, param):
 
         Tr_SH_raw = np.full(T_len, np.nan, dtype=float)         # Empty array
         Tr_DHW_raw = np.full(T_len, np.nan, dtype=float)        # Empty array
+
+        m_BHP_raw = np.zeros(T_len, dtype=float)
+        Tr_BHP_raw = np.asarray(T_sup_EH, dtype=float).copy()
+
 
         for t in range(T_len):
 
@@ -650,26 +687,53 @@ def calc_flow_2leiter(data, param):
             Tr_DHW_raw[t] = Tr_DHW
             m_DHW_raw[t] = m_DHW
 
+
+            Q_BHP_W = float(Q_BHP_eff[t]) * 1000.0
+            dT_pinch = 4.0 #Todo: Wärmeübertragermodell?
+            T_cold_water = 10.0
+
+
+            if Q_BHP_W > 0.0:
+                Tr_BHP = max(Ts - dT_pinch, T_cold_water)
+                effective_delta_t = float(Ts - Tr_BHP)
+
+                if effective_delta_t <= 0.0:
+                    raise ValueError("BHP source return temperature is not below the network supply temperature.")
+
+                m_BHP = Q_BHP_W/ (c_f * effective_delta_t)
+                Tr_BHP_raw[t] = Tr_BHP
+                m_BHP_raw[t] = m_BHP
+
+
+
+
         # Apply minimum flow fraction if used
         m_SH_max = float(np.max(m_SH_raw)) if np.any(m_SH_raw > 0.0) else 0.0
         m_DHW_max = float(np.max(m_DHW_raw)) if np.any(m_DHW_raw > 0.0) else 0.0
+        m_BHP_max = float(np.max(m_BHP_raw)) if np.any(m_BHP_raw > 0.0) else 0.0
+
 
         m_SH = np.maximum(m_SH_raw, alpha * m_SH_max)
         m_DHW = np.maximum(m_DHW_raw, alpha * m_DHW_max)
+        m_BHP = np.maximum(m_BHP_raw, alpha * m_BHP_max)
 
         # Recalculate return temperatures if minimum flow changes the flow
         Tr_SH_actual = np.full(T_len, np.nan, dtype=float)
         Tr_DHW_actual = np.full(T_len, np.nan, dtype=float)
+        Tr_BHP_actual = np.full(T_len, np.nan, dtype=float)
 
         active_SH = Q_SH_eff > 0.0
         active_DHW = Q_DHW_eff > 0.0
+        active_BHP = Q_BHP_eff > 0.0
 
         # If no load, return and supply temperatures are equal
         Tr_SH_actual[~active_SH] = T_sup_EH[~active_SH]
         Tr_DHW_actual[~active_DHW] = T_sup_EH[~active_DHW]
+        Tr_BHP_actual[~active_BHP] = T_sup_EH[~active_BHP]
 
         mask_SH = active_SH & (m_SH > 1e-12)
         mask_DHW = active_DHW & (m_DHW > 1e-12)
+        mask_BHP = active_BHP & (m_BHP > 1e-12)
 
         Tr_SH_actual[mask_SH] = (
             T_sup_EH[mask_SH]
@@ -680,8 +744,12 @@ def calc_flow_2leiter(data, param):
             T_sup_EH[mask_DHW]
             - Q_DHW_eff[mask_DHW] * 1000.0 / (m_DHW[mask_DHW] * c_f)
         )
+        Tr_BHP_actual[mask_BHP] = (
+                T_sup_EH[mask_BHP]
+                - Q_BHP_eff[mask_BHP] * 1000.0 / (m_BHP[mask_BHP]* c_f)
+        )
 
-        m_HX = m_SH + m_DHW
+        m_HX = m_SH + m_DHW + m_BHP
 
         param["building_massflow_SH"][n] = m_SH
         param["building_massflow_DHW"][n] = m_DHW
@@ -691,6 +759,9 @@ def calc_flow_2leiter(data, param):
         param["building_massflow_max_HX"][n] = (float(np.max(m_HX)) if np.any(m_HX > 0.0) else 0.0)
         param["T_return_SH_actual"][n] = Tr_SH_actual
         param["T_return_DHW_actual"][n] = Tr_DHW_actual
+        param["building_massflow_BHP"][n] = m_BHP
+        param["building_massflow_max_BHP"][n] = m_BHP_max
+        param["T_return_BHP_actual"][n] = Tr_BHP_actual
 
     # Aggregate building flows into pipe flows
     pipe_massflows = aggregate_mass_flows(
@@ -901,9 +972,11 @@ def compute_return_temperature_EH_2leiter(data, param):
             m_SH = float(param["building_massflow_SH"][n][t])
             m_DHW = float(param["building_massflow_DHW"][n][t])
             m_HX = float(param["building_massflow_HX"][n][t])
+            m_BHP = float(param["building_massflow_BHP"][n][t])
 
             Tr_SH = float(param["T_return_SH_actual"][n][t])
             Tr_DHW = float(param["T_return_DHW_actual"][n][t])
+            Tr_BHP = float(param["T_return_BHP_actual"][n][t])
 
             Ts = float(T_sup_EH[t])
 
@@ -911,6 +984,7 @@ def compute_return_temperature_EH_2leiter(data, param):
                 Tr_building = (
                     m_SH * Tr_SH
                     + m_DHW * Tr_DHW
+                    + m_BHP * Tr_BHP
                 ) / m_HX
             else:
                 Tr_building = Ts
@@ -1353,20 +1427,20 @@ def compute_and_save_network_costs_2leiter(data, param):
 
     buildings_connected = [
         b for b in data.district
-        if b["buildingFeatures"]["heater"] in ["heat_grid", "heat_grid_SH", "heat_grid_DHWB"]
+        if b["buildingFeatures"]["heater"] in ["heat_grid", "heat_grid_SH", "heat_grid_DHWB", "heat_grid_BHP"]
     ]
 
     C_substations = 0.0
     for building in buildings_connected:
         building["buildingFeatures"]["heater"] = building["buildingFeatures"]["heater"]
 
-    if building["buildingFeatures"]["heater"] == "heat_grid_SH":
-        substation_capacity = building["bes_obj"].design_load_heating / 1000.0
+        if building["buildingFeatures"]["heater"] == "heat_grid_SH":
+            substation_capacity = building["bes_obj"].design_load_heating / 1000.0
 
-    elif building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_DHWB"):
-        substation_capacity = (building["bes_obj"].design_load_heating + building["bes_obj"].design_load_dhw) / 1000.0
+        elif building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_DHWB", "heat_grid_BHP"):
+            substation_capacity = (building["bes_obj"].design_load_heating + building["bes_obj"].design_load_dhw) / 1000.0
 
-    C_substations += substation_capacity * data.heat_grid_data["C_subst"]
+        C_substations += substation_capacity * data.heat_grid_data["C_subst"]
 
     substation_lifetime = data.heat_grid_data["lifetime_subst"]
     substation_ann_factor = calc_annual_factor(data, substation_lifetime)
