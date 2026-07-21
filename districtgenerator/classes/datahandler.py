@@ -668,63 +668,68 @@ class Datahandler:
                     # tabula standard
                     construction_data = 'tabula_de_standard'
 
-                height = building["buildingFeatures"].get("height", 0)
-                number_of_floors = building["buildingFeatures"].get("number_of_floors", 0)
-                if number_of_floors == 0:
-                    # Determining the number of floors in a building based on its type.
-                    # The method estimates the number of floors by:
-                    # - Assigning a range of possible floor areas per level based on building type.
-                    # - Randomly selecting a value within the assigned range using the TABULA German Building Typology.
-                    # - Calculating the total number of floors by dividing the building’s total floor area
-                    #   by the selected single-floor area.
+                # Determine the number of floors based on the building type.
+                # The original random TABULA-based calculation remains unchanged.
+                if building_type == "single_family_house":
+                    one_floor_area = rd.randint(62, 115)  # Source: TABULA German Building Typology
+                    number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
 
-                    if building_type == "single_family_house":
-                        one_floor_area = rd.randint(62, 115)  # Source: TABULA German Building Typology
-                        # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
-                        number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
+                elif building_type == "terraced_house":
+                    one_floor_area = rd.randint(50, 73)  # Source: TABULA German Building Typology
+                    number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
 
-                    elif building_type == "terraced_house":
-                        one_floor_area = rd.randint(50, 73)  # Source: TABULA German Building Typology
-                        # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
-                        number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
+                elif building_type == "multi_family_house":
+                    one_floor_area = rd.randint(102, 971)  # Source: TABULA German Building Typology
+                    number_of_floors = max(2, round(building["buildingFeatures"]["area"] / one_floor_area))
 
-                    elif building_type == "multi_family_house":
-                        # Generate a valid one-floor area and number of floors in one step
-                        one_floor_area = rd.randint(102, 971)  # Source: TABULA German Building Typology
-                        # Calculate the number of floors, rounding to the nearest integer and ensuring at least 2
-                        number_of_floors = max(2, round(building["buildingFeatures"]["area"] / one_floor_area))
-                        # Cap the number of floors to a maximum of 8
-                        if number_of_floors > 8:
-                            number_of_floors = 8
+                    # Limit multi-family houses to a maximum of eight floors.
+                    if number_of_floors > 8:
+                        number_of_floors = 8
 
-                    elif building_type == "apartment_block":
-                        one_floor_area = rd.randint(350, 540)  # Source: TABULA German Building Typology
-                        # Calculate the number of floors, rounding to the nearest integer and ensuring at least 3
-                        number_of_floors = max(3, round(building["buildingFeatures"]["area"] / one_floor_area))
+                elif building_type == "apartment_block":
+                    one_floor_area = rd.randint(350, 540)  # Source: TABULA German Building Typology
+                    number_of_floors = max(3, round(building["buildingFeatures"]["area"] / one_floor_area))
 
+                # The number of floors is a count and must therefore be an integer.
+                number_of_floors = int(number_of_floors)
+
+                # Read the total building height from the scenario.
+                # Invalid or missing values are converted to NaN and therefore trigger the fallback below.
+                height = pd.to_numeric(building["buildingFeatures"].get("height", 0), errors="coerce")
+
+                # Calculate the floor height from total building height and number of floors.
                 height_of_floors = height / number_of_floors
-                # Determining the typical floor height based on the building's construction year.
-                # Older buildings (constructed before 1960) generally have higher ceilings, while newer buildings
-                # (built from 1960 onwards) tend to have lower ceilings.
-                # Source: https://www.wohnung.com/ratgeber/418/alt-und-neubau-deckenhoehe
-                if height_of_floors < 2.5:
-                    if building["buildingFeatures"]["year"] < 1960:
-                        height_of_floors = 3.3  # m
-                    elif building["buildingFeatures"]["year"] >= 1960:
-                        height_of_floors = 2.5  # m
 
-                # add buildings to TEASER project
+                # Use a construction-year-dependent fallback if the calculated value is outside 2.5–4.0 m.
+                if not 2.5 <= height_of_floors <= 4.0:
+                    if building["buildingFeatures"]["year"] < 1960:
+                        height_of_floors = 3.3  # Typical floor height for older buildings [m]
+                    else:
+                        height_of_floors = 2.5  # Typical floor height for newer buildings [m]
+
+                # Add the residential building to the TEASER project.
                 prj.add_residential(name="ResidentialBuildingTabula",
                                     geometry_data="tabula_de_" + building_type,
                                     construction_data=construction_data,
                                     year_of_construction=building["buildingFeatures"]["year"],
                                     number_of_floors=number_of_floors,
                                     height_of_floors=height_of_floors,
-                                    net_leased_area=building["buildingFeatures"]["area"])
+                                    net_leased_area=building["buildingFeatures"]["area"],)
 
-
+                # Preserve the original copy operation before extending buildingFeatures.
                 building["buildingFeatures"] = building["buildingFeatures"].copy()
+
+                # Store the geometry actually used by QG and TEASER.
+                building["buildingFeatures"]["number_of_floors"] = number_of_floors
+                building["buildingFeatures"]["height_of_floors"] = float(height_of_floors)
                 building["buildingFeatures"]["id_teaser"] = len(prj.buildings) - 1
+
+                # Write the same geometry into the scenario DataFrame.
+                # self.scenario uses the building ID as its index.
+                scenario_id = building["buildingFeatures"]["id"]
+                self.scenario.loc[scenario_id, "number_of_floors"] = number_of_floors
+                self.scenario.loc[scenario_id, "height_of_floors"] = float(height_of_floors)
+
 
                 # %% create envelope object
                 extra = [building["buildingFeatures"]["year"], building["buildingFeatures"]["retrofit"], building["buildingFeatures"]["gmlId"] if "gmlId" in building["buildingFeatures"] else building["buildingFeatures"]["id"], building["buildingFeatures"]["building"]]
@@ -818,6 +823,29 @@ class Datahandler:
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"] = building["buildingFeatures"].copy()
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
+
+        # Remove the obsolete documentation column if it exists from an earlier test.
+        self.scenario.drop(columns=["height_of_floors_source"], errors="ignore", inplace=True)
+
+        # Save the geometry only if residential floor heights were generated.
+        if "height_of_floors" in self.scenario.columns:
+            # Store the number of floors as an integer without a decimal part.
+            self.scenario["number_of_floors"] = pd.to_numeric(self.scenario["number_of_floors"], errors="coerce").astype("Int64")
+
+            # Position height_of_floors directly after the total building height.
+            scenario_columns = self.scenario.columns.tolist()
+            scenario_columns.remove("height_of_floors")
+
+            if "height" in scenario_columns:
+                height_column_position = scenario_columns.index("height") + 1
+                scenario_columns.insert(height_column_position, "height_of_floors")
+                self.scenario = self.scenario[scenario_columns]
+
+            # Write the resolved geometry back into the scenario file.
+            scenario_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv")
+            self.scenario.to_csv(scenario_path, sep=";", index=False)
+
+
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=10, gen_cars=True, allow_hybrid=False):
         """
