@@ -76,7 +76,7 @@ def build_model(model, data, devs, param, dem):
 
     model.clusters = pyo.RangeSet(0, data.time["clusterNumber"] - 1)
     model.time_steps = pyo.RangeSet(0, cluster_horizon - 1)
-    model.year = pyo.RangeSet(0, 51)  # 52 weeks
+    model.year = pyo.RangeSet(0, 1) #51)  # 52 weeks
 
     # Get sigma function that assigns each time period (day or week) to a design period
     model.sigma = pyo.Param(model.year, initialize=param["sigma"])
@@ -130,7 +130,9 @@ def build_model(model, data, devs, param, dem):
     model.hydrogen = pyo.Var(model.hydrogen_devs, model.support_years, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
     model.biom = pyo.Var(model.biom_devs, model.support_years, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
     model.waste = pyo.Var(model.waste_devs, model.support_years, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
-    model.ch = pyo.Var(model.storage_devs, model.support_years, model.clusters, model.time_steps, within=pyo.Reals)
+    #model.ch = pyo.Var(model.storage_devs, model.support_years, model.clusters, model.time_steps, within=pyo.Reals, bounds=(-80, 80)) # miniEZZ
+    model.ch = pyo.Var(model.storage_devs, model.support_years, model.clusters, model.time_steps, within=pyo.Reals) # Enercube
+
 
     # Storage SOC uses weekly tracking but indexed by support year
     model.soc = pyo.Var(model.storage_devs, model.support_years, model.year, model.time_steps,
@@ -405,7 +407,7 @@ def build_model(model, data, devs, param, dem):
                             dev, y, model.sigma[day_y], 0] * dt)
 
             # Cyclic year condition: For the last time step of the last day, the state of charge is based on the first time step of the first day
-            soc_last = model.soc[dev, y, 51, cluster_horizon - 1]
+            soc_last = model.soc[dev, y, 1, cluster_horizon - 1]
             model.constraints.add(model.soc[dev, y, 0, 0] == soc_last * (1 - devs[dev]["sto_loss"]) ** dt + model.ch[
                 dev, y, model.sigma[0], 0] * dt)
 

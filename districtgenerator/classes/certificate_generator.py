@@ -2776,6 +2776,8 @@ class DataExtractor(ReportComponent):
             [self.translate("kpi_avg_energy_costs"), f"{round(self.kpis.avg_operationCosts, 0)} €/a"],
             [self.translate("kpi_sys_costs_central"), f"{round(self.kpis.annual_fixed_costs_central, 0)} €/a"],
             [self.translate("kpi_sys_costs_decentral"), f"{round(self.kpis.annual_fixed_costs_decentral, 0)} €/a"],
+            #[self.translate("kpi_sys_costs_central"), f"{730000} €/a"],
+            #[self.translate("kpi_sys_costs_decentral"), f"{0} €/a"],
             [self.translate("kpi_peak_load_el"), f"{round(max(self.kpis.peakDemand.values()), 1)} kW"],
             [self.translate("kpi_max_feed_in"), f"{round(max(self.kpis.peakInjection.values()), 1)} kW"],
             [self.translate("kpi_autonomy_rate"), f"{round(avg_autonomy * 100, 1)} %"],

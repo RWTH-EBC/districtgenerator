@@ -162,9 +162,13 @@ class Users:
         if self.building in ["SFH", "TH"]:
             self.nb_flats = 1
 
+        # ZAHLEN
+        elif self.building in ["MFH"]:
+            self.nb_flats = 12
+
         # If the building is a MFH or AB,
         # we estimate the number of flats probabilistically.
-        elif self.building in ["MFH", "AB"]:
+        elif self.building in ["AB"]:
             # Data source: Federal Statistical Office of Germany (Destatis), Zensus 2022
             # URL: https://www.zensus2022.de/
             # This method estimates the number of flats for multi-family houses (MFH) and apartment buildings (AB)

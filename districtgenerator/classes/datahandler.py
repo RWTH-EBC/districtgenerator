@@ -578,6 +578,8 @@ class Datahandler:
                     # Cap the number of floors to a maximum of 8
                     if number_of_floors > 8:
                         number_of_floors = 8
+                    # ZAHLEN
+                    number_of_floors = 3
 
                 elif building_type == "apartment_block":
                     one_floor_area = rd.randint(350, 540)  # Source: TABULA German Building Typology
