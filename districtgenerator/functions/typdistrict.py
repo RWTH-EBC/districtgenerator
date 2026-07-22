@@ -7,10 +7,6 @@ from math import sqrt, ceil, floor, atan2
 import numpy as np
 from districtgenerator.functions.typdistrict_preprocess import params, random_with_mean
 
-# check if shapely is correctly installed
-# print(shapely.__version__)
-# version: 2.1.1
-
 def compute_inner_rectangle(district_type, num_buildings, building_density, width_length_ratio, building_width, house_connection):
     """
     Since the area calculated from building density represents the total area of the district,
@@ -64,12 +60,297 @@ def compute_inner_rectangle(district_type, num_buildings, building_density, widt
 
     W = width_length_ratio * L
     A_inner = L * W
-    # if district_type == 'E':
-    #     A_total_check = L * (W + 2 * e)
-    # else:
-    #     A_total_check = (L + 2 * e) * (W + 2 * e)
 
     return A_inner
+
+def road_angle(road):
+    """
+    Return the orientation angle of a road segment in radians.
+    """
+    (x0, y0), (x1, y1) = road.coords[0], road.coords[-1]
+    return atan2(y1 - y0, x1 - x0)
+
+def building_rectangle(center, ground_area, aspect_ratio, angle):
+    """
+    Create a rectangular building footprint with fixed area.
+
+    The rectangle length is aligned with angle. The aspect ratio is length/depth.
+    """
+    length = sqrt(ground_area * aspect_ratio)
+    depth = sqrt(ground_area / aspect_ratio)
+    rect = shapely.box(
+        center.x - length / 2,
+        center.y - depth / 2,
+        center.x + length / 2,
+        center.y + depth / 2,
+    )
+    return shapely.affinity.rotate(rect, angle, origin="center", use_radians=True)
+
+def road_side_for_point(road, point):
+    """
+    Return the side of the road on which a point lies.
+    """
+    (x0, y0), (x1, y1) = road.coords[0], road.coords[-1]
+    cross_product = (x1 - x0) * (point.y - y0) - (y1 - y0) * (point.x - x0)
+    return "left" if cross_product > 0 else "right"
+
+def offset_center_for_rectangle(road, point, offset_distance):
+    """
+    Recompute the building center at the required distance from the road.
+
+    The incoming point is used only to preserve its road-side and longitudinal
+    position.
+    """
+    side = road_side_for_point(road, point)
+    distance_along_road = road.project(point)
+    offset_line = road.parallel_offset(offset_distance, side, resolution=16, mitre_limit=5.0)
+
+    if offset_line.geom_type == "MultiLineString":
+        offset_line = max(offset_line.geoms, key=lambda geom: geom.length)
+
+    return offset_line.interpolate(distance_along_road)
+
+def place_adaptive_rectangle(center, road, building_ground_area, placed_buildings,
+                             road_lines_scaled, house_connection, clearance):
+    """
+    Place a rectangular footprint by trying several aspect ratios and orientations.
+
+    The footprint area stays fixed. The aspect-ratio order is shuffled for each
+    building so the first collision-free candidate does not always have the same
+    shape.
+    """
+    road_clearance_margin = 0.2
+    buffered_roads = [
+        line.buffer(house_connection + road_clearance_margin)
+        for line in road_lines_scaled
+    ]
+    base_angle = road_angle(road)
+    aspect_ratios = [1.0, 1.2, 1.4, 1.6, 1.8, 2.0]
+    shuffle(aspect_ratios)
+    angle_options = (base_angle, base_angle + np.pi / 2)
+
+    for angle in angle_options:
+        for aspect_ratio in aspect_ratios:
+            length = sqrt(building_ground_area * aspect_ratio)
+            depth = sqrt(building_ground_area / aspect_ratio)
+            perpendicular_size = depth if angle == base_angle else length
+            adapted_center = offset_center_for_rectangle(
+                road,
+                center,
+                house_connection + road_clearance_margin + perpendicular_size / 2,
+            )
+            candidate = building_rectangle(adapted_center, building_ground_area, aspect_ratio, angle)
+            if any(candidate.intersects(b.buffer(clearance)) for b in placed_buildings):
+                continue
+            if any(candidate.intersects(r) for r in buffered_roads):
+                continue
+            return candidate
+
+    return None
+
+def select_random_buildings(placed_buildings, num_buildings):
+    """
+    Keep the requested number of buildings by randomly removing excess candidates.
+    """
+    if len(placed_buildings) <= num_buildings:
+        return placed_buildings
+
+    num_remove = len(placed_buildings) - num_buildings
+    remove_indices = set(sample(range(len(placed_buildings)), num_remove))
+    return [
+        building
+        for index, building in enumerate(placed_buildings)
+        if index not in remove_indices
+    ]
+
+def cleanup_unused_road_tails(road_lines, buildings, transformer_pos, house_connection, building_width):
+    """
+    Remove empty redundant roads and shorten empty dead-end road tails.
+
+    A road is considered useful if it serves at least one building or is needed
+    to connect building-serving roads.
+    """
+    if not road_lines:
+        return road_lines
+
+    building_access_distance = house_connection + 0.5
+    road_tail_margin = house_connection + building_width / 2
+    transformer_point = shapely.Point(transformer_pos)
+
+    def endpoint_key(point):
+        return round(point[0], 6), round(point[1], 6)
+
+    def road_endpoint_keys(road):
+        return endpoint_key(road.coords[0]), endpoint_key(road.coords[-1])
+
+    def road_has_building(road):
+        return any(
+            building.distance(road) <= building_access_distance
+            for building in buildings
+        )
+
+    def build_endpoint_graph(roads):
+        graph = nx.Graph()
+        for index, road in enumerate(roads):
+            start_key, end_key = road_endpoint_keys(road)
+            graph.add_edge(start_key, end_key, index=index)
+        return graph
+
+    def hub_node(graph):
+        if graph.number_of_nodes() == 0:
+            return None
+        node_distances = [
+            (shapely.Point(node).distance(transformer_point), node)
+            for node in graph.nodes
+        ]
+        distance, node = min(node_distances, key=lambda item: item[0])
+        if distance > 1e-4:
+            return None
+        return node
+
+    def served_network_connected(roads):
+        graph = build_endpoint_graph(roads)
+        if graph.number_of_nodes() == 0:
+            return False
+
+        anchor = hub_node(graph)
+        if anchor is None:
+            return False
+
+        served_nodes = set()
+        for road in roads:
+            if road_has_building(road):
+                served_nodes.update(road_endpoint_keys(road))
+
+        if not served_nodes:
+            return True
+
+        return all(
+            node in graph and nx.has_path(graph, anchor, node)
+            for node in served_nodes
+        )
+
+    cleaned_roads = list(road_lines)
+
+    # First delete empty roads if building-serving roads remain connected to
+    # the hub. Repeat because one deletion can make another road redundant.
+    changed = True
+    while changed:
+        changed = False
+
+        for index, road in enumerate(cleaned_roads):
+            if road_has_building(road):
+                continue
+
+            trial_roads = cleaned_roads[:index] + cleaned_roads[index + 1:]
+            if not trial_roads:
+                continue
+
+            if served_network_connected(trial_roads):
+                cleaned_roads = trial_roads
+                changed = True
+                break
+
+    # Then shorten empty dead-end tails behind the last served building.
+    graph = build_endpoint_graph(cleaned_roads)
+    shortened_roads = []
+
+    for road_index, road in enumerate(cleaned_roads):
+        start_key, end_key = road_endpoint_keys(road)
+        start_degree = graph.degree[start_key]
+        end_degree = graph.degree[end_key]
+
+        if not ((start_degree == 1) ^ (end_degree == 1)):
+            shortened_roads.append(road)
+            continue
+
+        nearby_buildings = [
+            building for building in buildings
+            if building.distance(road) <= building_access_distance
+        ]
+        if not nearby_buildings:
+            shortened_roads.append(road)
+            continue
+
+        projections = [
+            road.project(building.centroid)
+            for building in nearby_buildings
+        ]
+
+        shortened_road = None
+        if start_degree > 1 and end_degree == 1:
+            keep_until = min(max(projections) + road_tail_margin, road.length)
+            if keep_until < road.length - road_tail_margin:
+                shortened_road = shapely.LineString([
+                    road.coords[0],
+                    road.interpolate(keep_until).coords[0],
+                ])
+        elif end_degree > 1 and start_degree == 1:
+            keep_from = max(min(projections) - road_tail_margin, 0)
+            if keep_from > road_tail_margin:
+                shortened_road = shapely.LineString([
+                    road.interpolate(keep_from).coords[0],
+                    road.coords[-1],
+                ])
+
+        if shortened_road is None:
+            shortened_roads.append(road)
+            continue
+
+        trial_roads = cleaned_roads[:road_index] + [shortened_road] + cleaned_roads[road_index + 1:]
+        if served_network_connected(trial_roads):
+            shortened_roads.append(shortened_road)
+        else:
+            shortened_roads.append(road)
+
+    return shortened_roads
+
+def choose_energy_hub_position(road_lines, buildings=None):
+    """
+    Choose the energy hub position.
+
+    The selected road node has the highest road degree. If several nodes have
+    the same degree, the node closest to the final district geometry center is
+    used.
+    """
+    graph = nx.Graph()
+
+    def endpoint_key(point):
+        return round(point[0], 6), round(point[1], 6)
+
+    for road in road_lines:
+        start_key = endpoint_key(road.coords[0])
+        end_key = endpoint_key(road.coords[-1])
+        graph.add_edge(start_key, end_key)
+
+    if graph.number_of_nodes() == 0:
+        return (0, 0), 0
+
+    degrees = dict(graph.degree())
+    max_degree = max(degrees.values())
+    hub_candidates = [
+        node for node, degree in degrees.items()
+        if degree == max_degree
+    ]
+
+    center_geometries = list(road_lines)
+    if buildings:
+        center_geometries.extend(buildings)
+
+    xmin, ymin, xmax, ymax = unary_union(center_geometries).bounds
+    center_x = (xmin + xmax) / 2
+    center_y = (ymin + ymax) / 2
+
+    hub_node = min(
+        hub_candidates,
+        key=lambda node: (
+            (node[0] - center_x) ** 2 + (node[1] - center_y) ** 2,
+            node[1],
+            node[0],
+        ),
+    )
+
+    return hub_node, max_degree
 
 def get_edges_in_quadrant(graph, quadrant, mid_x, mid_y):
     """
@@ -165,7 +446,7 @@ def delete_edges(graph, edges, delete_ratio):
             if deleted_num >= target_deleted_num:
                 break
 
-def run_typdistrict_layout(district_type, num_buildings, building_density, delete_ratio, switch_i=0, switch_g=0):
+def run_typdistrict_layout(district_type, num_buildings, building_density, delete_ratio, switch_g=0):
     """
     generate the district layout
 
@@ -175,9 +456,6 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
     num_buildings: int
     building_density: float
     delete_ratio: float
-    switch_i=0
-        When the number of generated buildings is not sufficient after 30 attempts,
-        switch_i turns 1 and the layout of type I is fixed.
     switch_g=0
         When the number of generated buildings is not sufficient after 30 attempts,
         switch_g turns 1 and the layout of type G is fixed.
@@ -196,23 +474,25 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
         True: If there are too many empty space, then get bigger density for the district and rerun the model.
     """
     # %% STEP ONE: get the parameters
-    wohneinheiten = params["wohneinheiten"]["value"]
-    building_ground_area = wohneinheiten * params["gebaeudegrundflaeche_je_wohneinheit"]  # in square meters
+    # Sample inside the GRZ range only as an initial footprint sizing guide.
+    # The final generated GRZ is calculated from the generated geometry and
+    # validated against the input range in postprocessing.
+    initial_grz_for_geometry = uniform(
+        params["grund_flaechenzahl"]["min"],
+        params["grund_flaechenzahl"]["max"],
+    )
+    building_ground_area = initial_grz_for_geometry * 10000 / building_density  # in square meters
     building_width = sqrt(building_ground_area)  # meters
     distance_between_buildings_min = params["abstand_hausanschluesse"]["min"]  # meters
     distance_between_buildings_max = params["abstand_hausanschluesse"]["max"]  # meters
     house_connection = params["HA-Leitungen"]["value"]  # Length of house connection lines in m
-    num_main_lines = params["leitungsabgaenge"]["value"]  # Lines starting from the transformer station
     if district_type == "I":
         min_line_length = params["laenge_netzstrahlabschnitte"]["min"]  # meters
     else:
         min_line_length = params["laenge_netzstrahlabschnitte"]["min"] / 2  # meters
 
     max_line_length = params["laenge_netzstrahlabschnitte"]["max"]  # meters
-    mean_line_length = params["laenge_netzstrahlabschnitte"]["mean_value"]  # meters
     width_length_ratio = params["seitenverhaeltnis"]["value"]
-    BCR = params["grund_flaechenzahl"]["value"]
-    min_BCR = params["grund_flaechenzahl"]["min"]
 
     get_bigger_density = False
 
@@ -222,15 +502,7 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
     else:           # district F and I
         area_density = num_buildings / building_density * 10000  # square meters
 
-    # If there are a particularly large number of residential units ("Wohneinheiten") in each building in Type I,
-    # the area calculated based on density would be insufficient to accommodate so many buildings.
-    # Therefore, the area is calculated using BCR (the ratio of building footprint to area).
-    if district_type == 'I':
-        #print(params["wohneinheiten"]["value"])
-        area_BCR = num_buildings * building_ground_area / min_BCR
-        area = max(area_density, area_BCR)
-    else:
-        area = area_density
+    area = area_density
 
     length = sqrt(area / width_length_ratio)  # meters
     width = area / length  # meters
@@ -268,7 +540,6 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
     # Randomly obtain the length(spacing_y) and width(spacing_y) of blocks for each area type.
     if district_type == 'E':
         spacing_x = (house_connection + building_width) * 2 + 20  # meters
-        # spacing_y = random_with_mean(mean_line_length, min_line_length, max_line_length)  # meters
         spacing_y = spacing_x * block_ratio  # meters
     elif district_type == 'F':
         # make sure that it can contain at least one group of three buildings in each row
@@ -277,7 +548,6 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
         spacing_x = max(spacing_x_value, length_group)  # meters
         spacing_y = spacing_x * block_ratio  # meters
     else:
-        # spacing_x = random_with_mean((2 * mean_line_length) / (1 + block_ratio), min_line_length, max_line_length/block_ratio)  # meters
         spacing_x = uniform(min_line_length / block_ratio, max_line_length / block_ratio)  # meters
         spacing_y = spacing_x * block_ratio  # meters
 
@@ -296,34 +566,43 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
 #        n = floor(width / spacing_x) + 1
 
     # adjust the layout and randomly delete the roads
-    if switch_i == 1 and district_type == 'I':
+    if switch_g == 1 and district_type == 'G':
         # When the number of generated buildings is not sufficient after 30 attempts,
-        # switch_i turns 1 and the layout of type I is fixed.
-        road_grid = nx.grid_2d_graph(m, n, periodic=False, create_using=None)
-        for i in range(m - 1):
-            for j in range(n - 1):
-                if choice([True, False]):
-                    road_grid.add_edge((i, j), (i + 1, j + 1))  # add ↘ diagonal road
-                else:
-                    road_grid.add_edge((i, j + 1), (i + 1, j))  # add ↙ diagonal road
-
-        pos = {node: (node[1], node[0]) for node in road_grid.nodes()}
-        nx.set_node_attributes(road_grid, pos, "pos")
-    elif switch_g == 1 and district_type == 'G':
-        # When the number of generated buildings is not sufficient after 30 attempts,
-        # switch_i turns 1 and the layout of type G is fixed.
+        # switch_g turns 1 and the layout of type G is fixed.
         road_grid = nx.grid_2d_graph(m, n, periodic=False, create_using=None)
         pos = {node: (node[1], node[0]) for node in road_grid.nodes()}
         nx.set_node_attributes(road_grid, pos, "pos")
     else:
         road_grid = nx.grid_2d_graph(m, n, periodic=False, create_using=None)
 
-        # add all diagonal roads in district type G and I
+        # Add diagonal roads in district types G and I.
+        # Some cells receive two diagonals, some receive one diagonal, and
+        # type I can also have cells without diagonals. This keeps the road
+        # morphology irregular.
         if district_type in ("G", "I"):
             for i in range(m-1):
                 for j in range(n-1):
-                    road_grid.add_edge((i, j), (i + 1, j + 1))
-                    road_grid.add_edge((i, j + 1), (i + 1, j))
+                    diagonal_a = ((i, j), (i + 1, j + 1))
+                    diagonal_b = ((i, j + 1), (i + 1, j))
+                    random_value = uniform(0, 1)
+
+                    if district_type == "G":
+                        if random_value < 0.70:
+                            road_grid.add_edge(*diagonal_a)
+                            road_grid.add_edge(*diagonal_b)
+                        elif uniform(0, 1) < 0.50:
+                            road_grid.add_edge(*diagonal_a)
+                        else:
+                            road_grid.add_edge(*diagonal_b)
+                    else:
+                        if random_value < 0.20:
+                            road_grid.add_edge(*diagonal_a)
+                            road_grid.add_edge(*diagonal_b)
+                        elif random_value < 0.90:
+                            if uniform(0, 1) < 0.50:
+                                road_grid.add_edge(*diagonal_a)
+                            else:
+                                road_grid.add_edge(*diagonal_b)
 
         pos = {node: (node[1], node[0]) for node in road_grid.nodes()}
         nx.set_node_attributes(road_grid, pos, "pos")
@@ -496,21 +775,11 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
                     new_building = shapely.box(p.x - building_width / 2, p.y - building_width / 2,
                                                p.x + building_width / 2, p.y + building_width / 2)
                     buffered_roads = [line.buffer(house_connection - 0.1) for line in road_lines_scaled]
-                    # if not any(new_building.intersects(b) for b in placed_buildings):
                     if not any(new_building.intersects(b.buffer(distance_between_bl-building_width)) for b in placed_buildings):
                         if not any(new_building.intersects(r) for r in buffered_roads):
                             placed_buildings.append(new_building)
 
-        buildings = []
-        if len(placed_buildings) - num_buildings <= 0:
-            buildings = placed_buildings
-        else:
-            # If the number of buildings generated exceeds the required number, some buildings are randomly deleted
-            num_remove = len(placed_buildings) - num_buildings
-            remove_indices = set(sample(range(len(placed_buildings)), num_remove))
-            for i in range(len(placed_buildings)):
-                if i not in remove_indices:
-                    buildings.append(placed_buildings[i])
+        buildings = select_random_buildings(placed_buildings, num_buildings)
 
     elif district_type == "E":
         """
@@ -598,20 +867,18 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
                     # Get the coordinates of all building center points
                     points = [road_parallel.interpolate(d) for d in distances]
                     for p in points:
-                        # Draw the building square
-                        new_building = shapely.box(p.x - building_width / 2, p.y - building_width / 2,
-                                                   p.x + building_width / 2, p.y + building_width / 2)
-                        buffered_roads = [line.buffer(house_connection - 0.1) for line in road_lines_scaled]
-                        # Detect whether the building overlaps with existing roads and buildings
-                        if not any(new_building.intersects(b) for b in placed_buildings):
-                            if not any(new_building.intersects(r) for r in buffered_roads):
-                                placed_buildings.append(new_building)
-                                building_this_road.append(new_building)
+                        # Try adaptive rectangular footprints with fixed area.
+                        new_building = place_adaptive_rectangle(
+                            p, road, building_ground_area, placed_buildings,
+                            road_lines_scaled, house_connection, 0.0)
+                        if new_building is not None:
+                            placed_buildings.append(new_building)
+                            building_this_road.append(new_building)
                         if len(building_this_road) == num_bl_per_road_side:
                             break
 
-        # If the number of buildings generated exceeds the required number, retain only the quantity requested
-        buildings = placed_buildings[:num_buildings]
+        # If the number of generated buildings exceeds the target, randomly remove extras.
+        buildings = select_random_buildings(placed_buildings, num_buildings)
 
     elif district_type == "F":
         """
@@ -760,7 +1027,7 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
                                                                    use_radians=True)
                     buffered_roads = [line.buffer(house_connection - 0.1) for line in road_lines_scaled]
                     # Detect whether the building overlaps with existing roads and buildings
-                    if not any(new_building.intersects(b.buffer(distance_between_bl-building_width)) for b in placed_buildings):
+                    if not any(new_building_rotated.intersects(b.buffer(distance_between_bl - building_width)) for b in placed_buildings):
                         if not any(new_building_rotated.intersects(r) for r in buffered_roads):
                             placed_buildings.append(new_building_rotated)
 
@@ -788,7 +1055,7 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
                     new_building = shapely.box(p.x - building_width / 2, p.y - building_width / 2,
                                                p.x + building_width / 2, p.y + building_width / 2)
                     buffered_roads = [line.buffer(house_connection - 0.1) for line in road_lines_scaled]
-                    if not any(new_building.intersects(b.buffer(distance_between_bl-building_width)) for b in placed_buildings):
+                    if not any(new_building.intersects(b.buffer(distance_between_bl - building_width)) for b in placed_buildings):
                         if not any(new_building.intersects(r) for r in buffered_roads):
                             placed_buildings.append(new_building)
 
@@ -864,17 +1131,13 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
                 # Get the coordinates of all building center points
                 points = [road_parallel.interpolate(d) for d in distances]
                 for p in points:
-                    # Draw the building square
-                    new_building = shapely.box(p.x - building_width / 2, p.y - building_width / 2,
-                                               p.x + building_width / 2, p.y + building_width / 2)
-                    # rotate the buildings for diagonal roads
-                    new_building_rotated = shapely.affinity.rotate(new_building, angle_road, origin='center',
-                                                                   use_radians=True)
-                    buffered_roads = [line.buffer(house_connection - 0.1) for line in road_lines_scaled]
-                    # Detect whether the building overlaps with existing roads and buildings
-                    if not any(new_building_rotated.intersects(b.buffer(distance_between_bl-building_width)) for b in placed_buildings):
-                        if not any(new_building_rotated.intersects(r) for r in buffered_roads):
-                            placed_buildings.append(new_building_rotated)
+                    # Try adaptive rectangular footprints with fixed area.
+                    clearance = max(0.0, distance_between_bl - building_width)
+                    new_building = place_adaptive_rectangle(
+                        p, road, building_ground_area, placed_buildings,
+                        road_lines_scaled, house_connection, clearance)
+                    if new_building is not None:
+                        placed_buildings.append(new_building)
 
         # same for the vertical roads
         for road in vertical_road:
@@ -883,12 +1146,12 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
                 distances = [house_connection + 0.5 * building_width + i * (distance_between_bl + 0.1) for i in range(num_bl_per_ver_road_max//2)]
                 points = [road_parallel.interpolate(d) for d in distances]
                 for p in points:
-                    new_building = shapely.box(p.x - building_width / 2, p.y - building_width / 2,
-                                               p.x + building_width / 2, p.y + building_width / 2)
-                    buffered_roads = [line.buffer(house_connection - 0.1) for line in road_lines_scaled]
-                    if not any(new_building.intersects(b.buffer(distance_between_bl-building_width)) for b in placed_buildings):
-                        if not any(new_building.intersects(r) for r in buffered_roads):
-                            placed_buildings.append(new_building)
+                    clearance = max(0.0, distance_between_bl - building_width)
+                    new_building = place_adaptive_rectangle(
+                        p, road, building_ground_area, placed_buildings,
+                        road_lines_scaled, house_connection, clearance)
+                    if new_building is not None:
+                        placed_buildings.append(new_building)
 
         # same for the horizontal roads
         for road in horizontal_road:
@@ -897,26 +1160,31 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
                 distances = [house_connection + 0.5 * building_width + i * (distance_between_bl + 0.1) for i in range(num_bl_per_hor_road_max//2)]
                 points = [road_parallel.interpolate(d) for d in distances]
                 for p in points:
-                    new_building = shapely.box(p.x - building_width / 2, p.y - building_width / 2,
-                                               p.x + building_width / 2, p.y + building_width / 2)
-                    buffered_roads = [line.buffer(house_connection - 0.1) for line in road_lines_scaled]
-                    if not any(new_building.intersects(b.buffer(distance_between_bl-building_width)) for b in placed_buildings):
-                        if not any(new_building.intersects(r) for r in buffered_roads):
-                            placed_buildings.append(new_building)
+                    clearance = max(0.0, distance_between_bl - building_width)
+                    new_building = place_adaptive_rectangle(
+                        p, road, building_ground_area, placed_buildings,
+                        road_lines_scaled, house_connection, clearance)
+                    if new_building is not None:
+                        placed_buildings.append(new_building)
 
-        buildings = []
-        if len(placed_buildings) - num_buildings <= 0:
-            buildings = placed_buildings
-        else:
-            # If the number of buildings generated exceeds the required number, some buildings are randomly deleted
-            num_remove = len(placed_buildings) - num_buildings
-            remove_indices = set(sample(range(len(placed_buildings)), num_remove))
-            for i in range(len(placed_buildings)):
-                if i not in remove_indices:
-                    buildings.append(placed_buildings[i])
+        buildings = select_random_buildings(placed_buildings, num_buildings)
 
     # %% STEP FIVE: Save the parameters for this run
     # calculate the actual total area and building density
+    if district_type != "F":
+        road_lines_scaled = cleanup_unused_road_tails(
+            road_lines=road_lines_scaled,
+            buildings=buildings,
+            transformer_pos=transformer_pos,
+            house_connection=house_connection,
+            building_width=building_width,
+        )
+
+    transformer_pos, max_degree = choose_energy_hub_position(
+        road_lines_scaled,
+        buildings=buildings,
+    )
+
     # Combine buildings and roads into a single graph
     all_geoms = list(buildings) + list(road_lines_scaled)
 
@@ -931,6 +1199,8 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
     area_width = xmax - xmin  # meters
     area_length = ymax - ymin  # meters
     area_building_density = num_buildings / area_space  #number of buildings per ha
+    total_building_footprint_area = sum(building.area for building in buildings)
+    generated_grz = total_building_footprint_area / (area_space * 10000) if area_space > 0 else 0
 
     run_results = {
         "district_type": district_type,
@@ -940,11 +1210,16 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
         "width_length_ratio": area_width / area_length,
         "area": area_space,
         "building_density": area_building_density,
+        "generated_grz": generated_grz,
+        "target_grz_min": params["grund_flaechenzahl"]["min"],
+        "target_grz_max": params["grund_flaechenzahl"]["max"],
+        "initial_grz_for_geometry": initial_grz_for_geometry,
+        "target_gfz_min": params["geschoss_flaechenzahl"]["min"],
+        "target_gfz_max": params["geschoss_flaechenzahl"]["max"],
         "building_ground_area": building_ground_area,
         "building_width": building_width,
-        "wohneinheiten per building": wohneinheiten,
         "house_connection": house_connection,
-        "num_main_lines": max_degree,
+        "energy_hub_road_degree": max_degree,
         "num_roads": len(road_lines_scaled),
         "num_row_roads": m,
         "num_column_roads": n

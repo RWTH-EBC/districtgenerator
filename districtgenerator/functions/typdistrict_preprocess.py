@@ -96,6 +96,10 @@ def random_between(min_val, max_val):
         return int(round(value))  # Round and convert to integer if the value range is greater than 1
     return round(value, 2)       # Otherwise, round to two decimal places
 
+def random_float_between(min_val, max_val):
+    """Return a floating-point value between min and max."""
+    return round(random.uniform(min_val, max_val), 2)
+
 def random_with_mean(mean, min_val, max_val, std_dev=None):
     """Generate a random value around a mean"""
     if std_dev is None:
@@ -107,36 +111,26 @@ def random_with_mean(mean, min_val, max_val, std_dev=None):
     return round(max(min(value, max_val), min_val), 2)        # Otherwise, round to two decimal places
 
 params = {
-    "geschoss_flaechenzahl": {
-        "min": row["Min Geschoss-flächenzahl"],
-        "max": row["Max Geschoss-flächenzahl"],
-        "value": random_between(row["Min Geschoss-flächenzahl"], row["Max Geschoss-flächenzahl"])
-    },
     "grund_flaechenzahl": {
         "min": row["Min Grund-flächenzahl"],
         "max": row["Max Grund-flächenzahl"],
         "value": random_between(row["Min Grund-flächenzahl"], row["Max Grund-flächenzahl"])
+    },
+    "geschoss_flaechenzahl": {
+        "min": row["Min Geschoss-flächenzahl"],
+        "max": row["Max Geschoss-flächenzahl"],
+        "value": random_float_between(row["Min Geschoss-flächenzahl"], row["Max Geschoss-flächenzahl"])
     },
     "gebaeude_pro_ha": {
         "min": row["Min Gebäude pro ha"],
         "max": row["Max Gebäude pro ha"],
         "value": random_between(row["Min Gebäude pro ha"], row["Max Gebäude pro ha"])
     },
-    "leitungsabgaenge": {
-        "mean_value": row["Mittelwert Anzahl der Leitungsabgänge je Netzstation"],
-        "min": row["Min Anzahl der Leitungsabgänge je Netzstation"],
-        "max": row["Max Anzahl der Leitungsabgänge je Netzstation"],
-        "value": min(random_with_mean(row["Mittelwert Anzahl der Leitungsabgänge je Netzstation"],
-                                  row["Min Anzahl der Leitungsabgänge je Netzstation"],
-                                  row["Max Anzahl der Leitungsabgänge je Netzstation"]), 4)
-    },
     "laenge_netzstrahlabschnitte": {
-        "mean_value": row["Mittelwert Länge der Netzstrahlabschnitte (m)"],
         "min": row["Min Länge der Netzstrahlabschnitte (m)"],
         "max": row["Max Länge der Netzstrahlabschnitte (m)"],
-        "value": random_with_mean(row["Mittelwert Länge der Netzstrahlabschnitte (m)"],
-                                  row["Min Länge der Netzstrahlabschnitte (m)"],
-                                  row["Max Länge der Netzstrahlabschnitte (m)"])
+        "value": random_between(row["Min Länge der Netzstrahlabschnitte (m)"],
+                                row["Max Länge der Netzstrahlabschnitte (m)"])
     },
     "abstand_hausanschluesse": {
         "mean_value": row["Mittelwert Abstand benachbarter Hausanschlüsse  (m)"],
@@ -152,14 +146,6 @@ params = {
         "value": random_between(row["Min HA-Leitungen (m)"],
                                 row["Max HA-Leitungen (m)"])
     },
-    "wohneinheiten": {
-        "mean_value": row["Mittelwert Wohnheiten je Hausanschlus"],
-        "min": row["Min Wohnheiten je Hausanschlus"],
-        "max": row["Max Wohnheiten je Hausanschlus"],
-        "value": random_with_mean(row["Mittelwert Wohnheiten je Hausanschlus"],
-                                  row["Min Wohnheiten je Hausanschlus"],
-                                  row["Max Wohnheiten je Hausanschlus"])
-    },
     "seitenverhaeltnis": {
         "mean_value": row["Mittelwert Seitenverhältnis (B/L)"],
         "min": row["Min Seitenverhältnis (B/L)"],
@@ -168,35 +154,25 @@ params = {
                                   row["Min Seitenverhältnis (B/L)"],
                                   row["Max Seitenverhältnis (B/L)"])
     },
-    "flaeche_bezirk_m2": {
-        "mean_value": row["Mittelwert Fläche des Bezirkes (ha)"] * 10000,  # Convert hectares to square meters
-        "min": row["Min Fläche des Bezirkes (ha)"] * 10000,
-        "max": row["Max Fläche des Bezirkes (ha)"] * 10000,
-        "value": random_with_mean(row["Mittelwert Fläche des Bezirkes (ha)"] * 10000,
-                                  row["Min Fläche des Bezirkes (ha)"] * 10000,
-                                  row["Max Fläche des Bezirkes (ha)"] * 10000)
+    "share_non_residential": float(row["OSM Nichtwohnnutzung (%)"]),
+    "share_mixed_use": float(row["OSM Mischnutzung (%)"]),
+    "share_residential": float(row["OSM Wohnnutzung (%)"]),
+    "est_type": row.get("EST Typ"),
+    "residential_typology_shares": {
+        "EFH": float(row["EFH Anteil (%)"]),
+        "MFH": float(row["MFH Anteil (%)"])
     },
-    "lastangriffsfaktor_epsilon": round(row["Lastangriffsfaktor ε"], 2),
-    "stdev_lastangriffsfaktor_sigma": round(row["stdev Lastangriffsfaktor σ"], 2),
-    "gebaeudegrundflaeche_je_wohneinheit": int(row["Gebäudegrundfläche je Wohneinheit (m²)"]),
-    "netzaufbau": row["Netzaufbau"],
-    "share_non_residential": float(row["Nichtwohnnutzung (%)"]),
-    "share_mixed_use": float(row["Mischnutzung (%)"]),
-    "share_residential": float(row["Wohnnutzung (%)"]),
-    "frequency_education": row["Häufigkeit Schule, Kindebetreuungsstätte"],
-    "frequency_office_medical": row["Häufigkeit Büro, Praxis, Kanzlei"],
-    "frequency_retail_service": row["Häufigkeit Einzelhandel und Dienstleistung"],
-    "frequency_restaurant": row["Häufigkeit Gaststätte"],
-    "frequency_workshop": row["Häufigkeit Handwerksbetrieb"],
-    "frequency_agriculture": row["Häufigkeit Landwirtschaftlicher Betrieb"],
-
-    "building_type_mapping": {
-        "frequency_education": ["SC", "UNI"],
-        "frequency_office_medical": ["OB", "HOSPITAL"],
-        "frequency_retail_service": ["RETAIL", "GS"],
-        "frequency_restaurant": ["RE"],
-        "frequency_workshop": ["WORKSHOP"],
-        "frequency_agriculture": ["WORKSHOP"]
+    "osm_nrb_type_percentages": {
+        "OB": row.get("OSM Anteil OB an NRB (%)"),
+        "SC": row.get("OSM Anteil SC an NRB (%)"),
+        "RE": row.get("OSM Anteil RE an NRB (%)"),
+        "GS": row.get("OSM Anteil GS an NRB (%)"),
+        "UNI": row.get("OSM Anteil UNI an NRB (%)"),
+        "HOSPITAL": row.get("OSM Anteil HOSPITAL an NRB (%)"),
+        "CULTURE": row.get("OSM Anteil CULTURE an NRB (%)"),
+        "SPORT": row.get("OSM Anteil SPORT an NRB (%)"),
+        "RETAIL": row.get("OSM Anteil RETAIL an NRB (%)"),
+        "WORKSHOP": row.get("OSM Anteil WORKSHOP an NRB (%)"),
     },
 
     "gebaeudealter": {
@@ -218,12 +194,107 @@ params = {
         "vollsaniert": row["Vollsaniert (%)"]
     },
 
-    "anzahl_vollgeschosse_0": row["Anzahl Vollgeschosse 0%"],
-    "anzahl_vollgeschosse_25": row["Anzahl Vollgeschosse 25%"],
-    "anzahl_vollgeschosse_50": row["Anzahl Vollgeschosse 50%"],
-    "anzahl_vollgeschosse_75": row["Anzahl Vollgeschosse 75%"],
-    "anzahl_vollgeschosse_100": row["Anzahl Vollgeschosse 100%"],
+    "max_anzahl_vollgeschosse": row["Max Anzahl Vollgeschosse"],
 
     "random_seed": random_seed,
 
 }
+
+def reseed_params(new_seed):
+    """
+    Rebuild the sampled typdistrict parameters for a replacement seed.
+
+    The dictionary is updated in place so modules that imported `params` keep
+    seeing the current values.
+    """
+    global random_seed
+
+    random_seed = int(new_seed)
+    random.seed(random_seed)
+    np.random.seed(random_seed)
+
+    params.clear()
+    params.update({
+        "grund_flaechenzahl": {
+            "min": row["Min Grund-flächenzahl"],
+            "max": row["Max Grund-flächenzahl"],
+            "value": random_between(row["Min Grund-flächenzahl"], row["Max Grund-flächenzahl"])
+        },
+        "geschoss_flaechenzahl": {
+            "min": row["Min Geschoss-flächenzahl"],
+            "max": row["Max Geschoss-flächenzahl"],
+            "value": random_float_between(row["Min Geschoss-flächenzahl"], row["Max Geschoss-flächenzahl"])
+        },
+        "gebaeude_pro_ha": {
+            "min": row["Min Gebäude pro ha"],
+            "max": row["Max Gebäude pro ha"],
+            "value": random_between(row["Min Gebäude pro ha"], row["Max Gebäude pro ha"])
+        },
+        "laenge_netzstrahlabschnitte": {
+            "min": row["Min Länge der Netzstrahlabschnitte (m)"],
+            "max": row["Max Länge der Netzstrahlabschnitte (m)"],
+            "value": random_between(row["Min Länge der Netzstrahlabschnitte (m)"],
+                                    row["Max Länge der Netzstrahlabschnitte (m)"])
+        },
+        "abstand_hausanschluesse": {
+            "mean_value": row["Mittelwert Abstand benachbarter Hausanschlüsse  (m)"],
+            "min": row["Min Abstand benachbarter Hausanschlüsse  (m)"],
+            "max": row["Max Abstand benachbarter Hausanschlüsse  (m)"],
+            "value": random_with_mean(row["Mittelwert Abstand benachbarter Hausanschlüsse  (m)"],
+                                      row["Min Abstand benachbarter Hausanschlüsse  (m)"],
+                                      row["Max Abstand benachbarter Hausanschlüsse  (m)"])
+        },
+        "HA-Leitungen": {
+            "min": row["Min HA-Leitungen (m)"],
+            "max": row["Max HA-Leitungen (m)"],
+            "value": random_between(row["Min HA-Leitungen (m)"],
+                                    row["Max HA-Leitungen (m)"])
+        },
+        "seitenverhaeltnis": {
+            "mean_value": row["Mittelwert Seitenverhältnis (B/L)"],
+            "min": row["Min Seitenverhältnis (B/L)"],
+            "max": row["Max Seitenverhältnis (B/L)"],
+            "value": random_with_mean(row["Mittelwert Seitenverhältnis (B/L)"],
+                                      row["Min Seitenverhältnis (B/L)"],
+                                      row["Max Seitenverhältnis (B/L)"])
+        },
+        "share_non_residential": float(row["OSM Nichtwohnnutzung (%)"]),
+        "share_mixed_use": float(row["OSM Mischnutzung (%)"]),
+        "share_residential": float(row["OSM Wohnnutzung (%)"]),
+        "est_type": row.get("EST Typ"),
+        "residential_typology_shares": {
+            "EFH": float(row["EFH Anteil (%)"]),
+            "MFH": float(row["MFH Anteil (%)"])
+        },
+        "osm_nrb_type_percentages": {
+            "OB": row.get("OSM Anteil OB an NRB (%)"),
+            "SC": row.get("OSM Anteil SC an NRB (%)"),
+            "RE": row.get("OSM Anteil RE an NRB (%)"),
+            "GS": row.get("OSM Anteil GS an NRB (%)"),
+            "UNI": row.get("OSM Anteil UNI an NRB (%)"),
+            "HOSPITAL": row.get("OSM Anteil HOSPITAL an NRB (%)"),
+            "CULTURE": row.get("OSM Anteil CULTURE an NRB (%)"),
+            "SPORT": row.get("OSM Anteil SPORT an NRB (%)"),
+            "RETAIL": row.get("OSM Anteil RETAIL an NRB (%)"),
+            "WORKSHOP": row.get("OSM Anteil WORKSHOP an NRB (%)"),
+        },
+        "gebaeudealter": {
+            "vor_1919": row["Gebäudealtersverteilung vor 1919 (%)"],
+            "1919_1949": row["Gebäudealtersverteilung 1919 - 1949 (%)"],
+            "1950_1959": row["Gebäudealtersverteilung 1950 - 1959 (%)"],
+            "1960_1969": row["Gebäudealtersverteilung 1960 - 1969 (%)"],
+            "1970_1979": row["Gebäudealtersverteilung 1970 - 1979 (%)"],
+            "1980_1989": row["Gebäudealtersverteilung 1980 - 1989 (%)"],
+            "1990_1999": row["Gebäudealtersverteilung 1990 - 1999 (%)"],
+            "2000_2005": row["Gebäudealtersverteilung 2000 - 2005 (%)"],
+            "2006_2009": row["Gebäudealtersverteilung 2006 - 2009 (%)"],
+            "2010_2019": row["Gebäudealtersverteilung 2010 - 2019 (%)"]
+        },
+        "sanierung": {
+            "unsaniert": row["Unsaniert (%)"],
+            "teilsaniert": row["Teilsaniert (%)"],
+            "vollsaniert": row["Vollsaniert (%)"]
+        },
+        "max_anzahl_vollgeschosse": row["Max Anzahl Vollgeschosse"],
+        "random_seed": random_seed,
+    })

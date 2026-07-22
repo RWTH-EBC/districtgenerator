@@ -7,8 +7,12 @@ import numpy as np
 from math import ceil
 import shapely
 from matplotlib.backends.backend_pdf import PdfPages
-from districtgenerator.functions.typdistrict_preprocess import params, district_type
-from districtgenerator.functions.typdistrict import run_typdistrict_layout
+from districtgenerator.functions.typdistrict_preprocess import params, district_type, reseed_params
+from districtgenerator.functions.typdistrict import (
+    run_typdistrict_layout,
+    place_adaptive_rectangle,
+    select_random_buildings,
+)
 
 '''
 use function scenario_generation to generate the district layout
@@ -42,7 +46,120 @@ def convert_to_serializable(obj):
     else:
         return obj
 
-def scenario_generation():
+def grz_status(run_results):
+    """
+    Compare generated GRZ with the typdistrict GRZ range.
+    """
+    generated_grz = run_results["generated_grz"]
+    tolerance = 0.10
+    min_grz = params["grund_flaechenzahl"]["min"] * (1 - tolerance)
+    max_grz = params["grund_flaechenzahl"]["max"] * (1 + tolerance)
+
+    if generated_grz < min_grz:
+        return "too_low"
+    if generated_grz > max_grz:
+        return "too_high"
+    return "valid"
+
+def fill_missing_f_buildings_on_existing_roads(
+        placed_buildings,
+        road_lines_scaled,
+        num_buildings,
+        building_width,
+        house_connection):
+    """
+    Add missing type-F row buildings along existing horizontal roads only.
+
+    This keeps the Zeilenbebauung morphology intact and avoids the generic
+    fallback that extends short new road branches.
+    """
+    if len(placed_buildings) >= num_buildings:
+        return
+
+    horizontal_roads = [
+        road for road in road_lines_scaled
+        if road.coords[0][1] == road.coords[1][1] and road.coords[0][1] != 0
+    ]
+    pyrandom.shuffle(horizontal_roads)
+    buffered_roads = [line.buffer(house_connection - 0.1) for line in road_lines_scaled]
+
+    for road in horizontal_roads:
+        if len(placed_buildings) >= num_buildings:
+            break
+        for side in ["left", "right"]:
+            if len(placed_buildings) >= num_buildings:
+                break
+            road_parallel = road.parallel_offset(
+                house_connection + building_width / 2,
+                side,
+                resolution=16,
+                mitre_limit=5.0,
+            )
+            step = building_width + 0.1
+            max_distance = max(road.length - house_connection - building_width / 2, 0)
+            distances = [
+                house_connection + building_width / 2 + i * step
+                for i in range(int(max_distance // step) + 1)
+            ]
+            pyrandom.shuffle(distances)
+
+            for distance in distances:
+                if len(placed_buildings) >= num_buildings:
+                    break
+                point = road_parallel.interpolate(distance)
+                new_building = shapely.box(
+                    point.x - building_width / 2,
+                    point.y - building_width / 2,
+                    point.x + building_width / 2,
+                    point.y + building_width / 2,
+                )
+                if any(new_building.intersects(building) for building in placed_buildings):
+                    continue
+                if any(new_building.intersects(road_buffer) for road_buffer in buffered_roads):
+                    continue
+                placed_buildings.append(new_building)
+
+def validate_final_layout(buildings, road_lines_scaled, num_buildings, run_results):
+    """
+    Fail fast if a generated district is incomplete, has buildings on roads,
+    or does not satisfy the typdistrict GRZ range.
+    """
+    if len(buildings) != num_buildings:
+        raise RuntimeError(
+            f"Generated district is incomplete: {len(buildings)} / {num_buildings} buildings. "
+            "This seed/layout must be regenerated with different geometry parameters or another seed."
+        )
+
+    road_buffers = [road.buffer(0.5) for road in road_lines_scaled]
+    bad_buildings = [
+        index
+        for index, building in enumerate(buildings)
+        if any(building.intersects(road_buffer) for road_buffer in road_buffers)
+    ]
+    if bad_buildings:
+        raise RuntimeError(
+            "Generated district has building footprints on road centerlines. "
+            f"Invalid building indices: {bad_buildings}"
+        )
+
+    status = grz_status(run_results)
+    if status != "valid":
+        generated_grz = run_results["generated_grz"]
+        min_grz = params["grund_flaechenzahl"]["min"]
+        max_grz = params["grund_flaechenzahl"]["max"]
+        accepted_min_grz = min_grz * 0.90
+        accepted_max_grz = max_grz * 1.10
+        raise RuntimeError(
+            f"Generated GRZ is {status}: {generated_grz:.3f} outside "
+            f"accepted range [{accepted_min_grz:.3f}, {accepted_max_grz:.3f}] "
+            f"(input range [{min_grz:.3f}, {max_grz:.3f}])."
+        )
+
+def scenario_generation(
+        num_buildings_override=None,
+        retry_depth=0,
+        max_seed_retries=50,
+        type_i_soft_delete_retry=False):
     """
     Obtain buildings and roads layouts based on the input building type and number of buildings.
 
@@ -54,7 +171,10 @@ def scenario_generation():
     pyrandom.seed(seed)
     np.random.seed(seed)
     # %% STEP ONE: set parameters for the model
-    num_buildings = int(input("\nEnter the number of buildings: "))
+    if num_buildings_override is None:
+        num_buildings = int(input("\nEnter the number of buildings: "))
+    else:
+        num_buildings = int(num_buildings_override)
     building_density = params["gebaeude_pro_ha"]["value"]  # buildings per hectare
     # building_density = 5
     building_density_min = params["gebaeude_pro_ha"]["min"]  # buildings per hectare
@@ -62,8 +182,6 @@ def scenario_generation():
     width_length_ratio_mean = params["seitenverhaeltnis"]["mean_value"]
     house_connection = params["HA-Leitungen"]["value"]  # Length of house connection lines in m
     distance_between_buildings_min = params["abstand_hausanschluesse"]["min"]  # meters
-
-    wohneinheiten = params["wohneinheiten"]["value"]
 
     if district_type == "A":
         delete_ratio = 0.5
@@ -82,7 +200,7 @@ def scenario_generation():
     elif district_type == "H":
         delete_ratio = 0
     elif district_type == "I":
-        delete_ratio = 0.6
+        delete_ratio = 0.4 if type_i_soft_delete_retry else 0.6
 
     # %% STEP TWO: Repeat running the model until getting a conforming district layout
     # run the model for the first time
@@ -100,7 +218,7 @@ def scenario_generation():
             delete_ratio += 0.02
         rate = pyrandom.uniform(0, 1)
         building_density += rate
-        building_density = min(building_density, building_density_max * 2)
+        building_density = min(building_density, building_density_max)
         attempts += 1
         road_lines_scaled, placed_buildings, transformer_pos, run_results, get_bigger_density = (
             run_typdistrict_layout(district_type, num_buildings, building_density, delete_ratio))
@@ -116,21 +234,53 @@ def scenario_generation():
         road_lines_scaled, placed_buildings, transformer_pos, run_results, get_bigger_density = (
             run_typdistrict_layout(district_type, num_buildings, building_density, delete_ratio))
 
-    # When a sufficient number of buildings cannot be generated even though the number of attempts exceeds the set upper
-    # limit, the layout is performed in a preset manner.
-    # parameter switch_i turns to 1 for district type I
-    if len(placed_buildings) < num_buildings and district_type == 'I':
-        road_lines_scaled, placed_buildings, transformer_pos, run_results, _ = (
-            run_typdistrict_layout(district_type, num_buildings, building_density, delete_ratio, switch_i=1))
+    # Validate the generated ground space index (GRZ). If the generated
+    # morphology is outside the typdistrict GRZ range, adjust the density and
+    # rerun. This keeps GRZ as a validation-guided target instead of forcing it
+    # directly into the geometry.
+    grz_attempts = 0
+    max_grz_attempts = 30
+    while (len(placed_buildings) >= num_buildings and grz_status(run_results) != "valid"
+           and attempts < max_attempts and grz_attempts < max_grz_attempts):
+        status = grz_status(run_results)
+        generated_grz = max(run_results["generated_grz"], 1e-6)
+
+        if status == "too_low":
+            min_grz = params["grund_flaechenzahl"]["min"]
+            density_factor = min(max(min_grz / generated_grz, 1.10), 2.0)
+            building_density = min(building_density * density_factor, building_density_max)
+            if district_type not in ["E", "F", "H"]:
+                delete_ratio += 0.01
+        else:
+            max_grz = params["grund_flaechenzahl"]["max"]
+            density_factor = max(min(max_grz / generated_grz, 0.90), 0.5)
+            building_density = max(building_density * density_factor, building_density_min)
+            delete_ratio = max(delete_ratio - 0.01, 0)
+
+        attempts += 1
+        grz_attempts += 1
+        road_lines_scaled, placed_buildings, transformer_pos, run_results, get_bigger_density = (
+            run_typdistrict_layout(district_type, num_buildings, building_density, delete_ratio))
+
     # parameter switch_g turns to 1 for district type G
     if len(placed_buildings) < num_buildings and district_type == 'G':
         road_lines_scaled, placed_buildings, transformer_pos, run_results, _ = (
             run_typdistrict_layout(district_type, num_buildings, building_density, delete_ratio, switch_g=1))
 
     # The final check to ensure that the number of buildings meets the requirements.
-    if len(placed_buildings) < num_buildings:
+    if len(placed_buildings) < num_buildings and district_type == "F":
+        fill_missing_f_buildings_on_existing_roads(
+            placed_buildings=placed_buildings,
+            road_lines_scaled=road_lines_scaled,
+            num_buildings=num_buildings,
+            building_width=run_results["building_width"],
+            house_connection=house_connection,
+        )
+
+    if len(placed_buildings) < num_buildings and district_type != "F":
         num_missing_building = num_buildings - len(placed_buildings)
         building_width = run_results["building_width"]
+        building_ground_area = run_results["building_ground_area"]
         distance_between_bl = max(building_width, distance_between_buildings_min)
         if run_results["width_length_ratio"] >= width_length_ratio_mean:
             # If the width to length ratio of the generated area is greater than average,
@@ -177,14 +327,12 @@ def scenario_generation():
                     # Get the coordinates of all building center points
                     points = [road_parallel.interpolate(d) for d in distances]
                     for p in points:
-                        # Draw the building square
-                        new_building = shapely.box(p.x - building_width / 2, p.y - building_width / 2,
-                                                   p.x + building_width / 2, p.y + building_width / 2)
-                        buffered_roads = [line.buffer(house_connection - 0.1) for line in road_lines_scaled]
-                        # Detect whether the building overlaps with existing roads and buildings
-                        if not any(new_building.intersects(b) for b in placed_buildings):
-                            if not any(new_building.intersects(r) for r in buffered_roads):
-                                placed_buildings.append(new_building)
+                        # Try adaptive rectangular footprints with fixed area.
+                        new_building = place_adaptive_rectangle(
+                            p, road, building_ground_area, placed_buildings,
+                            road_lines_scaled, house_connection, 0.0)
+                        if new_building is not None:
+                            placed_buildings.append(new_building)
 
         if direction == "right":
             # Get the coordinates of all rightmost road nodes that need to be extended
@@ -211,25 +359,53 @@ def scenario_generation():
                     # Get the coordinates of all building center points
                     points = [road_parallel.interpolate(d) for d in distances]
                     for p in points:
-                        # Draw the building square
-                        new_building = shapely.box(p.x - building_width / 2, p.y - building_width / 2,
-                                                   p.x + building_width / 2, p.y + building_width / 2)
-                        buffered_roads = [line.buffer(house_connection - 0.1) for line in road_lines_scaled]
-                        # Detect whether the building overlaps with existing roads and buildings
-                        if not any(new_building.intersects(b) for b in placed_buildings):
-                            if not any(new_building.intersects(r) for r in buffered_roads):
-                                placed_buildings.append(new_building)
+                        # Try adaptive rectangular footprints with fixed area.
+                        new_building = place_adaptive_rectangle(
+                            p, road, building_ground_area, placed_buildings,
+                            road_lines_scaled, house_connection, 0.0)
+                        if new_building is not None:
+                            placed_buildings.append(new_building)
 
-    buildings = []
-    if len(placed_buildings) - num_buildings <= 0:
-        buildings = placed_buildings
+    if district_type == "F":
+        buildings = placed_buildings[:num_buildings]
     else:
-        # If the number of buildings generated exceeds the required number, some buildings are randomly deleted
-        num_remove = len(placed_buildings) - num_buildings
-        remove_indices = set(pyrandom.sample(range(len(placed_buildings)), num_remove))
-        for i in range(len(placed_buildings)):
-            if i not in remove_indices:
-                buildings.append(placed_buildings[i])
+        buildings = select_random_buildings(placed_buildings, num_buildings)
+
+    def retry_or_raise(error):
+        if district_type == "I" and not type_i_soft_delete_retry:
+            failed_seed = int(params["random_seed"])
+            print(f"Seed {failed_seed} rejected with normal type-I delete_ratio path: {error}")
+            print(f"Retrying seed {failed_seed} with type-I delete_ratio 0.4")
+            reseed_params(failed_seed)
+            return scenario_generation(
+                num_buildings_override=num_buildings,
+                retry_depth=retry_depth,
+                max_seed_retries=max_seed_retries,
+                type_i_soft_delete_retry=True,
+            )
+
+        if retry_depth >= max_seed_retries:
+            raise RuntimeError(
+                f"Could not generate a valid district after {max_seed_retries + 1} seed attempts. "
+                f"Last attempted seed: {params['random_seed']}."
+            ) from error
+
+        failed_seed = int(params["random_seed"])
+        next_seed = failed_seed + 1
+        print(f"Seed {failed_seed} rejected: {error}")
+        print(f"Trying next seed: {next_seed}")
+        reseed_params(next_seed)
+        return scenario_generation(
+            num_buildings_override=num_buildings,
+            retry_depth=retry_depth + 1,
+            max_seed_retries=max_seed_retries,
+            type_i_soft_delete_retry=False,
+        )
+
+    try:
+        validate_final_layout(buildings, road_lines_scaled, num_buildings, run_results)
+    except RuntimeError as error:
+        return retry_or_raise(error)
 
     # %% STEP THREE: add the building attributes
 
@@ -244,123 +420,76 @@ def scenario_generation():
         "Mixed": float(params["share_mixed_use"]),
         "Residential": float(params["share_residential"])
     }
+    if sum(use_shares.values()) > 1.5:
+        use_shares = {
+            use_category: share / 100.0
+            for use_category, share in use_shares.items()
+        }
 
-    # Convert shares into exact building counts
-    raw_counts = {
-        use_category: share * num_buildings
-        for use_category, share in use_shares.items()
-    }
-
-    use_counts = {
-        use_category: int(np.floor(raw_count))
-        for use_category, raw_count in raw_counts.items()
-    }
-
-    remaining = num_buildings - sum(use_counts.values())
-
-    sorted_use_categories = sorted(
-        use_counts.keys(),
-        key=lambda use_category: raw_counts[use_category] - use_counts[use_category],
-        reverse=True
+    # Draw the main use of each building from the OSM-based probabilities.
+    # Over many seeds, the average follows the OSM shares. Individual 30-building
+    # districts remain varied instead of being forced into identical rounded counts.
+    use_categories = list(use_shares.keys())
+    use_weights = list(use_shares.values())
+    building_use_categories = pyrandom.choices(
+        use_categories,
+        weights=use_weights,
+        k=num_buildings
     )
 
-    for i in range(remaining):
-        use_counts[sorted_use_categories[i % len(sorted_use_categories)]] += 1
-
-    building_use_categories = (
-            ["NonResidential"] * use_counts["NonResidential"] +
-            ["Mixed"] * use_counts["Mixed"] +
-            ["Residential"] * use_counts["Residential"]
-    )
-
-    pyrandom.shuffle(building_use_categories)
-
-    # Mapping from frequency categories to possible non-residential building types.
-    building_type_mapping = params["building_type_mapping"]
-
-    # H/V/S are used as weights for selecting the non-residential type.
-    # H = häufig, V = vereinzelt, S = sehr selten.
-    frequency_weights = {
-        "H": 5,
-        "V": 1,
-        "S": 0
-    }
+    osm_nrb_type_percentages = params.get("osm_nrb_type_percentages", {})
 
     # These building types should occur at most once in the whole district.
     hospital_added = False
-    school_added = False
     university_added = False
 
     def get_available_non_residential_type_pool(allow_education=True):
         """
         Build a weighted pool of possible non-residential building types.
 
-        If allow_education=False, SC, UNI, and HOSPITAL are excluded.
+        If allow_education=False, SC, UNI, HOSPITAL, and SPORT are excluded.
         This is used for mixed-use buildings, because mixed-use buildings should not contain
-        schools, universities, or hospitals.
+        schools, universities, hospitals, or sports halls.
         """
         available_type_pool = []
+        target_weights = {
+            building_type_option: float(weight)
+            for building_type_option, weight in osm_nrb_type_percentages.items()
+            if float(weight) > 0
+        }
 
-        for frequency_key, possible_building_types in building_type_mapping.items():
-            frequency_level = str(params[frequency_key]).strip().upper()
-            weight = frequency_weights.get(frequency_level, 0)
+        for building_type_option, weight in sorted(target_weights.items()):
 
-            for building_type_option in possible_building_types:
+            # Mixed-use buildings are not allowed to contain schools,
+            # universities, or hospitals.
+            if not allow_education and building_type_option in ["SC", "UNI", "HOSPITAL", "SPORT"]:
+                continue
 
-                # Mixed-use buildings are not allowed to contain schools,
-                # universities, or hospitals.
-                if not allow_education and building_type_option in ["SC", "UNI", "HOSPITAL"]:
-                    continue
+            # Hospital and university should each occur at most once in the whole district.
+            if building_type_option == "HOSPITAL" and hospital_added:
+                continue
 
-                # Hospital, school, and university should each occur at most once in the whole district.
-                if building_type_option == "HOSPITAL" and hospital_added:
-                    continue
+            if building_type_option == "UNI" and university_added:
+                continue
 
-                if building_type_option == "SC" and school_added:
-                    continue
+            if weight <= 0:
+                continue
 
-                if building_type_option == "UNI" and university_added:
-                    continue
-
-                available_type_pool.extend([building_type_option] * weight)
+            available_type_pool.append((building_type_option, weight))
 
         return available_type_pool
 
-    def get_distance_score_to_same_type(current_building, candidate_type, already_assigned_buildings):
-        """
-        Higher score is better.
-
-        If this type has not been used yet, it receives a high score.
-        Otherwise, the score is the distance to the nearest building with the same type.
-        """
-        current_center = current_building["polygon"].centroid
-
-        same_type_distances = []
-
-        for other_building in already_assigned_buildings:
-            if other_building.get("non_residential_type") != candidate_type:
-                continue
-
-            other_center = other_building["polygon"].centroid
-            same_type_distances.append(current_center.distance(other_center))
-
-        if not same_type_distances:
-            return 10_000
-
-        return min(same_type_distances)
-
-    def select_non_residential_type_spatially(
+    def select_non_residential_type_stochastically(
             current_building,
             already_assigned_buildings,
             allow_education=True
     ):
         """
-        Select one non-residential building type.
+        Select one non-residential building type from the OSM probabilities.
 
-        The selection still respects the H/V/S weights, but it also prefers types
-        whose nearest already assigned same-type building is farther away.
+        Hospital and university stay capped at one per generated district.
         """
-        nonlocal hospital_added, school_added, university_added
+        nonlocal hospital_added, university_added
 
         available_type_pool = get_available_non_residential_type_pool(
             allow_education=allow_education
@@ -370,42 +499,15 @@ def scenario_generation():
         if not available_type_pool:
             return "OB"
 
-        unique_candidate_types = sorted(set(available_type_pool))
-
-        scored_candidates = []
-
-        for candidate_type in unique_candidate_types:
-            distance_score = get_distance_score_to_same_type(
-                current_building=current_building,
-                candidate_type=candidate_type,
-                already_assigned_buildings=already_assigned_buildings
-            )
-
-            frequency_score = available_type_pool.count(candidate_type)
-
-            scored_candidates.append({
-                "type": candidate_type,
-                "distance_score": distance_score,
-                "frequency_score": frequency_score
-            })
-
-        # Higher distance is better.
-        # If distance is equal, the type with the higher H/V/S frequency weight wins.
-        scored_candidates.sort(
-            key=lambda item: (
-                item["distance_score"],
-                item["frequency_score"],
-                item["type"]
-            ),
-            reverse=True
-        )
-
-        selected_type = scored_candidates[0]["type"]
+        candidate_types, candidate_weights = zip(*available_type_pool)
+        selected_type = pyrandom.choices(
+            list(candidate_types),
+            weights=list(candidate_weights),
+            k=1
+        )[0]
 
         if selected_type == "HOSPITAL":
             hospital_added = True
-        elif selected_type == "SC":
-            school_added = True
         elif selected_type == "UNI":
             university_added = True
 
@@ -413,11 +515,14 @@ def scenario_generation():
 
     type_color = {
         "SFH": "#A6CEE3",
+        "TH": "#8DD3C7",
         "MFH": "#56B4E9",
         "SC": "#1F78B4",
         "UNI": "#6A3D9A",
         "OB": "#33A02C",
         "HOSPITAL": "#E31A1C",
+        "CULTURE": "#CAB2D6",
+        "SPORT": "#FDBF6F",
         "RETAIL": "#FF7F00",
         "GS": "#B15928",
         "RE": "#FB9A99",
@@ -429,15 +534,319 @@ def scenario_generation():
         "UNI": "University",
         "OB": "Office",
         "HOSPITAL": "Hospital",
+        "CULTURE": "Culture",
+        "SPORT": "Sport",
         "RETAIL": "Retail Store",
         "GS": "Grocery Store",
         "RE": "Restaurant",
         "WORKSHOP": "Workshop",
         "SFH": "SFH",
+        "TH": "TH",
         "MFH": "MFH",
         "Residential_SFH": "SFH",
+        "Residential_TH": "TH",
         "Residential_MFH": "MFH"
     }
+
+    def touches_other_building(current_building, all_buildings, tolerance=0.5):
+        """
+        Return True if a building footprint touches or nearly touches another footprint.
+
+        A small visual/geometric tolerance is used because generated footprints
+        can have tiny construction gaps even when the intended urban form is a
+        wall-to-wall attached building.
+        """
+        current_polygon = current_building["polygon"]
+        for other_building in all_buildings:
+            if other_building is current_building:
+                continue
+            if current_polygon.distance(other_building["polygon"]) <= tolerance:
+                return True
+        return False
+
+    def assign_residential_typology_from_source_shares():
+        """
+        Assign EFH/MFH source typology to pure residential buildings.
+
+        Mixed-use buildings are handled separately as MFH + non-residential
+        ground-floor use, so they are not part of this EFH/MFH share assignment.
+        """
+        residential_part_buildings = [
+            bld for bld in buildings_info
+            if bld["use_category"] == "Residential"
+        ]
+        if not residential_part_buildings:
+            return
+
+        typology_shares = params.get("residential_typology_shares", {})
+        efh_share = float(typology_shares.get("EFH", 0))
+        mfh_share = float(typology_shares.get("MFH", 0))
+        if efh_share + mfh_share > 1.5:
+            efh_share /= 100.0
+            mfh_share /= 100.0
+
+        total_share = efh_share + mfh_share
+        if total_share <= 0:
+            efh_share = 1.0
+            mfh_share = 0.0
+            total_share = 1.0
+
+        efh_share /= total_share
+        mfh_share /= total_share
+
+        typology_pool = (
+            ["EFH"] * int(round(len(residential_part_buildings) * efh_share))
+            + ["MFH"] * int(round(len(residential_part_buildings) * mfh_share))
+        )
+        while len(typology_pool) < len(residential_part_buildings):
+            typology_pool.append("EFH" if efh_share >= mfh_share else "MFH")
+        typology_pool = typology_pool[:len(residential_part_buildings)]
+        pyrandom.shuffle(typology_pool)
+
+        for bld, source_typology in zip(residential_part_buildings, typology_pool):
+            bld["source_residential_typology"] = source_typology
+
+    def floor_limits_for_building(residential_base_type, bld):
+        """
+        Return typology-specific floor limits.
+
+        EFH-derived SFH/TH are intentionally capped. MFH floors are not
+        forced to be at least 3; they only need enough floors to exceed the
+        EFH floor-area limit. Pure non-residential restaurants, grocery
+        stores, retail stores, and workshops additionally receive usable-area
+        limits. Mixed-use non-residential parts are not limited here because
+        they are represented as one floor during profile generation.
+        """
+        max_nof = float(params["max_anzahl_vollgeschosse"])
+        max_efh_gfa = 216.0
+        pure_non_residential_area_ranges = {
+            "RE": (80.0, 350.0),
+            "GS": (150.0, 1500.0),
+            "RETAIL": (80.0, 1000.0),
+            "WORKSHOP": (120.0, 2000.0),
+        }
+        pure_non_residential_min_areas = {
+            "OB": 100.0,
+            "SC": 300.0,
+            "UNI": 500.0,
+            "HOSPITAL": 350.0,
+            "CULTURE": 120.0,
+            "SPORT": 250.0,
+        }
+
+        if residential_base_type == "SFH":
+            return 1.0, 2.5
+        if residential_base_type == "TH":
+            return 1.0, 2.5
+        if residential_base_type == "MFH":
+            min_floor_by_area = np.ceil(((max_efh_gfa + 1e-6) / bld["polygon"].area) * 2) / 2
+            if bld["use_category"] == "Mixed":
+                min_floor_by_area = max(3.0, min_floor_by_area)
+            return max(1.0, min_floor_by_area), max(1.0, max_nof)
+
+        if (
+                bld["use_category"] == "NonResidential"
+                and residential_base_type in pure_non_residential_area_ranges
+        ):
+            min_area, max_area = pure_non_residential_area_ranges[residential_base_type]
+            min_floor_by_area = np.ceil((min_area / bld["polygon"].area) * 2) / 2
+            max_floor_by_area = np.floor((max_area / bld["polygon"].area) * 2) / 2
+            return max(1.0, min_floor_by_area), min(max(1.0, max_nof), max_floor_by_area)
+
+        if (
+                bld["use_category"] == "NonResidential"
+                and residential_base_type in pure_non_residential_min_areas
+        ):
+            min_area = pure_non_residential_min_areas[residential_base_type]
+            min_floor_by_area = np.ceil((min_area / bld["polygon"].area) * 2) / 2
+            return max(1.0, min_floor_by_area), max(1.0, max_nof)
+
+        return 1.0, max(1.0, max_nof)
+
+    def assign_typology_specific_floors_to_gfz_target():
+        """
+        Assign plausible floors by typology and adjust floors until the
+        generated GFZ lies inside the typdistrict GFZ range.
+
+        The adjustment is distributed within typology groups so one MFH or
+        non-residential building cannot absorb nearly the whole GFZ correction.
+        """
+        max_efh_gfa = 216.0
+        floor_spread_limit = 2.0
+
+        for bld in buildings_info:
+            if bld["use_category"] == "Mixed":
+                residential_base_type = "MFH"
+            elif bld.get("source_residential_typology") == "EFH":
+                residential_base_type = "SFH"
+                if touches_other_building(bld, buildings_info):
+                    residential_base_type = "TH"
+            elif bld["use_category"] == "Residential":
+                residential_base_type = "MFH"
+            else:
+                residential_base_type = bld["non_residential_type"]
+
+            min_floor, max_floor = floor_limits_for_building(residential_base_type, bld)
+
+            # EFH-derived SFH/TH must remain small. If the footprint is too
+            # large even with the minimum floor count, the seed is inconsistent
+            # with the required EFH/MFH share and must be rejected.
+            if residential_base_type in {"SFH", "TH"}:
+                max_floor_by_area = np.floor((max_efh_gfa / bld["polygon"].area) * 2) / 2
+                max_floor = min(max_floor, max_floor_by_area)
+                if max_floor < min_floor:
+                    raise RuntimeError(
+                        f"{residential_base_type} footprint is too large for <= {max_efh_gfa:.0f} m2 "
+                        f"total floor area: footprint={bld['polygon'].area:.1f} m2."
+                    )
+            elif max_floor < min_floor:
+                raise RuntimeError(
+                    f"{residential_base_type} footprint cannot satisfy the floor-area rule: "
+                    f"footprint={bld['polygon'].area:.1f} m2, "
+                    f"floor range=[{min_floor:.1f}, {max_floor:.1f}]."
+                )
+
+            bld["residential_base_type"] = residential_base_type
+            bld["_min_number_of_floors"] = min_floor
+            bld["_max_number_of_floors"] = max_floor
+
+            small_variation_max_floor = min(max_floor, min_floor + 1.0)
+            floor_options = np.arange(min_floor, small_variation_max_floor + 0.25, 0.5)
+            bld["number_of_floors"] = float(pyrandom.choice(list(floor_options)))
+
+        district_area_m2 = run_results["area"] * 10000
+        min_gfz = float(params["geschoss_flaechenzahl"]["min"])
+        max_gfz = float(params["geschoss_flaechenzahl"]["max"])
+        gfz_tolerance = 0.10
+        min_floor_area = min_gfz * (1 - gfz_tolerance) * district_area_m2
+        max_floor_area = max_gfz * (1 + gfz_tolerance) * district_area_m2
+
+        adjustable_buildings = buildings_info[:]
+
+        def floor_group_key(bld):
+            if bld["residential_base_type"] in {"SFH", "TH", "MFH"}:
+                return bld["residential_base_type"]
+            return "NonResidential"
+
+        def group_floor_bounds():
+            bounds = {}
+            for item in adjustable_buildings:
+                key = floor_group_key(item)
+                floors = item["number_of_floors"]
+                if key not in bounds:
+                    bounds[key] = [floors, floors]
+                else:
+                    bounds[key][0] = min(bounds[key][0], floors)
+                    bounds[key][1] = max(bounds[key][1], floors)
+            return bounds
+
+        for _ in range(10000):
+            current_floor_area = sum(
+                bld["polygon"].area * bld["number_of_floors"]
+                for bld in buildings_info
+            )
+            if min_floor_area <= current_floor_area <= max_floor_area:
+                break
+
+            if current_floor_area < min_floor_area:
+                bounds = group_floor_bounds()
+                candidates = [
+                    bld for bld in adjustable_buildings
+                    if bld["number_of_floors"] + 0.5 <= bld["_max_number_of_floors"]
+                    and bld["number_of_floors"] + 0.5 <= (
+                        bounds[floor_group_key(bld)][0] + floor_spread_limit
+                    )
+                ]
+                direction = 1
+                target_boundary = min_floor_area
+                candidate_key = lambda candidate: (
+                    candidate["number_of_floors"],
+                    abs(
+                        target_boundary - (
+                            current_floor_area + 0.5 * candidate["polygon"].area
+                        )
+                    )
+                )
+            else:
+                bounds = group_floor_bounds()
+                candidates = [
+                    bld for bld in adjustable_buildings
+                    if bld["number_of_floors"] - 0.5 >= bld["_min_number_of_floors"]
+                    and bld["number_of_floors"] - 0.5 >= (
+                        bounds[floor_group_key(bld)][1] - floor_spread_limit
+                    )
+                ]
+                direction = -1
+                target_boundary = max_floor_area
+                candidate_key = lambda candidate: (
+                    -candidate["number_of_floors"],
+                    abs(
+                        target_boundary - (
+                            current_floor_area - 0.5 * candidate["polygon"].area
+                        )
+                    )
+                )
+
+            if not candidates:
+                break
+
+            best = min(candidates, key=candidate_key)
+            best["number_of_floors"] += direction * 0.5
+
+        for bld in buildings_info:
+            nof = bld["number_of_floors"]
+            building_area = int(nof * bld["polygon"].area)
+            bld["calculated_building_area"] = building_area
+            bld.pop("_min_number_of_floors", None)
+            bld.pop("_max_number_of_floors", None)
+
+    def validate_residential_typology_shares():
+        """
+        Check that generated EFH/MFH shares stay close to the source shares.
+
+        The check is applied to pure residential buildings only. Mixed-use
+        buildings are intentionally represented as MFH + non-residential use.
+        """
+        residential_part_buildings = [
+            bld for bld in buildings_info
+            if bld["use_category"] == "Residential"
+        ]
+        if not residential_part_buildings:
+            return
+
+        typology_shares = params.get("residential_typology_shares", {})
+        efh_target = float(typology_shares.get("EFH", 0.0))
+        mfh_target = float(typology_shares.get("MFH", 0.0))
+        if efh_target + mfh_target > 1.5:
+            efh_target /= 100.0
+            mfh_target /= 100.0
+
+        target_sum = efh_target + mfh_target
+        if target_sum <= 0:
+            return
+
+        efh_target /= target_sum
+        mfh_target /= target_sum
+
+        efh_count = sum(
+            1 for bld in residential_part_buildings
+            if bld["residential_base_type"] in {"SFH", "TH"}
+        )
+        mfh_count = sum(
+            1 for bld in residential_part_buildings
+            if bld["residential_base_type"] == "MFH"
+        )
+        total_count = len(residential_part_buildings)
+        efh_share = efh_count / total_count
+        mfh_share = mfh_count / total_count
+        tolerance = 0.10
+
+        if abs(efh_share - efh_target) > tolerance or abs(mfh_share - mfh_target) > tolerance:
+            raise RuntimeError(
+                "Generated EFH/MFH shares are outside the accepted 10 percentage point tolerance: "
+                f"EFH={efh_share:.3f} target={efh_target:.3f}, "
+                f"MFH={mfh_share:.3f} target={mfh_target:.3f}."
+            )
 
     def get_legend_label(legend_type):
         """
@@ -473,7 +882,9 @@ def scenario_generation():
             "non_residential_type": None,
             "type": use_category,
             "polygon": bld,
-            "color": type_color["SFH"]
+            "color": type_color["SFH"],
+            "edge_color": "gray",
+            "line_width": 0.5
         }
 
         already_assigned_buildings = [
@@ -487,16 +898,18 @@ def scenario_generation():
             plot_color_type = "SFH"
 
         elif use_category == "Mixed":
-            non_residential_type = select_non_residential_type_spatially(
+            non_residential_type = select_non_residential_type_stochastically(
                 current_building=building_entry,
                 already_assigned_buildings=already_assigned_buildings,
                 allow_education=False
             )
-            plot_color_type = non_residential_type
+            plot_color_type = "MFH"
+            building_entry["edge_color"] = type_color[non_residential_type]
+            building_entry["line_width"] = 2.5
 
 
         else:  # NonResidential
-            non_residential_type = select_non_residential_type_spatially(
+            non_residential_type = select_non_residential_type_stochastically(
                 current_building=building_entry,
                 already_assigned_buildings=already_assigned_buildings,
                 allow_education=True
@@ -604,48 +1017,32 @@ def scenario_generation():
         center = polygon.centroid
         bld['center'] = (center.x, center.y)
 
+    assign_residential_typology_from_source_shares()
+
     # 5 Calculate the total floor area
-    # Retrieve the quartile values for the number of full floors.
-    nof_q0 = params["anzahl_vollgeschosse_0"]
-    nof_q25 = params["anzahl_vollgeschosse_25"]
-    nof_q50 = params["anzahl_vollgeschosse_50"]
-    nof_q75 = params["anzahl_vollgeschosse_75"]
-    nof_q100 = params["anzahl_vollgeschosse_100"]
+    try:
+        assign_typology_specific_floors_to_gfz_target()
+        validate_residential_typology_shares()
+    except RuntimeError as error:
+        return retry_or_raise(error)
 
     for bld in buildings_info:
-        # Generate a random value in [0,1].
-        r = pyrandom.random()
-
-        # Interpolate 'nof' based on which quartile range 'r' falls into.
-        if r < 0.25:
-            # between 0% and 25%
-            nof = nof_q0 + (nof_q25 - nof_q0) * (r / 0.25)
-        elif r < 0.50:
-            # between 25% and 50%
-            nof = nof_q25 + (nof_q50 - nof_q25) * ((r - 0.25) / 0.25)
-        elif r < 0.75:
-            # between 50% and 75%
-            nof = nof_q50 + (nof_q75 - nof_q50) * ((r - 0.50) / 0.25)
-        else:
-            # between 75% and 100%
-            nof = nof_q75 + (nof_q100 - nof_q75) * ((r - 0.75) / 0.25)
-
-        # Round 'nof' to the nearest 0.5 (so the result is an integer or a half-integer)
-        nof = round(nof * 2) / 2
-
-        # Compute and save the total floor area for this building.
-        building_area = int(nof * run_results["building_ground_area"])
-        bld["calculated_building_area"] = building_area
-        bld["number_of_floors"] = nof
-
-        # Determine residential base type.
-        if building_area < 216:
-            residential_base_type = "SFH"
-        else:
-            residential_base_type = "MFH"
+        residential_base_type = bld["residential_base_type"]
 
         if bld["use_category"] == "Residential":
             bld["color"] = type_color[residential_base_type]
+            bld["edge_color"] = "gray"
+            bld["line_width"] = 0.5
+
+        elif bld["use_category"] == "Mixed":
+            bld["color"] = type_color[residential_base_type]
+            bld["edge_color"] = type_color[bld["non_residential_type"]]
+            bld["line_width"] = 2.5
+
+        else:  # NonResidential
+            bld["color"] = type_color[bld["non_residential_type"]]
+            bld["edge_color"] = "gray"
+            bld["line_width"] = 0.5
 
         # Create final building code for CSV/JSON and legend.
         if bld["use_category"] == "Residential":
@@ -659,6 +1056,32 @@ def scenario_generation():
         else:  # NonResidential
             bld["building_code"] = bld["non_residential_type"]
             bld["legend_type"] = bld["non_residential_type"]
+
+    total_floor_area = sum(bld["calculated_building_area"] for bld in buildings_info)
+    total_footprint_area = sum(bld["polygon"].area for bld in buildings_info)
+    district_area_m2 = run_results["area"] * 10000
+    generated_gfz = total_floor_area / district_area_m2 if district_area_m2 > 0 else 0
+    generated_average_floors = (
+        total_floor_area / total_footprint_area
+        if total_footprint_area > 0
+        else 0
+    )
+    run_results.update({
+        "generated_gfz": generated_gfz,
+        "generated_average_floors": generated_average_floors
+    })
+    min_gfz = float(params["geschoss_flaechenzahl"]["min"])
+    max_gfz = float(params["geschoss_flaechenzahl"]["max"])
+    accepted_min_gfz = min_gfz * 0.90
+    accepted_max_gfz = max_gfz * 1.10
+    if generated_gfz < accepted_min_gfz or generated_gfz > accepted_max_gfz:
+        return retry_or_raise(
+            RuntimeError(
+                f"Generated GFZ is outside the accepted range: {generated_gfz:.3f} "
+                f"not in [{accepted_min_gfz:.3f}, {accepted_max_gfz:.3f}] "
+                f"(input range [{min_gfz:.3f}, {max_gfz:.3f}])."
+            )
+        )
 
     # define the road information
     lines_info = []
@@ -674,7 +1097,10 @@ def scenario_generation():
     current_dir = os.path.dirname(__file__)
     save_dir = os.path.join(current_dir, '..', 'data', 'scenarios')
     plt.ion()  # enable interactive plotting
-    pdf_path = os.path.join(save_dir, f"district_layout_steps_{district_type}_seed_{seed}_buildings_{num_buildings}.pdf")
+    pdf_path = os.path.join(
+        save_dir,
+        f"district_layout_steps_{district_type}_seed_{seed}_buildings_{num_buildings}.pdf"
+    )
     pdf = PdfPages(pdf_path)
 
     fig, ax = plt.subplots(figsize=(12, 8))
@@ -754,8 +1180,8 @@ def scenario_generation():
         hatch = hatch_patterns[bld["retrofit_level"]]
 
         x, y = poly.exterior.xy
-        edge_color = "black" if bld["use_category"] == "Mixed" else "gray"
-        line_width = 2 if bld["use_category"] == "Mixed" else 0.5
+        edge_color = bld["edge_color"]
+        line_width = bld["line_width"]
 
         ax.fill(
             x, y,
@@ -800,7 +1226,11 @@ def scenario_generation():
     for bld in buildings_info:
         legend_type = bld["legend_type"]
         if legend_type not in building_types:
-            building_types[legend_type] = bld["color"]
+            building_types[legend_type] = {
+                "facecolor": bld["color"],
+                "edgecolor": bld["edge_color"],
+                "linewidth": bld["line_width"],
+            }
 
     def legend_sort_key(legend_type):
         if legend_type == "Residential_MFH":
@@ -819,14 +1249,13 @@ def scenario_generation():
     type_handles = []
 
     for typ in ordered_legend_types:
-        color = building_types[typ]
-        is_mixed = typ.startswith("Mixed_")
+        style = building_types[typ]
 
         type_handles.append(
             patches.Patch(
-                facecolor=color,
-                edgecolor="black" if is_mixed else "gray",
-                linewidth=2 if is_mixed else 0.5,
+                facecolor=style["facecolor"],
+                edgecolor=style["edgecolor"],
+                linewidth=style["linewidth"],
                 label=get_legend_label(typ)
             )
         )
@@ -954,3 +1383,12 @@ def scenario_generation():
                 f_TES_val, f_BAT_val, f_PV1_val, f_PV2_val, f_STC_val,
                 gamma_PV_val, ev_charging_val
             ])
+
+    return {
+        "district_type": district_type,
+        "seed": seed,
+        "num_buildings": len(buildings),
+        "target_num_buildings": num_buildings,
+        "csv_filename": csv_filename,
+        "json_filename": params_filename,
+    }
