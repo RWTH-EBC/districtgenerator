@@ -46,8 +46,8 @@ settlement_types = {
         "english": "Block development"
     },
     "I": {
-        "german": "Mittelalterliche Altstadt",
-        "english": "Medieval old town"
+        "german": "Innenstadt",
+        "english": "City center"
     }
 }
 

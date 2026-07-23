@@ -25,8 +25,8 @@ G   "german": "Zeilenbebauung hoher Dichte und Hochhäuser",
     "english": "Row development of high density and high-rise buildings"
 H   "german": "Blockbebauung",
     "english": "Block development"
-I   "german": "Mittelalterliche Altstadt",
-    "english": "Medieval old town"
+I   "german": "Innenstadt",
+    "english": "City center"
 
 The parameters of the settlement types and their sources are listed in:
 districtgenerator/data/typdistrict_parameters.xlsx
