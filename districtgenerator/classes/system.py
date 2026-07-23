@@ -75,26 +75,29 @@ class BES:
         self.bivalent_load_heating = self.design_load_heating + (limit_load_heating - self.design_load_heating) / (T_heatlimit - T_design) \
                              * (T_bivalent - T_design)
 
-        # %% DHW design power (storage-based smoothing)
-        # 1-minute DHW profiles contain short peaks that should not be used directly for sizing.
-        # Instead of designing the heat generator for these extreme peaks, we assume the presence
-        # of a short-term DHW storage that buffers peak demands.
-        # The design load is therefore based on a 60-minute moving average of the DHW demand.
-        # This corresponds to a storage that can be fully charged within 1 hour by the heat
-        # generator.
-        # Source of the 60-minutes assumption:
-        # Zuschlag et al. (2026),
-        # "How refrigerant cycle modeling shapes the techno-economic analysis
-        #  of centralized vs. decentralized heat supply systems for city districts"
-
-        dhw_minutely = building["user"].dhw_minutely
-        max_power_dhw = np.max(dhw_minutely)
-        window_steps = 60  # 60-minute moving average (1-min timestep)
-        kernel = np.ones(window_steps) / window_steps
-        heat_W_rolling = np.convolve(dhw_minutely, kernel, mode="same")
-
-        Q_nom_DHW_W = float(np.max(heat_W_rolling))
-        self.design_load_dhw = Q_nom_DHW_W
+        # # %% DHW design power (storage-based smoothing)
+        # # 1-minute DHW profiles contain short peaks that should not be used directly for sizing.
+        # # Instead of designing the heat generator for these extreme peaks, we assume the presence
+        # # of a short-term DHW storage that buffers peak demands.
+        # # The design load is therefore based on a 60-minute moving average of the DHW demand.
+        # # This corresponds to a storage that can be fully charged within 1 hour by the heat
+        # # generator.
+        # # Source of the 60-minutes assumption:
+        # # Zuschlag et al. (2026),
+        # # "How refrigerant cycle modeling shapes the techno-economic analysis
+        # #  of centralized vs. decentralized heat supply systems for city districts"
+#
+        # dhw_minutely = building["user"].dhw_minutely
+        # max_power_dhw = np.max(dhw_minutely)
+        # window_steps = 60  # 60-minute moving average (1-min timestep)
+        # kernel = np.ones(window_steps) / window_steps
+        # heat_W_rolling = np.convolve(dhw_minutely, kernel, mode="same")
+#
+        # Q_nom_DHW_W = float(np.max(heat_W_rolling))
+        # self.design_load_dhw = Q_nom_DHW_W
+        # AIX HEAT Changed due to storage issues on large scale
+        max_power_dhw = np.max(building["envelope"].dhwpower)
+        self.design_load_dhw = building["envelope"].dhwpower
 
         # Design load for cooling
         self.design_load_cooling = building["envelope"].coolingload

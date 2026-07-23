@@ -676,7 +676,7 @@ class Users:
 
         self.occ = np.zeros(int(time_horizon / time_resolution))
         self.dhw = np.zeros(int(time_horizon / time_resolution))
-        self.dhw_minutely = np.zeros(int(time_horizon / 60))  # minute resolution
+        # self.dhw_minutely = np.zeros(int(time_horizon / 60))  # minute resolution
         self.elec = np.zeros(int(time_horizon / time_resolution))
         self.gains = np.zeros(int(time_horizon / time_resolution))
         self.EV_carprofile = np.zeros(int(time_horizon / time_resolution))
@@ -738,7 +738,7 @@ class Users:
 
                 dhw_dict = temp_obj.generate_dhw_profile(building=building, holidays=holidays)
                 self.dhw += dhw_dict["dhw_power_timeseries_W"]
-                self.dhw_minutely += dhw_dict["dhw_power_timeseries_W_minutely"]
+                # self.dhw_minutely += dhw_dict["dhw_power_timeseries_W_minutely"]
 
                 # Occupancy profile in a flat
                 self.elec = self.elec + temp_obj.generate_el_profile_residential(holidays=holidays,
@@ -794,7 +794,7 @@ class Users:
             dhw_dict = temp_obj.generate_dhw_profile(building=building, holidays=holidays)
 
             self.dhw = dhw_dict["dhw_power_timeseries_W"]
-            self.dhw_minutely = dhw_dict["dhw_power_timeseries_W_minutely"]
+            # self.dhw_minutely = dhw_dict["dhw_power_timeseries_W_minutely"]
 
             # In the case of non-residential buildings, EVs are only for office buildings
             if self.building in {"OB"} and gen_cars:

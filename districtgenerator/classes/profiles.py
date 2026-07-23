@@ -348,10 +348,10 @@ class Profiles:
 
         # 3. Convert water demand → heat demand (minute resolution)
 
-        dhw_heat_minutely = OpenDHW.compute_heat(
-            timeseries_df=dhw_profile,
-            temp_dT=dT_minutely,
-        )
+        # dhw_heat_minutely = OpenDHW.compute_heat(
+        #     timeseries_df=dhw_profile,
+        #     temp_dT=dT_minutely,
+        # )
 
         # 4. Aggregation according to the needed time resolution
 
@@ -397,8 +397,8 @@ class Profiles:
 
         # OUTPUT
 
-        return {
-            "dhw_power_timeseries_W_minutely": dhw_heat_minutely["Heat_W"].values,
+        return {"dhw_power_timeseries_W_minutely": None,
+            # "dhw_power_timeseries_W_minutely": dhw_heat_minutely["Heat_W"].values,
             "dhw_power_timeseries_W": dhw_heat["Heat_W"].values}
 
 

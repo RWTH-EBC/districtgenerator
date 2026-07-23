@@ -722,7 +722,7 @@ class Datahandler:
                 # Older buildings (constructed before 1960) generally have higher ceilings, while newer buildings
                 # (built from 1960 onwards) tend to have lower ceilings.
                 # Source: https://www.wohnung.com/ratgeber/418/alt-und-neubau-deckenhoehe
-                if height_of_floors < 2.5:
+                if height_of_floors < 2.5 or height_of_floors > 4.0:
                     if building["buildingFeatures"]["year"] < 1960:
                         height_of_floors = 3.3  # m
                     elif building["buildingFeatures"]["year"] >= 1960:
@@ -906,7 +906,7 @@ class Datahandler:
             building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
             building["user"].elec = result["elec"]
             building["user"].dhw = result["dhw"]
-            building["user"].dhw_minutely = result.get("dhw_minutely")
+            # building["user"].dhw_minutely = result.get("dhw_minutely")
             building["user"].cooling = result["cooling"]
             building["user"].heat = result["heating"]
             ## AIX HEAT
@@ -1506,18 +1506,18 @@ def _save_profiles_worker(name, elec, dhw, dhw_minutely, occ, gains, EV_carcharg
         float_format='%.3f'
     )
 
-    # Minutely timeseries data points (currently only used for domestic hot water demand)
-    ts_minutely_dict = {
-        'timestep': np.arange(len(dhw_minutely)) * (1 / 60),  # Index-Column (hour of the year)
-        'dhw_minutely': dhw_minutely
-    }
-
-    df_ts_minutely = pd.DataFrame(ts_minutely_dict)
-    df_ts_minutely.to_csv(
-        os.path.join(path, f"{name}_timeseries_minutely.csv"),
-        sep=';',
-        index=False
-    )
+    # # Minutely timeseries data points (currently only used for domestic hot water demand)
+    # ts_minutely_dict = {
+    #     'timestep': np.arange(len(dhw_minutely)) * (1 / 60),  # Index-Column (hour of the year)
+    #     'dhw_minutely': dhw_minutely
+    # }
+#
+    # df_ts_minutely = pd.DataFrame(ts_minutely_dict)
+    # df_ts_minutely.to_csv(
+    #     os.path.join(path, f"{name}_timeseries_minutely.csv"),
+    #     sep=';',
+    #     index=False
+    # )
 
 
 def _save_heating_profile_worker(heat, cooling, name, gmlId, path):
@@ -1555,24 +1555,24 @@ def _load_profiles_worker(name, path, time_cfg, gen_cars=True):
     """
     ts_path = os.path.join(path, f"{name}_timeseries.csv")
     static_path = os.path.join(path, f"{name}_static.csv")
-    ts_minutely_path = os.path.join(path, f"{name}_timeseries_minutely.csv")
+    # ts_minutely_path = os.path.join(path, f"{name}_timeseries_minutely.csv")
 
     error_msg = "Before loading profiles, please make sure to generate them first by setting calcUserProfiles to True in the generateDistrictComplete function. If you have already generated the profiles, please check if the files exist in the specified path."
 
     if not os.path.exists(ts_path): raise FileNotFoundError(f"Timeseries file not found: {ts_path} \n{error_msg}")
     if not os.path.exists(static_path): raise FileNotFoundError(f"Static file not found: {static_path} \n{error_msg}")
-    if not os.path.exists(ts_minutely_path): raise FileNotFoundError(f"Minutely timeseries file not found: {ts_minutely_path} \n{error_msg}")
+    # if not os.path.exists(ts_minutely_path): raise FileNotFoundError(f"Minutely timeseries file not found: {ts_minutely_path} \n{error_msg}")
 
     df_ts = pd.read_csv(ts_path, sep=";")
     df_static = pd.read_csv(static_path, sep=";")
-    df_ts_minutely = pd.read_csv(ts_minutely_path, sep=";")
+    # df_ts_minutely = pd.read_csv(ts_minutely_path, sep=";")
 
     elec = df_ts['elec'].to_numpy()
     dhw = df_ts['dhw'].to_numpy()
     occ = df_ts['occ'].to_numpy()
     gains = df_ts['gains'].to_numpy()
 
-    dhw_minutely = df_ts_minutely['dhw_minutely'].to_numpy()
+    # dhw_minutely = df_ts_minutely['dhw_minutely'].to_numpy()
 
     nb_flats = int(df_static['nb_units'].iloc[0])
     nb_main_rooms = nb_flats
