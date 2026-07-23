@@ -14,20 +14,20 @@ excel_file = os.path.join(current_dir, "..", "data", "typdistrict_parameters.xls
 # Settlement type options with descriptions
 settlement_types = {
     "A": {
-        "german": "Wohnplätze und Streusiedlungen",
-        "english": "Residential places and scattered settlements"
+        "german": "Streusiedlungen",
+        "english": "Scattered settlements"
     },
     "B": {
-        "german": "Dörfer mit überwiegend Gehöften",
-        "english": "Villages with mainly homesteads"
+        "german": "Dörfliche Bebauung",
+        "english": "Rural village development"
     },
     "C": {
-        "german": "Ein- und Zweifamilienhaussiedlung niedriger Dichte",
-        "english": "Single and two-family house settlements of low density"
+        "german": "Wohnbebauung niedriger Dichte",
+        "english": "Low-density residential development"
     },
     "D": {
-        "german": "Bausiedlung hoher Dichte und Dorfkern",
-        "english": "Settlements with high density and village core"
+        "german": "Wohnbebauung mittlerer Dichte",
+        "english": "Medium-density residential development"
     },
     "E": {
         "german": "Reihenhausbebauung",

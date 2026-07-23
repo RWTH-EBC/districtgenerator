@@ -86,6 +86,49 @@ def building_rectangle(center, ground_area, aspect_ratio, angle):
     )
     return shapely.affinity.rotate(rect, angle, origin="center", use_radians=True)
 
+def sample_irregular_road_distances(road_length, count, edge_clearance, spacing_min, spacing_max):
+    """
+    Generate slightly irregular positions along a road segment.
+
+    This is used for type A so buildings form a scattered settlement.
+    """
+    if count <= 0:
+        return []
+
+    lower = edge_clearance
+    upper = road_length - edge_clearance
+    if upper <= lower:
+        return [road_length / 2.0]
+
+    base_gap = (upper - lower) / (count + 1)
+    jitter = min(max(spacing_max - spacing_min, 0.0) / 2.0, base_gap * 0.35)
+    distances = [
+        lower + (i + 1) * base_gap + uniform(-jitter, jitter)
+        for i in range(count)
+    ]
+    return sorted(max(lower, min(distance, upper)) for distance in distances)
+
+def offset_line_for_side(road, offset_distance, side):
+    """Return a usable road-parallel line for one road side."""
+    offset_line = road.parallel_offset(offset_distance, side, resolution=16, mitre_limit=5.0)
+    if offset_line.geom_type == "MultiLineString":
+        offset_line = max(offset_line.geoms, key=lambda geom: geom.length)
+    return offset_line
+
+def choose_type_a_road_sides():
+    """
+    Choose which side(s) of a type-A road receive buildings.
+
+    Type A represents scattered settlements, so most road segments should not
+    be mirrored symmetrically on both sides.
+    """
+    value = uniform(0, 1)
+    if value < 0.4:
+        return ["left"]
+    if value < 0.8:
+        return ["right"]
+    return ["left", "right"]
+
 def road_side_for_point(road, point):
     """
     Return the side of the road on which a point lies.
@@ -486,6 +529,8 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
     distance_between_buildings_min = params["abstand_hausanschluesse"]["min"]  # meters
     distance_between_buildings_max = params["abstand_hausanschluesse"]["max"]  # meters
     house_connection = params["HA-Leitungen"]["value"]  # Length of house connection lines in m
+    house_connection_min = params["HA-Leitungen"]["min"]
+    house_connection_max = params["HA-Leitungen"]["max"]
     if district_type == "I":
         min_line_length = params["laenge_netzstrahlabschnitte"]["min"]  # meters
     else:
@@ -713,11 +758,18 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
 
         num_ver_point = ceil(num_bl_per_ver_road / 2)   # the number of buildings on each side
         for road in vertical_road:
-            for side in ['left', 'right']:
-                # get the parallel line (The center point of the building is on this line)
-                road_parallel = road.parallel_offset(house_connection + building_width / 2, side, resolution=16,
-                                                     mitre_limit=5.0)
-                if num_bl_per_ver_road == num_bl_per_ver_road_value:
+            road_sides = choose_type_a_road_sides() if district_type == "A" else ["left", "right"]
+            for side in road_sides:
+                if district_type == "A":
+                    points_this_side = num_bl_per_ver_road if len(road_sides) == 1 else num_ver_point
+                    distances = sample_irregular_road_distances(
+                        block_length,
+                        points_this_side,
+                        house_connection_max + building_width / 2,
+                        distance_between_buildings_min,
+                        distance_between_buildings_max
+                    )
+                elif num_bl_per_ver_road == num_bl_per_ver_road_value:
                     # Buildings can be spaced equidistantly along the road.
                     distance_value = block_length / (num_ver_point + 1)
                     distance_max = max(building_width, distance_between_buildings_max)
@@ -735,12 +787,21 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
                     # Building spacing is the minimum spacing
                     distances = [house_connection + 0.5 * building_width + i * (distance_between_bl + 0.1) for i in range(num_ver_point)]
                 # Get the coordinates of all building center points
-                points = [road_parallel.interpolate(d) for d in distances]
-                for p in points:
+                for distance in distances:
+                    if district_type == "A":
+                        local_house_connection = uniform(house_connection_min, house_connection_max)
+                    else:
+                        local_house_connection = house_connection
+                    road_parallel = offset_line_for_side(
+                        road,
+                        local_house_connection + building_width / 2,
+                        side
+                    )
+                    p = road_parallel.interpolate(distance)
                     # Draw the building square
                     new_building = shapely.box(p.x - building_width / 2, p.y - building_width / 2,
                                                p.x + building_width / 2, p.y + building_width / 2)
-                    buffered_roads = [line.buffer(house_connection - 0.1) for line in road_lines_scaled]
+                    buffered_roads = [line.buffer(local_house_connection - 0.1) for line in road_lines_scaled]
                     # Detect whether the building overlaps with existing roads and buildings
                     if not any(new_building.intersects(b.buffer(distance_between_bl-building_width)) for b in placed_buildings):
                         if not any(new_building.intersects(r) for r in buffered_roads):
@@ -754,10 +815,18 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
 
         num_hor_point = ceil(num_bl_per_hor_road / 2)
         for road in horizontal_road:
-            for side in ['left', 'right']:
-                road_parallel = road.parallel_offset(house_connection + building_width / 2, side, resolution=16,
-                                                     mitre_limit=5.0)
-                if num_bl_per_hor_road == num_bl_per_hor_road_value:
+            road_sides = choose_type_a_road_sides() if district_type == "A" else ["left", "right"]
+            for side in road_sides:
+                if district_type == "A":
+                    points_this_side = num_bl_per_hor_road if len(road_sides) == 1 else num_hor_point
+                    distances = sample_irregular_road_distances(
+                        block_width,
+                        points_this_side,
+                        house_connection_max + building_width / 2,
+                        distance_between_buildings_min,
+                        distance_between_buildings_max
+                    )
+                elif num_bl_per_hor_road == num_bl_per_hor_road_value:
                     distance_value = block_length / (num_hor_point + 1)
                     distance_max = max(building_width, distance_between_buildings_max)
                     distance = min(distance_value, distance_max)
@@ -770,11 +839,20 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
                 else:
                     distances = [house_connection + 0.5 * building_width + i * (distance_between_bl + 0.1) for i in
                                  range(num_hor_point)]
-                points = [road_parallel.interpolate(d) for d in distances]
-                for p in points:
+                for distance in distances:
+                    if district_type == "A":
+                        local_house_connection = uniform(house_connection_min, house_connection_max)
+                    else:
+                        local_house_connection = house_connection
+                    road_parallel = offset_line_for_side(
+                        road,
+                        local_house_connection + building_width / 2,
+                        side
+                    )
+                    p = road_parallel.interpolate(distance)
                     new_building = shapely.box(p.x - building_width / 2, p.y - building_width / 2,
                                                p.x + building_width / 2, p.y + building_width / 2)
-                    buffered_roads = [line.buffer(house_connection - 0.1) for line in road_lines_scaled]
+                    buffered_roads = [line.buffer(local_house_connection - 0.1) for line in road_lines_scaled]
                     if not any(new_building.intersects(b.buffer(distance_between_bl-building_width)) for b in placed_buildings):
                         if not any(new_building.intersects(r) for r in buffered_roads):
                             placed_buildings.append(new_building)
@@ -1172,11 +1250,16 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
     # %% STEP FIVE: Save the parameters for this run
     # calculate the actual total area and building density
     if district_type != "F":
+        cleanup_house_connection = (
+            house_connection_max
+            if district_type == "A"
+            else house_connection
+        )
         road_lines_scaled = cleanup_unused_road_tails(
             road_lines=road_lines_scaled,
             buildings=buildings,
             transformer_pos=transformer_pos,
-            house_connection=house_connection,
+            house_connection=cleanup_house_connection,
             building_width=building_width,
         )
 

@@ -202,10 +202,32 @@ def scenario_generation(
     elif district_type == "I":
         delete_ratio = 0.4 if type_i_soft_delete_retry else 0.6
 
+    def retry_seed_after_layout_error(error):
+        if retry_depth >= max_seed_retries:
+            raise RuntimeError(
+                f"Could not generate a valid district after {max_seed_retries + 1} seed attempts. "
+                f"Last attempted seed: {params['random_seed']}."
+            ) from error
+
+        failed_seed = int(params["random_seed"])
+        next_seed = failed_seed + 1
+        print(f"Seed {failed_seed} rejected: {error}")
+        print(f"Trying next seed: {next_seed}")
+        reseed_params(next_seed)
+        return scenario_generation(
+            num_buildings_override=num_buildings,
+            retry_depth=retry_depth + 1,
+            max_seed_retries=max_seed_retries,
+            type_i_soft_delete_retry=False,
+        )
+
     # %% STEP TWO: Repeat running the model until getting a conforming district layout
     # run the model for the first time
-    road_lines_scaled, placed_buildings, transformer_pos, run_results, get_bigger_density = (
-        run_typdistrict_layout(district_type, num_buildings, building_density, delete_ratio))
+    try:
+        road_lines_scaled, placed_buildings, transformer_pos, run_results, get_bigger_density = (
+            run_typdistrict_layout(district_type, num_buildings, building_density, delete_ratio))
+    except ValueError as error:
+        return retry_seed_after_layout_error(error)
 
     # Limit the maximum number of attempts to avoid model dead loops.
     max_attempts = 30

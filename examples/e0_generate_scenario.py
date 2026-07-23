@@ -9,14 +9,14 @@ It can be used in two modes:
 2. Generate a batch of districts automatically.
 
 Typical settlement types include:
-A   "german": "Wohnplätze und Streusiedlungen",
-    "english": "Residential places and scattered settlements"
-B   "german": "Dörfer mit überwiegend Gehöften",
-    "english": "Villages with mainly homesteads"
-C   "german": "Ein- und Zweifamilienhaussiedlung niedriger Dichte",
-    "english": "Single and two-family house settlements of low density"
-D   "german": "Bausiedlung hoher Dichte und Dorfkern",
-    "english": "Settlements with high density and village core"
+A   "german": "Streusiedlungen",
+    "english": "Scattered settlements"
+B   "german": "Dörfliche Bebauung",
+    "english": "Rural village development"
+C   "german": "Wohnbebauung niedriger Dichte",
+    "english": "Low-density residential development"
+D   "german": "Wohnbebauung mittlerer Dichte",
+    "english": "Medium-density residential development"
 E   "german": "Reihenhausbebauung",
     "english": "Row housing development"
 F   "german": "Zeilenbebauung mittlerer Dichte",
@@ -34,6 +34,7 @@ districtgenerator/data/typdistrict_parameters.xlsx
 
 import subprocess
 import sys
+import re
 
 
 def generate_one_district():
@@ -68,30 +69,56 @@ def generate_one_district():
 
     from districtgenerator.functions.typdistrict_postprocess_paper2 import scenario_generation
 
-    scenario_generation()
+    result = scenario_generation()
+    if result:
+        print(
+            f"Generated valid district: type {result['district_type']}, "
+            f"seed {result['seed']}, buildings {result['num_buildings']}"
+        )
 
 
 def generate_batch():
     """
     Generate a batch of districts automatically.
 
-    Current batch setting:
-    - Settlement types: A--I
-    - Number of districts per settlement type: 20
-    - Number of buildings per district: 30
-    - Random seeds: 1--20 for each settlement type
+    Batch behavior:
+    - Starts with seed 1 for each selected settlement type.
+    - Generates the requested number of valid districts.
+    - If a seed cannot generate the requested number of buildings, the
+      generation function automatically tries the next seed.
+    - Existing files with the same successful seed are overwritten.
 
-    This means that 20 stochastic realizations are generated for each settlement type.
-    Since the seed is fixed for each realization, the same district can be reproduced
-    later by using the same settlement type, number of buildings, and random seed.
+    Example:
+    If 20 valid districts are requested and seed 2 fails, the outputs may use
+    seeds 1, 3, 4, ..., 21.
     """
 
-    settlement_types = list("ABCDEFGHI")
-    number_of_districts_per_type = 20
-    number_of_buildings = 30
+    settlement_input = input(
+        "\nEnter settlement type(s), e.g. H or ABCDEFGHI: "
+    ).strip().upper()
+    settlement_types = list(settlement_input)
+    invalid_types = [district_type for district_type in settlement_types if district_type not in list("ABCDEFGHI")]
+    if not settlement_types or invalid_types:
+        raise ValueError("Please enter only settlement types A-I.")
+
+    number_of_new_districts_per_type = int(
+        input("\nEnter number of valid districts to generate per type: ").strip()
+    )
+    number_of_buildings = int(
+        input("\nEnter number of buildings per district: ").strip()
+    )
+    max_seed_to_try = 500
 
     for district_type in settlement_types:
-        for seed in range(1, number_of_districts_per_type + 1):
+        seed = 1
+        new_districts_created = 0
+        while new_districts_created < number_of_new_districts_per_type:
+            if seed > max_seed_to_try:
+                raise RuntimeError(
+                    f"Could not generate {number_of_new_districts_per_type} new complete "
+                    f"districts for type {district_type} after trying seeds up to {max_seed_to_try}."
+                )
+
             print(
                 f"\nGenerating settlement type {district_type}, "
                 f"seed {seed}, buildings {number_of_buildings}"
@@ -103,12 +130,49 @@ def generate_batch():
             # 3. number of buildings
             user_inputs = f"{seed}\n{district_type}\n{number_of_buildings}\n"
 
-            subprocess.run(
-                [sys.executable, __file__, "--single"],
-                input=user_inputs,
+            process = subprocess.Popen(
+                [sys.executable, "-u", __file__, "--single"],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
-                check=True
+                bufsize=1,
             )
+            assert process.stdin is not None
+            assert process.stdout is not None
+            process.stdin.write(user_inputs)
+            process.stdin.close()
+
+            output_lines = []
+            for line in process.stdout:
+                output_lines.append(line)
+                print(line, end="")
+
+            return_code = process.wait()
+            completed_stdout = "".join(output_lines)
+            if return_code != 0:
+                raise subprocess.CalledProcessError(
+                    return_code,
+                    [sys.executable, "-u", __file__, "--single"],
+                    output=completed_stdout,
+                )
+
+            successful_seed_match = re.search(
+                rf"Generated valid district: type {district_type}, seed (\d+),",
+                completed_stdout
+            )
+            successful_seed = (
+                int(successful_seed_match.group(1))
+                if successful_seed_match
+                else seed
+            )
+
+            new_districts_created += 1
+            print(
+                f"New {district_type} districts created in this batch: "
+                f"{new_districts_created} / {number_of_new_districts_per_type}"
+            )
+            seed = max(seed + 1, successful_seed + 1)
 
     print("\nFinished generating all batch districts.")
 
@@ -118,8 +182,7 @@ def main():
     Choose between interactive single-district generation and automatic batch generation.
 
     Use mode 1 if you want to generate one district manually.
-    Use mode 2 if you want to generate 20 districts with 30 buildings for each
-    settlement type A--I.
+    Use mode 2 if you want to generate a batch of valid districts.
     """
 
     # Internal mode used by generate_batch().
@@ -130,7 +193,7 @@ def main():
 
     print("\nSelect generation mode:")
     print("1: Generate one district")
-    print("2: Generate batch: 20 districts per settlement type, 30 buildings each")
+    print("2: Generate batch")
 
     mode = input("\nEnter mode 1 or 2: ").strip()
 
