@@ -36,7 +36,8 @@ class Envelope:
         SFH: single family house; TH: terraced house; MFH: multifamily house; AP: apartment block.
     """
 
-    def __init__(self, prj, building_params, construction_data, physics, design_building_data, file_path, u_values, calcThick, extra):
+    def __init__(self, prj, building_params, construction_data, physics, design_building_data, file_path, u_values, calcThick, extra,
+                 component_construction_data=None):
         """
         Constructor of Envelope class.
 
@@ -65,6 +66,16 @@ class Envelope:
         self.id = building_params["id"]
         self.construction_year = building_params["year"]
         self.construction_data = construction_data
+
+        # Newly added, 23.07.26 FKL
+        # Use component-specific TABULA constructions where available.
+        # Fall back to the global construction_data for backward compatibility.
+        self.component_construction_data = (component_construction_data if component_construction_data is not None
+                                            else {"wall": construction_data,
+                                                  "window": construction_data,
+                                                  "roof": construction_data,
+                                                  "floor": construction_data,})
+
         self.physics = physics
         self.design_building_data = design_building_data
         self.retrofit = building_params["retrofit"]
@@ -247,7 +258,7 @@ class Envelope:
             for name, elem in element_bind.items():
                 if "OuterWall" in name:
                     if elem["building_age_group"][0] <= self.construction_year <= \
-                            elem["building_age_group"][1] and elem["construction_data"] == self.construction_data + "_1_" + self.usage_short:
+                            elem["building_age_group"][1] and elem["construction_data"] == self.component_construction_data["wall"] + "_1_" + self.usage_short:
 
                         for lay in elem["layer"].items():
                             self.d["opaque"][comp] = np.append(self.d["opaque"][comp], lay[1]["thickness"])
@@ -262,8 +273,7 @@ class Envelope:
                 if "Rooftop" in name:
                     if elem["building_age_group"][0] <= self.construction_year <= \
                             elem["building_age_group"][1] and \
-                            elem["construction_data"] == self.construction_data \
-                            + "_1_" + self.usage_short:
+                            elem["construction_data"] == self.component_construction_data["roof"] + "_1_" + self.usage_short:
                         for lay in elem["layer"].items():
                             self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
                                                                lay[1]["thickness"])
@@ -282,8 +292,7 @@ class Envelope:
                 if "GroundFloor" in name:
                     if elem["building_age_group"][0] <= self.construction_year <= \
                             elem["building_age_group"][1] and \
-                            elem["construction_data"] == self.construction_data \
-                            + "_1_" + self.usage_short:
+                            elem["construction_data"] == self.component_construction_data["floor"] + "_1_" + self.usage_short:
                         for lay in elem["layer"].items():
                             self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
                                                                lay[1]["thickness"])
@@ -359,13 +368,12 @@ class Envelope:
                                                                 material_prop[3] * 1000)
 
             comp = "window"
-            # INTERNAL FLOOR: Materials and U-value
+            # WINDOW: Materials and U-value
             for name, elem in element_bind.items():
                 if "Window" in name:
                     if elem["building_age_group"][0] <= self.construction_year <= \
                             elem["building_age_group"][1] and \
-                            elem["construction_data"] == self.construction_data \
-                            + "_1_" + self.usage_short:
+                            elem["construction_data"] == self.component_construction_data["window"] + "_1_" + self.usage_short:
                         self.g_gl["window"] = elem["g_value"]
                         for lay in elem["layer"].items():
                             self.d["window"] = np.append(self.d["window"],

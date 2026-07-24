@@ -656,17 +656,34 @@ class Datahandler:
             building_type = bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
 
             # add buildings to TEASER project
-            if building_type in {"single_family_house", "multi_family_house", "terraced_house", "apartment_block"}:
-                retrofit_level = bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
-                if retrofit_level == "tabula_retrofit":
-                    construction_data = 'tabula_de_retrofit'
-                    if building["buildingFeatures"]["year"]>2015:
-                        building["buildingFeatures"]["year"]=2015  #bugfix for tabula standard
-                elif retrofit_level == "tabula_adv_retrofit":
-                    construction_data = 'tabula_de_adv_retrofit'
-                else:
-                    # tabula standard
-                    construction_data = 'tabula_de_standard'
+            if building_type in {"single_family_house","terraced_house","multi_family_house","apartment_block"}:
+                # Newly added, 23.07.26 FKL
+                """
+                Wohngebäude können für einzelne Bauteile unterschiedliche Sanierungszustände aufweisen.
+                Ein globaler TABULA-Zustand ist daher für teilsanierte Gebäude nicht ausreichend.
+                Die Sanierungszustände von Außenwand, Fenster, Dach und Boden werden deshalb separat
+                ausgelesen und in die entsprechenden TABULA-Konstruktionsdaten überführt.
+                
+                Die bauteilspezifischen Konstruktionsdaten werden über component_construction_data
+                an das 5R1C-Modell übergeben, sodass dort für jedes äußere Bauteil der passende
+                TABULA-Aufbau ausgewählt werden kann.
+                
+                Der globale construction_data-Wert bleibt für die initiale Erzeugung des
+                TEASER-Gebäudes bestehen. Die tatsächlichen äußeren Bauteilaufbauten werden
+                anschließend im 5R1C-Modell bauteilspezifisch bestimmt.            
+                """
+                # Read the component-specific current envelope state generated from the KWP retrofit classification.
+                initial_envelope_state = {"outer_walls": building["buildingFeatures"]["retrofit_outer_walls"],
+                                          "windows": building["buildingFeatures"]["retrofit_windows"],
+                                          "roofs": building["buildingFeatures"]["retrofit_roofs"],
+                                          "ground_floors": building["buildingFeatures"]["retrofit_ground_floors"],}
+
+                # Convert the component states into the corresponding TABULA construction names.
+                component_construction_data = self._get_component_construction_data(initial_envelope_state)
+
+                # TEASER still requires one construction_data value when creating the archetype building.
+                # The actual external envelope constructions are assigned component-specifically afterwards.
+                construction_data = "tabula_de_standard"
 
                 # Determine the number of floors based on the building type.
                 # The original random TABULA-based calculation remains unchanged.
@@ -698,9 +715,9 @@ class Datahandler:
                 height = pd.to_numeric(building["buildingFeatures"].get("height", 0), errors="coerce")
 
                 # Calculate the floor height from total building height and number of floors.
-                height_of_floors = height / number_of_floors
+                height_of_floors = round(height/number_of_floors, 2)
 
-                # Use a construction-year-dependent fallback if the calculated value is outside 2.5–4.0 m.
+                # Use a construction-year-dependent fallback if the calculated value is outside 2.5 – 4.0 m.
                 if not 2.5 <= height_of_floors <= 4.0:
                     if building["buildingFeatures"]["year"] < 1960:
                         height_of_floors = 3.3  # Typical floor height for older buildings [m]
@@ -750,6 +767,7 @@ class Datahandler:
                 building["envelope"] = Envelope(prj=prj,
                                                 building_params=building["buildingFeatures"],
                                                 construction_data=construction_data,
+                                                component_construction_data=component_construction_data,
                                                 physics=self.physics,
                                                 design_building_data=self.design_building_data,
                                                 file_path=self.filePath,
@@ -844,6 +862,31 @@ class Datahandler:
             # Write the resolved geometry back into the scenario file.
             scenario_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv")
             self.scenario.to_csv(scenario_path, sep=";", index=False)
+
+
+    # Newly added, 23.07.2026 FKL
+    def _get_component_construction_data(self, initial_envelope_state):
+        """
+        Erzeugt aus den bauteilspezifischen Sanierungszuständen die entsprechenden
+        TABULA-Konstruktionsbezeichnungen für Außenwand, Fenster, Dach und Boden.
+
+        Zunächst wird geprüft, ob für jedes Bauteil ein gültiger Sanierungszustand
+        ("standard" oder "retrofit") vorliegt. Anschließend werden die Zustände in die
+        von TEASER verwendeten Bezeichnungen (z. B. "tabula_de_standard") überführt
+        und als Dictionary für die bauteilspezifische Verwendung im Envelope-Modell
+        zurückgegeben.
+        """
+        # Convert component-specific retrofit states into TABULA construction identifiers.
+        valid_states = {"standard","retrofit",}
+
+        for component, state in initial_envelope_state.items():
+            if state not in valid_states:
+                raise ValueError(f"Invalid current envelope state for {component}: {state!r}. Expected 'standard' or 'retrofit'.")
+
+        return {"wall": f"tabula_de_{initial_envelope_state['outer_walls']}",
+                "window": f"tabula_de_{initial_envelope_state['windows']}",
+                "roof": f"tabula_de_{initial_envelope_state['roofs']}",
+                "floor": f"tabula_de_{initial_envelope_state['ground_floors']}",}
 
 
 
