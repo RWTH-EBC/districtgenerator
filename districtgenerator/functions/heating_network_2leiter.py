@@ -227,7 +227,7 @@ def load_parameter_2leiter(data):
 
     # Calculate building heat demand connected to the district heating grid
     for building in data.district:
-        if building["buildingFeatures"]["heater"] not in ["heat_grid", "heat_grid_SH", "heat_grid_DHWB", "heat_grid_BHP"]:
+        if building["buildingFeatures"]["heater"] not in ["heat_grid", "heat_grid_OEB", "heat_grid_BEB", "heat_grid_BHP"]:
             continue
 
         heating = building["user"].heat / 1000  # kW
@@ -237,7 +237,7 @@ def load_parameter_2leiter(data):
         if building["buildingFeatures"]["heater"] == "heat_grid":
             net_building_demand = np.maximum(heating + dhw , 0.0) # - generationSTC, 0.0)
 
-        elif building["buildingFeatures"]["heater"] in ("heat_grid_SH", "heat_grid_DHWB", "heat_grid_BHP"):
+        elif building["buildingFeatures"]["heater"] in ("heat_grid_OEB", "heat_grid_BEB", "heat_grid_BHP"):
             net_building_demand = np.maximum(heating, 0.0)  #- generationSTC, 0.0)
 
         building["user"].net_building_demand = net_building_demand  # kW
@@ -265,7 +265,7 @@ def load_parameter_2leiter(data):
     UA_DHW_by_node = {}
 
     for building in data.district:
-        if building["buildingFeatures"]["heater"] not in ["heat_grid", "heat_grid_SH", "heat_grid_DHWB", "heat_grid_BHP"]:
+        if building["buildingFeatures"]["heater"] not in ["heat_grid", "heat_grid_OEB", "heat_grid_BEB", "heat_grid_BHP"]:
             continue
 
         pos_building = tuple(building["buildingFeatures"]["position"])
@@ -300,7 +300,7 @@ def load_parameter_2leiter(data):
         if building["buildingFeatures"]["heater"] == "heat_grid":
             Ts_req = np.maximum(Ts_req_SH, Ts_req_DHW)
 
-        elif building["buildingFeatures"]["heater"] in ("heat_grid_SH", "heat_grid_DHWB", "heat_grid_BHP"):
+        elif building["buildingFeatures"]["heater"] in ("heat_grid_OEB", "heat_grid_BEB", "heat_grid_BHP"):
             Ts_req = Ts_req_SH
 
         # Building heat load
@@ -312,11 +312,11 @@ def load_parameter_2leiter(data):
             Q_DHW_grid = Q_DHW_total
             Q_DHW_decentral = np.zeros(T_len, dtype=float)
 
-        elif building["buildingFeatures"]["heater"] == "heat_grid_SH":
+        elif building["buildingFeatures"]["heater"] == "heat_grid_OEB":
             Q_DHW_grid = np.zeros(T_len, dtype=float)
             Q_DHW_decentral = Q_DHW_total
 
-        elif building["buildingFeatures"]["heater"] in ("heat_grid_DHWB", "heat_grid_BHP"):
+        elif building["buildingFeatures"]["heater"] in ("heat_grid_BEB", "heat_grid_BHP"):
             Q_DHW_grid = np.zeros(T_len, dtype=float)
             Q_DHW_decentral = dhw_load.copy()       #Vorläufig komplett dezentral, Änderung danach
 
@@ -344,7 +344,7 @@ def load_parameter_2leiter(data):
             UA_SH = 0.0
 
         # Design UA for DHW heat exchanger
-        if (building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_DHWB", "heat_grid_BHP") and np.any(Q_DHW_total > 0.0)):
+        if (building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_BEB", "heat_grid_BHP") and np.any(Q_DHW_total > 0.0)):
             Q_DHW_design_W = building["bes_obj"].design_load_dhw * (1.0 + h_loss_subst / 100.0)
             T_cold_DHW_secondary_design = float(T_cold_water)
             T_hot_DHW_secondary_design = float(T_dhw_required)
@@ -445,7 +445,7 @@ def load_parameter_2leiter(data):
     for building in data.district:
         heater = building["buildingFeatures"]["heater"]
 
-        if heater not in ("heat_grid_SH", "heat_grid_DHWB", "heat_grid_BHP"):
+        if heater not in ("heat_grid_OEB", "heat_grid_BEB", "heat_grid_BHP"):
             continue
 
         node_key = node_lookup.get(tuple(building["buildingFeatures"]["position"]))
@@ -457,12 +457,12 @@ def load_parameter_2leiter(data):
         # Useful DHW demand without substation losses [kW]
         dhw_load = np.asarray(building["user"].dhw) / 1000.0
 
-        if heater == "heat_grid_SH":
+        if heater == "heat_grid_OEB":
             Q_DHW_grid_useful = np.zeros(T_len,dtype=float)
             Q_DHW_booster = dhw_load.copy()
             Q_BHP_source_useful = np.zeros(T_len, dtype=float)
 
-        elif heater == "heat_grid_DHWB":
+        elif heater == "heat_grid_BEB":
             Q_DHW_grid_useful = dhw_load * grid_fraction
             Q_DHW_booster = dhw_load * (1.0 - grid_fraction)
             Q_BHP_source_useful = np.zeros(T_len, dtype=float)
@@ -487,7 +487,7 @@ def load_parameter_2leiter(data):
         Q_DHW_decentral_by_node[node_key] = Q_DHW_booster
         Q_BHP_source_by_node[node_key] = Q_BHP_source_grid
 
-        if heater in ("heat_grid_DHWB", "heat_grid_BHP"):
+        if heater in ("heat_grid_BEB", "heat_grid_BHP"):
             T_sec_supply_DHW_by_node[node_key] = T_DHW_after_grid
 
         Q_by_node[node_key] = Q_SH_by_node[node_key] + Q_DHW_grid + Q_BHP_source_grid
@@ -1429,19 +1429,19 @@ def compute_and_save_network_costs_2leiter(data, param):
 
     buildings_connected = [
         b for b in data.district
-        if b["buildingFeatures"]["heater"] in ["heat_grid", "heat_grid_SH", "heat_grid_DHWB", "heat_grid_BHP"]
+        if b["buildingFeatures"]["heater"] in ["heat_grid", "heat_grid_OEB", "heat_grid_BEB", "heat_grid_BHP"]
     ]
 
     C_substations = 0.0
     for building in buildings_connected:
 
-        if building["buildingFeatures"]["heater"] == "heat_grid_SH":
+        if building["buildingFeatures"]["heater"] == "heat_grid_OEB":
             substation_capacity = building["bes_obj"].design_load_heating / 1000.0
 
         elif building["buildingFeatures"]["heater"] == "heat_grid":
             substation_capacity = (building["bes_obj"].design_load_heating + building["bes_obj"].design_load_dhw) / 1000.0
 
-        elif building["buildingFeatures"]["heater"] == "heat_grid_DHWB":
+        elif building["buildingFeatures"]["heater"] == "heat_grid_BEB":
             substation_capacity = (building["bes_obj"].design_load_heating + building["bes_obj"].design_load_dhw * np.max(data.heat_grid_data["dhw_grid_fraction"])) / 1000.0           #angepasste Dimensionierung der Übergabestation
 
         elif building["buildingFeatures"]["heater"] == "heat_grid_BHP":

@@ -287,7 +287,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     def heater_type(n):
         return str(buildingData[n]["buildingFeatures"].get("heater", "")).strip()
 
-    has_dhw_booster = any(heater_type(n) in ("heat_grid_DHWB", "heat_grid_BHP") for n in range(nbuildings))
+    has_dhw_booster = any(heater_type(n) in ("heat_grid_BEB", "heat_grid_BHP") for n in range(nbuildings))
     has_bhp = any(heater_type(n) == "heat_grid_BHP" for n in range(nbuildings))
 
     if is_5g_fixed and has_bhp:
@@ -694,7 +694,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
         cap_ewh = float(buildingData[n]["capacities"].get("EWH", 0.0))
 
-        if heater_type(n) not in ("heat_grid_SH", "heat_grid_DHWB"):
+        if heater_type(n) not in ("heat_grid_OEB", "heat_grid_BEB"):
             return model.heat_dom_DHW["EWH", n, t] == 0.0
 
         return model.heat_dom_DHW["EWH", n, t] <= cap_ewh
@@ -726,7 +726,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
 
     def sh_decentral_dhw_rule(model, n, t):
-        if heater_type(n) != "heat_grid_SH":
+        if heater_type(n) != "heat_grid_OEB":
             return pyo.Constraint.Skip
 
         return model.heat_dom_DHW["EWH",n,t] == float(Q_DHW[n][t])
@@ -795,16 +795,16 @@ def build_model(model, data, year, cluster, sim_ecoData):
     def heat_grid_capacity_rule(model, n, t):
         heater = heater_type(n)
 
-        if heater in ("heat_grid", "heat_grid_DHWB", "heat_grid_BHP"):
+        if heater in ("heat_grid", "heat_grid_BEB", "heat_grid_BHP"):
             return pyo.Constraint.Skip
-        elif heater == "heat_grid_SH":
+        elif heater == "heat_grid_OEB":
             return model.heat_dom_DHW["heat_grid", n, t] == 0
         else:
             return (model.heat_dom_SH["heat_grid", n, t] + model.heat_dom_DHW["heat_grid", n, t] == 0) # if no local heat grid connection, no heat can be used
 
 
     def dhwb_grid_dhw_rule(model, n, t):
-        if heater_type(n) not in ("heat_grid_DHWB", "heat_grid_BHP"):
+        if heater_type(n) not in ("heat_grid_BEB", "heat_grid_BHP"):
             return pyo.Constraint.Skip
 
         grid_fraction = float(dhw_grid_fraction[t])
@@ -814,7 +814,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
 
     def dhwb_booster_dhw_rule(model, n, t):
-        if heater_type(n) != "heat_grid_DHWB":
+        if heater_type(n) != "heat_grid_BEB":
             return pyo.Constraint.Skip
 
         booster_fraction = 1.0 - float(dhw_grid_fraction[t])

@@ -1304,7 +1304,7 @@ class Datahandler:
 
         # Check if district uses central energy supply (heat grid)
         has_heat_grid = any(
-            building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_SH", "heat_grid_DHWB", "heat_grid_BHP")
+            building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_OEB", "heat_grid_BEB", "heat_grid_BHP")
             for building in self.district)
 
         if has_heat_grid:
@@ -1341,7 +1341,7 @@ class Datahandler:
         for building in self.district:
 
             heater = str(building["buildingFeatures"].get("heater","")).strip()
-            if heater not in ("heat_grid_SH", "heat_grid_DHWB", "heat_grid_BHP"):
+            if heater not in ("heat_grid_OEB", "heat_grid_BEB", "heat_grid_BHP"):
                 continue
 
             booster_profile = np.asarray(building["user"].dhw_booster_demand,dtype=float)
@@ -1349,7 +1349,7 @@ class Datahandler:
                 print("WARNUNG: Vorgegebener DHW Booster wird nicht eingesetzt, da die Vorlauftemperaturen für DHW im gesamten Jahr ausreichend sind!")
             booster_capacity = (float(np.max(booster_profile)) if booster_profile.size else 0.0)    #New Sizing by max demand
 
-            if heater in ("heat_grid_SH","heat_grid_DHWB"):
+            if heater in ("heat_grid_OEB","heat_grid_BEB"):
                 building["capacities"]["EWH"] = booster_capacity
                 building["capacities"]["HP"] = 0.0
 
@@ -2361,7 +2361,7 @@ class Datahandler:
         # only get the position of buildings connected to the heat grid
         buildings_info = []
         for building in self.district:
-            if building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_SH", "heat_grid_DHWB", "heat_grid_BHP"):
+            if building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_OEB", "heat_grid_BEB", "heat_grid_BHP"):
                 pos = building["buildingFeatures"]["position"]
                 building_dict = {"building": building["unique_name"],
                                  "position": pos}
@@ -2412,7 +2412,7 @@ class Datahandler:
         buildings_info = []
         i = 0
         for building in self.district:
-            if building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_SH", "heat_grid_DHWB", "heat_grid_BHP"):
+            if building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_OEB", "heat_grid_BEB", "heat_grid_BHP"):
                 pos = building["buildingFeatures"]["position"]
                 building_dict = {"id": i,
                                  "building": building["unique_name"],
@@ -2467,7 +2467,7 @@ class Datahandler:
             district_type = "unknown"
         connected_building_count = sum(
             1 for building in self.district
-            if building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_SH", "heat_grid_DHWB", "heat_grid_BHP")
+            if building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_OEB", "heat_grid_BEB", "heat_grid_BHP")
         )
         topology_file = f"topology_{topology_option}_{district_type}_buildings_{connected_building_count}.json"
 
