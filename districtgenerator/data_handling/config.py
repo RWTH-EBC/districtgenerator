@@ -810,7 +810,7 @@ class DecentralDeviceConfig(BaseSettings):
     # HP parameters (Air Source Heat Pump)
     HP__grade: float = 0.4  # Quality grade. Ratio of the achieved coefficient of performance to the Carnot coefficient of performance.
     HP__life_time: int = 20  # Maximum life time in years.
-    HP__inv_base: float = 1660.0  # Unsubsidized investment in €/kWth.
+    HP__inv_base: float = 749.0  # Unsubsidized investment in €/kWth. #alter Wert: 1660
     HP__cost_om: float = 0.02  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     HP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     HP__enable_low_temp_measures: bool = False # "geringinvestive Maßnahmen": extra cost, can reduce supply/return temps to 50/40 °C (only if lower than the original system temperatures).

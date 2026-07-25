@@ -3811,7 +3811,7 @@ class DataExtractor(ReportComponent):
                     "x": float(pos[0]),
                     "y": float(pos[1]),
                     "type": features["building"],
-                    "is_connected": main_heater == "heat_grid",
+                    "is_connected": main_heater in ("heat_grid", "heat_grid_SH" , "heat_grid_DHWB", "heat_grid_BHP"),
                     "devices": installed_devices
                 })
 

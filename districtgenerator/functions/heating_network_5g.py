@@ -44,14 +44,14 @@ def network_5G(data, compute_costs=True, save_debug=True):
     """
 
     # Add artificial cooling loads for testing
-    data = add_test_cooling_profiles_5g(
-        data,
-        target_central_massflow_kg_s=12.5,
-        cooling_peak_factor=1.0,
-        summer_peak_position=0.58,
-        summer_width=0.13,
-        seed=42
-    )
+    #data = add_test_cooling_profiles_5g(
+    #    data,
+    #    target_central_massflow_kg_s=12.5,
+    #    cooling_peak_factor=1.0,
+    #    summer_peak_position=0.58,
+    #    summer_width=0.13,
+    #    seed=42
+    #)
 
     # 1) Load parameters
     data, param = load_parameter_5g_fixed(data)
@@ -63,6 +63,8 @@ def network_5G(data, compute_costs=True, save_debug=True):
 
     # 3) Select pipe class based on maximum fixed 5G rail temperature
     update_pipe_data_selection(data, param, float(np.max(param["T_warm_fixed_5g"])))  #should automatically choose PE Type
+
+
 
     # 4) Calculate building and pipe mass flows
     data, param = calc_flow_5g_fixed(data, param)
@@ -384,7 +386,7 @@ def load_parameter_5g_fixed(data):
     h_loss_subst = float(heat_grid_data.get("h_loss_subst", 0.0))
     heat_loss_substation = np.zeros(T_len, dtype=float)
 
-    use_STC_in_5g_loads = True
+    use_STC_in_5g_loads = True    #Todo: als zentralen Config Parameter hinterlegen
 
 
     # ------------------------------------------------------------------
@@ -415,7 +417,7 @@ def load_parameter_5g_fixed(data):
 
 
 
-    def calc_decentral_hp_cop_heating(T_sink_C, T_warm_in_C, T_cold_out_C):
+    def calc_decentral_hp_cop_heating(T_sink_C, T_warm_in_C, T_cold_out_C):     #Todo optional: durch besseres COP Modell austauschen
 
         #Carnot-based COP for decentralized building heat pumps.
 
@@ -512,8 +514,7 @@ def load_parameter_5g_fixed(data):
 
     if invalid_5g_heaters:
         raise ValueError(
-            "The 5G network model only supports heater='heat_grid'. "
-            "heat_grid_SH and heat_grid_DHWB belong to the conventional models."
+            "The 5G network model only supports heater='heat_grid'. heat_grid_SH and heat_grid_DHWB and heat_grid_BHP belong to the conventional models."
         )
 
 
@@ -531,6 +532,7 @@ def load_parameter_5g_fixed(data):
         node_key = node_lookup.get(pos_building)
 
         if node_key is None:
+            print(f"WARNUNG: Gebäude mit node_key {node_key} konnte nicht gefunden werden und wurde übersprungen! [1]")
             continue
 
         buildings_heating_curve = building["envelope"].heating_curve["unclustered"]
@@ -916,20 +918,41 @@ def update_pipe_data_selection(data, param, Ts_max):
     # symmetrical and (a) antisymmetrical heat loss factors
     # Heat Interference Correction Factor Between Pipes (Heat Transfer Between Supply and Return Water)
     b = np.log((1 + (2 * Z_c / D_heating_network) ** 2) ** 0.5)  # DIN EN 13941-1 D.3
+
+
+    # Thermal conductivity of PE pipe and casing [W/(m K)]
+    k_PE = 0.4 #Todo: Wert verifizieren und in den Daten hinterlegen
+    # Effective thermal conductivity of the space between service pipe and outer casing [W/(m K)]
+    k_annulus_eff = 0.08 #Todo: Wert verifizieren und in den Daten hinterlegen
+
     for DN, pipe in pipe_dict.items():
-        da = pipe["Outer diameter (pipe) (mm)"]
-        Da = pipe["Outer diameter (pipe) (mm)"]
-        # The soil thermal resistance term depends on the burial depth Zc
-        # and the outer diameter Da of the pipe plus insulation layer.
-        a = np.log(4 * Z_c / (Da / 1000))  # DIN EN 13941-1 D.3
-        # The thermal resistance component of the insulation layer depends on the outer diameter Da of the pipe plus
-        # insulation layer and the outer diameter da of the steel pipe.
-        beta = k_soil / k_pipe * np.log(Da / da)  # DIN EN 13941-1 D.7
-        # ks / ka：symmetrical and (a) antisymmetrical heat loss factors according to zero-order multipole formula
-        ks_heating_network = (a + beta + b) ** -1  # DIN EN 13941-1 D.3
+
+        if pipe_class == "PE":
+            di = float(pipe["Inner diameter (pipe) (mm)"])
+            d_o = float(pipe["Outer diameter (pipe) (mm)"])
+
+            # The PE outer diameter is directly in contact with the soil.
+            Da = d_o
+            a = np.log(4.0 * Z_c / (Da / 1000.0))
+
+            # Thermal resistance of the PE pipe wall.
+            beta = k_soil / k_PE * np.log(d_o / di)
+
+
+        else:
+            da = float(pipe["Outer diameter (pipe) (mm)"])
+            Da = float(pipe["Outer diameter (case) (mm)"])
+
+            a = np.log(4.0 * Z_c / (Da / 1000.0))
+
+            beta = k_soil / k_pipe * np.log(Da / da)
+
+
+        ks_heating_network = (a + beta + b) ** -1
         ka_heating_network = (a + beta - b) ** -1
+
         pipe["symmetrical heat loss factor"] = ks_heating_network
-        pipe["antisymmetrical heat loss factor"] = ka_heating_network # to consider heat flow between supply and return pipes
+        pipe["antisymmetrical heat loss factor"] = ka_heating_network
 
     param["pipe_dict"] = pipe_dict
 
@@ -1181,6 +1204,7 @@ def calc_diameter_5g_fixed(data, param):
 
         # fallback if no DN satisfies both limits
         if best_DN is None:
+            print("WARNUNG: Ein Rohr konnte die Geschwindigkeits- und Druckbegreznungen bei der Auslegung nicht beide gleichzeitig erfüllen!")
             best_DN = DN_list[-1]
             vals = pipe_dict[best_DN]
             d_i = vals["Inner diameter (pipe) (mm)"] / 1000.0
@@ -1945,8 +1969,6 @@ def compute_and_save_network_costs_5g_fixed(data, param):
         - pump electricity
 
     Not included here:
-        - decentralized HP electricity costs
-        - decentralized HP investment costs
         - central energy hub device costs
 
     Those should be handled in the device/energy-system optimization.

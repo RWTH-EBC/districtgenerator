@@ -1345,6 +1345,8 @@ class Datahandler:
                 continue
 
             booster_profile = np.asarray(building["user"].dhw_booster_demand,dtype=float)
+            if float(np.max(booster_profile)) <= 0.01:
+                print("WARNUNG: Vorgegebener DHW Booster wird nicht eingesetzt, da die Vorlauftemperaturen für DHW im gesamten Jahr ausreichend sind!")
             booster_capacity = (float(np.max(booster_profile)) if booster_profile.size else 0.0)    #New Sizing by max demand
 
             if heater in ("heat_grid_SH","heat_grid_DHWB"):
@@ -1826,6 +1828,9 @@ class Datahandler:
             if self.heat_grid_data["heatgrid_generation"] != "5G":
                 adjProfiles["dhw_grid_fraction"] = np.asarray(self.heat_grid_data["dhw_grid_fraction"][0:lengthArray],dtype=float)
                 adjProfiles["COP_BHP_DHW"] = np.asarray(self.heat_grid_data["COP_BHP_DHW"][0:lengthArray],dtype=float)
+            if self.heat_grid_data["heatgrid_generation"] == "5G":
+                adjProfiles["eh_residual_thermal_5g"] = np.asarray(self.heat_grid_data["eh_residual_thermal_5g"][0:lengthArray],dtype=float)
+                adjProfiles["net_decentral_HP_el_5g"] = np.asarray(self.heat_grid_data["net_decentral_HP_el_5g"][0:lengthArray],dtype=float)
 
 
             if self.centralDevices["capacities"]["WT"]["cap"] > 0:
@@ -1969,6 +1974,15 @@ class Datahandler:
                 weights.append(0)
                 scalings.append(False)
 
+            if self.heat_grid_data["heatgrid_generation"] == "5G":
+                inputsClustering.append(adjProfiles["eh_residual_thermal_5g"])
+                weights.append(0)
+                scalings.append(False)
+
+                inputsClustering.append(adjProfiles["net_decentral_HP_el_5g"])
+                weights.append(0)
+                scalings.append(False)
+
         # Wind speed (only relevant for clustering)
         inputsClustering.append(adjProfiles["wind_speed"])
         if centralEnergySupply == True and self.centralDevices["capacities"]["WT"]["cap"] > 0: weights.append(len(self.district))
@@ -2077,6 +2091,9 @@ class Datahandler:
             if self.heat_grid_data["heatgrid_generation"] != "5G":
                 self.heat_grid_data["dhw_grid_fraction_cluster"] = newProfiles[index_central + 6]
                 self.heat_grid_data["COP_BHP_DHW_cluster"] = newProfiles[index_central + 7]
+            if self.heat_grid_data["heatgrid_generation"] == "5G":
+                self.heat_grid_data["eh_residual_thermal_5g_cluster"] = newProfiles[index_central + 6]
+                self.heat_grid_data["net_decentral_HP_el_5g_cluster"] = newProfiles[index_central + 7]
 
         self.site["T_e_cluster"] = newProfiles[-2]
         self.heat_grid_data["T_soil_cluster"] = newProfiles[-1]

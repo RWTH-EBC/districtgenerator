@@ -273,6 +273,7 @@ def load_parameter_2leiter(data):
         node_key = node_lookup.get(pos_building)
 
         if node_key is None:
+            print(f"WARNUNG: Gebäude mit node_key {node_key} konnte nicht gefunden werden und wurde übersprungen! [4]")
             continue
 
         buildings_heating_curve = building["envelope"].heating_curve["unclustered"]
@@ -411,7 +412,7 @@ def load_parameter_2leiter(data):
     T_condenser_BHP = (T_dhw_required + dT_pinch)
 
     temperature_lift_BHP = np.maximum(T_condenser_BHP - T_evaporator_BHP, 0.1)
-    COP_BHP_DHW_raw = (0.4 * (273.15 + T_condenser_BHP) / temperature_lift_BHP)
+    COP_BHP_DHW_raw = (0.4 * (273.15 + T_condenser_BHP) / temperature_lift_BHP)     #Todo: fester Gütegrad von 40% austauschen?
     COP_BHP_DHW = np.clip(COP_BHP_DHW_raw,1.05, 7.0)
 
     if np.any(COP_BHP_DHW <= 1.0):
@@ -450,6 +451,7 @@ def load_parameter_2leiter(data):
         node_key = node_lookup.get(tuple(building["buildingFeatures"]["position"]))
 
         if node_key is None:
+            print(f"WARNUNG: Gebäude mit node_key {node_key} konnte nicht gefunden werden und wurde übersprungen! [5]")
             continue
 
         # Useful DHW demand without substation losses [kW]
@@ -1432,13 +1434,22 @@ def compute_and_save_network_costs_2leiter(data, param):
 
     C_substations = 0.0
     for building in buildings_connected:
-        building["buildingFeatures"]["heater"] = building["buildingFeatures"]["heater"]
 
         if building["buildingFeatures"]["heater"] == "heat_grid_SH":
             substation_capacity = building["bes_obj"].design_load_heating / 1000.0
 
-        elif building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_DHWB", "heat_grid_BHP"):
+        elif building["buildingFeatures"]["heater"] == "heat_grid":
             substation_capacity = (building["bes_obj"].design_load_heating + building["bes_obj"].design_load_dhw) / 1000.0
+
+        elif building["buildingFeatures"]["heater"] == "heat_grid_DHWB":
+            substation_capacity = (building["bes_obj"].design_load_heating + building["bes_obj"].design_load_dhw * np.max(data.heat_grid_data["dhw_grid_fraction"])) / 1000.0           #angepasste Dimensionierung der Übergabestation
+
+        elif building["buildingFeatures"]["heater"] == "heat_grid_BHP":
+            bhp_source_share = ((1.0 - data.heat_grid_data["dhw_grid_fraction"]) * (1.0 - 1.0 / data.heat_grid_data["COP_BHP_DHW"]))
+            bhp_network_share = (data.heat_grid_data["dhw_grid_fraction"] + bhp_source_share)
+            bhp_network_share_design = float(np.max(bhp_network_share))
+            substation_capacity = (building["bes_obj"].design_load_heating + building["bes_obj"].design_load_dhw * bhp_network_share_design) / 1000.0           #angepasste Dimensionierung der Übergabestation
+
 
         C_substations += substation_capacity * data.heat_grid_data["C_subst"]
 

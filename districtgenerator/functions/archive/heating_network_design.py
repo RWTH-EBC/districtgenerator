@@ -142,6 +142,7 @@ def load_parameter(data):
         node_key = node_lookup.get(pos_building)
 
         if node_key is None:
+            print(f"WARNUNG: Gebäude mit node_key {node_key} konnte nicht gefunden werden und wurde übersprungen! [2]")
             continue
 
         buildings_heating_curve = building["envelope"].heating_curve["unclustered"]
@@ -374,6 +375,7 @@ def calc_flow(data, param, save_path=None):
         pos_building = tuple(building["buildingFeatures"]["position"])
         node_key = node_lookup.get(pos_building)
         if node_key is None:
+            print(f"WARNUNG: Gebäude mit node_key {node_key} konnte nicht gefunden werden und wurde übersprungen! [3]")
             continue
 
         # use the network supply temperature instead of the building-specific

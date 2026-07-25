@@ -152,13 +152,11 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     def _cluster_profile(key, factor=1000.0):
         if key not in heatingNetworkData:
+            print(f"WARNUNG: geclustertes Profil mit key {key} nicht gefunden!")
             return np.zeros(len(T_e), dtype=float)
 
         return np.asarray(heatingNetworkData[key][cluster], dtype=float) * factor
 
-
-    network_losses_heating = _cluster_profile("total_losses_heating_network_cluster")
-    network_losses_cooling = _cluster_profile("total_losses_cooling_network_cluster")
 
     if "P_pump_cluster" in heatingNetworkData:
         # P_pump kommt im 5G-Modell bereits in W
@@ -167,12 +165,11 @@ def build_model(model, data, year, cluster, sim_ecoData):
         # alte Konvention: pump_power_cluster in kW
         network_pump_power = _cluster_profile("pump_power_cluster", factor=1000.0)
 
+    network_losses_heating = _cluster_profile("total_losses_heating_network_cluster")
+    network_losses_cooling = _cluster_profile("total_losses_cooling_network_cluster")
 
     if is_5g_fixed:
         residual_5g = _cluster_profile("eh_residual_thermal_5g_cluster")
-
-        if not np.any(residual_5g):
-            residual_5g = (_cluster_profile("net_thermal_balance_5g_cluster") + _cluster_profile("network_total_exchange_5g_cluster"))
 
         heat_5g_from_eh = np.maximum(residual_5g, 0.0)
         cool_5g_from_eh = np.maximum(-residual_5g, 0.0)
@@ -734,30 +731,11 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
         return model.heat_dom_DHW["EWH",n,t] == float(Q_DHW[n][t])
 
-    def dhwb_booster_dhw_rule(model, n, t):
-        if heater_type(n) != "heat_grid_DHWB":
-            return pyo.Constraint.Skip
-
-        return model.heat_dom_DHW["EWH",n,t] == float(Q_DHW[n][t]) * (1.0 - float(dhw_grid_fraction[t]))
-
     def bhp_grid_dhw_rule(model, n, t):
         if heater_type(n) != "heat_grid_BHP":
             return pyo.Constraint.Skip
 
         return model.heat_dom_DHW["heat_grid",n,t] == float(Q_DHW[n][t]) * float(dhw_grid_fraction[t])
-
-    def bhp_booster_dhw_rule(model, n, t):
-        if heater_type(n) != "heat_grid_BHP":
-            return pyo.Constraint.Skip
-
-        return model.heat_dom_DHW["HP",n,t] == float(Q_DHW[n][t]) * (1.0 - float(dhw_grid_fraction[t]))
-
-    def bhp_no_hp_sh_rule(model, n, t):
-        if heater_type(n) != "heat_grid_BHP":
-            return pyo.Constraint.Skip
-
-        return (model.heat_dom_SH["HP",n,t] == 0.0)
-
 
 
     def create_dom_cool_capacity_constraint(device_name):
@@ -842,7 +820,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
         booster_fraction = 1.0 - float(dhw_grid_fraction[t])
         dhw_demand = float(Q_DHW[n][t])
 
-        return (model.heat_dom_DHW["EWH", n, t] == dhw_demand * booster_fraction)
+        return model.heat_dom_DHW["EWH", n, t] == dhw_demand * booster_fraction
 
     def bhp_booster_dhw_rule(model, n, t):
 
@@ -852,7 +830,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
         booster_fraction = 1.0 - float(dhw_grid_fraction[t])
         dhw_demand = float(Q_DHW[n][t])
 
-        return (model.heat_dom_DHW["HP", n, t] == dhw_demand * booster_fraction)
+        return model.heat_dom_DHW["HP", n, t] == dhw_demand * booster_fraction
 
     def bhp_no_hp_sh_rule(model, n, t):
 
@@ -914,6 +892,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.dhwb_booster_dhw = pyo.Constraint(model.n, model.t, rule=dhwb_booster_dhw_rule)
     model.bhp_booster_dhw = pyo.Constraint(model.n, model.t, rule=bhp_booster_dhw_rule)
     model.bhp_no_hp_sh = pyo.Constraint(model.n, model.t, rule=bhp_no_hp_sh_rule)
+    model.sh_decentral_dhw = pyo.Constraint(model.n, model.t, rule=sh_decentral_dhw_rule)
 
     ################################################################################
     # Energy Conversion for Energyhub devices
@@ -1462,7 +1441,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
                 + model.eh_power_BCHP[t] + model.eh_power_WCHP[t] + model.eh_power_FC[t] + model.eh_dch_BAT[t] +
                 model.eh_power_from_grid[t]
                 == model.eh_power_HP[t] + model.eh_power_GroundHP[t] + model.eh_power_EB[t] + model.eh_power_CC[t]
-                + model.eh_power_ELYZ[t] + model.eh_ch_BAT[t] + model.network_pump_power[t] + model.eh_power_to_grid[t] + model.decentral_hp_power_5g[t])
+                + model.eh_power_ELYZ[t] + model.eh_ch_BAT[t] + model.network_pump_power[t] + model.eh_power_to_grid[t] + model.decentral_hp_power_5g[t])               #Der Stromverbrauch der dezentralen WP wird aktuell dem EnergyHub zugeschlagen. #Todo: Absprechen ob so okay für 5G
 
     # Cooling balance
     def eh_cooling_balance_rule(model, t):
