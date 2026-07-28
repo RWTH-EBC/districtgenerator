@@ -128,14 +128,19 @@ def is_on_line(p, a, b, tol=1e-6):
         True: p is on the line between a and b
         False: p is not on the line between a and b
     """
-    cross = (p[1]-a[1])*(b[0]-a[0]) - (p[0]-a[0])*(b[1]-a[1])
-    if abs(cross) > tol:
-        return False
-    dot = (p[0]-a[0])*(b[0]-a[0]) + (p[1]-a[1])*(b[1]-a[1])
-    if dot < 0:
-        return False
     sq_len = (b[0]-a[0])**2 + (b[1]-a[1])**2
-    if dot > sq_len:
+    if sq_len == 0:
+        return euclidean(p, a) <= tol
+
+    line_len = math.sqrt(sq_len)
+    cross = (p[1]-a[1])*(b[0]-a[0]) - (p[0]-a[0])*(b[1]-a[1])
+    if abs(cross) / line_len > tol:
+        return False
+
+    dot = (p[0]-a[0])*(b[0]-a[0]) + (p[1]-a[1])*(b[1]-a[1])
+    if dot < -tol * line_len:
+        return False
+    if dot > sq_len + tol * line_len:
         return False
     return True
 
@@ -219,7 +224,8 @@ def orient_network(G, plant):
                 queue.append(neighbor)
     return directed_dict
 
-def run_pipeline_road(district_type, building_width, house_connection, buildings_info, lines_info, transformer_info):
+def run_pipeline_road(district_type, building_width, house_connection, buildings_info, lines_info, transformer_info,
+                      topology_label=None):
     """
     Consider road constraints, ensuring all main pipelines are laid beneath roads.
     using Steiner Tree algorithm
@@ -243,6 +249,8 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
     -------
     None
     """
+    output_label = topology_label or f"{district_type}_buildings_{len(buildings_info)}"
+
     if district_type != "F":
         # Due to the unique nature of Type F, pipeline network layouts will be planned separately.
 
@@ -461,15 +469,15 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
-        plot_filename_png = os.path.join(save_dir,f"pipeline_layout_road_{district_type}_buildings_{len(buildings_info)}.png")
-        plot_filename_svg = os.path.join(save_dir,f"pipeline_layout_road_{district_type}_buildings_{len(buildings_info)}.svg")
+        plot_filename_png = os.path.join(save_dir, f"pipeline_layout_road_{output_label}.png")
+        plot_filename_svg = os.path.join(save_dir, f"pipeline_layout_road_{output_label}.svg")
         plt.savefig(plot_filename_png, dpi=300)
         plt.savefig(plot_filename_svg, format="svg")
 
 #        plt.show()
 
         # %% STEP SIX: Output
-        json_filename = f"topology_road_{district_type}_buildings_{len(buildings_info)}.json"
+        json_filename = f"topology_road_{output_label}.json"
         # json_filename = get_unique_filename(json_filename)
         json_path = os.path.join(save_dir, json_filename)
 
@@ -681,8 +689,8 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
-        plot_filename_png = os.path.join(save_dir,f"pipeline_layout_road_{district_type}_buildings_{len(buildings_info)}.png")
-        plot_filename_svg = os.path.join(save_dir,f"pipeline_layout_road_{district_type}_buildings_{len(buildings_info)}.svg")
+        plot_filename_png = os.path.join(save_dir, f"pipeline_layout_road_{output_label}.png")
+        plot_filename_svg = os.path.join(save_dir, f"pipeline_layout_road_{output_label}.svg")
         plt.savefig(plot_filename_png, dpi=300)
         plt.savefig(plot_filename_svg, format="svg")
 
@@ -719,7 +727,7 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
                 network.nodes[n]["id"] = f"node{counters['node']}"
                 counters["node"] += 1
 
-        json_filename = f"topology_road_{district_type}_buildings_{len(buildings_info)}.json"
+        json_filename = f"topology_road_{output_label}.json"
         # json_filename = get_unique_filename(json_filename)
         json_path = os.path.join(save_dir, json_filename)
 

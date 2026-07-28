@@ -37,6 +37,26 @@ from districtgenerator.functions.heating_network_simple import calculate_soil_te
 from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig, ReportConfig
 
 
+def _preload_richardson_occupancy_matrices():
+    """
+    Load Richardson residential occupancy transition matrices before threading.
+
+    richardsonpy stores these matrices in class-level caches. If several demand
+    worker threads trigger lazy loading at the same time, one thread can see the
+    weekday matrix before the weekend matrix is loaded and raise a KeyError.
+    """
+    py_random_state = random.getstate()
+    numpy_random_state = np.random.get_state()
+    try:
+        from richardsonpy.classes.occupancy import Occupancy
+
+        for number_occupants in range(1, 6):
+            Occupancy(number_occupants, initial_day=1, nb_days=1)
+    finally:
+        random.setstate(py_random_state)
+        np.random.set_state(numpy_random_state)
+
+
 class Datahandler:
     """
     Abstract class for data handling.
@@ -1203,6 +1223,11 @@ class Datahandler:
 
         # Thread count is limited by the maximum available CPU cores. Using more threads than cores usually provides no additional benefit but requires more temporary storage.
         max_threads = min(max_threads, os.cpu_count() or 1)
+
+        if calcUserProfiles and any(
+                building["buildingFeatures"]["building"] in {"SFH", "TH", "MFH", "AB"}
+                for building in self.district):
+            _preload_richardson_occupancy_matrices()
 
         args_list = [(self, building, calcUserProfiles, saveUserProfiles, gen_cars) for building in self.district]
 
@@ -2487,7 +2512,16 @@ class Datahandler:
         lines_info = jsonData["values"]["lines_info"]
         transformer_info = jsonData["values"]["energy_hub"]
 
-        run_pipeline_road(district_type, building_width, house_connection, buildings_info, lines_info, transformer_info)
+        scenario_input_name = self.input_scenario_name or self.scenario_name
+        run_pipeline_road(
+            district_type,
+            building_width,
+            house_connection,
+            buildings_info,
+            lines_info,
+            transformer_info,
+            topology_label=scenario_input_name
+        )
 
     def generateNetwork(self, topology_option):
         """
@@ -2532,7 +2566,10 @@ class Datahandler:
             1 for building in self.district
             if building["buildingFeatures"]["heater"] == "heat_grid" or building["buildingFeatures"]["heater"] == "heat_grid_SH"
         )
-        topology_file = f"topology_{topology_option}_{district_type}_buildings_{connected_building_count}.json"
+        if topology_option == "road":
+            topology_file = f"topology_{topology_option}_{scenario_input_name}.json"
+        else:
+            topology_file = f"topology_{topology_option}_{district_type}_buildings_{connected_building_count}.json"
 
         # load the file of the heating network topology
         with open(os.path.join(self.scenario_file_path, topology_file)) as json_file:
