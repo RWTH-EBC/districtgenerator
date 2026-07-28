@@ -42,7 +42,7 @@ EH_ECS_OIL = ()
 EH_ECS_STORAGE = ("TES", "CTES", "BAT", "H2S", "GS")
 EH_ECS_WASTE = ("WCHP", "WBOI", "import")
 EH_HEAT_PRODUCERS = ("STC", "HP", "GroundHP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
-EH_RENEWABLE_HEAT = ("STC", "HP", "GroundHP", "EB", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
+EH_RENEWABLE_HEAT = ("STC", "HP", "GroundHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
 
 BIG_M = 1e8  # big M for linearization of product of binary and continuous variable
 
@@ -73,6 +73,11 @@ def _get_active_renewable_heat_share(config, year):
             active_target = max(active_target, target_share)
 
     return active_target
+
+def _get_grid_renewable_electricity_share(config, year):
+    """Renewable share of grid electricity used by electric heat generators."""
+    shares = config.get("grid_renewable_electricity_share")
+    return float(shares[year])
 
 def run_opti_central(data, year, cluster, sim_ecoData):
     """
@@ -1501,8 +1506,12 @@ def build_model(model, data, year, cluster, sim_ecoData):
         if target_share == 0:
             return pyo.Constraint.Skip
 
+        grid_renewable_electricity_share = _get_grid_renewable_electricity_share(
+            central_device_data,
+            year=year)
         renewable_heat = (
             sum(getattr(model, f"eh_heat_{dev}")[t] for dev in EH_RENEWABLE_HEAT for t in model.t)
+            + sum(model.eh_heat_EB[t] * grid_renewable_electricity_share for t in model.t)
             + sum(
                 model.eh_biomethane_CHP[t] * central_device_data["CHP"]["eta_th"]
                 + model.eh_biomethane_BOI[t] * central_device_data["BOI"]["eta_th"]

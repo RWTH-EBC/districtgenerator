@@ -40,7 +40,7 @@ The model workflow is:
 
 # MAIN WORKFLOW
 
-def network_2leiter_simple(data, compute_costs=True, save_debug=True):
+def network_2leiter_simple(data, compute_costs=True, save_debug=False):
     """
     Simple 2-pipe network model.
 

@@ -22,7 +22,7 @@ import districtgenerator.functions.solver_config as solver_config
 from contextlib import redirect_stdout
 
 EH_HEAT_PRODUCERS = ("STC", "HP", "GroundHP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
-EH_RENEWABLE_HEAT = ("STC", "HP", "GroundHP", "EB", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
+EH_RENEWABLE_HEAT = ("STC", "HP", "GroundHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
 
 
 def _get_renewable_heat_share_schedule(config):
@@ -51,6 +51,11 @@ def _get_active_renewable_heat_share(config, year):
             active_target = max(active_target, target_share)
 
     return active_target
+
+def _get_grid_renewable_electricity_share(config, year):
+    """Renewable share of grid electricity used by electric heat generators."""
+    shares = config.get("grid_renewable_electricity_share")
+    return float(shares[year])
 
 def run_optim(data, devs, param, dem, result_dict):
     """
@@ -385,9 +390,14 @@ def build_model(model, data, devs, param, dem):
             year=int(y))
 
         if target_share > 0:
+            grid_renewable_electricity_share = _get_grid_renewable_electricity_share(param, int(y))
             renewable_heat = sum(
                 model.heat[dev, y, d, t] * param["cluster_weights"][d]
                 for dev in EH_RENEWABLE_HEAT
+                for d in model.clusters
+                for t in model.time_steps
+            ) + sum(
+                model.heat["EB", y, d, t] * grid_renewable_electricity_share * param["cluster_weights"][d]
                 for d in model.clusters
                 for t in model.time_steps
             ) + sum(

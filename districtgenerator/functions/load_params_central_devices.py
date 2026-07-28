@@ -105,6 +105,7 @@ def load_params(data):
     param["renewable_heat_share_enabled"] = central_device_data.get("renewable_heat_share_enabled")
     param["renewable_heat_share_targets"] = central_device_data.get("renewable_heat_share_targets")
     param["renewable_heat_share_years"] = central_device_data.get("renewable_heat_share_years")
+    param["grid_renewable_electricity_share"] = central_device_data.get("grid_renewable_electricity_share")
     param_uncl["T_supply_EH"] = data.heat_grid_data["T_supply_EH"]
     param_uncl["T_return_EH"] = data.heat_grid_data["T_return_EH"]
 

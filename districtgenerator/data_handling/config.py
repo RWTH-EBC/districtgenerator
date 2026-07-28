@@ -223,6 +223,7 @@ class EcoConfig(BaseSettings):
 
     # CO2 emission factors in kg/kWh
     co2_el_grid: str | list = [0.328, 0.281, 0.233, 0.186, 0.139, 0.096, 0.083, 0.069, 0.056, 0.048, 0.043, 0.037, 0.032, 0.027, 0.027, 0.027, 0.026, 0.026, 0.016, 0]          # CO2 emissions for electricity import (grid mix) in kg/kWh
+    grid_renewable_electricity_share: str | list = [0.551, 0.615, 0.681, 0.745, 0.810, 0.869, 0.886, 0.906, 0.923, 0.934, 0.941, 0.949, 0.956, 0.963, 0.963, 0.963, 0.964, 0.964, 0.978, 1.000]  # Renewable share of grid electricity.
     co2_gas: str | list = [0.240]              # CO2 emissions for burning natural gas in kg/kWh
     co2_biom: str | list = [0.020]              # CO2 emissions for burning biomass in kg/kWh
     co2_biomethane: str | list = [0.0]          # CO2 emissions for burning biomethane in kg/kWh
@@ -238,7 +239,7 @@ class EcoConfig(BaseSettings):
                      'revenue_feed_in_el_eh', 'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas',
                      'price_gasoline_liter', 'price_hydrogen', 'price_biomethane', 'price_waste',
                      'price_biomass', 'price_oil', 'price_district_heat',
-                     'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_biomethane', 'co2_hydrogen',
+                     'co2_el_grid', 'grid_renewable_electricity_share', 'co2_gas', 'co2_biom', 'co2_biomethane', 'co2_hydrogen',
                      'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax', mode='before')
     @classmethod
     def parse_to_float_list(cls, v):
@@ -275,7 +276,7 @@ class EcoConfig(BaseSettings):
             'price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh', 'revenue_feed_in_el_eh',
             'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas', 'price_gasoline_liter', 'price_hydrogen', 'price_biomethane',
             'price_waste', 'price_biomass', 'price_oil', 'price_district_heat',
-            'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_biomethane', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax'
+            'co2_el_grid', 'grid_renewable_electricity_share', 'co2_gas', 'co2_biom', 'co2_biomethane', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax'
         ]
         
         for param_name in params_to_expand:
@@ -1068,7 +1069,8 @@ class CentralDeviceConfig(BaseSettings):
     """
 
     # WPG:
-    # - Neue Wärmenetze ab 01.03.2025: mind. 65% EE, unvermeidbare Abwärme
+    # - Neue Wärmenetze ab 2025: mind. 65% EE / unvermeidbare Abwärme
+    # - Neue Wärmenetze ab 2040: mind. 80% EE / unvermeidbare Abwärme
     # - Bestehende Wärmenetze ab 2030: mind. 30% EE / unvermeidbare Abwärme
     # - Bestehende Wärmenetze ab 2040: mind. 80% EE / unvermeidbare Abwärme
     # - Alle Wärmenetze ab 2045: 100% EE / unvermeidbare Abwärme
