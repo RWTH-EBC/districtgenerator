@@ -439,8 +439,7 @@ class HeatGridConfig(BaseSettings):
     lifetime_subst: int = 25                 # Lifetime of the substation in years. Source: Technikkatalog Wärmeplanung 2024
     C_OM: float = 1.44               # Annual fixed Operation & Maintenance (O&M) costs in % of the investment costs.
     seasonal_storage_kWh_a: float = 0 # Seasonal storage capacity at the location in kWh/a -> Which offers a constant supply of energy throughout the year without any associated cost or emissions.
-    nominal_waste_heat_capacity_kW: Optional[float] = None  # Nominal waste heat capacity in kW without any associated cost or emissions. None indicates it can later be determined by the input file. If it is not determined it will be set to 0.
-    waste_heat_temperature: float = 25.0  # Temperature of available waste heat source in °C, used as HP source temperature.
+    waste_heat_source_file: Optional[str] = None # Sourcefile of the waste heat. If None no Waste Heat source is available. A Source can be specified by the input file name e.g. "subway_station"
 
     T_hot_heating_network__constant__3rd: float = 80.0  # Supply temperature of 3rd generation heat grid in degrees Celsius.
     T_hot_heating_network__constant__4th: float = 55.0  # Supply temperature of 4th generation heat grid in degrees Celsius.
@@ -483,14 +482,21 @@ class HeatGridConfig(BaseSettings):
     pipe__cost_om_pipe: float = 0.005    # Pipe O&M share (fraction of investment cost per year).
     pipe: dict = {}
 
-    @field_validator('nominal_waste_heat_capacity_kW', mode='before')
+    @field_validator('waste_heat_source_file', mode='before')
     @classmethod
     def parse_none_string(cls, v):
         """Convert string 'None' to Python None"""
         if v == "None" or v == "null" or v == "":
             return None
         return v
-
+    
+    @field_validator('waste_heat_source_file', mode='before')
+    @classmethod
+    def validate_waste_heat_source_file(cls, v):
+        """Validate that the waste heat source file exists if specified."""
+        pass #TODO: This function should be implemented to avoid later on unspecified errors.
+        return v
+    
     @model_validator(mode='after')
     def build_device_dicts(self) -> 'HeatGridConfig':
         """Build all device dictionaries from individual parameters, supporting nested structure."""
@@ -1145,31 +1151,22 @@ class CentralDeviceConfig(BaseSettings):
     GHP: dict = {}
 
     # HP parameters (Heat Pump)
-    HP__feasible: bool = False  # Should this be considered for the central optimization.
-    HP__CCOP_feasible: bool = True  # Should this be considered for the central optimization (constant COP).
-    HP__ASHP_feasible: bool = False  # Should this be considered for the central optimization (air source).
-    HP__CSV_feasible: bool = False  # Should this be considered for the central optimization (CSV data).
-    HP__Waste_feasible: bool = False  # Waste-heat-source Carnot COP.
+    HP__feasible: bool = False  # Is an Heat Pump feasible?
+    HP__CCOP_feasible: bool = True  # Should it be modeled with a constant COP?
+    HP__ASHP_carnot_feasible: bool = False  # Should this be modeled as an Air Source Heat Pump with Carnot efficiency?
+    HP__ASHP_model_feasible: bool = False  # COP model for ammonia large scale heat pumps based on DOI: 10.18462/iir.gl.2018.1386
+    HP__CSV_feasible: bool = False  # Should this be modeled with a CSV file for the COP?
     HP__inv_base: float = 1110  # Unsubsidized investment in €/kW.
     HP__life_time: int = 20  # Maximum life time in years.
     HP__cost_om: float = 0.033  # Cost of operation and maintenance as a percentage of investment.
     HP__min_cap: float = 0  # Minimum capacity in kW.
     HP__max_cap: float = 500  # Maximum capacity in kW.
-    HP__ASHP_carnot_eff: float = 0.4  # Carnot efficiency of the Heat Pump between 0 and 1.
+    HP__ASHP_carnot_eff: float = 0.4  # Carnot efficiency of the Air Source Heat Pump between 0 and 1.
     HP__ASHP_supply_temp: float = 60  # Supply temperature of the Air Source Heat Pump in Celsius.
     HP__COP_const: float = 4  # Constant Coefficient of Performance (COP).
     HP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     HP: dict = {}
 
-    # AirHP parameters (Air Source Heat Pump)
-    AirHP__feasible: bool = True  # Should this be considered for the central optimization.
-    AirHP__life_time: int = 25  # Maximum life time in years.
-    AirHP__inv_base: float = 1110  # Unsubsidized investment in €/kWth.
-    AirHP__cost_om: float = 0.033  # Cost of operation and maintenance as a percentage of investment.
-    AirHP__min_cap: float = 0  # Minimum capacity in kWth.
-    AirHP__max_cap: float = 20000  # Maximum capacity in kWth.
-    AirHP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
-    AirHP: dict = {}
 
     # GroundHP parameters (Ground Source Heat Pump)
     GroundHP__feasible: bool = False  # Should this be considered for the central optimization.
@@ -1180,6 +1177,26 @@ class CentralDeviceConfig(BaseSettings):
     GroundHP__max_cap: float = 500  # Maximum capacity in kWth.
     GroundHP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     GroundHP: dict = {}
+
+    # Waste Heat Heat Pump parameters 
+    Waste_HeatHP__feasible: bool = False  # Should this be considered for the central optimization.
+    Waste_HeatHP__life_time: int = 20  # Maximum life time in years.
+    Waste_HeatHP__inv_base: float = 1110  # Unsubsidized investment in €/kW
+    Waste_HeatHP__cost_om: float = 0.033  # Cost of operation and maintenance as a percentage of investment.
+    Waste_HeatHP__min_cap: float = 0  # Minimum capacity in kW.
+    Waste_HeatHP__max_cap: float = 500  # Maximum capacity in kW.
+    Waste_HeatHP__ASHP_carnot_eff: float = 0.4  # Carnot efficiency of the Air Source Heat Pump between 0 and 1.
+    Waste_HeatHP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    Waste_HeatHP: dict ={}
+
+    # Direct Waste Heat Usage through a heat exchanger (Waste Heat Direct)
+    Waste_HeatDirect__feasible: bool = False  # Should this be considered for the central optimization.
+    Waste_HeatDirect__life_time: int = 20  # Maximum life time in years.
+    Waste_HeatDirect__inv_base: float = 0.0  # Unsubsidized investment in €/kW
+    Waste_HeatDirect__cost_om: float = 0.0  # Cost of operation and maintenance as a percentage of investment.
+    Waste_HeatDirect__min_cap: float = 0  # Minimum capacity in kW.
+    Waste_HeatDirect__max_cap: float = 100000  # Maximum capacity in kW.
+    Waste_HeatDirect: dict = {}
 
     # EB parameters (Electric Boiler)
     EB__feasible: bool = True  # Should this be considered for the central optimization.
@@ -1193,7 +1210,9 @@ class CentralDeviceConfig(BaseSettings):
     EB: dict = {}
 
     # CC parameters (Chiller)
-    CC__feasible: bool = False  # Should this be considered for the central optimization.
+    CC__feasible: bool = False  # Should this be considered for optimization?
+    CC__CCOP_feasible: bool = True  # Should it be modeled with a constant COP?
+    CC__ASCC_model_feasible: bool = False  # COP model for ammonia large scale heat pumps based on DOI: 10.18462/iir.gl.2018.1386
     CC__inv_base: float = 700  # Unsubsidized investment in €/kW.
     CC__COP: float = 3.5  # Coefficient of Performance (COP).
     CC__life_time: int = 20  # Maximum life time in years.
@@ -1202,16 +1221,6 @@ class CentralDeviceConfig(BaseSettings):
     CC__max_cap: float = 500  # Maximum capacity in kW.
     CC__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     CC: dict = {}
-
-    # AirCC parameters (Air Cooled Chiller)
-    AirCC__feasible: bool = False  # Should this be considered for the central optimization.
-    AirCC__life_time: int = 20  # Maximum life time in years.
-    AirCC__inv_base: float = 700  # Unsubsidized investment in €/kW.
-    AirCC__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
-    AirCC__min_cap: float = 0  # Minimum capacity in kW.
-    AirCC__max_cap: float = 500  # Maximum capacity in kW.
-    AirCC__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
-    AirCC: dict = {}
 
     # AC parameters (Absorption Chiller)
     AC__feasible: bool = False  # Should this be considered for the central optimization.
@@ -1403,47 +1412,42 @@ class CentralDeviceConfig(BaseSettings):
         return self
 
     @model_validator(mode='after')
-    def validate_single_hp_and_cc_model(self) -> 'CentralDeviceConfig':
-        """Ensure only one central HP model and one CC model is enabled at most, and validate COP modes."""
+    def validate_hp_cc_configuration(self) -> 'CentralDeviceConfig':
+        """Validate HP model selection after dictionaries are built."""
+        hp_dict = getattr(self, 'HP', {})
+        cc_dict = getattr(self, 'CC', {})
+        
+        if not hp_dict:
+            raise ValueError("HP configuration is missing. Ensure that the HP dictionary is built correctly.")
+        if not cc_dict:
+            raise ValueError("CC configuration is missing. Ensure that the CC dictionary is built correctly.")
+        
+        hp_flags = [
+            hp_dict.get('CCOP_feasible', False),
+            hp_dict.get('ASHP_carnot_feasible', False),
+            hp_dict.get('ASHP_model_feasible', False),
+            hp_dict.get('CSV_feasible', False)
+        ]
+        cc_flags = [
+            cc_dict.get('CCOP_feasible', False),
+            cc_dict.get('ASCC_model_feasible', False)
+        ]
+        
+        active_count_hp = sum(hp_flags)
+        active_count_cc = sum(cc_flags)
 
-        hp_enabled_count = sum([
-            bool(self.GroundHP["feasible"]),
-            bool(self.AirHP["feasible"]),
-            bool(self.HP["feasible"])
-        ])
-
-        if hp_enabled_count > 1:
-            raise ValueError(
-                f"Configuration Error: Multiple central heat pump models are enabled ({hp_enabled_count} active). "
-                "You can only set 'feasible=True' for ONE of the following: 'GroundHP', 'AirHP', or the default 'HP'."
-            )
-
-        if self.HP["feasible"]:
-            hp_mode_count = sum([
-                bool(self.HP["CCOP_feasible"]),
-                bool(self.HP["ASHP_feasible"]),
-                bool(self.HP["Waste_feasible"]),
-                bool(self.HP["CSV_feasible"])
-            ])
-
-            if hp_mode_count != 1:
-                raise ValueError(
-                    f"Configuration Error: When 'HP__feasible' is True, exactly ONE COP mode must be enabled. "
-                    f"Currently {hp_mode_count} are active. Please set 'True' for exactly one of: "
-                    "'HP__CCOP_feasible', 'HP__ASHP_feasible', 'HP__Waste_feasible', or 'HP__CSV_feasible'."
-                )
-
-        cc_enabled_count = sum([
-            bool(self.AirCC["feasible"]),
-            bool(self.CC["feasible"])
-        ])
-
-        if cc_enabled_count > 1:
-            raise ValueError(
-                f"Configuration Error: Multiple central chiller models are enabled ({cc_enabled_count} active). "
-                "You can only set 'feasible=True' for ONE of the following: 'AirCC', or the default 'CC'."
-            )
-
+        if hp_dict['feasible'] and active_count_hp > 1:
+            raise ValueError("Only one HP model configuration can be True.")
+            
+        if hp_dict['feasible'] and active_count_hp == 0:
+            raise ValueError("If HP is feasible, at least one HP model configuration must be True.")
+        
+        if cc_dict['feasible'] and active_count_cc > 1:
+            raise ValueError("Only one CC model configuration can be True.")
+        
+        if cc_dict['feasible'] and active_count_cc == 0:
+            raise ValueError("If CC is feasible, at least one CC model configuration must be True.")
+            
         return self
     
     model_config = SettingsConfigDict(

@@ -128,9 +128,11 @@ class Datahandler:
         self.building_dict = {} # Dictionary to store Residential Building IDs
         self.srcPath = srcPath
         self.filePath = filePath
+        self.waste_heat_folder = os.path.join(self.filePath, 'waste_heat_profiles')
         self.cluster_meta = None
         self.heat_map_berlin = heat_map_berlin
         self.pv_stc_potential = None
+        
 
         if scenario_file_path is not None:
             self.scenario_file_path = scenario_file_path
@@ -141,6 +143,7 @@ class Datahandler:
             self.resultPath = resultPath
         else:
             self.resultPath = os.path.join(self.srcPath, 'results')
+
 
         self.KPIs = None
         self.load_all_data(
@@ -277,7 +280,11 @@ class Datahandler:
         for attr, value in heat_grid_config.__dict__.items():
             self.heat_grid_data[attr] = value
 
-        # --- 2. Load scenario data ---
+        # --- 2. Load waste heat profiles available if available ---
+
+        self.load_waste_heat_data()
+
+        # --- 3. Load scenario data ---
 
         dtype_dict = {'id': str, 'building': str, 'year': int, 'retrofit': int, 'construction_type': int, 'night_setback': int,
                     'area': float, 'heater': str, 'cooling': int, 'EV': float, 'f_TES': float, 'f_BAT': float, 'f_PV1': float, 'f_PV2': float,
@@ -321,7 +328,7 @@ class Datahandler:
                 jsonData = json.load(json_file)
                 self.site["district_parameters"] = jsonData["parameters"]
 
-        # --- 3. Load pipe data based on the selected heat grid generation ---
+        # --- 4. Load pipe data based on the selected heat grid generation ---
 
         self.pipe_file_path = os.path.join(self.filePath, 'pipe')
         # select the pipe file based on the generation selection
@@ -344,6 +351,10 @@ class Datahandler:
             self.pipe_data = pd.read_csv(csv_path, sep=";")
         else:
             print("Please select from the 3rd, 4th, or 5th generation and enter it into the config file.")
+
+        
+
+        # --- 5. Load SIA2024 data and determine the adjusted economic data for the simulated years ---
 
         # Determine the all_sim_ecoData which contains prices, co2 factors for each simulated year used for optimizations:
         self.all_sim_ecoData = self.calculate_ecoData_per_cluster()
@@ -416,6 +427,33 @@ class Datahandler:
             return julian_holidays
         except KeyError:
             return f"Invalid country or state code '{country_code}', '{state}'. Please provide valid codes."
+
+    def load_waste_heat_data(self):
+        file_name = f"{self.heat_grid_data['waste_heat_source_file']}.csv" if self.heat_grid_data['waste_heat_source_file'] else None
+        if file_name is not None:
+            file_path = os.path.join(self.waste_heat_folder, file_name)
+            df = pd.read_csv(file_path, sep=';', decimal='.')
+            
+            self.heat_grid_data['ts_waste_heat_temperature'] = df['temperature'].to_numpy()
+            self.heat_grid_data['ts_waste_heat_power_kW'] = df['heat_amount_kW'].to_numpy()
+        else:
+            self.heat_grid_data['ts_waste_heat_temperature'] = None # Use None as 0 might be misleading for the temperature
+            self.heat_grid_data['ts_waste_heat_power_kW'] = np.zeros(8760)
+
+        # #! DEBUG: SHOW Simple plot of the waste heat data (Temperature top and power bottom)
+        # # TODO: Remove this debug plot later on if satisfied with implementation of waste heat data handling
+        # import matplotlib.pyplot as plt
+        # plt.figure(figsize=(10, 5))
+        # plt.subplot(2, 1, 1)
+        # plt.plot(self.heat_grid_data['ts_waste_heat_temperature'])
+        # plt.title('Waste Heat Temperature')
+        # plt.ylabel('Temperature (°C)')
+        # plt.subplot(2, 1, 2)
+        # plt.plot(self.heat_grid_data['ts_waste_heat_power_kW'])
+        # plt.title('Waste Heat Power')
+        # plt.ylabel('Power (kW)')
+        # plt.xlabel('Time (hours)')
+        # plt.show()
 
     def generateEnvironment(self):
         """
@@ -1407,11 +1445,6 @@ class Datahandler:
             seasonal_storage_kW = np.ones(len(self.heat_grid_data["total_losses_heating_network"])) * seasonal_storage_kW_max
             self.heat_grid_data["seasonal_storage_kW"] = seasonal_storage_kW
 
-            # Initialize waste heat availability for the heat grid
-            if self.heat_grid_data["nominal_waste_heat_capacity_kW"] is None: self.heat_grid_data["nominal_waste_heat_capacity_kW"] = 0
-            nominal_waste_heat_capacity_kW = self.heat_grid_data["nominal_waste_heat_capacity_kW"]
-            self.heat_grid_data["waste_heat_kW"] = np.ones(len(self.heat_grid_data["total_losses_heating_network"])) * nominal_waste_heat_capacity_kW
-
             self.designCentralDevices(saveGenerationProfiles=True)
             self.finalizeClusterProfiles()
             
@@ -1829,7 +1862,6 @@ class Datahandler:
 
                     print(building["generationPV"])
 
-
     def designCentralDevices(self, saveGenerationProfiles):
         """
         Calculate capacities and generation profiles of renewable energies for central devices.
@@ -1854,6 +1886,9 @@ class Datahandler:
 
         # dimensioning of central devices
         self.centralDevices["capacities"] = self.centralDevices["ces_obj"].designCES(self)
+
+        if self.centralDevices["capacities"] is None:
+            raise Exception("Central devices could not be designed. Please check the error file for further information.")
 
         # calculate theoretical PV, STC and Wind generation
         self.centralDevices["generation"] = {}
@@ -1936,9 +1971,8 @@ class Datahandler:
             adjProfiles["losses_heating_network"] = self.heat_grid_data["total_losses_heating_network"][0:lengthArray]
             adjProfiles["losses_cooling_network"] = self.heat_grid_data["total_losses_cooling_network"][0:lengthArray]
             adjProfiles["seasonal_storage_kW"] = self.heat_grid_data["seasonal_storage_kW"][0:lengthArray]
-            adjProfiles["waste_heat_kW"] = self.heat_grid_data["waste_heat_kW"][0:lengthArray]
             adjProfiles["pump_power"] = self.heat_grid_data["pump_power"][0:lengthArray]
-
+            
             if self.centralDevices["capacities"]["WT"]["cap"] > 0:
                 adjProfiles["generationCentralWT"] = self.centralDevices["generation"]["Wind"][0:lengthArray]
             else:
@@ -2053,11 +2087,8 @@ class Datahandler:
             weights.append(0)
             scalings.append(False)
 
+            # seasonal storage
             inputsClustering.append(adjProfiles["seasonal_storage_kW"])
-            weights.append(0)
-            scalings.append(False)
-
-            inputsClustering.append(adjProfiles["waste_heat_kW"])
             weights.append(0)
             scalings.append(False)
 
@@ -2178,14 +2209,25 @@ class Datahandler:
 
 
         if centralEnergySupply == True:
-            self.heat_grid_data["total_losses_heating_network_cluster"] = newProfiles[index_central]
-            self.heat_grid_data["total_losses_cooling_network_cluster"] = newProfiles[index_central + 1]
-            self.heat_grid_data["seasonal_storage_cluster_kW"] = newProfiles[index_central + 2]
-            self.heat_grid_data["waste_heat_cluster_kW"] = newProfiles[index_central + 3]
-            self.heat_grid_data["pump_power_cluster"] = newProfiles[index_central + 4]
-            self.centralDevices["generation"]["Wind_cluster"] = newProfiles[index_central + 5]
-            self.centralDevices["generation"]["PV_cluster"] = newProfiles[index_central + 6]
-            self.centralDevices["generation"]["STC_cluster"] = newProfiles[index_central + 7]
+            central_counter = index_central
+            self.heat_grid_data["total_losses_heating_network_cluster"] = newProfiles[central_counter]
+            central_counter += 1
+            self.heat_grid_data["total_losses_cooling_network_cluster"] = newProfiles[central_counter]
+            central_counter += 1
+            self.heat_grid_data["seasonal_storage_cluster_kW"] = newProfiles[central_counter]
+            central_counter += 1
+            self.heat_grid_data["pump_power_cluster"] = newProfiles[central_counter]
+            central_counter += 1
+            self.centralDevices["generation"]["Wind_cluster"] = newProfiles[central_counter]
+            central_counter += 1
+            self.centralDevices["generation"]["PV_cluster"] = newProfiles[central_counter]
+            central_counter += 1
+            self.centralDevices["generation"]["STC_cluster"] = newProfiles[central_counter]
+
+            #! Important this is currently implemented wrong
+            # TODO: This should be a result of the clustering. However waste_heat_hp_power_kW is currently the clustered output from load_params_central_devices and not the year long time_series
+            self.heat_grid_data["waste_heat_hp_power_kW_cluster"] = copy.deepcopy(self.heat_grid_data["waste_heat_hp_power_kW"]) #TODO: Change this
+            self.heat_grid_data["waste_heat_direct_power_kW_cluster"] = copy.deepcopy(self.heat_grid_data["waste_heat_direct_power_kW"]) # TODO: Change this
 
         self.site["T_e_cluster"] = newProfiles[-2]
         self.heat_grid_data["T_soil_cluster"] = newProfiles[-1]
@@ -2784,12 +2826,16 @@ class Datahandler:
         accepted_wkb_df.to_csv(output_file_path.replace("dg", "wkb"), sep=";", index=False)
 
         # Adjust the nominal_waste_heat_capacity_kW of the heat grid data based on the waste heat potential if it is not already set
-        if self.heat_grid_data["nominal_waste_heat_capacity_kW"] is None:
+        if self.heat_grid_data["waste_heat_source_file"] == "waste_water":
             key = "pot_abwasser_entzugsleistungsbereich_kw"
+            waste_water_capacity = 0
             if key in wkb_data.columns:
-                self.heat_grid_data["nominal_waste_heat_capacity_kW"] = determine_wastewater_heat_potential(wkb_data[key])
-            else:
-                self.heat_grid_data["nominal_waste_heat_capacity_kW"] = 0
+                waste_water_capacity = determine_wastewater_heat_potential(wkb_data[key])
+            else: pass # If there is no column assume no potential available
+
+            # Overwrite all values in the existing numpy array with the calculated capacity
+            self.heat_grid_data['ts_waste_heat_power_kW'][:] = waste_water_capacity
+                
         return scenario_df
 
     def designNetworkwithNode(self):
