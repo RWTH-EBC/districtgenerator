@@ -15,6 +15,7 @@ import os
 import time
 import districtgenerator.functions.solver_config as solver_config
 import pandas as pd
+import numpy as np
 
 # Sets of energy conversion systems in the buildings
 ECS_HEAT = ("HP", "EH", "CHP", "BOI", "BBOI", "OBOI", "H2BOI", "STC", "DH", "heat_grid", "DHW_dem", "Heating_dem", "FC")
@@ -158,12 +159,12 @@ def build_model(model, data, year, cluster, sim_ecoData):
     T_e = siteData["T_e_cluster"][cluster]  # ambient temperature [°C]
 
     if energyHubData == {}:
-        network_losses_heating = [0] * T_e
-        network_losses_cooling = [0] * T_e
-        seasonal_storage = [0] * T_e
-        network_pump_power = [0] * T_e
-        waste_heat_power_hp = [0] * T_e
-        waste_heat_power_direct = [0] * T_e
+        network_losses_heating = np.zeros_like(T_e)
+        network_losses_cooling = np.zeros_like(T_e)
+        seasonal_storage = np.zeros_like(T_e)
+        network_pump_power = np.zeros_like(T_e)
+        waste_heat_power_hp = np.zeros_like(T_e)
+        waste_heat_power_direct = np.zeros_like(T_e)
     else:
         error_string = ""
         
@@ -1912,7 +1913,7 @@ def get_profiles_eh(results_dict: dict, data = None) -> pd.DataFrame:
     """
 
     power_producers = ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "FC"]
-    power_consumers = ["HP", "EB", "CC", "ELYZ"]
+    power_consumers = ["HP", "GroundHP", "Waste_HeatHP", "EB", "CC", "ELYZ"]
     power_storage = ["BAT"]
 
     heat_producers = ["STC", "HP", "GroundHP", "Waste_HeatHP", "Waste_HeatDirect", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]
