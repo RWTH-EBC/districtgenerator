@@ -125,8 +125,11 @@ def load_params(data):
                    param_uncl["T_air"][0:adjustedHorizon], param_uncl["GHI"][0:adjustedHorizon], param_uncl["DHI"][0:adjustedHorizon],
                    param_uncl["wind_speed"][0:adjustedHorizon], param_uncl["T_supply_EH"][0:adjustedHorizon], param_uncl["T_return_EH"][0:adjustedHorizon]]
 
-    # Only building demands and weather data are clustered using k-medoids algorithm; secondary time series are clustered manually according to k-medoids result
+    # Select representative periods based on weather boundary conditions.
+    # Outdoor temperature is the dominant driver; global horizontal irradiation
+    # is included as secondary weather signal.
     inputs = np.array(time_series)
+    weights = [0, 0, 0, 3, 1, 0, 0, 0, 0]
 
     # Scaling flags for each profile (True = scale after clustering, False = preserve values)
     scalings = []
@@ -141,6 +144,7 @@ def load_params(data):
                                     len_cluster=int(clusterHorizon),
                                     norm = 2,
                                     mip_gap = 0.02,
+                                    weights=weights,
                                     scalings=scalings,
                                     pyomo_config=data.pyomo_config)
 
@@ -178,6 +182,14 @@ def load_params(data):
         d = np.where(z[:,day] == 1 )[0][0]
         sigma[day] = np.where(param["typedays"] == d)[0][0]
     param["sigma"] = sigma
+
+    result_dict["cluster_meta"] = {
+        "clusterLength": clusterHorizon,
+        "typedays": param["typedays"].copy(),
+        "clusterWeights": param["cluster_weights"].copy(),
+        "clusterMatrix": param["cluster_matrix"].copy(),
+        "sigma": param["sigma"].copy(),
+    }
 
     heat_grid = {
         k: heat_grid_data[k]

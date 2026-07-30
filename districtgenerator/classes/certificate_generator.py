@@ -3791,11 +3791,14 @@ class DataExtractor(ReportComponent):
 
         start_of_year = datetime(2025, 1, 1, 0, 0, 0)
         total_periods = sum(self.data.clusterWeights.values())
+        cluster_meta = getattr(self.data, "cluster_meta", {}) or {}
+        typedays = cluster_meta.get("typedays")
 
         for k in range(len(self.data.clusters)):  #
             orig_idx = self.data.clusters[k]
-            start_date = start_of_year + timedelta(seconds=int(orig_idx * cluster_length_sec))
-            end_date = start_of_year + timedelta(seconds=int((orig_idx + 1) * cluster_length_sec))
+            period_idx = int(typedays[k]) if typedays is not None and k < len(typedays) else int(orig_idx)
+            start_date = start_of_year + timedelta(seconds=int(period_idx * cluster_length_sec))
+            end_date = start_of_year + timedelta(seconds=int((period_idx + 1) * cluster_length_sec))
             start_str = start_date.strftime("%d.%m. %H:%M")
             end_str = end_date.strftime("%d.%m. %H:%M")
             weight_count = self.data.clusterWeights[orig_idx]
