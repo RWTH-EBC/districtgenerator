@@ -509,6 +509,9 @@ class Datahandler:
             bldg_id = int(bldg_id)
             building = {}
 
+            # Newly added, 31.07.26 FKL
+            building["scenario_index"] = bldg_id
+
             # Store features of the observed building
             building["buildingFeatures"] = row
 
@@ -888,6 +891,101 @@ class Datahandler:
                 "roof": f"tabula_de_{initial_envelope_state['roofs']}",
                 "floor": f"tabula_de_{initial_envelope_state['ground_floors']}",}
 
+    # Newly added, 31.07.2026 FKL
+    def _resolve_usable_solar_roof_area(self, building):
+        """
+        Bestimmt die für PV und Solarthermie gemeinsam nutzbare Solardachfläche.
+
+        Wenn detaillierte Nettoflächen aus FIWARE SolarPotential vorhanden sind,
+        werden die einzelnen Dachsegmentflächen aufsummiert und direkt verwendet.
+
+        Wenn keine detaillierten FIWARE-Flächen vorliegen, wird der bestehende
+        Fallback des Quartiersgenerators verwendet. Dabei wird die geometrische
+        Dachfläche der vom Quartiersgenerator erzeugten Gebäudehülle mit den
+        bereits über die Szenario-CSV eingelesenen Anteilen f_PV und f_STC
+        multipliziert.
+
+        Die Funktion definiert keine eigenen Standardwerte für f_PV oder f_STC.
+        Beide Werte müssen bereits in building["buildingFeatures"] vorhanden sein.
+        Sie werden normalerweise in results_processing.py erzeugt und über die
+        Szenario-CSV an den Quartiersgenerator übergeben.
+
+        Rückgabewerte
+        -------------
+        usable_solar_roof_area_m2 : float
+            Gemeinsame maximal nutzbare Fläche für PV und Solarthermie in m².
+
+        solar_roof_area_source : str
+            Interne Kennzeichnung der verwendeten Datenquelle für das spätere
+            Logging in connect_besdot.py.
+        """
+        building_features = building["buildingFeatures"]
+
+        ############## - Detailed FIWARE solar roof areas - ##################
+        raw_detailed_area = building_features.get("surfaceAreaSuitableForSolarPV")
+
+        detailed_area_available = (raw_detailed_area is not None
+                                   and not pd.isna(raw_detailed_area)
+                                   and bool(str(raw_detailed_area).strip()))
+
+        if detailed_area_available:
+            # Pipe-getrennte FIWARE-Dachsegmentflächen einlesen.
+            area_parts = [part.strip()
+                          for part in str(raw_detailed_area).split("|")
+                          if part.strip()]
+            try:
+                detailed_areas = [float(area) for area in area_parts]
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"Invalid detailed solar roof area for building {building['unique_name']}: {raw_detailed_area!r}.") from exc
+
+            # Negative Flächen sind fachlich ungültig.
+            if any(area < 0 for area in detailed_areas):
+                raise ValueError(f"Negative detailed solar roof area for building {building['unique_name']}: {raw_detailed_area!r}.")
+
+            # Auch eine explizit aus FIWARE übergebene Fläche von 0 m² ist ein vorhandener detaillierter Wert und löst keinen Fallback aus.
+            usable_solar_roof_area_m2 = float(sum(detailed_areas))
+
+            return (usable_solar_roof_area_m2, "fiware_solar_potential_area",)
+
+
+        ############## - DistrictGenerator geometry fallback - ##################
+        # Die geometrische Dachfläche stammt ausschließlich aus der vom Quartiersgenerator erzeugten Gebäudehülle.
+        try:
+            geometric_roof_area_m2 = float(building["envelope"].A["opaque"]["roof"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"Unable to read QG geometric roof area for building {building['unique_name']}.") from exc
+
+        if geometric_roof_area_m2 <= 0:
+            raise ValueError(f"Invalid QG geometric roof area for building {building['unique_name']}: {geometric_roof_area_m2} m².")
+
+        # f_PV und f_STC werden über die Szenario-CSV eingelesen, vorgegeben in den DEFAULTS von results_processing.py im COMPAS.
+        if "f_PV" not in building_features:
+            raise ValueError(f"Missing f_PV for building {building['unique_name']}.")
+
+        if "f_STC" not in building_features:
+            raise ValueError(f"Missing f_STC for building {building['unique_name']}.")
+
+        f_pv = pd.to_numeric(building_features["f_PV"], errors="coerce",)
+        f_stc = pd.to_numeric(building_features["f_STC"], errors="coerce",)
+
+        if pd.isna(f_pv) or pd.isna(f_stc):
+            raise ValueError(f"Invalid solar roof usage factors for building {building['unique_name']}: f_PV={building_features.get('f_PV')!r}, f_STC={building_features.get('f_STC')!r}.")
+
+        f_pv = float(f_pv)
+        f_stc = float(f_stc)
+
+        if f_pv < 0 or f_stc < 0:
+            raise ValueError(f"Negative solar roof usage factor for building {building['unique_name']}: f_PV={f_pv}, f_STC={f_stc}.")
+
+        combined_solar_usage_factor = f_pv + f_stc
+
+        # Die gemeinsam nutzbare Solarfläche darf die physische QG-Dachfläche nicht überschreiten.
+        if combined_solar_usage_factor > 1.0:
+            raise ValueError(f"Combined solar roof usage factor exceeds 1.0 for building {building['unique_name']}: f_PV={f_pv}, f_STC={f_stc}, sum={combined_solar_usage_factor}.")
+
+        usable_solar_roof_area_m2 = (geometric_roof_area_m2 * combined_solar_usage_factor)
+
+        return (float(usable_solar_roof_area_m2), "qg_geometric_roof_fallback",)
 
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=10, gen_cars=True, allow_hybrid=False):
@@ -1449,6 +1547,28 @@ class Datahandler:
         """
 
         for building in self.district:
+            # Newly added, 31.07.2026 FKL
+            ############## - Resolve usable solar roof area - ##################
+            """
+            Im Quartiersgenerator eine endgültige gemeinsame Fläche für PV und Solarthermie bestimmen. 
+            Dabei werden entweder die detaillierten FIWARE-Solarpotenzialflächen 
+            oder die geometrische QG-Fallbackberechnung verwendet.
+            """
+            (usable_solar_roof_area_m2, solar_roof_area_source,) = self._resolve_usable_solar_roof_area(building=building,)
+
+            # Den aufgelösten Wert im Gebäudeobjekt speichern. Damit steht während des weiteren QG-Laufs nur noch ein eindeutiger Flächenwert zur Verfügung.
+            building["buildingFeatures"] = (building["buildingFeatures"].copy())
+            building["buildingFeatures"]["usable_solar_roof_area_m2"] = usable_solar_roof_area_m2
+            building["buildingFeatures"]["solar_roof_area_source"] = solar_roof_area_source
+
+            # Die Ergebnisse in die Szenario-Tabelle übernehmen, damit connect_besdot.py sie nach Abschluss des QG-Laufs einlesen kann.
+            scenario_index = int(building["buildingFeatures"]["id"])
+
+            if scenario_index not in self.scenario.index:
+                raise ValueError(f"Building index {scenario_index} from {building['unique_name']} is not available in DG-scenario.")
+
+            self.scenario.at[scenario_index, "usable_solar_roof_area_m2",] = usable_solar_roof_area_m2
+            self.scenario.at[scenario_index, "solar_roof_area_source",] = solar_roof_area_source
 
             # %% create building energy system object
             # get capacities of all possible devices
@@ -1520,8 +1640,10 @@ class Datahandler:
                                             #DEFAULT VALUES FOR VALUE CHECK IN DATAHANDLER?? TODO
                                             usageFactorPV1=building["buildingFeatures"].get("f_PV1", 0),
                                             usageFactorPV2=building["buildingFeatures"].get("f_PV2", 0),
-                                            usageFactorPV=building["buildingFeatures"].get("f_PV", 0),
-                                            usageFactorSTC=building["buildingFeatures"].get("f_STC", 0.2))
+                                            # Newly added, 31.07.2026 FKL
+                                            # Die bereits über die Szenario-CSV eingelesenen Nutzungsanteile verwenden und keine zus. Standardwerte definieren.
+                                            usageFactorPV=building["buildingFeatures"]["f_PV"],
+                                            usageFactorSTC=building["buildingFeatures"]["f_STC"],)
 
                 # optionally save generation profiles
                 if saveGenerationProfiles == True:
@@ -1542,6 +1664,16 @@ class Datahandler:
                         delimiter=';',
                         fmt='%.2f'
                     )
+
+        # Newly added, 31.07.2026 FKL
+        ############## - Store resolved solar roof areas - ##################
+        """
+        Die für alle Gebäude abschließend ermittelten Solardachflächen
+        einmalig in die bestehende Szenario-Datei zurückschreiben.
+        connect_besdot.py liest anschließend genau diese Datei ein.
+        """
+        scenario_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv",)
+        self.scenario.to_csv(scenario_path, sep=";", index=False,)
 
 
     def designCentralDevices(self, saveGenerationProfiles):
