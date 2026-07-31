@@ -1172,7 +1172,7 @@ class CentralDeviceConfig(BaseSettings):
     GHP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     GHP: dict = {}
 
-    # HP parameters (Heat Pump)
+    # HP parameters (Air Source Heat Pump)
     HP__feasible: bool = False  # Is a Heat Pump feasible?
     HP__CCOP_feasible: bool = False  # Should it be modeled with a constant COP?
     HP__ASHP_carnot_feasible: bool = False  # Should it be modeled as an Air Source Heat Pump with Carnot efficiency?
@@ -1189,16 +1189,16 @@ class CentralDeviceConfig(BaseSettings):
     HP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     HP: dict = {}
 
-    # GroundHP parameters (Ground Source Heat Pump)
-    GroundHP__feasible: bool = False  # Should this be considered for the central optimization.
-    GroundHP__life_time: int = 20  # Maximum life time in years.
-    GroundHP__inv_base: float = 1000  # Unsubsidized investment in €/kWth.
-    GroundHP__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
-    GroundHP__cost_om: float = 0.025  # Cost of operation and maintenance as a percentage of investment.
-    GroundHP__min_cap: float = 0  # Minimum capacity in kWth.
-    GroundHP__max_cap: float = 500  # Maximum capacity in kWth.
-    GroundHP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
-    GroundHP: dict = {}
+    # WaterHP parameters (Water Source Heat Pump)
+    WaterHP__feasible: bool = False  # Should this be considered for the central optimization.
+    WaterHP__life_time: int = 20  # Maximum life time in years.
+    WaterHP__inv_base: float = 1000  # Unsubsidized investment in €/kWth.
+    WaterHP__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
+    WaterHP__cost_om: float = 0.025  # Cost of operation and maintenance as a percentage of investment.
+    WaterHP__min_cap: float = 0  # Minimum capacity in kWth.
+    WaterHP__max_cap: float = 500  # Maximum capacity in kWth.
+    WaterHP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    WaterHP: dict = {}
 
     # EB parameters (Electric Boiler)
     EB__feasible: bool = True  # Should this be considered for the central optimization.

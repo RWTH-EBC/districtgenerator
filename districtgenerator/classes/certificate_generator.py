@@ -3848,7 +3848,7 @@ class DataExtractor(ReportComponent):
             "FC": "W<sub>el</sub>",
             "STC": "W<sub>th</sub>",
             "HP": "W<sub>th</sub>",
-            "GroundHP": "W<sub>th</sub>",
+            "WaterHP": "W<sub>th</sub>",
             "EB": "W<sub>th</sub>",
             "BOI": "W<sub>th</sub>",
             "GHP": "W<sub>th</sub>",

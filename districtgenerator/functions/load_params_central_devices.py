@@ -1,19 +1,5 @@
 # -*- coding: utf-8 -*-
 
-"""
-
-EHDO - ENERGY HUB DESIGN OPTIMIZATION Tool
-
-Developed by:   E.ON Energy Research Center,
-                Institute for Energy Efficient Buildings and Indoor Climate,
-                RWTH Aachen University,
-                Germany
-
-Contact:        Marco Wirtz
-                marco.wirtz@eonerc.rwth-aachen.de
-
-"""
-
 import numpy as np
 import math
 import districtgenerator.functions.clustering_medoid as clustering
@@ -183,6 +169,26 @@ def load_params(data):
         sigma[day] = np.where(param["typedays"] == d)[0][0]
     param["sigma"] = sigma
 
+    water_source_temperature_path = os.path.join(data.filePath, "water_source_temperature.csv")
+    if not os.path.exists(water_source_temperature_path):
+        raise FileNotFoundError(
+            f"Water-source temperature profile for WaterHP not found: {water_source_temperature_path}"
+        )
+    water_source_temperature_uncl = np.loadtxt(water_source_temperature_path)
+    if len(water_source_temperature_uncl) < adjustedHorizon:
+        raise ValueError(
+            "Water-source temperature profile for WaterHP is shorter than the clustered horizon: "
+            f"{len(water_source_temperature_uncl)} < {adjustedHorizon}."
+        )
+    water_source_temperature_transformed = water_source_temperature_uncl[:adjustedHorizon].reshape(
+        (clusterHorizon, int(adjustedHorizon / clusterHorizon)),
+        order="F"
+    )
+    param["T_water_source"] = np.array([
+        water_source_temperature_transformed[:, int(day)]
+        for day in param["typedays"]
+    ])
+
     result_dict["cluster_meta"] = {
         "clusterLength": clusterHorizon,
         "typedays": param["typedays"].copy(),
@@ -344,38 +350,34 @@ def load_params(data):
 
     ### Heating and cooling ###
 
-    # Ground source heat pump
-    devs["GroundHP"] = {
-        "feasible": all_models["GroundHP"]["enabled"],
-        "inv_var": all_models["GroundHP"]["inv_var"],
-        "inv_base": all_models["GroundHP"]["inv_base"],
-        "life_time": all_models["GroundHP"]["life_time"],
-        "cost_om": all_models["GroundHP"]["cost_om"] / 100,
-        "min_cap": all_models["GroundHP"]["min_cap"],
-        "max_cap": all_models["GroundHP"]["max_cap"],
-        "dT_min_soil": 2,  # K,    minimal temperature difference between soil and brine
+    # Water source heat pump
+    devs["WaterHP"] = {
+        "feasible": all_models["WaterHP"]["enabled"],
+        "inv_var": all_models["WaterHP"]["inv_var"],
+        "inv_base": all_models["WaterHP"]["inv_base"],
+        "life_time": all_models["WaterHP"]["life_time"],
+        "cost_om": all_models["WaterHP"]["cost_om"] / 100,
+        "min_cap": all_models["WaterHP"]["min_cap"],
+        "max_cap": all_models["WaterHP"]["max_cap"],
+        "dT_min_source": 2,  # K,    minimal temperature difference between water source and brine
         "dT_evap": 5,      # K,    temperature difference of water in evaporator (how much the brine cools down in the evaporator)
-        "dT_cond": heat_grid["T_hot_heating_network"] - heat_grid["T_cold_heating_network"], # K,    temperature difference of water in condenser (how much network's water heats up in the condenser)
+        "dT_cond": heat_grid["T_hot_heating_network"] - heat_grid["T_cold_heating_network"], # K,    temperature difference of water in condenser (how much network water heats up in the condenser)
         "dT_pinch_cond": 2, # K,    temperature difference between both fluids in the condenser at pinch point; Source: Klingebiel et al. https://doi.org/10.1016/j.enbuild.2023.113397
         "dT_pinch_evap": 2,  # K,    temperature difference between both fluids in the evaporator at pinch point
         "eta_compr": 0.8, # ---,  isentropic efficiency of compression; Source: Wirtz et al. https://doi.org/10.1016/j.apenergy.2019.114158
         "heatloss_compr": 0.3, # ---,  heat loss rate of compression; # Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes.
         "COP_max": 7,  # ---,  maximum heat pump COP
-        "q_soil": 50, # W/m,   heat flow from soil into bride per meter (VDI 4640, for lambda_soil = 2 W/mK and low full load hours, assumption: no thermal interaction between boreholes)
-        "c_borehole": 90,  # EUR/m, borehole costs (BMVBS)
-        "t_max": 400  # m,     maximum borehole depth covered by VDI4640
     }
 
     # Temperatures
-    T_soil_deep = np.ones((data.time["clusterNumber"], clusterHorizon)) * 10  # deep ground temperature is assumed to be 10 °C
-    t_c_in = T_soil_deep - devs["GroundHP"]["dT_min_soil"] + 273.15  # heat source inlet (deep soil temperature - minimal temperature difference)
-    dt_c = devs["GroundHP"]["dT_evap"]  # heat source temperature difference
-    t_h_in = heat_grid["T_cold_heating_network"] + 273.15  # heat sink (Network fluid) inlet temperature
-    dt_h = devs["GroundHP"]["dT_cond"]  # heat sink (Network fluid) temperature spread
+    t_c_in = param["T_water_source"] - devs["WaterHP"]["dT_min_source"] + 273.15  # heat source inlet
+    dt_c = devs["WaterHP"]["dT_evap"]  # heat source temperature difference
+    t_h_in = heat_grid["T_cold_heating_network"] + 273.15  # heat sink (network fluid) inlet temperature
+    dt_h = devs["WaterHP"]["dT_cond"]  # heat sink (network fluid) temperature spread
 
-    # Calculate heat pump COPs for each support year (same values for all years since weather is constant)
-    COP_base = calc_COP(data, clusterHorizon, devs, "GroundHP", [t_c_in, dt_c, t_h_in, dt_h])
-    devs["GroundHP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
+    # Calculate heat pump COPs for each support year (same values for all years since source profiles are assumed constant)
+    COP_base = calc_COP(data, clusterHorizon, devs, "WaterHP", [t_c_in, dt_c, t_h_in, dt_h])
+    devs["WaterHP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
     # Air source heat pump
     if all_models["HP"]["ASHP_model_feasible"]:
@@ -406,6 +408,13 @@ def load_params(data):
         # Calculate heat pump COPs for each support year (currently the same values for all years since weather is constant) -> May be changed
         COP_base = calc_COP(data, clusterHorizon, devs, "HP", [t_c_in, dt_c, t_h_in, dt_h])
         devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
+        # Temperature-dependent available heat capacity for central air-source heat pumps.
+        T_biv = float(data.design_building_data["T_bivalent"])
+        a_HP = 0.04  # 1/K
+        devs["HP"]["available_capacity_factor"] = np.maximum(
+            1 + a_HP * (param["T_air"] - T_biv),
+            0.0
+        )
 
     # Default heat pump
     else:
@@ -427,6 +436,7 @@ def load_params(data):
         if all_models["HP"]["CCOP_feasible"]:
             COP_base = np.ones((data.time["clusterNumber"], clusterHorizon)) * all_models["HP"]["COP_const"]
             devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
+            devs["HP"]["available_capacity_factor"] = np.ones((data.time["clusterNumber"], clusterHorizon))
 
         elif all_models["HP"]["ASHP_carnot_feasible"]:
             COP_base = np.ones((data.time["clusterNumber"], clusterHorizon))
@@ -435,6 +445,12 @@ def load_params(data):
                 for t in range(clusterHorizon):
                     COP_base[d][t] = eta_carnot * (heat_grid["T_hot_heating_network"][d][t] + 273.15) / (heat_grid["T_hot_heating_network"][d][t] - param["T_air"][d][t])
             devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
+            T_biv = float(data.design_building_data["T_bivalent"])
+            a_HP = 0.04  # 1/K
+            devs["HP"]["available_capacity_factor"] = np.maximum(
+                1 + a_HP * (param["T_air"] - T_biv),
+                0.0
+            )
 
         elif all_models["HP"]["CSV_feasible"]:
             COP_unclustered = np.loadtxt(os.path.join(os.path.dirname(data.srcPath), 'districtgenerator', 'data', 'coefficient_of_performance.txt'))
@@ -444,6 +460,7 @@ def load_params(data):
                 for t in range(clusterHorizon):
                     COP_base[d][t] = COP_unclustered[clusterHorizon * param["typedays"][d] + t]
             devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
+            devs["HP"]["available_capacity_factor"] = np.ones((data.time["clusterNumber"], clusterHorizon))
 
     # Electric boiler
     devs["EB"] = {
