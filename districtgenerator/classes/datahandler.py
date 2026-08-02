@@ -65,7 +65,8 @@ class Datahandler:
                  run_name: str = None,
                  demand_variant: str = "base", # changes regarding demand
                  system_variant: str = "default_run", # changes regarding system design
-                 project_data_path: str = None
+                 project_data_path: str = None,
+                 support_year = None
                  ):
         """
         Constructor of Datahandler class.
@@ -126,6 +127,7 @@ class Datahandler:
         self.building_dict = {} # Dictionary to store Residential Building IDs
         self.demand_variant = demand_variant
         self.system_variant = system_variant
+        self.support_year = support_year
 
         if scenario_file_path is not None:
             self.scenario_file_path = os.path.join(scenario_file_path, self.demand_variant)
@@ -143,15 +145,18 @@ class Datahandler:
 
         self.load_all_data(env_path=env_path, scenario_name=scenario_name)
 
-        # 1. Demands liegen unter: results/demands/<demand_variant>/<scenario> (szenario-zentriert!)
-        self.demands_path = os.path.join(self.resultPath, 'demands', self.demand_variant, self.scenario_name)
+        variant = f"{self.demand_variant}_{self.system_variant}" if self.system_variant else self.demand_variant
+        year_str = f"year_{support_year}" if support_year is not None else ""
 
-        # 2. Generation & Opti nutzen den Doppel-Unterstrich (__): <demand_variant>__<system_variant>
-        combined_name = f"{self.demand_variant}__{self.system_variant}"
-
-        # 3. Zuerst combined_name (das Szenario), danach scenario_name (die Zonen-ID):
-        self.generation_path = os.path.join(self.resultPath, 'generation', combined_name, self.scenario_name)
-        self.optimization_path = os.path.join(self.resultPath, 'optimization', combined_name, self.scenario_name)
+        # Hierarchical paths: results/<category>/<scenario>/<variant>/[year_<support_year>]
+        if year_str:
+            self.demands_path = os.path.join(self.resultPath, 'demands', self.scenario_name, variant, year_str)
+            self.generation_path = os.path.join(self.resultPath, 'generation', self.scenario_name, variant, year_str)
+            self.optimization_path = os.path.join(self.resultPath, 'optimization', self.scenario_name, variant, year_str)
+        else:
+            self.demands_path = os.path.join(self.resultPath, 'demands', self.scenario_name, variant)
+            self.generation_path = os.path.join(self.resultPath, 'generation', self.scenario_name, variant)
+            self.optimization_path = os.path.join(self.resultPath, 'optimization', self.scenario_name, variant)
 
         os.makedirs(self.demands_path, exist_ok=True)
         os.makedirs(self.generation_path, exist_ok=True)
