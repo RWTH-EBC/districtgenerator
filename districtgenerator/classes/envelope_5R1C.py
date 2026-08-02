@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
+
+import json
+import os
 import numpy as np
 from teaser.project import Project
-from .non_residential import NonResidential
+from .non_residential import GenericNonResidential, NonResidential
 
 
 class Envelope:
@@ -33,7 +36,7 @@ class Envelope:
         SFH: single family house; TH: terraced house; MFH: multifamily house; AP: apartment block.
     """
 
-    def __init__(self, prj, building_params, construction_data, physics, design_building_data, file_path):
+    def __init__(self, prj, building_params, construction_data, physics, design_building_data, file_path, SIA2024 = None):
         """
         Constructor of Envelope class.
 
@@ -63,11 +66,23 @@ class Envelope:
         self.design_building_data = design_building_data
         self.retrofit = building_params["retrofit"]
         self.usage_short = building_params["building"]
+        self.is_residential = self.usage_short in {"SFH", "TH", "MFH", "AB"}
+
+        # Initialize SIA class and read data
+        self.SIA2024 = SIA2024
+        if not self.is_residential:
+            self.building_zones = self.SIA2024[self.usage_short]
+            self.nwg_config = GenericNonResidential(self.usage_short) # Load configuration for non-residential building.
+
         self.file_path = file_path
-        self.id = int(building_params.get("id_teaser", building_params["id"]))
+        if self.is_residential:
+            self.id = building_params["id_teaser"]
+        else:
+            self.id = building_params["id"]
         self.loadParams()
         self.loadComponentProperties(prj)
         self.loadAreas(prj)
+        self.setup_ventilation()
 
     def loadParams(self):
         """
@@ -93,6 +108,59 @@ class Envelope:
         self.ventilationRate = self.design_building_data["ventilation_rate"]
         self.T_bivalent = self.design_building_data["T_bivalent"]
         self.T_heatlimit = self.design_building_data["T_heatlimit"]
+
+    def setup_ventilation(self):
+        """
+        Calculates ventilation parameters (Airflows, Heat Recovery Efficiency, H_ve)
+        and sets them as class attributes.
+        Sets: self.eta_temp_vent, self.V_dot
+        """
+        if self.is_residential:
+            V_dot_area = self.ventilationRate * self.V  # m³/h
+            V_dot_infiltration = 0
+            eta_temp_vent = 0  # Assumption: No heat recovery for residential buildings.
+
+        else: # Non-residential buildings
+            # Determine building standard (existing, standard, goal) based on construction year and retrofit level of the building. Based on the SIA2024 categorization.
+            if self.construction_year < 1980 and self.retrofit == 0:
+                mode = 'existing' # existing
+            elif self.retrofit == 2:
+                mode = 'goal' # goal
+            else:
+                mode = 'standard' # standard
+
+            eta_temp_vent = 0
+            if self.nwg_config.get_ventilation():
+                # Determine temperature efficiency of ventilation (eta_temp_vent) based on building standard (existing, standard, goal)
+                main_zone_name = self.nwg_config.get_main_zone_name()
+                for number, data in self.SIA2024.items():
+                    zone_name = data.get('Zone_name_GER')
+                    if zone_name == main_zone_name: # Main zone determines the ventilation heat recovery efficiency. Can be problematic if main zone has no heat recovery according to SIA2024, but other zones do. Maybe use weighted average of all zones instead?
+                        eta_temp_vent = data['eta_temp_vent'][mode]
+                        break
+
+            # Ventilation is sum of required ventilation over all zones
+            V_dot_area = 0
+            V_dot_infiltration = 0
+
+            for number, data in self.SIA2024.items():
+                zone_name = data.get('Zone_name_GER')
+                if zone_name:
+                    proportion = self.building_zones.get(zone_name, 0)
+                    if proportion > 0:
+                        zone_area = self.A["f"] * proportion
+
+                        # Ventilation by area
+                        q_v_area = data['airFlow_perA_perh'] # m³/h
+                        V_dot_area += zone_area * q_v_area
+
+                        # Ventilation to balance out Infiltration
+                        q_v_infiltration = data['airFlow_infiltration_perA_perh'][mode]
+                        V_dot_infiltration += zone_area * q_v_infiltration
+
+        self.eta_temp_vent = eta_temp_vent
+        self.V_dot = V_dot_area
+        self.V_dot_infiltration = V_dot_infiltration
 
     def specificHeatCapacity(self, d, d_iso, density, cp):
         """
@@ -338,8 +406,8 @@ class Envelope:
                     dummy = min(2015,
                                 self.construction_year)  # data available until 2015
                     if elem["building_age_group"][0] <= dummy <= \
-                            elem["building_age_group"][1] and \
-                            elem["construction_data"] == "tabula_de_standard":
+                        elem["building_age_group"][1] and elem["construction_data"] == "tabula_de_standard":
+
                         for lay in elem["layer"].items():
                             self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
                                                                lay[1]["thickness"])
@@ -401,41 +469,41 @@ class Envelope:
                                                     / self.Lambda["window"])
                                                 + self.R_se["window"])))
 
-                # Adjust the heating set temperature to account for the occupant behavior
-                # This is done to account for:
-                # - The tendency in poorly insulated buildings (high U-values) for occupants to set lower temperatures to avoid high energy bills,
-                # - And the trend in well-insulated modern buildings (low U-values) to maintain higher temperatures for comfort, as the energy demand increase is relatively small,
-                # - Only some parts of the building are heated directly, the rest are adjacent rooms which are heated indirectly to 15°C (assumption).
-                # Source:
-                # Umweltbundesamt (2022). *Realitätsnahe Berechnung des Energiebedarfs – Ad-hoc Papier*. 8. July 2022.
-                # Authors: Bernhard von Manteuffel, Markus Offermann (Guidehouse)
+            # Adjust the heating set temperature to account for the occupant behavior
+            # This is done to account for:
+            # - The tendency in poorly insulated buildings (high U-values) for occupants to set lower temperatures to avoid high energy bills,
+            # - And the trend in well-insulated modern buildings (low U-values) to maintain higher temperatures for comfort, as the energy demand increase is relatively small,
+            # - Only some parts of the building are heated directly, the rest are adjacent rooms which are heated indirectly to 15°C (assumption).
+            # Source:
+            # Umweltbundesamt (2022). *Realitätsnahe Berechnung des Energiebedarfs – Ad-hoc Papier*. 8. July 2022.
+            # Authors: Bernhard von Manteuffel, Markus Offermann (Guidehouse)
 
             # Adjust the heating set temperature based on the level of insulation of the building, as mentioned in the first two points:
             if self.U["opaque"]["wall"] > 1:
-                    self.T_set_min = 18
+                self.T_set_min = 18
             elif self.U["opaque"]["wall"] < 0.3:
-                    self.T_set_min = 22
+                self.T_set_min = 22
             else:
-                    self.T_set_min = -5.7143 * self.U["opaque"]["wall"] + 23.714
+                self.T_set_min = -5.7143 * self.U["opaque"]["wall"] + 23.714
 
-                # Adjust the heating set temperature based on the area of the heated portion of the building, as mentioned in the third point:
+            # Adjust the heating set temperature based on the area of the heated portion of the building, as mentioned in the third point:
             if self.U["opaque"]["wall"] > 1:
                 if prj.buildings[0].type_of_building in {"SingleFamilyHouse", "TerracedHouse"}:
-                        self.partially_heated_portion = 0.4
+                    self.partially_heated_portion = 0.4
                 elif prj.buildings[0].type_of_building in {"MultiFamilyHouse", "ApartmentBlock"}:
-                        self.partially_heated_portion = 0.3
+                    self.partially_heated_portion = 0.3
             elif self.U["opaque"]["wall"] < 0.3:
                 if prj.buildings[0].type_of_building in {"SingleFamilyHouse", "TerracedHouse"}:
-                        self.partially_heated_portion = 0.15
+                    self.partially_heated_portion = 0.15
                 elif prj.buildings[0].type_of_building in {"MultiFamilyHouse", "ApartmentBlock"}:
-                        self.partially_heated_portion = 0.10
+                    self.partially_heated_portion = 0.10
             else:
                 if prj.buildings[0].type_of_building in {"SingleFamilyHouse", "TerracedHouse"}:
-                        self.partially_heated_portion = 0.35714 * self.U["opaque"]["wall"] + 0.042857
+                    self.partially_heated_portion = 0.35714 * self.U["opaque"]["wall"] + 0.042857
                 elif prj.buildings[0].type_of_building in {"MultiFamilyHouse", "ApartmentBlock"}:
-                        self.partially_heated_portion = 0.28571 * self.U["opaque"]["wall"] + 0.014286
-                self.T_set_min = 15 * self.partially_heated_portion + self.T_set_min * (1 - self.partially_heated_portion)
-                self.T_set_min_night = self.T_set_min - 3 # Source: Umweltbundesamt (2022). *Realitätsnahe Berechnung des Energiebedarfs – Ad-hoc Papier*.
+                    self.partially_heated_portion = 0.28571 * self.U["opaque"]["wall"] + 0.014286
+            self.T_set_min = 15 * self.partially_heated_portion + self.T_set_min * (1 - self.partially_heated_portion)
+            self.T_set_min_night = self.T_set_min - 3 # Source: Umweltbundesamt (2022). *Realitätsnahe Berechnung des Energiebedarfs – Ad-hoc Papier*.
 
 
         elif isinstance(prj, NonResidential):
@@ -511,8 +579,6 @@ class Envelope:
             self.A["window"]["sum"] = sum(self.A["window"][d] for d in drct)                  # all windows
 
         elif isinstance(prj, NonResidential):
-
-            self.V = prj.volume
 
             self.A = {}  # in m2
 
@@ -629,7 +695,7 @@ class Envelope:
         H["window"] = self.A["window"]["sum"] * (self.U["window"] + U_TB)
         H["roof"] = self.A["opaque"]["roof"] * (self.U["opaque"]["roof"] + U_TB)
         H["floor"] = self.A["opaque"]["floor"] * self.U["opaque"]["floor"]
-        H["vent"] = self.ventilationRate * self.c_p_air * self.rho_air * self.V / 3600
+        H["vent"] = self.rho_air * self.c_p_air/ 3600  * (self.V_dot * (1-self.eta_temp_vent) + self.V_dot_infiltration) # Ventilation heat transfer coefficient (W/K), accounting for heat recovery efficiency
         H["envelope_air"] = H["wall"] + H["window"] + H["roof"]
         H["total"] = H["envelope_air"] + H["floor"] + H["vent"]
 
@@ -774,7 +840,7 @@ class Envelope:
         #   Standard value for office usage. Composition approx.:
         #   ~ 6 W/m² from Persons (Sensible heat at ~15 m²/person)
         #   ~ 9 W/m² from Equipment (Laptops/PC) and Lighting.
-        if self.usage_short in ["SFH", "MFH", "TH", "AB"]:
+        if self.is_residential:
             q_int = 5  # Residential
         else:
             q_int = 15  # Non-Residential
@@ -822,7 +888,7 @@ class Envelope:
 
         # Calculate Load
         h_fg = 2500000  # J/kg - latent heat of vaporization
-        m_dot_air = self.ventilationRate * self.rho_air * self.V / 3600
+        m_dot_air = self.rho_air * (self.V_dot + self.V_dot_infiltration) / 3600
 
         if x_out > x_in:
             return m_dot_air * (x_out - x_in) * h_fg
@@ -918,8 +984,7 @@ class Envelope:
 
         # thermal transmittance coefficient H_ve [W/K]
         # (DIN EN ISO 13790 2008-09, section 9.3.1, equation 21, page 49)
-        self.H_ve = self.rho_air * self.c_p_air \
-                    * self.ventilationRate * self.V / 3600
+        self.H_ve = self.rho_air * self.c_p_air/ 3600  * (self.V_dot * (1-self.eta_temp_vent) + self.V_dot_infiltration) # accounting for ventilation heat recovery for ventilation and not for infiltration
 
         # thermal transmittance coefficient H_tr_is [W/K]
         # (DIN EN ISO 13790 2008-09, section 7.2.2.2, equation 9, page 35)

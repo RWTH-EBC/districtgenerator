@@ -1,18 +1,20 @@
 # -*- coding: utf-8 -*-
 
-
+import os
 import pandas as pd
 
-def read_SIA_data(file_path):
-
-    data = pd.read_excel(str(file_path) + '/SIA2024.xlsx', sheet_name='SIA2024', header=1)
+def read_SIA_data():
+    current_file = os.path.abspath(__file__)
+    districtgenerator_dir = os.path.dirname(os.path.dirname(current_file))
+    sia_xlsx_path = os.path.join(districtgenerator_dir, 'data', 'SIA2024.xlsx')
+    data = pd.read_excel(sia_xlsx_path, sheet_name='SIA2024', header=1)
     df = pd.DataFrame(data, columns=['number', 'Zone_name_GER', 'T_summer', 'T_winter',	'area_room', 'dQ_persons_perA',
                                      't_fullLoad_persons', 'P_vent_perVh', 'P_vent_perA', 'W_per_person',
                                      'Q_domHotWater_perA_year',	'window_wall_ratio', 'wwr_faktor_windowframes',
                                      'heatCapacity_WhperAK', 'airFlow_perA_perh', 'airFlow_perPerson_perh',])
-    df2 = pd.DataFrame(data, columns=['E_devices_year_kwh_s', 'E_light_year_kwh_s', 'E_vent_year_kwh_s',
-                                     'E_devices_year_kwh_g', 'E_light_year_kwh_g', 'E_vent_year_kwh_g',
-                                     'E_devices_year_kwh_e', 'E_light_year_kwh_e', 'E_vent_year_kwh_e'])
+    df2 = pd.DataFrame(data, columns=['E_devices_year_kwh_s', 'E_light_year_kwh_s', 'E_vent_year_kwh_s', 'eta_temp_vent_s', 'airFlow_infiltration_perA_perh_s',
+                                     'E_devices_year_kwh_g', 'E_light_year_kwh_g', 'E_vent_year_kwh_g', 'eta_temp_vent_g', 'airFlow_infiltration_perA_perh_g',
+                                     'E_devices_year_kwh_e', 'E_light_year_kwh_e', 'E_vent_year_kwh_e', 'eta_temp_vent_e', 'airFlow_infiltration_perA_perh_e'])
     df3 = pd.DataFrame(data, columns=['p_1', 'p_2', 'p_3', 'p_4', 'p_5', 'p_6', 'p_7','p_8', 'p_9', 'p_10', 'p_11',
                                      'p_12', 'p_13', 'p_14', 'p_15', 'p_16', 'p_17', 'p_18', 'p_19', 'p_20', 'p_21',
                                      'p_22', 'p_23', 'p_24',
@@ -21,14 +23,16 @@ def read_SIA_data(file_path):
                                      'd_22', 'd_23', 'd_24',
                                      'm_1', 'm_2', 'm_3', 'm_4', 'm_5', 'm_6', 'm_7', 'm_8', 'm_9', 'm_10', 'm_11',
                                      'm_12'])
-    df4 = pd.DataFrame(data, columns=['Living: MFH', 'Living: SFH', 'OB', 'SC', 'GS', 'RE'])
+    df4 = pd.DataFrame(data, columns=['Living: MFH', 'Living: SFH', 'OB', 'SC', 'GS', 'RE', 'STORE', "UNI", "HOSPITAL", "CULTURE", "SPORT", "RETAIL", "WORKSHOP"]) #TODO: Add here Column names of new non-residential building types
 
     SIA2024 = {}
-    for row in range(0, 45):
+    for row in range(45): # Number of rows with zone data here is 45
         SIA2024[str(df['number'][row])] = {}  # dict for each zone
         SIA2024[str(df['number'][row])]['E_devices_year_kwh'] = {}
         SIA2024[str(df['number'][row])]['E_light_year_kwh'] = {}
         SIA2024[str(df['number'][row])]['E_vent_year_kwh'] = {}
+        SIA2024[str(df['number'][row])]['eta_temp_vent'] = {}
+        SIA2024[str(df['number'][row])]['airFlow_infiltration_perA_perh'] = {}
         SIA2024[str(df['number'][row])]['profile_people'] = {}
         profile_people_list = []
         SIA2024[str(df['number'][row])]['profile_devices'] = {}
@@ -41,6 +45,8 @@ def read_SIA_data(file_path):
             SIA2024[str(df['number'][row])]['E_devices_year_kwh'][val] = df2['E_devices_year_kwh_' + val[0]][row]
             SIA2024[str(df['number'][row])]['E_light_year_kwh'][val] = df2['E_light_year_kwh_' + val[0]][row]
             SIA2024[str(df['number'][row])]['E_vent_year_kwh'][val] = df2['E_vent_year_kwh_' + val[0]][row]
+            SIA2024[str(df['number'][row])]['eta_temp_vent'][val] = df2['eta_temp_vent_' + val[0]][row]
+            SIA2024[str(df['number'][row])]['airFlow_infiltration_perA_perh'][val] = df2['airFlow_infiltration_perA_perh_' + val[0]][row]
         for val in range(1, 25):
             profile_people_list.append(df3['p_' + str(val)][row])
             profile_devices_list.append(df3['d_' + str(val)][row])
@@ -54,6 +60,7 @@ def read_SIA_data(file_path):
         for i in range(len(df)):
             zone_name = df['Zone_name_GER'][i]
             value = df4[col][i]
+            if pd.isna(value): value = 0 # If no value for the proportion is given it is assumed to be 0
             SIA2024[col][zone_name] = value
 
     return SIA2024
