@@ -2098,9 +2098,20 @@ def output_diameter(data, param):
 
     # calculate the total cost
     network_om_costs = pipes_om_costs + pump_om_costs + substation_om_costs
-    network_ann_costs = pipes_ann_costs + pump_ann_costs + substation_ann_costs
+    network_ann_costs_unsubsidized = pipes_ann_costs + pump_ann_costs + substation_ann_costs
+
+    foerderquote = float(data.ecoData.get("foerderquote_BEW", 0.0))
+    if not 0.0 <= foerderquote <= 1.0:
+        raise ValueError(f"foerderquote_BEW must be in [0, 1], got {foerderquote}")
+
+    if data.ecoData.get("Waermenetzfoerderung_BEW", False):
+        network_ann_costs = network_ann_costs_unsubsidized * (1.0 - foerderquote)
+    else:
+        network_ann_costs = network_ann_costs_unsubsidized
+
     data.heat_grid_data["om_costs"] = network_om_costs
     data.heat_grid_data["ann_costs"] = network_ann_costs
+    data.heat_grid_data["ann_costs_unsubsidized"] = network_ann_costs_unsubsidized
 
     # get cost of heat loss
     # calculate capacity

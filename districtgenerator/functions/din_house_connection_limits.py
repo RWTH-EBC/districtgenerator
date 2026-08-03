@@ -238,6 +238,42 @@ def _area_m2(building: Any) -> float:
 # --------------------------------------------------------------------------- #
 # Dispatcher
 # --------------------------------------------------------------------------- #
+def _profile_peak_connection_W(building: Any, subtract_pv: bool = False) -> float:
+    """
+    Return the maximum simulated electrical building demand [W].
+
+    The value is used as a physical lower bound for the house connection.
+    DIN/AMEV provide normative pre-sizing values, but for very large or
+    aggregated buildings the simulated profile peak can exceed these values.
+    """
+    if not isinstance(building, dict):
+        return 0.0
+
+    user = building.get("user")
+    if user is None:
+        return 0.0
+
+    elec = np.array(getattr(user, "elec", []), dtype=float)
+
+    ev_raw = getattr(user, "EV_carcharging_ondemand", None)
+    if ev_raw is None:
+        ev = np.zeros_like(elec)
+    else:
+        ev = np.array(ev_raw, dtype=float)
+
+    if len(elec) == 0:
+        return 0.0
+
+    length = min(len(elec), len(ev))
+    load = elec[:length] + ev[:length]
+
+    if subtract_pv:
+        pv = np.array(building.get("generationPV", np.zeros_like(load)), dtype=float)
+        length = min(len(load), len(pv))
+        load = np.maximum(load[:length] - pv[:length], 0.0)
+
+    return float(np.max(load)) if len(load) else 0.0
+
 def apply_house_connection_limits(
     data: Any,
     enabled: bool,
@@ -255,6 +291,12 @@ def apply_house_connection_limits(
 
     Each building is classified as residential or non-residential via its
     'buildingFeatures.building' code. Residential -> DIN 18015-1, NRB -> AMEV.
+
+    Final rule:
+      house_connection_W = max(normative DIN/AMEV value, simulated profile peak)
+
+    This avoids artificial infeasibility for very large or aggregated buildings
+    where the normative lookup table no longer represents the simulated peak load.
     """
     if not hasattr(data, "site") or data.site is None:
         raise AttributeError("data.site missing.")
@@ -278,19 +320,24 @@ def apply_house_connection_limits(
             we = _we_from_demands(b)
             case = _din_case(b)
             row, used_we, method = din_lookup(din_table, we)
+
             ha_kW = float(row[f"din_ha_kW_{case}"])
             fuse_A = float(row[f"din_fuse_A_{case}"])
-            limits_W[n] = ha_kW * 1000.0
+
+            normative_limit_W = ha_kW * 1000.0
+
+            limits_W[n] = normative_limit_W
             meta[n] = {
                 "category": "residential",
                 "method": "DIN_18015_1",
                 "din_case": case,
-                "din_we_input": we,
+                "din_we_input": int(we),
                 "din_we_used": int(used_we),
                 "din_lookup_method": method,
                 "din_house_connection_kW": ha_kW,
                 "din_fuse_A": fuse_A,
             }
+
             if write_back_to_buildings and isinstance(b, dict):
                 b.setdefault("buildingFeatures", {})
                 b["buildingFeatures"].update({
@@ -300,17 +347,21 @@ def apply_house_connection_limits(
                     "din_house_connection_kW": float(ha_kW),
                     "din_fuse_A": float(fuse_A),
                 })
+
         else:
             if bt not in amev_table:
                 raise KeyError(
                     f"Non-residential building type {bt!r} not found in AMEV table. "
                     f"Add a row to amev_nrb_anschlussleistung.csv or extend the mapping."
                 )
+
             row = amev_table[bt]
             area = _area_m2(b)
             p_spec = float(row["p_spec_W_per_m2"])
-            ha_W = area * p_spec
-            limits_W[n] = ha_W
+
+            normative_limit_W = area * p_spec
+
+            limits_W[n] = normative_limit_W
             meta[n] = {
                 "category": "non_residential",
                 "method": "AMEV_EltAnlagen_2025",
@@ -318,22 +369,52 @@ def apply_house_connection_limits(
                 "p_spec_W_per_m2": p_spec,
                 "coincidence_factor_amev": float(row["coincidence_factor"]),
                 "area_m2": area,
-                "house_connection_kW": ha_W / 1000.0,
+                "house_connection_kW": normative_limit_W / 1000.0,
                 "source": row["source"],
             }
+
             if write_back_to_buildings and isinstance(b, dict):
                 b.setdefault("buildingFeatures", {})
                 b["buildingFeatures"].update({
                     "amev_bwzk": row["bwzk"],
                     "amev_p_spec_W_per_m2": p_spec,
-                    "house_connection_kW": ha_W / 1000.0,
+                    "house_connection_kW": normative_limit_W / 1000.0,
                 })
+
+        # ---------------------------------------------------------------
+        # Profile-based lower bound
+        # ---------------------------------------------------------------
+        # DIN/AMEV gives the normative pre-size. For very large or aggregated
+        # buildings, this can be below the simulated electrical profile peak.
+        # The operational MILP then becomes infeasible. Therefore the final
+        # house-connection limit must at least cover the simulated profile peak.
+        profile_peak_W = _profile_peak_connection_W(b, subtract_pv=False)
+
+        old_limit_W = float(limits_W[n])
+        final_limit_W = max(old_limit_W, profile_peak_W)
+        override_used = profile_peak_W > old_limit_W + 1e-9
+
+        limits_W[n] = final_limit_W
+
+        meta[n]["normative_house_connection_W"] = old_limit_W
+        meta[n]["profile_peak_W"] = profile_peak_W
+        meta[n]["profile_override_used"] = bool(override_used)
+        meta[n]["final_house_connection_W"] = final_limit_W
+
+        if write_back_to_buildings and isinstance(b, dict):
+            b.setdefault("buildingFeatures", {})
+            b["buildingFeatures"].update({
+                "normative_house_connection_kW": old_limit_W / 1000.0,
+                "profile_peak_connection_kW": profile_peak_W / 1000.0,
+                "final_house_connection_kW": final_limit_W / 1000.0,
+                "house_connection_profile_override": bool(override_used),
+            })
 
     data.site["enable_buildingMax_W"] = True
     data.site["buildingMax_W_per_building"] = limits_W
     data.site["house_connection_meta"] = meta
-    return limits_W
 
+    return limits_W
 
 def apply_din_house_connection_limits(
     data: Any,

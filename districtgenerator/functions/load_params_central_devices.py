@@ -230,6 +230,42 @@ def load_params(data):
         sigma[day] = np.where(param["typedays"] == d)[0][0]
     param["sigma"] = sigma
 
+    # Dynamic EH electricity price profile, mapped to the design clusters via typedays
+    ratio_e = getattr(data, "el_energy_ratio_full", None)
+    ratio_g = getattr(data, "el_grid_ratio_full", None)
+    vat_eh = float(ecoData.get("vat_rate_eh", 0.0))
+    param["price_supply_el_eh_profile"] = {}
+    for year in all_sim_ecoData:
+        if ratio_e is None and ratio_g is None:
+            param["price_supply_el_eh_profile"][year] = None
+            continue
+        ey = all_sim_ecoData[year]
+        e = float(ey.get("price_supply_el_eh_energy", 0.0))
+        g = float(ey.get("price_supply_el_eh_grid", 0.0))
+        t = float(ey.get("price_supply_el_eh_taxes", 0.0))
+        l = float(ey.get("price_supply_el_eh_levies", 0.0))
+        prof = {}
+        for d in range(data.time["clusterNumber"]):
+            s = int(param["typedays"][d]) * clusterHorizon
+            bv = ratio_e[s:s + clusterHorizon] if ratio_e is not None else np.ones(clusterHorizon)
+            grd = ratio_g[s:s + clusterHorizon] if ratio_g is not None else np.ones(clusterHorizon)
+            # pad if year not divisible by clusterHorizon
+            if len(bv) < clusterHorizon:
+                bv = np.concatenate([bv, np.full(clusterHorizon - len(bv), bv[-1] if len(bv) else 1.0)])
+            if len(grd) < clusterHorizon:
+                grd = np.concatenate([grd, np.full(clusterHorizon - len(grd), grd[-1] if len(grd) else 1.0)])
+            prof[d] = (e * bv + g * grd + t + l) * (1.0 + vat_eh)
+
+        # Renormalize so cluster-weighted mean equals the scalar price (remove medoid level bias)
+        cw = param["cluster_weights"]
+        wsum = sum(float(cw[d]) * float(np.sum(prof[d])) for d in prof)
+        wtot = sum(float(cw[d]) * clusterHorizon for d in prof)
+        wmean = wsum / wtot if wtot > 0 else 1.0
+        target = float(ey.get("price_supply_el_eh", wmean))
+        if wmean > 0:
+            for d in prof:
+                prof[d] = prof[d] * (target / wmean)
+        param["price_supply_el_eh_profile"][year] = prof
     heat_grid = {
         k: heat_grid_data[k]
         for k in ["T_hot_cooling_network", "T_cold_cooling_network", "delta_T_heatTransfer"]  }
@@ -779,7 +815,7 @@ def load_params(data):
     # --- Natural Gas ---
     param["price_supply_gas_buildings"] = {year: all_sim_ecoData[year]["price_supply_gas"]
                                         for year in param["interpolation_points"]}
-    param["price_supply_gas_eh"] = {year: all_sim_ecoData[year]["price_supply_gas_eh"]
+    param["price_supply_gas_eh"] = {year: all_sim_ecoData[year].get("price_supply_gas_eh_effective", all_sim_ecoData[year]["price_supply_gas_eh"])
                                     for year in param["interpolation_points"]}
     param["revenue_feed_in_gas"] = {year: all_sim_ecoData[year]["revenue_feed_in_gas"]
                                     for year in param["interpolation_points"]}
@@ -795,7 +831,7 @@ def load_params(data):
     ### Ecological impact ###
     param["co2_el_grid"] = {year: all_sim_ecoData[year]["co2_el_grid"]
                             for year in param["interpolation_points"]}  # kg/kWh
-    param["co2_gas"] = {year: all_sim_ecoData[year]["co2_gas"]
+    param["co2_gas"] = {year: all_sim_ecoData[year].get("co2_gas_effective",all_sim_ecoData[year]["co2_gas"], )
                         for year in param["interpolation_points"]}  # kg/kWh
     param["co2_biom"] = {year: all_sim_ecoData[year]["co2_biom"]
                         for year in param["interpolation_points"]}  # kg/kWh

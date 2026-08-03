@@ -8,16 +8,17 @@ Inherits all electricity-side helpers from ContractingBM:
   and feed-in revenues — identical to Contracting electricity logic
 
 Key difference to ContractingBM:
-- Heat price = LCOH (discounted TAC / discounted Q_heat) — no profit markup
+- Heat price = LCOH-like reconstructed heat cost / discounted Q_heat — no profit markup
 - No p_max — members are owners, not customers
 - Feasibility: NPV_WN(LCOH) >= NPV_Ref
 
 LCOH note:
-- LCOH = BW_TAC / BW_Q_heat — consistent with p_min of other BMs
-- Different from kpis.lcoh_year_eh (yearly operative diagnostic value in KPIs.py)
+- LCOH is built from the same cost components as KPIs.calculateLCOH_EH(),
+  but discounted across support years for BM evaluation.
+- result["tac"] is kept only as a diagnostic value and is not the numerator.
 """
 
-from .Waermecontracting import WaermecontractingBM
+from districtgenerator.business_models.Waermecontracting import WaermecontractingBM
 
 
 class WaermegenossenschaftBM(WaermecontractingBM):
@@ -44,24 +45,20 @@ class WaermegenossenschaftBM(WaermecontractingBM):
             kpis.lcoh = None
             return
 
-        tac_total = float(result["tac"])
-        bw_tac_total = self._bw_constant_annual(tac_total)
+        # Diagnostic only: TAC is no longer the LCOH numerator.
+        legacy_tac_total = float(result.get("tac", 0.0) or 0.0)
 
-        heat_total = self._heat_delivered_total(data)
-        heat_by_building = self._heat_delivered_by_building(data)
-        bw_heat_total = self._bw_constant_annual(heat_total)
-
-        # TAC-Korrektur: residualer Endkunden-Bezug ist im MILP-TAC enthalten, gehört aber dem Endkunden.
-        bw_supply_el_design = self._bw_supply_costs_el_design_static(result)
-        bw_eh_el_operational = self._bw_grid_cost_operational(
-            data=data, support_years=support_years, scope="eh")
-        bw_tac_corrected = (
-                bw_tac_total
-                - bw_supply_el_design
-                + bw_eh_el_operational
+        heat_cost = self._operator_heat_cost_lcoh_like(
+            kpis=kpis,
+            data=data,
+            support_years=support_years,
         )
+        heat_total = heat_cost["heat_total_kWh"]
+        heat_by_building = self._heat_delivered_by_building(data)
+        bw_heat_total = heat_cost["bw_heat_total"]
+        bw_operator_heat_cost = heat_cost["bw_heat_cost"]
 
-        lcoh = bw_tac_corrected / bw_heat_total if bw_heat_total > 0 else None
+        lcoh = bw_operator_heat_cost / bw_heat_total if bw_heat_total > 0 else None
 
         npv_ref_by_building = self.ecoData.get("npv_ref_by_building", {})
         scenario = self.ecoData.get("scenario", "B")
@@ -109,13 +106,13 @@ class WaermegenossenschaftBM(WaermecontractingBM):
         kpis.p_max = None    # Kein p_max — Mitglieder sind Eigentümer
 
         kpis.genossenschaft_breakdown = {
-            "tac_total": tac_total,
-            "bw_tac_total": bw_tac_total,
+            "legacy_tac_total_diagnostic": legacy_tac_total,
+            "cost_basis": heat_cost["method"],
+            "operator_heat_cost_by_year": heat_cost["annual_heat_cost_by_year"],
+            "operator_heat_cost_details_by_year": heat_cost["year_details"],
+            "bw_operator_heat_cost": bw_operator_heat_cost,
             "heat_total_kWh": heat_total,
             "bw_heat_total": bw_heat_total,
-            "bw_supply_el_design": bw_supply_el_design,
-            "bw_eh_el_operational": bw_eh_el_operational,
-            "bw_tac_corrected": bw_tac_corrected,
             "lcoh": lcoh,
             "p_min": lcoh,
             "p_max": None,

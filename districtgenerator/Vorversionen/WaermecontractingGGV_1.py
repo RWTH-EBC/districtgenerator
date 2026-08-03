@@ -31,7 +31,7 @@ Post-processing logic
 from typing import Dict, Optional
 import numpy as np
 
-from .Basis import BusinessModelBase
+from districtgenerator.business_models.Basis import BusinessModelBase
 
 
 class WaermecontractingGGVBM(BusinessModelBase):
@@ -44,36 +44,6 @@ class WaermecontractingGGVBM(BusinessModelBase):
         decentralized building-level PV and is handled in post-processing.
         """
         return {year: 0.0 for year in self.interpolation_points}
-
-    def _bw_pv_operator_revenue_ggv(self, data, pv_flows_by_building_year, alpha):
-        """
-        GGV-spezifischer PV-Erlös des Operators.
-
-        Da BTM-PV im MILP via Demand-Netting (allow_pv_sharing=False, gebäudeintern)
-        NICHT als Operator-Bezug im TAC erscheint, gibt es keinen TAC-Cashflow
-        E_btm·p_eh, der zu korrigieren wäre.
-
-        Cashflow je Jahr:
-            E_btm * alpha * p_retail + E_export * p_feedin
-        """
-        support_years = sorted(pv_flows_by_building_year.keys())
-        alpha = float(alpha)
-        bw_by_building = {}
-        for n in range(len(data.district)):
-            heater = data.district[n]["buildingFeatures"].get("heater", "").upper()
-            if heater != "HEAT_GRID":
-                continue
-            rev_by_year = {}
-            for year in support_years:
-                p_retail = float(self.all_sim_ecoData[year]["price_supply_el"])
-                p_feedin = float(self.all_sim_ecoData[year]["revenue_feed_in_el"])
-                flows = pv_flows_by_building_year.get(year, {}).get(n, {})
-                rev_by_year[year] = (
-                        flows.get("E_pv_btm_MWh", 0.0) * alpha * p_retail * 1000.0
-                        + flows.get("E_pv_export_MWh", 0.0) * p_feedin * 1000.0
-                )
-            bw_by_building[n] = self._bw_by_support_year(rev_by_year)
-        return bw_by_building
 
     def calculate_kpis(self, kpis, data, result: dict) -> None:
         """
@@ -94,13 +64,23 @@ class WaermecontractingGGVBM(BusinessModelBase):
             kpis.p_max = None
             return
 
-        tac_total = float(result["tac"])
-        bw_tac_total = self._bw_constant_annual(tac_total)
+        # Diagnostic only: TAC is no longer the heat-price numerator.
+        legacy_tac_total = float(result.get("tac", 0.0) or 0.0)
 
-        heat_total = self._heat_delivered_total(data)
+        heat_cost = self._operator_heat_cost_lcoh_like(
+            kpis=kpis,
+            data=data,
+            support_years=support_years,
+        )
+        heat_total = heat_cost["heat_total_kWh"]
         heat_by_building = self._heat_delivered_by_building(data)
-        bw_heat_total = self._bw_constant_annual(heat_total)
+        bw_heat_total = heat_cost["bw_heat_total"]
+        bw_operator_heat_cost = heat_cost["bw_heat_cost"]
 
+        # Dezentrale PV gehört dem Betreiber und wird zusätzlich zur
+        # LCOH-nah rekonstruierten Wärmekostenbasis berücksichtigt.
+        # Harte Prüfung — ohne dezentrale Kostendaten ist p_min systematisch
+        # zu niedrig. Lieber crashen als still falsche Ergebnisse liefern.
         dev_costs_all = self._require_decentral_costs(kpis)
 
         pv_cost_ann_total = 0.0
@@ -111,29 +91,10 @@ class WaermecontractingGGVBM(BusinessModelBase):
             if "PV" in n_costs:
                 pv_cost_ann_total += float(n_costs["PV"].get("subsidized_annual_cost", 0.0))
 
-        alpha = float(self.ecoData.get("alpha", 0.9))
-        pv_flows_by_building_year = self._pv_flows_by_building_year(data, result)
-        bw_pv_op_rev_by_building = self._bw_pv_operator_revenue_ggv(
-            data=data,
-            pv_flows_by_building_year=pv_flows_by_building_year,
-            alpha=alpha,
-        )
-        bw_pv_op_rev_total = sum(bw_pv_op_rev_by_building.values())
+        bw_pv_cost_total = self._bw_constant_annual(pv_cost_ann_total)
+        bw_operator_heat_cost_incl_pv = bw_operator_heat_cost + bw_pv_cost_total
 
-        # B2 TAC reconciliation
-        bw_supply_el_design = self._bw_supply_costs_el_design_static(result)
-        bw_eh_el_operational = self._bw_grid_cost_operational(
-            data=data, support_years=support_years, scope="eh")
-
-        bw_tac_corrected = (
-                bw_tac_total
-                - bw_supply_el_design
-                + bw_eh_el_operational
-                + self._bw_constant_annual(pv_cost_ann_total)
-                - bw_pv_op_rev_total
-        )
-
-        p_min = bw_tac_corrected / bw_heat_total if bw_heat_total > 0 else None
+        p_min = bw_operator_heat_cost_incl_pv / bw_heat_total if bw_heat_total > 0 else None
 
         npv_ref_by_building = self.ecoData.get("npv_ref_by_building", {})
         scenario = self.ecoData.get("scenario", "B")
@@ -166,14 +127,14 @@ class WaermecontractingGGVBM(BusinessModelBase):
         kpis.p_min = p_min
         kpis.p_max = p_max
         kpis.gemeinschaftliche_gebaeudeversorgung_breakdown = {
-            "tac_total": tac_total,
-            "bw_tac_total": bw_tac_total,
+            "legacy_tac_total_diagnostic": legacy_tac_total,
+            "cost_basis": heat_cost["method"],
+            "operator_heat_cost_by_year": heat_cost["annual_heat_cost_by_year"],
+            "operator_heat_cost_details_by_year": heat_cost["year_details"],
+            "bw_operator_heat_cost": bw_operator_heat_cost,
             "pv_cost_ann_total": pv_cost_ann_total,
-            "bw_tac_corrected": bw_tac_corrected,
-            "bw_supply_el_design": bw_supply_el_design,
-            "bw_eh_el_operational": bw_eh_el_operational,
-            "bw_pv_op_rev_total": bw_pv_op_rev_total,
-            "bw_pv_op_rev_by_building": bw_pv_op_rev_by_building,
+            "bw_pv_cost_total": bw_pv_cost_total,
+            "bw_operator_heat_cost_incl_pv": bw_operator_heat_cost_incl_pv,
             "heat_total_kWh": heat_total,
             "bw_heat_total": bw_heat_total,
             "p_min": p_min,

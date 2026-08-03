@@ -117,116 +117,37 @@ class BusinessModelBase(ABC):
         if self._discount_factors_cache is None:
             n_obs = self._observation_time()
             self._discount_factors_cache = {
-                t: self._discount_factor(t) for t in range(n_obs)
+                0: 1.0,
+                **{t: self._discount_factor(t) for t in range(1, n_obs + 1)}
             }
         return self._discount_factors_cache
 
     def _present_value_factor(self) -> float:
-        """
-        Unified Present Value Annuity Factor — Jahre 0..n-1.
-
-        Konsistent mit MILP-Diskontierung in opti_dimensioning_central_devices
-        (year=0 hat DF=1). Wird für alle Cashflows verwendet:
-        - TAC und operative MILP-Cashflows
-        - VDI-2067-Annuitäten dezentraler Geräte (in Anlehnung an VDI 2067)
-        - Investitionsannuitäten zentraler Anlagen
-        - Energie-Cashflows, PV-Erlöse
-
-        Begründung: Einheitliche Diskontierung sichert interne Konsistenz
-        zwischen Optimierung und Postprocessing. Die VDI-2067-Annuitäten
-        werden in calc_annual_cost_device (KPIs.py) nach VDI 2067 Blatt 1
-        mit Ersatzinvestitionen und Restwert berechnet und anschließend
-        einheitlich barwertiert.
-        """
+        """Rentenbarwertfaktor PVAF = (1 - (1+i)^(-n)) / i"""
         i = self._interest_rate()
         n = self._observation_time()
         if i == 0:
             return float(n)
         q = 1.0 + i
-        return (1.0 - (1.0 / q) ** n) / (1.0 - 1.0 / q)
+        return (1.0 - (1.0 / q) ** n) / i
 
-    # ==================================================================
-    # STROMPREIS-KOMPONENTEN / KUNDENANLAGE
-    # ==================================================================
+    def _annuity_factor(self, life_time: int) -> float:
+        """VDI 2067 Annuitätenfaktor mit Ersatzinvestitionen."""
+        n_obs = self._observation_time()
+        q = 1.0 + self._interest_rate()
 
-    def _electricity_vat_rate(self) -> float:
-        """VAT rate for electricity prices, e.g. 0.19 for 19 %."""
-        rate = float(self.ecoData.get("el_vat_rate", 0.19))
-        if rate < 0.0:
-            raise ValueError(f"el_vat_rate must be non-negative, got {rate!r}")
-        return rate
-
-    def _electricity_net_from_gross(self, gross_price: float) -> float:
-        """Electricity price without VAT [€/kWh] from a gross price."""
-        return float(gross_price) / (1.0 + self._electricity_vat_rate())
-
-    def _electricity_gross_from_net(self, net_price: float) -> float:
-        """Electricity price with VAT [€/kWh] from a net price."""
-        return float(net_price) * (1.0 + self._electricity_vat_rate())
-
-    def _kundenanlage_price_net_from_retail_gross(self, year: int) -> float:
-        """
-        Kundenanlage-specific electricity price basis [€/kWh net].
-
-        price_supply_el remains the master gross retail price.
-        Optional absolute net components are deducted only for the Kundenanlage.
-        """
-        gross_retail = float(self.all_sim_ecoData[year]["price_supply_el"])
-        price_net = self._electricity_net_from_gross(gross_retail)
-
-        if bool(self.ecoData.get("kundenanlage_deduct_grid_charges", True)):
-            price_net -= float(self.all_sim_ecoData[year].get("price_supply_el_grid", 0.0))
-
-        if bool(self.ecoData.get("kundenanlage_deduct_taxes", False)):
-            price_net -= float(self.all_sim_ecoData[year].get("price_supply_el_taxes", 0.0))
-
-        if bool(self.ecoData.get("kundenanlage_deduct_levies", False)):
-            price_net -= float(self.all_sim_ecoData[year].get("price_supply_el_levies", 0.0))
-
-        return max(price_net, 0.0)
-
-    def _kundenanlage_price_gross_from_retail_gross(self, year: int) -> float:
-        """Kundenanlage-specific electricity price basis [€/kWh gross]."""
-        return self._electricity_gross_from_net(
-            self._kundenanlage_price_net_from_retail_gross(year)
-        )
-
-    def _annuity_factor(self, life_time: float) -> float:
-        """VDI-2067-Annuitätenfaktor mit Ersatzinvestitionen und Restwert."""
-        import math
-
-        n_obs = float(self._observation_time())
-        life = float(life_time)
-
-        if n_obs <= 0.0:
-            raise ValueError(f"observation_time must be positive, got {n_obs!r}")
-        if life <= 0.0:
-            raise ValueError(f"life_time must be positive, got {life_time!r}")
-
-        i = float(self._interest_rate())
-        q = 1.0 + i
-
-        if abs(i) < 1e-12:
+        if q == 1.0:
             crf = 1.0 / n_obs
         else:
-            crf = (q ** n_obs * i) / (q ** n_obs - 1.0)
+            crf = (q ** n_obs * (q - 1)) / (q ** n_obs - 1)
 
-        n_replacements = int(math.floor(n_obs / life))
+        import math
+        n_replacements = int(math.floor(n_obs / life_time))
+        invest_replacements = sum(q ** (-i * life_time) for i in range(1, n_replacements + 1))
+        res_value = ((n_replacements + 1) * life_time - n_obs) / life_time * (q ** (-n_obs))
 
-        invest_replacements = sum(
-            q ** (-j * life)
-            for j in range(1, n_replacements + 1)
-        )
-
-        if abs(i) < 1e-12:
-            res_value = ((n_replacements + 1) * life - n_obs) / life
-        else:
-            res_value = (
-                    ((n_replacements + 1) * life - n_obs)
-                    / life
-                    * q ** (-n_obs)
-            )
-
+        if life_time > n_obs:
+            return (1.0 - res_value) * crf
         return (1.0 + invest_replacements - res_value) * crf
 
     # ==================================================================
@@ -242,7 +163,7 @@ class BusinessModelBase(ABC):
             if i < len(sorted_years) - 1:
                 end_year = sorted_years[i + 1]
             else:
-                end_year = n_obs
+                end_year = n_obs + 1
             mapping[sy] = list(range(sy, end_year))
         return mapping
 
@@ -268,10 +189,7 @@ class BusinessModelBase(ABC):
         return bw
 
     def _bw_constant_annual(self, annual_value: float) -> float:
-        """
-        Barwert eines konstanten Jahres-Cashflows über Jahre 0..n-1.
-        Für TAC und Operator-Cashflows (MILP-Konvention).
-        """
+        """Present value of a constant annual cash flow."""
         return annual_value * self._present_value_factor()
 
     # ==================================================================
@@ -324,6 +242,217 @@ class BusinessModelBase(ABC):
 
         cache[key] = q_by_building
         return q_by_building
+
+    # ==================================================================
+    # LCOH-NAHE WÄRMEKOSTEN FÜR BM-POSTPROCESSING
+    # ==================================================================
+
+    def _require_central_costs(self, kpis):
+        """
+        Return central annualized device costs or fail loudly.
+
+        BM heat-price postprocessing deliberately uses the same cost basis as
+        KPIs.calculateLCOH_EH(): annualized central heat-device costs plus
+        heat-grid costs and year-specific heat-related operating costs. These
+        data must therefore exist before calculateBMKPIs() is called.
+        """
+        costs = getattr(kpis, "central_individual_devices_annualized_cost", None)
+
+        if costs is None:
+            raise RuntimeError(
+                "BusinessModelBase: central_individual_devices_annualized_cost "
+                "is missing. KPIs.calc_annual_cost_total() must run before "
+                "calculateBMKPIs()."
+            )
+
+        if not isinstance(costs, dict):
+            raise RuntimeError(
+                "BusinessModelBase: central_individual_devices_annualized_cost "
+                f"has invalid type {type(costs).__name__}; expected dict."
+            )
+
+        return costs
+
+    @staticmethod
+    def _as_array(mapping: dict, key: str, length: int) -> np.ndarray:
+        """Read an optimization time series safely as float ndarray."""
+        if not isinstance(mapping, dict):
+            return np.zeros(length, dtype=float)
+        values = mapping.get(key, None)
+        if values is None:
+            return np.zeros(length, dtype=float)
+        arr = np.array(values, dtype=float)
+        if len(arr) >= length:
+            return arr[:length]
+        if len(arr) == 0:
+            return np.zeros(length, dtype=float)
+        return np.pad(arr, (0, length - len(arr)), mode="constant")
+
+    @staticmethod
+    def _infer_timeseries_length(*mappings: dict) -> int:
+        """Infer a non-zero time-series length from optimization result dicts."""
+        for mapping in mappings:
+            if not isinstance(mapping, dict):
+                continue
+            for values in mapping.values():
+                try:
+                    length = len(values)
+                except TypeError:
+                    continue
+                if length > 0:
+                    return int(length)
+        return 0
+
+    def _operator_heat_cost_lcoh_like(
+        self,
+        kpis,
+        data,
+        support_years: Optional[List[int]] = None,
+    ) -> dict:
+        """
+        Reconstruct annual operator-side heat costs in the same spirit as
+        KPIs.calculateLCOH_EH(), but keep EUR/a and present-value terms.
+
+        Deliberately not used: result["tac"]. TAC is the optimizer objective and
+        may include non-heat electricity business effects. This method builds the
+        heat-cost numerator explicitly from KPI/component data:
+
+        - annualized central heat-device costs,
+        - heat-grid annuity + O&M,
+        - fuel costs of central heat generation,
+        - grid-electricity costs attributable to HP/EB heat generation,
+        - price-based fuel allocation for co-generation, identical to KPIs.py.
+        """
+        if support_years is None:
+            support_years = list(self.interpolation_points)
+        support_years = list(support_years)
+
+        heat_total = self._heat_delivered_total(data)
+        bw_heat_total = self._bw_constant_annual(heat_total)
+
+        central_costs = self._require_central_costs(kpis)
+
+        heat_devices = {
+            "TES", "EB", "FC", "WBOI", "WCHP", "BBOI", "BCHP",
+            "HP", "GHP", "BOI", "CHP", "STC",
+        }
+
+        fixed_device_cost_heat = 0.0
+        for dev, info in central_costs.items():
+            if dev in heat_devices:
+                fixed_device_cost_heat += float(info.get("subsidized_annual_cost", 0.0))
+
+        fixed_heat_grid_cost = 0.0
+        if hasattr(data, "heat_grid_data") and isinstance(data.heat_grid_data, dict):
+            fixed_heat_grid_cost = (
+                float(data.heat_grid_data.get("om_costs", 0.0))
+                + float(data.heat_grid_data.get("ann_costs", 0.0))
+            )
+
+        fixed_cost_heat = fixed_device_cost_heat + fixed_heat_grid_cost
+
+        dt = float(data.time["timeResolution"])
+        clusters = list(getattr(data, "clusters", range(data.time["clusterNumber"])))
+        cluster_weights = data.clusterWeights
+
+        annual_cost_by_year: Dict[int, float] = {}
+        year_details: Dict[int, dict] = {}
+
+        for year in support_years:
+            eco = self.all_sim_ecoData[year]
+
+            price_gas = float(eco.get("price_supply_gas_eh", eco["price_supply_gas"]))
+            price_el = float(eco.get("price_supply_el_eh", eco["price_supply_el"]))
+            price_biom = float(eco.get("price_biomass", 0.0))
+            price_h2 = float(eco.get("price_hydrogen", 0.0))
+            price_waste = float(eco.get("price_waste", 0.0))
+            price_dh = float(eco.get("price_district_heat", 0.0))
+
+            fuel_cost_heat = 0.0
+            el_cost_heat = 0.0
+
+            for c in range(len(clusters)):
+                cw = float(cluster_weights[clusters[c]])
+                cluster = data.resultsOptimization[year][c]
+
+                eh_power = cluster.get("eh_power", {})
+                eh_heat = cluster.get("eh_heat", {})
+                eh_gas = cluster.get("eh_gas", {})
+                eh_h2 = cluster.get("eh_hydrogen", {})
+                eh_biom = cluster.get("eh_biom", {})
+                eh_waste = cluster.get("eh_waste", {})
+
+                T = self._infer_timeseries_length(
+                    eh_power, eh_heat, eh_gas, eh_h2, eh_biom, eh_waste
+                )
+                if T <= 0:
+                    continue
+
+                # Boiler heat: fuel input = useful heat / eta_th.
+                for dev, price in (("BOI", price_gas), ("BBOI", price_biom), ("WBOI", price_waste)):
+                    Q = self._as_array(eh_heat, dev, T)
+                    eta = float(data.central_device_data.get(dev, {}).get("eta_th", 0.0) or 0.0)
+                    if eta > 0.0:
+                        fuel_kwh = Q.sum() / eta * dt / 3600.0 / 1000.0
+                        fuel_cost_heat += cw * fuel_kwh * price
+
+                # Co-generation: same price-based heat allocation as KPIs.calculateLCOH_EH().
+                chp_specs = (
+                    ("CHP", eh_gas, price_gas),
+                    ("WCHP", eh_waste, price_waste),
+                    ("BCHP", eh_biom, price_biom),
+                    ("FC", eh_h2, price_h2),
+                )
+                for dev, fuel_map, price in chp_specs:
+                    fuel = self._as_array(fuel_map, dev, T)
+                    Q = self._as_array(eh_heat, dev, T)
+                    E = self._as_array(eh_power, dev, T)
+
+                    fuel_kwh = fuel.sum() * dt / 3600.0 / 1000.0
+                    q_kwh = Q.sum() * dt / 3600.0 / 1000.0
+                    e_kwh = E.sum() * dt / 3600.0 / 1000.0
+
+                    if q_kwh > 0.0 and e_kwh > 0.0:
+                        share_heat = (q_kwh * price_dh) / (q_kwh * price_dh + e_kwh * price_el + 1e-9)
+                        fuel_cost_heat += cw * share_heat * fuel_kwh * price
+
+                # Electricity cost for heat from central HP + EB.
+                hp = self._as_array(eh_power, "HP", T)
+                eb = self._as_array(eh_power, "EB", T)
+                grid = self._as_array(eh_power, "from_grid", T)
+                el_heat_kwh = (hp + eb) * dt / 3600.0 / 1000.0
+                grid_kwh = grid * dt / 3600.0 / 1000.0
+                el_heat_from_grid_kwh = np.minimum(el_heat_kwh, grid_kwh).sum()
+                el_cost_heat += cw * el_heat_from_grid_kwh * price_el
+
+            total_cost = fixed_cost_heat + fuel_cost_heat + el_cost_heat
+            annual_cost_by_year[year] = total_cost
+            year_details[year] = {
+                "fixed_cost_heat": fixed_cost_heat,
+                "fixed_device_cost_heat": fixed_device_cost_heat,
+                "fixed_heat_grid_cost": fixed_heat_grid_cost,
+                "fuel_cost_heat": fuel_cost_heat,
+                "el_cost_heat": el_cost_heat,
+                "total_cost_heat": total_cost,
+                "lcoh_like_ct_per_kWh": 100.0 * total_cost / heat_total if heat_total > 0 else None,
+                "kpi_lcoh_year_eh_ct_per_kWh": getattr(kpis, "lcoh_year_eh", {}).get(year),
+            }
+
+        bw_heat_cost = self._bw_by_support_year(annual_cost_by_year)
+        p_heat_cost = bw_heat_cost / bw_heat_total if bw_heat_total > 0 else None
+
+        return {
+            "annual_heat_cost_by_year": annual_cost_by_year,
+            "bw_heat_cost": bw_heat_cost,
+            "heat_total_kWh": heat_total,
+            "bw_heat_total": bw_heat_total,
+            "p_heat_cost": p_heat_cost,
+            "fixed_device_cost_heat": fixed_device_cost_heat,
+            "fixed_heat_grid_cost": fixed_heat_grid_cost,
+            "fixed_cost_heat": fixed_cost_heat,
+            "year_details": year_details,
+            "method": "lcoh_like_kpi_cost_reconstruction_without_tac",
+        }
 
     # ==================================================================
     # PV-STROMFLÜSSE (für Strom-NPV Berechnung)
@@ -485,207 +614,6 @@ class BusinessModelBase(ABC):
 
         cache[key] = bw_by_building
         return bw_by_building
-
-    def _bw_pv_operator_revenue_by_building(self,data,pv_flows_by_building_year: Dict[int, Dict[int, dict]],alpha: float, ) -> Dict[int, float]:
-
-        support_years = sorted(pv_flows_by_building_year.keys())
-        if not support_years:
-            return {}
-
-        alpha = float(alpha)
-        bw_by_building = {}
-
-        for n in range(len(data.district)):
-            heater = data.district[n]["buildingFeatures"].get("heater", "").upper()
-            if heater != "HEAT_GRID":
-                continue
-
-            rev_by_year = {}
-            for year in support_years:
-                p_retail = float(self.all_sim_ecoData[year]["price_supply_el"])
-                p_eh = float(self.all_sim_ecoData[year].get(
-                    "price_supply_el_eh", p_retail))
-                p_feedin = float(self.all_sim_ecoData[year]["revenue_feed_in_el"])
-
-                flows = pv_flows_by_building_year.get(year, {}).get(n, {})
-                e_btm = flows.get("E_pv_btm_MWh", 0.0)
-                e_exp = flows.get("E_pv_export_MWh", 0.0)
-
-                rev_by_year[year] = (
-                        e_btm * (alpha * p_retail - p_eh) * 1000.0
-                        + e_exp * p_feedin * 1000.0
-                )
-
-            bw_by_building[n] = self._bw_by_support_year(rev_by_year)
-
-        return bw_by_building
-
-    def _bw_pv_operator_correction_kundenanlage(
-            self,
-            data,
-            pv_flows_by_building_year: Dict[int, Dict[int, dict]],
-    ) -> Dict[int, float] | float:
-        """
-        Kundenanlage-spezifische TAC-Korrektur und Einspeiseerlös für Operator-PV.
-
-        Mieterstrom-Zahlung wird separat über _npv_strom_wn_by_building
-        eingerechnet (Verbrauch = Σ Elec_dem * alpha * p_retail).
-        Hier: nur Einspeise-Erlös + TAC-Korrektur:
-
-            Cashflow_y = E_export_y * p_feedin_y - E_btm_y * p_supply_eh_y
-        """
-        support_years = sorted(pv_flows_by_building_year.keys())
-        if not support_years:
-            return 0.0
-
-        rev_by_year = {}
-        for year in support_years:
-            p_eh = float(self.all_sim_ecoData[year].get(
-                "price_supply_el_eh",
-                self.all_sim_ecoData[year]["price_supply_el"]))
-            p_feedin = float(self.all_sim_ecoData[year]["revenue_feed_in_el"])
-            total = 0.0
-            for n, flows in pv_flows_by_building_year[year].items():
-                heater = data.district[n]["buildingFeatures"].get("heater", "").upper()
-                if heater != "HEAT_GRID":
-                    continue
-                total += (
-                        flows.get("E_pv_btm_MWh", 0.0) * p_eh * 1000.0
-                        - flows.get("E_pv_export_MWh", 0.0) * p_feedin * 1000.0
-                )
-            rev_by_year[year] = total
-
-        return self._bw_by_support_year(rev_by_year)
-
-    def _bw_grid_tac_correction_residual(self, data, support_years) -> float:
-        """
-        Approximative TAC-Korrektur für BMs ohne Operator-Stromgeschäft
-        (Contracting BM2, GGV, Genossenschaft).
-
-        Das MILP enthält residualen Haushaltsstrombezug in supply_costs_el
-        über dem["power"], obwohl Endkunden diesen Strom selbst beziehen.
-
-        Bewertet wird mit price_supply_el_eh, weil genau dieser Preis im TAC
-        für supply_costs_el verwendet wird.
-
-        Kein HEAT_GRID-Filter, weil dem["power"] aktuell Strom aller Gebäude
-        umfasst.
-        """
-        dt = float(data.time["timeResolution"])
-        clusters = list(getattr(data, "clusters", range(data.time["clusterNumber"])))
-        cluster_weights = data.clusterWeights
-
-        cost_by_year = {}
-
-        for year in support_years:
-            p_eh = float(
-                self.all_sim_ecoData[year].get(
-                    "price_supply_el_eh",
-                    self.all_sim_ecoData[year]["price_supply_el"],
-                )
-            )
-
-            total = 0.0
-
-            for n in range(len(data.district)):
-                for c in range(len(clusters)):
-                    cw = float(cluster_weights[clusters[c]])
-                    res = data.resultsOptimization[year][c][n]
-
-                    res_load = np.array(res.get("res_load", [0.0]), dtype=float)
-                    grid_kwh = (
-                        np.maximum(res_load, 0.0).sum()
-                        * dt / 3600.0 / 1000.0
-                    )
-
-                    total += cw * grid_kwh * p_eh
-
-            cost_by_year[year] = total
-
-        return self._bw_by_support_year(cost_by_year)
-
-    def _bw_supply_costs_el_design_static(self, result: dict) -> float:
-        """
-        Present value of the design-MILP supply_costs_el (per support year).
-
-        Used in B2 TAC reconciliation: this term is subtracted from the
-        design TAC and replaced by the operational EH (or GCP) electricity
-        cost. Avoids double counting and removes the end-customer share
-        from the operator TAC for BMs without an integrated end-customer
-        electricity business.
-        """
-        return self._bw_by_support_year(
-            result.get("supply_costs_el_by_year", {})
-        )
-
-    def _bw_grid_cost_operational(
-            self,
-            data,
-            support_years,
-            scope: str = "eh",
-    ) -> float:
-        """
-        Present value of operational electricity procurement cost.
-
-        scope='eh'  uses 'eh_from_grid' (EH-internal procurement only;
-                    relevant for BMs without integrated end-customer
-                    electricity business).
-        scope='gcp' uses 'P_dem_gcp'    (full neighborhood grid procurement;
-                    relevant for the customer-installation BM where the
-                    operator buys all electricity behind the meter).
-
-        Uses the dynamic EH price profile when enable_dynamic_el_price=True
-        and a profile is available, otherwise the static price_supply_el_eh.
-        """
-        if scope not in ("eh", "gcp"):
-            raise ValueError(
-                f"_bw_grid_cost_operational: scope must be 'eh' or 'gcp', "
-                f"got {scope!r}."
-            )
-
-        result_key = {"eh": "eh_from_grid", "gcp": "P_dem_gcp"}[scope]
-        dt = float(data.time["timeResolution"])
-        clusters = list(getattr(data, "clusters", []))
-        cw = data.clusterWeights
-        use_dyn = (
-                bool(self.ecoData.get("enable_dynamic_el_price", False))
-                or bool(self.ecoData.get("enable_dynamic_grid_fee", False))
-        )
-
-        cost_by_year = {}
-
-        for year in support_years:
-            eco_y = self.all_sim_ecoData[year]
-            p_static = float(eco_y["price_supply_el_eh"])
-            profile_dict = (
-                eco_y.get("price_supply_el_eh_profile", {})
-                if use_dyn else {}
-            )
-
-            cost = 0.0
-            for c_idx, c in enumerate(clusters):
-                res = data.resultsOptimization[year][c_idx]
-                ts = np.array(res.get(result_key, []), dtype=float)
-                if len(ts) == 0:
-                    continue
-                w = float(cw[c])
-
-                if use_dyn and int(c) in profile_dict:
-                    profile = np.array(profile_dict[int(c)], dtype=float)
-                    T = min(len(ts), len(profile))
-                    cost += (
-                            w * dt / 3600.0 / 1000.0
-                            * float((ts[:T] * profile[:T]).sum())
-                    )
-                else:
-                    cost += (
-                            w * dt / 3600.0 / 1000.0
-                            * float(ts.sum()) * p_static
-                    )
-
-            cost_by_year[year] = cost
-
-        return self._bw_by_support_year(cost_by_year)
 
     def _bw_grid_cost_by_building(
         self,
@@ -862,15 +790,16 @@ class BusinessModelBase(ABC):
     # ==================================================================
 
     def configure_grid_constraints(
-            self, data,
-            din_csv_path=None, amev_csv_path=None,
-            cosphi: Optional[float] = None,
-            safety_factor: Optional[float] = None,
-            g: Optional[float] = None,
+            self,
+            data,
+            din_csv_path: Optional[str | Path] = None,
+            amev_csv_path: Optional[str | Path] = None,
+            cosphi: float = 0.95,
+            safety_factor: float = 1.10,
+            g: float = 0.07,
             trafo_steps=DIN_TRAFO_STEPS_KVA,
-            out_dir=None,
+            out_dir: Optional[Path] = None,
     ) -> dict:
-
         """
         Apply per-building house-connection limits and (optionally) pre-size
         the transformer. Supports residential (DIN 18015-1) and non-residential
@@ -897,15 +826,6 @@ class BusinessModelBase(ABC):
         if din_csv_path is None:
             data.site["enable_buildingMax_W"] = False
             return summary
-
-        eco = self.ecoData
-        if cosphi is None:
-            cosphi = float(eco.get("trafo_cosphi", 0.95))
-        if safety_factor is None:
-            safety_factor = float(eco.get("trafo_safety_factor", 1.10))
-        if g is None:
-            g = float(eco.get("kerber_g_residential", 0.07))
-        site_coinc = float(eco.get("amev_site_coincidence", 0.8))
 
         apply_house_connection_limits(
             data=data, enabled=True,
@@ -940,7 +860,7 @@ class BusinessModelBase(ABC):
         # implicit in the residential electricity price.
         bound = trafo_lower_bound_from_house_connections(
             data=data, cosphi=cosphi, safety_factor=safety_factor,
-            g_residential=g, site_coincidence=site_coinc, steps=trafo_steps,
+            g_residential=g, steps=trafo_steps,
         )
         chosen_kVA = bound["min_din_step_kVA"]
         trafoMax_W = chosen_kVA * 1000.0 * cosphi

@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+## -*- coding: utf-8 -*-
 """
 result_saver.py — Modulare Speicherung der Simulationsergebnisse.
 
@@ -21,6 +21,7 @@ Public API (rueckwaertskompatibel):
 import os
 import pickle
 import re
+import heapq
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -150,6 +151,81 @@ _STATIC_KPI_KEYS = (
 )
 
 
+def _building_feature_snapshot(data, n) -> Dict[str, Any]:
+    """Stammdaten für Gebäudeindex n aus data.district / data.scenario."""
+    try:
+        n = int(n)
+    except (TypeError, ValueError):
+        return {"building_index": n}
+
+    snap: Dict[str, Any] = {"building_index": n}
+    try:
+        bf = data.district[n].get("buildingFeatures", {})
+    except (IndexError, AttributeError, TypeError):
+        bf = {}
+
+    for key in ("original_bldg_id", "building", "year", "retrofit", "area",
+                "heater", "nb_of_flats", "PV", "STC", "BAT", "EV", "f_TES"):
+        if key in bf:
+            snap[key] = bf[key]
+
+    try:
+        snap["unique_name"] = data.district[n].get("unique_name")
+    except (IndexError, AttributeError, TypeError):
+        snap["unique_name"] = None
+
+    return snap
+
+
+def _enrich_building_details_with_features(bm_breakdown: Dict[str, Any], data) -> None:
+    """
+    Hängt Gebäude-Stammdaten an jedes building_details[n] in allen
+    bm_breakdown-Sub-Strukturen (scenario_a, scenario_b, ...).
+    Ergänzt zusätzlich connected_features / excluded_features Listen mit denselben
+    Stammdaten, damit ausgeschlossene Gebäude direkt analysierbar sind.
+    """
+    if not bm_breakdown:
+        return
+
+    for attr_name, attr_val in bm_breakdown.items():
+        if not isinstance(attr_val, dict):
+            continue
+
+        # Direkte building_details auf oberster Ebene
+        _attach_features_to_details(attr_val, data)
+
+        # Verschachtelte scenario_a / scenario_b Strukturen
+        for sub_key in ("scenario_a", "scenario_b"):
+            sub = attr_val.get(sub_key)
+            if isinstance(sub, dict):
+                _attach_features_to_details(sub, data)
+
+
+def _attach_features_to_details(container: Dict[str, Any], data) -> None:
+    details = container.get("building_details")
+    if isinstance(details, dict):
+        for n, d in details.items():
+            if isinstance(d, dict) and "_features" not in d:
+                try:
+                    n_int = int(n)
+                except (TypeError, ValueError):
+                    continue
+                d["_features"] = _building_feature_snapshot(data, n_int)
+
+    # connected/excluded sind reine Index-Listen → parallele *_features Liste
+    for list_key, out_key in (("connected", "connected_features"),
+                              ("excluded",  "excluded_features")):
+        idx_list = container.get(list_key)
+        if isinstance(idx_list, (list, tuple)) and out_key not in container:
+            features = []
+            for n in idx_list:
+                try:
+                    features.append(_building_feature_snapshot(data, int(n)))
+                except (TypeError, ValueError):
+                    continue
+            container[out_key] = features
+
+
 def _extract_kpis(data) -> Dict[str, Any]:
     if not hasattr(data, "KPIs") or data.KPIs is None:
         return {}
@@ -165,6 +241,11 @@ def _extract_kpis(data) -> Dict[str, Any]:
         val = _safe_getattr(kpis, attr)
         if val is not None:
             bm_breakdown[attr] = val
+
+    # Anreichern: Gebäude-Stammdaten an building_details hängen, damit
+    # nachvollziehbar ist, WARUM ein Gebäude in Szenario A ausgeschlossen wurde
+    # (Baujahr, Typ, Fläche, Heater, original_bldg_id).
+    _enrich_building_details_with_features(bm_breakdown, data)
 
     return {
         "yearly": yearly,
@@ -268,6 +349,8 @@ def _extract_capacities(data) -> Dict[str, Any]:
             bf = building.get("buildingFeatures", {})
             building_caps["_info"] = {
                 "building_id": n,
+                "original_bldg_id": bf.get("original_bldg_id"),
+                "unique_name": building_name,
                 "building_type": bf.get("building", "unknown"),
                 "year_of_construction": bf.get("year", 0),
                 "retrofit": bf.get("retrofit", 0),
@@ -364,17 +447,161 @@ def _extract_heat_grid_summary(data) -> Dict[str, Any]:
     }
 
 
+
+def _network_distances_from_pipeline(pipeline: dict, nodes: dict) -> Dict[str, float]:
+    """
+    Berechnet kuerzeste Rohrleitungsdistanzen [m] von der Energiezentrale
+    zu allen Knoten anhand der gespeicherten pipeline-Kanten.
+    """
+    if not isinstance(pipeline, dict) or not pipeline:
+        return {}
+
+    # Energiezentrale robust erkennen
+    eh_nodes = []
+    if isinstance(nodes, dict):
+        for node_id, node_data in nodes.items():
+            role = None
+            if isinstance(node_data, dict):
+                role = str(node_data.get("role", "")).upper()
+            if role == "EH" or str(node_id).upper().startswith("EH"):
+                eh_nodes.append(str(node_id))
+    if not eh_nodes:
+        eh_nodes = ["EH1"]
+
+    graph = {}
+    for _, edge in pipeline.items():
+        if not isinstance(edge, dict):
+            continue
+        u = edge.get("from")
+        v = edge.get("to")
+        length = edge.get("length")
+        if u is None or v is None or length is None:
+            continue
+        try:
+            length = float(length)
+        except (TypeError, ValueError):
+            continue
+        u = str(u)
+        v = str(v)
+        graph.setdefault(u, []).append((v, length))
+        graph.setdefault(v, []).append((u, length))
+
+    distances = {}
+    pq = []
+    for eh in eh_nodes:
+        if eh in graph or eh in nodes:
+            distances[eh] = 0.0
+            heapq.heappush(pq, (0.0, eh))
+
+    while pq:
+        dist, node = heapq.heappop(pq)
+        if dist > distances.get(node, float("inf")):
+            continue
+        for nxt, length in graph.get(node, []):
+            nd = dist + length
+            if nd < distances.get(nxt, float("inf")):
+                distances[nxt] = nd
+                heapq.heappush(pq, (nd, nxt))
+
+    return distances
+
+
+def _extract_building_node_mapping(data, nodes: dict, distances: dict) -> Dict[str, Any]:
+    """
+    Speichert eine robuste Zuordnung Gebaeude -> Topologie-Knoten.
+
+    Wichtig: Die eindeutige Zuordnung ist nur sicher, wenn der Heat-Grid-Code
+    Gebaeude-Knoten in der Reihenfolge der HEAT_GRID-Gebaeude als bldg1, bldg2, ...
+    anlegt. Deshalb werden sowohl der gemappte Knoten als auch die Kandidaten
+    gespeichert. Nicht angeschlossene Gebaeude haben i. d. R. keinen Topologie-Knoten.
+    """
+    mapping = {}
+    if not hasattr(data, "district") or not isinstance(data.district, list):
+        return mapping
+
+    nodes = nodes or {}
+    node_ids = set(str(k) for k in nodes.keys()) if isinstance(nodes, dict) else set()
+
+    # bldg1, bldg2, ... werden typischerweise nur fuer angeschlossene HEAT_GRID-Gebaeude erzeugt.
+    heat_grid_indices = []
+    for n, building in enumerate(data.district):
+        if not isinstance(building, dict):
+            continue
+        bf = building.get("buildingFeatures", {}) or {}
+        heater = str(bf.get("heater", "")).upper()
+        if heater == "HEAT_GRID":
+            heat_grid_indices.append(n)
+
+    hg_index_to_node = {}
+    for order, n in enumerate(heat_grid_indices, start=1):
+        candidate = f"bldg{order}"
+        if candidate in node_ids:
+            hg_index_to_node[n] = candidate
+
+    for n, building in enumerate(data.district):
+        if not isinstance(building, dict):
+            continue
+        bf = building.get("buildingFeatures", {}) or {}
+        unique_name = building.get("unique_name", f"building_{n}")
+
+        candidate_nodes = [
+            hg_index_to_node.get(n),
+            f"bldg{n}",
+            f"bldg{n + 1}",
+            str(n),
+            str(unique_name),
+        ]
+        candidate_nodes = [c for c in candidate_nodes if c is not None]
+
+        topology_node = None
+        for cand in candidate_nodes:
+            if str(cand) in node_ids:
+                topology_node = str(cand)
+                break
+
+        pos = None
+        if topology_node is not None and isinstance(nodes.get(topology_node), dict):
+            pos = nodes[topology_node].get("pos")
+
+        mapping[str(n)] = {
+            "building_index": n,
+            "unique_name": unique_name,
+            "original_bldg_id": bf.get("original_bldg_id"),
+            "building_type": bf.get("building", "unknown"),
+            "year_of_construction": bf.get("year", 0),
+            "retrofit": bf.get("retrofit", 0),
+            "area": bf.get("area", 0),
+            "number_of_flats": bf.get("nb_of_flats", 0),
+            "heater": bf.get("heater", "unknown"),
+            "topology_node": topology_node,
+            "candidate_topology_nodes": candidate_nodes,
+            "node_position": _to_list(pos),
+            "distance_to_energy_hub_m": distances.get(topology_node) if topology_node is not None else None,
+        }
+
+    return mapping
+
+
 def _extract_heat_grid_topology(data) -> Dict[str, Any]:
     """Topologie + Pipe-Specs + Heat-Grid-Zeitreihen (8760 + clustered)."""
     if not hasattr(data, "heat_grid_data") or not data.heat_grid_data:
         return {}
     hg = data.heat_grid_data
 
+    raw_nodes = getattr(data, "pipeline_nodes", {})
+    raw_pipeline = getattr(data, "pipeline", {})
+    distances_to_eh = _network_distances_from_pipeline(raw_pipeline, raw_nodes)
+    building_node_mapping = _extract_building_node_mapping(data, raw_nodes, distances_to_eh)
+
     topo = {
         "topology": {
-            "nodes": _to_list(getattr(data, "pipeline_nodes", {})),
+            "nodes": _to_list(raw_nodes),
             "edges": _to_list(getattr(data, "pipeline_topology", {})),
-            "pipeline": _to_list(getattr(data, "pipeline", {})),
+            "pipeline": _to_list(raw_pipeline),
+        },
+        "building_node_mapping": building_node_mapping,
+        "building_distances_to_energy_hub_m": {
+            k: v.get("distance_to_energy_hub_m") for k, v in building_node_mapping.items()
         },
         "pipe_specifications": {},
         "time_series_8760": {

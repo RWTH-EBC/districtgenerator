@@ -39,6 +39,8 @@ from __future__ import annotations
 from pathlib import Path
 import json
 from typing import Any, Dict, Optional
+import math
+import numpy as np
 
 
 # DIN 42508 standard transformer steps [kVA]
@@ -100,16 +102,26 @@ def coincidence_factor_kerber(n_we: float, g: float = 0.07) -> float:
 
 # AMEV "EltAnlagen" 2025 Sec. 1.3.2: site-wide factor 0.7-0.9 for liegenschaft
 # with multiple building groups; we use the median 0.8.
-SITE_COINCIDENCE_FACTOR_AMEV = 0.8
+SITE_COINCIDENCE_FACTOR_AMEV = 1
+
+
+def choose_single_trafo_step_kva(required_kva: float, steps=DIN_TRAFO_STEPS_KVA) -> float:
+    """Smallest available single-transformer step >= required_kva.
+
+    If required_kva exceeds the largest available single-transformer step,
+    the largest step is returned. Parallelization is handled separately.
+    """
+    req = float(required_kva)
+    steps_sorted = sorted(float(s) for s in steps)
+    for s in steps_sorted:
+        if s >= req:
+            return float(s)
+    return float(steps_sorted[-1])
 
 
 def choose_trafo_kva(required_kva: float, steps=DIN_TRAFO_STEPS_KVA) -> float:
-    """Smallest DIN 42508 step >= required_kva."""
-    req = float(required_kva)
-    for s in steps:
-        if float(s) >= req:
-            return float(s)
-    return float(steps[-1])
+    """Backward-compatible alias for choosing one single-transformer step."""
+    return choose_single_trafo_step_kva(required_kva, steps=steps)
 
 
 # --------------------------------------------------------------------------- #
@@ -208,8 +220,42 @@ def trafo_lower_bound_from_house_connections(
             "site_coincidence_factor": site_coincidence,
         }
 
+        # Profile-based validation: ensure trafo covers actual quarter-level peak.
+        # AMEV / Kerber give a normbased pre-sizing; the operational MILP needs
+        # a trafo that physically supports the simulated load profile.
+        quarter_peak_kW = 0.0
+        elec_total = None
+        for b in getattr(data, "district", []) or []:
+            elec = np.array(b["user"].elec, dtype=float)
+            ev = np.array(b["user"].EV_carcharging_ondemand, dtype=float)
+            load = elec + ev
+            elec_total = load if elec_total is None else elec_total + load
+        if elec_total is not None:
+            quarter_peak_kW = float(np.max(elec_total)) / 1000.0
+
+        if quarter_peak_kW > Pc_kW:
+            print(f"[TRAFO] AMEV pre-size {Pc_kW:.1f} kW < operational peak "
+                  f"{quarter_peak_kW:.1f} kW → using profile peak.")
+            Pc_kW = quarter_peak_kW
+            details["profile_quarter_peak_kW"] = quarter_peak_kW
+            details["pre_size_method"] = "profile_overrides_amev"
+        else:
+            details["profile_quarter_peak_kW"] = quarter_peak_kW
+            details["pre_size_method"] = "amev"
+
     required_kVA = (Pc_kW / max(cosphi, 1e-6)) * safety_factor
-    min_step_kVA = choose_trafo_kva(required_kVA, steps=steps)
+
+    steps_sorted = sorted(float(s) for s in steps)
+    max_single_kVA = steps_sorted[-1]
+
+    if required_kVA <= max_single_kVA:
+        n_trafos = 1
+        single_step_kVA = choose_single_trafo_step_kva(required_kVA, steps=steps_sorted)
+    else:
+        n_trafos = int(math.ceil(required_kVA / max_single_kVA))
+        single_step_kVA = max_single_kVA
+
+    min_step_kVA = n_trafos * single_step_kVA
 
     return {
         "aggregation": aggregation,
@@ -218,6 +264,10 @@ def trafo_lower_bound_from_house_connections(
         "coincident_peak_kW": Pc_kW,
         "required_kVA": required_kVA,
         "min_din_step_kVA": min_step_kVA,
+        "single_transformer_kVA": single_step_kVA,
+        "n_parallel_transformers": n_trafos,
+        "installed_transformer_kVA": min_step_kVA,
+        "parallel_transformers_used": n_trafos > 1,
         "details": details,
     }
 

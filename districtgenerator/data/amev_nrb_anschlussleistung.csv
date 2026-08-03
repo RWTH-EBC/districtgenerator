@@ -1,5 +1,5 @@
 building_short;building_long;bwzk;p_spec_W_per_m2;coincidence_factor;source
-OB;office_building;1300;11.84;0.6;AMEV EltAnlagen 2025 Tab. 1 (Median BWZK 1300) and Tab. 2 (Verwaltungsgebaeude)
-SC;school;4110;8.91;0.6;AMEV EltAnlagen 2025 Tab. 1 (Median BWZK 4110) and Tab. 2 (Schulen)
-GS;grocery_store;-;100.0;0.7;Engineering assumption from food-retail planning practice (no AMEV match); GZF from AMEV Tab. 2 (Verkaufsstaetten)
-RE;restaurant;4700;28,36;0.7;AMEV EltAnlagen 2025 Tab. 1 (Median BWZK 4700) and Tab. 2 (Verkaufsstätten);""
+OB;office_building;1300;40;0.6;AMEV EltAnlagen 2025 Tab. 1 (Median BWZK 1300) and Tab. 2 (Verwaltungsgebaeude)
+SC;school;4110;35;0.6;AMEV EltAnlagen 2025 Tab. 1 (Median BWZK 4110) and Tab. 2 (Schulen)
+GS;grocery_store;-;100;0.7;Engineering assumption from food-retail planning practice (no AMEV match); GZF from AMEV Tab. 2 (Verkaufsstaetten)
+RE;restaurant;4700;90;0.7;AMEV EltAnlagen 2025 Tab. 1 (Median BWZK 4700) and Tab. 2 (Verkaufsstätten);""

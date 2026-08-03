@@ -128,6 +128,8 @@ class Datahandler:
         self.srcPath = srcPath
         self.filePath = filePath
         self.cluster_meta = None
+        self.el_energy_ratio_full = None
+        self.el_grid_ratio_full = None
         self.scenario_variant = scenario_variant
         self.scenario_dir = scenario_dir
 
@@ -1318,15 +1320,19 @@ class Datahandler:
             if missing_positions:
                 print("No district geometry found — running simple heating network design.")
                 heating_network_simple.heating_network(self)
+                self._build_el_ratio_full_profiles()
                 self.designCentralDevices(saveGenerationProfiles=True)
                 self.finalizeClusterProfiles()
+                self._augment_all_sim_ecoData_with_el_profiles(self.all_sim_ecoData)
             else:
                 print("Generating and optimizing heating network...")
                 self.generateNetwork(topology_option)
                 self.prepareClusteringInputs()
                 self.optimization_heatingnetwork()
+                self._build_el_ratio_full_profiles()
                 self.designCentralDevices(saveGenerationProfiles=True)
                 self.finalizeClusterProfiles()
+                self._augment_all_sim_ecoData_with_el_profiles(self.all_sim_ecoData)
         else:
             print("No central heat grid detected — skipping heating network design.")
             self.centralDevices = {}
@@ -1661,6 +1667,9 @@ class Datahandler:
                 "len_cluster": int(self.time["clusterLength"] / self.time["timeResolution"]),
                 "clusterNumber": self.time["clusterNumber"],
             }
+
+            # NEU: dynamische El-Preis-Profile pro Cluster bauen
+            self._augment_all_sim_ecoData_with_el_profiles(self.all_sim_ecoData)
 
         for building in self.district:
             building["cluster_meta"] = self.cluster_meta
@@ -2290,10 +2299,12 @@ class Datahandler:
         single_value_keys = [
             'num_interpolation_points', 'interpolation_points', 'observation_time','interest_rate', 'optimization_focus',
             # BM / constant components
-            'business_model', 'alpha','share_el_energy', 'share_el_grid', 'share_el_levies','share_el_vat',
+            'business_model', 'alpha',
+            # Electricity component settings for Kundenanlage
+            'el_vat_rate', 'kundenanlage_deduct_grid_charges', 'kundenanlage_deduct_taxes', 'kundenanlage_deduct_levies',
             # zusätzliche nicht-zeitabhängige BM-/Auswertungs-Parameter
             'reference_case', 'reference_key', 'scenario', 'npv_ref_by_building',
-            'p_max', 'npv_ref', 'cooperative_evaluation_method',
+            'p_max', 'npv_ref', 'cooperative_evaluation_method','enable_biomethane_blend', 'biomethane_exempt_from_co2_cost'
         ]
         ecoData = {k: v for k, v in self.ecoData.copy().items() if k not in single_value_keys}
 
@@ -2346,6 +2357,19 @@ class Datahandler:
                     if i < len(values)
                 ]
 
+                # Volume fractions are arithmetic, not discounted cashflows.
+                if key in ("biomethane_share_gas",):
+                    try:
+                        all_sim_ecoData[year][key] = (
+                            sum(float(v) for v in subset_values) / len(subset_values)
+                            if subset_values else 0.0
+                        )
+                    except (TypeError, ValueError) as exc:
+                        raise TypeError(
+                            f"ecoData key '{key}' contains non-numeric values."
+                        ) from exc
+                    continue
+
                 try:
                     pv = sum(
                         float(val) / (q ** idx)
@@ -2367,7 +2391,199 @@ class Datahandler:
             for key in single_value_keys:
                 all_sim_ecoData[year][key] = self.ecoData.get(key)
 
+            # Effective gas prices with optional biomethane blend.
+            # One common biomethane price is used for both end-customer and EH gas.
+            bio_enabled = bool(self.ecoData.get("enable_biomethane_blend", False))
+
+            share_bio = (
+                float(all_sim_ecoData[year].get("biomethane_share_gas", 0.0))
+                if bio_enabled
+                else 0.0
+            )
+            share_bio = min(max(share_bio, 0.0), 1.0)
+
+            p_bio = float(
+                all_sim_ecoData[year].get(
+                    "price_supply_biomethane",
+                    all_sim_ecoData[year]["price_supply_gas"],
+                )
+            )
+
+            for base_key, effective_key in [
+                ("price_supply_gas", "price_supply_gas_effective"),
+                ("price_supply_gas_eh", "price_supply_gas_eh_effective"),
+            ]:
+                p_base = float(all_sim_ecoData[year][base_key])
+                all_sim_ecoData[year][effective_key] = (
+                        (1.0 - share_bio) * p_base + share_bio * p_bio
+                )
+
+            # CO2 cost only on fossil share if biomethane is CO2-exempt.
+            co2_gas_base = float(all_sim_ecoData[year].get("co2_gas", 0.0))
+            if bio_enabled and bool(self.ecoData.get("biomethane_exempt_from_co2_cost", True)):
+                all_sim_ecoData[year]["co2_gas_effective"] = (1.0 - share_bio) * co2_gas_base
+            else:
+                all_sim_ecoData[year]["co2_gas_effective"] = co2_gas_base
+
         return all_sim_ecoData
+
+    def _load_smard_profile(self):
+        """Load SMARD day-ahead hourly prices, return profile with mean=1.0."""
+        import pandas as pd
+        eco = self.ecoData
+        path = str(eco.get("smard_reference_csv", "")).strip()
+        if not path:
+            return None
+        try:
+            df = pd.read_csv(path, sep=";", decimal=",",
+                             encoding="utf-8-sig", na_values=["-"])
+            col = "Deutschland/Luxemburg [€/MWh] Berechnete Auflösungen"
+            prices_h = pd.to_numeric(df[col], errors="coerce").to_numpy()
+        except Exception as exc:
+            print(f"[SMARD PROFILE] failed to read {path}: {exc}. Falling back to flat profile.")
+            return None
+        if np.isnan(prices_h).any():
+            idx = np.arange(len(prices_h))
+            mask = ~np.isnan(prices_h)
+            prices_h = np.interp(idx, idx[mask], prices_h[mask])
+        prices_h = prices_h[:8760]
+        mean_p = prices_h.mean()
+        if mean_p <= 0:
+            return None
+        return prices_h / mean_p
+
+    def _build_grid_tariff_profile_hourly(self):
+        """Westnetz-style HT/NT/ST factor profile, mean=1.0."""
+        eco = self.ecoData
+        nt = set(int(h) for h in eco.get("grid_tariff_nt_hours", []))
+        ht = set(int(h) for h in eco.get("grid_tariff_ht_hours", []))
+        f_nt = float(eco.get("grid_tariff_factor_nt", 1.0))
+        f_ht = float(eco.get("grid_tariff_factor_ht", 1.0))
+        f_st = float(eco.get("grid_tariff_factor_st", 1.0))
+        hours = np.arange(8760) % 24
+        factor = np.full(8760, f_st, dtype=float)
+        if nt:
+            factor[np.isin(hours, list(nt))] = f_nt
+        if ht:
+            factor[np.isin(hours, list(ht))] = f_ht
+        mean_f = factor.mean()
+        return factor / mean_f if mean_f > 0 else np.ones(8760)
+
+    def _resample_hourly_to_timeres(self, profile_hourly):
+        dt_s = int(self.time["timeResolution"])
+        steps_per_hour = max(1, int(3600 / dt_s))
+        return np.repeat(profile_hourly, steps_per_hour)
+
+    def _map_profile_to_clusters(self, profile_full_year):
+        dt_s = int(self.time["timeResolution"])
+        steps_per_hour = max(1, int(3600 / dt_s))
+        len_cluster = int(self.time["clusterLength"] / self.time["timeResolution"])
+        per_cluster = {}
+        for c in self.clusters:
+            start = int(c) * len_cluster
+            end = start + len_cluster
+            if end > len(profile_full_year):
+                end = len(profile_full_year)
+            slice_ = profile_full_year[start:end]
+            if len(slice_) < len_cluster:
+                pad = np.full(len_cluster - len(slice_),
+                              slice_[-1] if len(slice_) > 0 else 1.0)
+                slice_ = np.concatenate([slice_, pad])
+            per_cluster[int(c)] = slice_
+        return per_cluster
+
+    def _build_el_ratio_full_profiles(self):
+        """Build full-year el price ratio profiles (timeResolution). Cluster-independent;
+        must run before designCentralDevices() so load_params/opti_dimensioning see them."""
+        eco = self.ecoData
+        self.el_energy_ratio_full = None
+        self.el_grid_ratio_full = None
+        if bool(eco.get("enable_dynamic_el_price", False)):
+            bv_h = self._load_smard_profile()
+            if bv_h is not None:
+                self.el_energy_ratio_full = self._resample_hourly_to_timeres(bv_h)
+        if bool(eco.get("enable_dynamic_grid_fee", False)):
+            grid_h = self._build_grid_tariff_profile_hourly()
+            if grid_h is not None:
+                self.el_grid_ratio_full = self._resample_hourly_to_timeres(grid_h)
+
+    def _augment_all_sim_ecoData_with_el_profiles(self, all_sim_ecoData):
+        """
+        Adds price_supply_el_profile and price_supply_el_eh_profile.
+        Scalar prices price_supply_el / price_supply_el_eh remain untouched.
+
+        Two independent switches:
+        - enable_dynamic_el_price: dynamizes the energy component (Spot profile)
+        - enable_dynamic_grid_fee: dynamizes the grid charge component
+        At least one switch must be True for the profile to be built.
+        Components with their respective switch off use a constant profile = 1.0.
+        """
+        eco = self.ecoData
+        enable_dyn_energy = bool(eco.get("enable_dynamic_el_price", False))
+        enable_dyn_grid = bool(eco.get("enable_dynamic_grid_fee", False))
+        if not (enable_dyn_energy or enable_dyn_grid):
+            return
+        if self.clusters is None or len(self.clusters) == 0:
+            print("[DYNAMIC EL PRICE] clustering not yet performed; skipping profile build.")
+            return
+
+        vat = float(eco.get("vat_rate", 0.19))
+        vat_eh = float(eco.get("vat_rate_eh", 0.0))
+
+        # Energy component
+        if enable_dyn_energy:
+            bv_hourly = self._load_smard_profile()
+            if bv_hourly is None:
+                bv_hourly = np.ones(8760)
+            bv_full = self._resample_hourly_to_timeres(bv_hourly)
+            bv_per_cluster = self._map_profile_to_clusters(bv_full)
+        else:
+            bv_per_cluster = None  # constant 1.0 used inline
+
+        # Grid charge component
+        if enable_dyn_grid:
+            grid_hourly = self._build_grid_tariff_profile_hourly()
+            grid_full = self._resample_hourly_to_timeres(grid_hourly)
+            grid_per_cluster = self._map_profile_to_clusters(grid_full)
+        else:
+            grid_per_cluster = None  # constant 1.0 used inline
+
+        for year, eco_year in all_sim_ecoData.items():
+            e = float(eco_year.get("price_supply_el_energy", 0.0))
+            g = float(eco_year.get("price_supply_el_grid", 0.0))
+            t = float(eco_year.get("price_supply_el_taxes", 0.0))
+            l = float(eco_year.get("price_supply_el_levies", 0.0))
+
+            e_eh = float(eco_year.get("price_supply_el_eh_energy", 0.0))
+            g_eh = float(eco_year.get("price_supply_el_eh_grid", 0.0))
+            t_eh = float(eco_year.get("price_supply_el_eh_taxes", 0.0))
+            l_eh = float(eco_year.get("price_supply_el_eh_levies", 0.0))
+
+            eco_year["price_supply_el_profile"] = {}
+            eco_year["price_supply_el_eh_profile"] = {}
+
+            for c in self.clusters:
+                bv_c = bv_per_cluster[int(c)] if enable_dyn_energy else 1.0
+                grid_c = grid_per_cluster[int(c)] if enable_dyn_grid else 1.0
+
+                eco_year["price_supply_el_profile"][int(c)] = (
+                        (e * bv_c + g * grid_c + t + l) * (1.0 + vat)
+                )
+                eco_year["price_supply_el_eh_profile"][int(c)] = (
+                        (e_eh * bv_c + g_eh * grid_c + t_eh + l_eh) * (1.0 + vat_eh)
+                )
+
+            # Renormalize cluster-weighted mean to the scalar price (remove medoid level bias)
+            for prof_key, scalar_key in (("price_supply_el_profile", "price_supply_el"),
+                                         ("price_supply_el_eh_profile", "price_supply_el_eh")):
+                prof = eco_year[prof_key]
+                wsum = sum(self.clusterWeights[c] * float(np.sum(prof[int(c)])) for c in self.clusters)
+                wtot = sum(self.clusterWeights[c] * len(np.atleast_1d(prof[int(c)])) for c in self.clusters)
+                wmean = wsum / wtot if wtot > 0 else 1.0
+                target = float(eco_year.get(scalar_key, wmean))
+                if wmean > 0:
+                    for c in self.clusters:
+                        prof[int(c)] = prof[int(c)] * (target / wmean)
 
     def calculateKPIs(self):
         """

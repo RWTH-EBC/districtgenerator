@@ -53,7 +53,7 @@ from pathlib import Path
 from typing import Dict, Optional
 import numpy as np
 
-from .Basis import BusinessModelBase
+from districtgenerator.business_models.Basis import BusinessModelBase
 from districtgenerator.functions.din_house_connection_limits import (
     apply_din_house_connection_limits,
 )
@@ -64,9 +64,6 @@ from districtgenerator.functions.trafo_sizing import (
 
 
 class WaermecontractingKundenanlageBM(BusinessModelBase):
-
-    # PV-Sharing über Gebäudegrenzen — Kundenanlage = ein Anschlusspunkt.
-    allow_pv_sharing = True
 
     # ==================================================================
     # GRID CONSTRAINTS
@@ -93,7 +90,6 @@ class WaermecontractingKundenanlageBM(BusinessModelBase):
         installation is behind the meter); it is only used internally for
         cost accounting.
         """
-
         from districtgenerator.functions.din_house_connection_limits import (
             apply_house_connection_limits,
         )
@@ -102,13 +98,9 @@ class WaermecontractingKundenanlageBM(BusinessModelBase):
         )
 
         if din_csv_path is None:
-            raise ValueError(
-                "WaermecontractingKundenanlageBM.configure_grid_constraints: "
-                "din_csv_path is required. The customer-installation BM owns "
-                "the internal LV grid and transformer; silently disabling "
-                "house-connection limits and transformer sizing would zero "
-                "out internal grid costs."
-            )
+            data.site["enable_buildingMax_W"] = False
+            data.site["enable_trafoMax_W"] = False
+            return {}
 
         apply_house_connection_limits(
             data=data, enabled=True,
@@ -124,9 +116,7 @@ class WaermecontractingKundenanlageBM(BusinessModelBase):
             g_residential=g, steps=trafo_steps,
         )
         data.site["trafo_min_kVA"] = bound["min_din_step_kVA"]
-        # Modulare Auslegung: Stufen oberhalb 1250 = n × 1250 (parallele Trafos)
-        extended_steps = list(trafo_steps) + [2500, 3750, 5000, 6250, 7500, 8750, 10000]
-        data.site["trafo_steps_kVA"] = extended_steps
+        data.site["trafo_steps_kVA"] = list(trafo_steps)
         data.site["trafo_cosphi"] = cosphi
         data.site["trafo_sizing_summary"] = bound
 
@@ -156,147 +146,19 @@ class WaermecontractingKundenanlageBM(BusinessModelBase):
     def get_price_el_revenue_by_year(self) -> dict:
         """
         Local electricity sales by the operator in the customer-installation model.
-
-        price_supply_el remains the public gross retail reference price.
-        VAT is removed and configured public price components are deducted
-        only for the Kundenanlage. Returned values are net operator revenues [€/kWh].
+        Internal-grid distribution avoids public network charges. Only VAT is deducted.
         """
         alpha = float(self.ecoData["alpha"])
+        share_vat = float(self.ecoData["share_el_vat"])
 
         return {
-            year: alpha * self._kundenanlage_price_net_from_retail_gross(year)
+            year: (
+                alpha * self.all_sim_ecoData[year]["price_supply_el"]
+                - share_vat * self.all_sim_ecoData[year]["price_supply_el"]
+            )
             for year in self.interpolation_points
         }
 
-    def _bw_pv_operator_revenue_kundenanlage_aggregated(
-            self,
-            data,
-            support_years,
-    ) -> tuple[float, dict]:
-        """
-        Kundenanlage-spezifischer PV-Erlös des Operators, quartiersweit aggregiert.
-
-        Dezentrale Gebäude-PV wird direkt aus data.district gelesen.
-        res["PV"] ist zentrale Energy-Hub-PV und darf hierfür nicht verwendet werden.
-
-        Cashflow je Jahr:
-            E_btm_KA    * price_el_revenue
-          + E_export_KA * p_feedin
-        """
-        dt = float(data.time["timeResolution"])
-        price_el_revenue_by_year = self.get_price_el_revenue_by_year()
-
-        connected = [
-            n for n in range(len(data.district))
-            if data.district[n]["buildingFeatures"].get("heater", "").upper() == "HEAT_GRID"
-        ]
-
-        if not connected:
-            return 0.0, {}
-
-        n_steps = len(data.district[connected[0]]["user"].elec)
-        load_sum = np.zeros(n_steps)
-        pv_sum = np.zeros(n_steps)
-
-        for n in connected:
-            b = data.district[n]
-            load_sum += np.array(b["user"].elec, dtype=float)
-            load_sum += np.array(b["user"].EV_carcharging_ondemand, dtype=float)
-            pv_sum += np.array(b["generationPV"], dtype=float)
-
-        e_load_kwh = load_sum.sum() * dt / 3600.0 / 1000.0
-        e_btm_kwh = np.minimum(load_sum, pv_sum).sum() * dt / 3600.0 / 1000.0
-        e_export_kwh = np.maximum(pv_sum - load_sum, 0.0).sum() * dt / 3600.0 / 1000.0
-
-        rev_by_year = {}
-        flows_by_year = {}
-
-        for year in support_years:
-            p_revenue = float(price_el_revenue_by_year.get(year, 0.0))
-            p_feedin = float(self.all_sim_ecoData[year]["revenue_feed_in_el"])
-
-            rev_by_year[year] = (
-                    e_btm_kwh * p_revenue
-                    + e_export_kwh * p_feedin
-            )
-
-            flows_by_year[year] = {
-                "E_load_KA_kWh": e_load_kwh,
-                "E_btm_KA_kWh": e_btm_kwh,
-                "E_export_KA_kWh": e_export_kwh,
-            }
-
-        return self._bw_by_support_year(rev_by_year), flows_by_year
-
-    def _bw_residual_grid_resale_revenue(
-            self,
-            result,
-            support_years,
-            ka_power_flows_by_year,
-    ) -> tuple[float, float, dict]:
-        """
-        Operator-Erlös aus Weiterverkauf von public-grid-Strom an Mieter.
-
-        E_residual = E_load_KA - E_btm_KA - E_local_EH_to_tenants
-
-        Zusätzlich:
-        Falls to_local_el_total größer ist als die verbleibende Mieterlast
-        nach BTM-PV, wurde im TAC zu viel rev_local_el abgezogen.
-        Dieser overcredit wird wieder auf den TAC addiert.
-        """
-        price_el_revenue_by_year = self.get_price_el_revenue_by_year()
-
-        resale_by_year = {}
-        overcredit_by_year = {}
-        diag_by_year = {}
-
-        for year in support_years:
-            p_revenue = float(price_el_revenue_by_year.get(year, 0.0))
-
-            flows = ka_power_flows_by_year.get(year, {})
-            e_load_kwh = float(flows.get("E_load_KA_kWh", 0.0))
-            e_btm_kwh = float(flows.get("E_btm_KA_kWh", 0.0))
-
-            tenant_after_btm_kwh = max(e_load_kwh - e_btm_kwh, 0.0)
-
-            to_local_mwh = float(
-                result.get("to_local_el_total_by_year", {}).get(year, 0.0)
-            )
-            to_local_kwh_raw = to_local_mwh * 1000.0
-
-            e_local_eh_to_tenants_kwh = min(
-                to_local_kwh_raw,
-                tenant_after_btm_kwh,
-            )
-
-            e_local_overcredit_kwh = max(
-                to_local_kwh_raw - tenant_after_btm_kwh,
-                0.0,
-            )
-
-            e_residual_kwh = max(
-                tenant_after_btm_kwh - e_local_eh_to_tenants_kwh,
-                0.0,
-            )
-
-            resale_by_year[year] = e_residual_kwh * p_revenue
-            overcredit_by_year[year] = e_local_overcredit_kwh * p_revenue
-
-            diag_by_year[year] = {
-                "E_load_KA_kWh": e_load_kwh,
-                "E_btm_KA_kWh": e_btm_kwh,
-                "E_tenant_after_btm_kWh": tenant_after_btm_kwh,
-                "E_local_EH_raw_kWh": to_local_kwh_raw,
-                "E_local_EH_to_tenants_kWh": e_local_eh_to_tenants_kwh,
-                "E_local_overcredit_kWh": e_local_overcredit_kwh,
-                "E_residual_grid_resale_kWh": e_residual_kwh,
-            }
-
-        return (
-            self._bw_by_support_year(resale_by_year),
-            self._bw_by_support_year(overcredit_by_year),
-            diag_by_year,
-        )
     # ==================================================================
     # KPI BERECHNUNG
     # ==================================================================
@@ -320,12 +182,18 @@ class WaermecontractingKundenanlageBM(BusinessModelBase):
             kpis.p_max = None
             return
 
-        tac_total = float(result["tac"])
-        bw_tac_total = self._bw_constant_annual(tac_total)
+        # Diagnostic only: TAC is no longer the heat-price numerator.
+        legacy_tac_total = float(result.get("tac", 0.0) or 0.0)
 
-        heat_total = self._heat_delivered_total(data)
+        heat_cost = self._operator_heat_cost_lcoh_like(
+            kpis=kpis,
+            data=data,
+            support_years=support_years,
+        )
+        heat_total = heat_cost["heat_total_kWh"]
         heat_by_building = self._heat_delivered_by_building(data)
-        bw_heat_total = self._bw_constant_annual(heat_total)
+        bw_heat_total = heat_cost["bw_heat_total"]
+        bw_operator_heat_cost = heat_cost["bw_heat_cost"]
 
         # ----------------------------------------------------------------
         # Betreiberseitige Zusatzkosten: dezentrale PV (gehört Betreiber)
@@ -348,53 +216,29 @@ class WaermecontractingKundenanlageBM(BusinessModelBase):
         # (Schutz gegen Doppelzählung bei variable trafo sizing).
         # ----------------------------------------------------------------
         trafo_ann_from_milp = float(result.get("trafo_ann_cost_eur_per_a", 0.0) or 0.0)
-        c_elgrid_ann = self._elgrid_annual_cost(
+        c_elgrid_ann_post = self._elgrid_annual_cost(
             data=data,
             include_trafo=(trafo_ann_from_milp <= 0.0),
         )
+        # If the transformer annuity was selected inside the MILP, it is not
+        # part of the LCOH-like heat-cost reconstruction. Add it explicitly.
+        c_elgrid_ann = c_elgrid_ann_post + trafo_ann_from_milp
+        bw_elgrid = self._bw_constant_annual(c_elgrid_ann)
+        bw_pv_cost_total = self._bw_constant_annual(pv_cost_ann_total)
 
-        # Operator-Erlöse aus dezentraler PV — quartiersweit aggregiert,
-        # weil PV-Sharing über Gebäudegrenzen hinweg stattfindet.
-        # Cashflows nicht im MILP-TAC (PV-Netting in load_params):
-        #   + E_btm_KA    * price_el_revenue   (Mieterstrom dez. PV, USt-netto)
-        #   + E_export_KA * p_feedin           (Einspeise-Erlös)
-        bw_pv_op_rev_total, ka_power_flows_by_year = (
-            self._bw_pv_operator_revenue_kundenanlage_aggregated(
-                data=data,
-                support_years=support_years,
-            )
+        # Alle Terme sind Barwerte [EUR] -> konsistent addierbar.
+        bw_operator_heat_cost_incl_pv_grid = (
+            bw_operator_heat_cost
+            + bw_pv_cost_total
+            + bw_elgrid
         )
+        p_min = bw_operator_heat_cost_incl_pv_grid / bw_heat_total if bw_heat_total > 0 else None
 
-        (
-            bw_residual_resale,
-            bw_local_el_overcredit,
-            residual_resale_diag_by_year,
-        ) = self._bw_residual_grid_resale_revenue(
-            result=result,
-            support_years=support_years,
-            ka_power_flows_by_year=ka_power_flows_by_year,
-        )
-
-        # B2 TAC reconciliation: Kundenanlage = full neighborhood grid
-        bw_supply_el_design = self._bw_supply_costs_el_design_static(result)
-        bw_gcp_el_operational = self._bw_grid_cost_operational(
-            data=data, support_years=support_years, scope="gcp")
-
-        bw_tac_corrected = (
-                bw_tac_total
-                - bw_supply_el_design
-                + bw_gcp_el_operational
-                + self._bw_constant_annual(pv_cost_ann_total)
-                + self._bw_constant_annual(c_elgrid_ann)
-                + bw_local_el_overcredit
-                - bw_pv_op_rev_total
-                - bw_residual_resale
-        )
-        p_min = bw_tac_corrected / bw_heat_total if bw_heat_total > 0 else None
         # ----------------------------------------------------------------
         # Endkundenseite (NPV)
         # ----------------------------------------------------------------
         npv_ref_by_building = self.ecoData.get("npv_ref_by_building", {})
+
         npv_strom_wn_by_building = self._npv_strom_wn_by_building(
             data=data,
             result=result,
@@ -426,19 +270,18 @@ class WaermecontractingKundenanlageBM(BusinessModelBase):
             "model_scope": "all_or_none",
             "allows_building_exclusion": False,
 
-            "tac_total": tac_total,
-            "bw_tac_total": bw_tac_total,
+            "legacy_tac_total_diagnostic": legacy_tac_total,
+            "cost_basis": heat_cost["method"],
+            "operator_heat_cost_by_year": heat_cost["annual_heat_cost_by_year"],
+            "operator_heat_cost_details_by_year": heat_cost["year_details"],
+            "bw_operator_heat_cost": bw_operator_heat_cost,
             "pv_cost_ann_total": pv_cost_ann_total,
-            "bw_pv_cost_total": self._bw_constant_annual(pv_cost_ann_total),
+            "bw_pv_cost_total": bw_pv_cost_total,
+            "c_elgrid_ann_postprocessing": c_elgrid_ann_post,
             "c_elgrid_ann": c_elgrid_ann,
-            "bw_elgrid": self._bw_constant_annual(c_elgrid_ann),
+            "bw_elgrid": bw_elgrid,
             "trafo_ann_from_milp": trafo_ann_from_milp,
-            "bw_tac_corrected": bw_tac_corrected,
-                        "bw_pv_op_rev_total": bw_pv_op_rev_total,
-            "bw_residual_resale": bw_residual_resale,
-            "bw_local_el_overcredit": bw_local_el_overcredit,
-            "ka_power_flows_by_year": ka_power_flows_by_year,
-            "residual_resale_diag_by_year": residual_resale_diag_by_year,
+            "bw_operator_heat_cost_incl_pv_grid": bw_operator_heat_cost_incl_pv_grid,
             "heat_total_kWh": heat_total,
             "bw_heat_total": bw_heat_total,
             "p_min": p_min,
@@ -476,17 +319,19 @@ class WaermecontractingKundenanlageBM(BusinessModelBase):
         """
         Building-level electricity-side NPV in the WN case.
 
-        Mieter zahlt p_ms = alpha * p_retail auf den GESAMTEN Haushaltsbedarf
-        (brutto, vor PV-Netting) — konsistent mit der Operator-Erlös-Seite, wo
-        E_btm_KA · price_el_revenue separat als Mieterstromerlös für BTM-PV
-        eingebucht wird.
-
-        Quelle: data.district[n]["user"].elec + EV — ungeclusterte 8760h-Reihe,
-        kein Pumpenstrom (Pumpe ist Betreiberbedarf).
+        Customer-installation-specific assumption:
+        - tenants buy their full electricity demand from the operator at the
+          uniform internal tariff p_ms = alpha * p_retail_cons
+        - no separate tenant-side allocation by source is performed
+        - end-customer electricity NPV therefore consists only of the payment
+          for total building electricity demand at p_ms
         """
         support_years = list(self.interpolation_points)
         alpha = float(self.ecoData.get("alpha", 0.9))
         dt = float(data.time["timeResolution"])
+
+        clusters = list(getattr(data, "clusters", range(data.time["clusterNumber"])))
+        cluster_weights = data.clusterWeights
 
         npv_by_building = {}
 
@@ -495,15 +340,20 @@ class WaermecontractingKundenanlageBM(BusinessModelBase):
             if heater != "HEAT_GRID":
                 continue
 
-            b = data.district[n]
-            load = np.array(b["user"].elec, dtype=float)
-            load = load + np.array(b["user"].EV_carcharging_ondemand, dtype=float)
-            load_kwh = load.sum() * dt / 3600.0 / 1000.0
-
             cost_by_year = {}
             for year in support_years:
-                p_ms = alpha * self._kundenanlage_price_gross_from_retail_gross(year)
-                cost_by_year[year] = load_kwh * p_ms
+                p_ms = alpha * float(self.all_sim_ecoData[year]["price_supply_el"])
+                cost = 0.0
+
+                for c in range(len(clusters)):
+                    cw = float(cluster_weights[clusters[c]])
+                    res = data.resultsOptimization[year][c][n]
+
+                    demand = np.array(res.get("Elec_dem", {}).get("P_el", [0]), dtype=float)
+                    demand_kwh = demand.sum() * dt / 3600.0 / 1000.0
+                    cost += cw * demand_kwh * p_ms
+
+                cost_by_year[year] = cost
 
             bw_cost = self._bw_by_support_year(cost_by_year)
             npv_by_building[n] = -bw_cost
@@ -615,91 +465,55 @@ class WaermecontractingKundenanlageBM(BusinessModelBase):
     # ==================================================================
 
     def _cable_length(self, data) -> float:
-        if getattr(data, "el_grid_data", None) is None:
-            data.el_grid_data = {}
-
         length = data.el_grid_data.get("length", None)
-        if length is not None:
-            return float(length)
-
-        get_json_path = getattr(data, "get_scenario_json_path", None)
-        if callable(get_json_path):
-            import json
-
-            json_path = Path(get_json_path())
-            if json_path.exists():
-                with open(json_path, encoding="utf-8") as json_file:
-                    json_data = json.load(json_file)
-
-                lines_info = json_data.get("values", {}).get("lines_info", []) or []
-                street_length_m = sum(
-                    float(line.get("length", 0.0))
-                    for line in lines_info
-                )
-
-                if street_length_m > 0.0:
-                    data.el_grid_data["length"] = street_length_m
-                    return street_length_m
-
-        raise ValueError(
-            "KundenanlageBM: keine Stromnetzlaenge gefunden. "
-            "Setze data.el_grid_data['length'] oder values.lines_info[*].length."
-        )
+        if length is None:
+            print("WARNING KundenanlageBM: 'length' nicht in data.el_grid_data gesetzt → E-Netz-Kosten = 0")
+            return 0.0
+        return float(length)
 
     def _elgrid_annual_cost(self, data, include_trafo: bool = True) -> float:
+        """
+        Annualized internal electricity-grid cost [EUR/a].
+
+        Cable cost: per-meter investment + O&M from el_grid_data.
+        Transformer investment: piecewise-linear Stute & Klobasa (2024).
+        Transformer O&M: KWW Technikkatalog fixed cost per unit [EUR/(Stk.*a)],
+        using ``el_grid_data['om_trafo']``. Default in config.py is the typical
+        value 1,600 EUR/(Stk.*a); low/high source values are 800/2,400.
+
+        Parameters
+        ----------
+        include_trafo : bool
+            False, wenn der MILP die Trafo-Investition bereits enthält
+            (Schutz gegen Doppelzählung).
+        """
         from districtgenerator.functions.trafo_sizing import trafo_cost_eur
-
-        cost_table = self.ecoData.get("trafo_inv_eur_by_kva")
-
-        if getattr(data, "el_grid_data", None) is None:
-            data.el_grid_data = {}
 
         cfg = data.el_grid_data
 
         cable_length_m = self._cable_length(data)
-        ann_factor_cable = self._annuity_factor(float(cfg.get("life_cable", 50.0)))
-
+        ann_factor_cable = self._annuity_factor(cfg["life_cable"])
         ann_cable = (
-                float(cfg.get("inv_cable_per_m", 130.0))
-                * cable_length_m
-                * ann_factor_cable
-                + float(cfg.get("om_cable_per_m", 0.26))
-                * cable_length_m
+            cfg["inv_cable_per_m"] * cable_length_m * ann_factor_cable
+            + cfg["om_cable_per_m"] * cable_length_m
         )
 
         if not include_trafo:
             return ann_cable
 
         count_by_step_raw = data.site.get("trafo_count_by_step", {}) or {}
-        count_by_step = {
-            float(k): int(v)
-            for k, v in count_by_step_raw.items()
-            if int(v) > 0
-        }
+        count_by_step = {float(k): int(v) for k, v in count_by_step_raw.items() if int(v) > 0}
 
         if count_by_step:
-            inv_trafo = sum(
-                trafo_cost_eur(kva, cost_table=cost_table) * n
-                for kva, n in count_by_step.items()
-            )
+            inv_trafo = sum(trafo_cost_eur(kva) * n for kva, n in count_by_step.items())
             n_transformers = sum(count_by_step.values())
-
         else:
-            chosen_kVA = float(
-                data.site.get("trafo_chosen_kVA")
-                or data.site.get("kundenanlage_trafo_kVA")
-                or data.site.get("trafo_min_kVA")
-                or 0.0
-            )
+            # Legacy fallback: one transformer with the chosen total rating.
+            chosen_kVA = float(data.site.get("trafo_chosen_kVA", data.site.get("kundenanlage_trafo_kVA", 630.0)))
+            inv_trafo = trafo_cost_eur(chosen_kVA)
+            n_transformers = 1 if chosen_kVA > 0 else 0
 
-            inv_trafo = (
-                trafo_cost_eur(chosen_kVA, cost_table=cost_table)
-                if chosen_kVA > 0.0
-                else 0.0
-            )
-            n_transformers = 1 if chosen_kVA > 0.0 else 0
-
-        ann_factor_trafo = self._annuity_factor(float(cfg.get("life_trafo", 45.0)))
+        ann_factor_trafo = self._annuity_factor(cfg["life_trafo"])
         om_trafo = float(cfg.get("om_trafo", 1600.0)) * n_transformers
         ann_trafo = inv_trafo * ann_factor_trafo + om_trafo
 

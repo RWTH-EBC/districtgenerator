@@ -16,6 +16,10 @@ Workflow:
   2. load_and_analyze_results() - Lädt gespeicherte pkl Dateien für spätere Analyse
 """
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import gc
 from districtgenerator.classes import *
 import warnings
 import pickle
@@ -38,7 +42,7 @@ except ImportError:
             return None
 
 
-RESULTS_SUBFOLDER = "bm_results"
+RESULTS_SUBFOLDER = "bm_results_basis_alpha_0.8"
 RESULT_ROOT = r"C:\Users\rha-csa\PycharmProjects\districtgenerator\districtgenerator\results"
 SCENARIOS_ROOT = r"C:\Users\rha-csa\PycharmProjects\districtgenerator\districtgenerator\data\scenarios"
 
@@ -461,6 +465,19 @@ def run_all_bms_with_reference_values(
         # Niemand ausgeschlossen -> A ist identisch zur Basisoptimierung.
         if not excluded_original_ids:
             print("  -> Scenario A reuses the basis optimization: no uneconomic buildings found.")
+            data_a_basis.ecoData["iteration_history"] = [{
+                "iteration": 0,
+                "excluded_before": [],
+                "newly_excluded": [],
+                "additional_exclusions": [],
+                "p_min": getattr(data_a_basis.KPIs, "p_min", None),
+                "p_max": getattr(data_a_basis.KPIs, "p_max", None),
+                "building_details": copy.deepcopy(scenario_a_basis.get("building_details", {})),
+                "tac": data_a_basis.centralDevices.get("capacities", {}).get("tac"),
+                "termination_reason": "no_exclusions_needed",
+            }]
+            data_a_basis.ecoData["final_excluded_original_ids"] = []
+            data_a_basis.ecoData["scenario_a_not_feasible"] = False
             filepath_a = _save_result(data_a_basis, bm_name, "A")
             results[f"{reference_key}_{bm_name}_A"] = data_a_basis
             saved_files[f"{reference_key}_{bm_name}_A"] = filepath_a
@@ -469,6 +486,19 @@ def run_all_bms_with_reference_values(
         # Alle betrachteten Gebäude ausgeschlossen -> A nicht tragfähig; keine neue Optimierung nötig.
         if considered_original_ids and len(excluded_original_ids) == len(considered_original_ids):
             print("  -> Scenario A not feasible: all considered buildings excluded.")
+            data_a_basis.ecoData["iteration_history"] = [{
+                "iteration": 0,
+                "excluded_before": [],
+                "newly_excluded": sorted(excluded_original_ids),
+                "additional_exclusions": sorted(excluded_original_ids),
+                "p_min": getattr(data_a_basis.KPIs, "p_min", None),
+                "p_max": getattr(data_a_basis.KPIs, "p_max", None),
+                "building_details": copy.deepcopy(scenario_a_basis.get("building_details", {})),
+                "tac": data_a_basis.centralDevices.get("capacities", {}).get("tac"),
+                "termination_reason": "all_buildings_excluded_in_basis",
+            }]
+            data_a_basis.ecoData["final_excluded_original_ids"] = sorted(excluded_original_ids)
+            data_a_basis.ecoData["scenario_a_not_feasible"] = True
             filepath_a = _save_result(data_a_basis, bm_name, "A")
             results[f"{reference_key}_{bm_name}_A"] = data_a_basis
             saved_files[f"{reference_key}_{bm_name}_A"] = filepath_a
@@ -478,10 +508,20 @@ def run_all_bms_with_reference_values(
             f"--- Running {bm_name} / Scenario A "
             f"(start with {len(excluded_original_ids)} exclusions from basis run) ---"
         )
+        iteration_history_initial = [{
+            "iteration": 0,
+            "excluded_before": [],
+            "newly_excluded": sorted(excluded_original_ids),
+            "additional_exclusions": sorted(excluded_original_ids),
+            "p_min": getattr(data_a_basis.KPIs, "p_min", None),
+            "p_max": getattr(data_a_basis.KPIs, "p_max", None),
+            "building_details": copy.deepcopy(scenario_a_basis.get("building_details", {})),
+            "tac": data_a_basis.centralDevices.get("capacities", {}).get("tac"),
+        }]
 
         max_iter = 10
         data_a = None
-        iteration_history = []
+        iteration_history = list(iteration_history_initial)
         scenario_a_not_feasible = False
 
         for iteration in range(1, max_iter + 1):
@@ -521,6 +561,8 @@ def run_all_bms_with_reference_values(
                     for building in data_a.district
                     if building["buildingFeatures"].get("heater", "").upper() == "HEAT_GRID"
                 ),
+                "building_details": copy.deepcopy(scenario_a_result.get("building_details", {})),
+                "tac": data_a.centralDevices.get("capacities", {}).get("tac"),
             })
 
             if not additional_exclusions:
@@ -839,18 +881,68 @@ def resolve_scenario_dir(base_dir, scenario_variant):
     district_letter = scenario_variant[0].upper()
     return os.path.join(base_dir, f"District_{district_letter}", scenario_variant)
 # ══════════════════════════════════════════════════════════════════════
-# MAIN
+# MAIN — mehrere Quartiere nacheinander rechnen
 # ══════════════════════════════════════════════════════════════════════
+
+def run_one_scenario_variant(
+    scenario_variant,
+    bm_configs,
+    calc_user_profiles=True,
+    save_user_profiles=True,
+    save_results=True,
+    include_time_series=True,
+):
+    """
+    Führt den kompletten Reference- + BM-Workflow für genau ein Quartier aus.
+    Die Ergebnisdateien werden wie bisher unter bm_results/<Quartier>/ gespeichert.
+    """
+    scenario_dir = resolve_scenario_dir(SCENARIOS_ROOT, scenario_variant)
+
+    reference_scenario_name = f"{scenario_variant}_ref"
+    bm_scenario_name = f"{scenario_variant}_bm"
+
+    reference_configs = {
+        "ref_boi": {
+            "env": ".env.CONFIG.REF_BOI",
+            "reference_case": "boi",
+            "scenario_name": f"{scenario_variant}_ref_boi",
+        },
+        "ref_wp": {
+            "env": ".env.CONFIG.REF_WP",
+            "reference_case": "hp_pv",
+            "scenario_name": f"{scenario_variant}_ref_wp",
+        },
+    }
+
+    print("\n" + "#" * 80)
+    print(f"# START QUARTIER {scenario_variant}")
+    print("#" * 80 + "\n")
+
+    return run_reference_and_all_bms(
+        reference_scenario_name=reference_scenario_name,
+        bm_scenario_name=bm_scenario_name,
+        bm_configs=bm_configs,
+        reference_configs=reference_configs,
+        topology_option="road",
+        calcUserProfiles=calc_user_profiles,
+        saveUserProfiles=save_user_profiles,
+        save_results=save_results,
+        include_time_series=include_time_series,
+        scenario_variant=scenario_variant,
+        scenario_dir=scenario_dir,
+    )
+
 
 if __name__ == '__main__':
     # ═══════════════════════════════════════════════════════════════════
     # KONFIGURATION
     # ═══════════════════════════════════════════════════════════════════
-    SCENARIO_VARIANT = "A01"
-    SCENARIO_DIR = resolve_scenario_dir(SCENARIOS_ROOT, SCENARIO_VARIANT)
 
-    REFERENCE_SCENARIO_NAME = f"{SCENARIO_VARIANT}_ref"
-    BM_SCENARIO_NAME = f"{SCENARIO_VARIANT}_bm"
+    # Hier mehrere Quartiere eintragen. Sie werden nacheinander gerechnet.
+    SCENARIO_VARIANTS = [
+        #"A01", "B04", "C02","D01","E01", "F01",
+        "G01", "H01", "I03",
+    ]
 
     BM_CONFIGS = {
         "waermecontracting": ".env.CONFIG.WAERMECONTRACTING",
@@ -859,40 +951,64 @@ if __name__ == '__main__':
         "waermegenossenschaft": ".env.CONFIG.WAERMEGENOSSENSCHAFT",
     }
 
-    # Demand-Profile sind heater- und business-model-unabhängig.
-    # -> ALLE Reference-Varianten teilen denselben scenario_name (REFERENCE_SCENARIO_NAME),
-    # damit auch der via get_base_demand_name abgeleitete Demand-Filename identisch ist.
-    # Unterschied zwischen ref_boi/ref_wp liegt allein im env_path und reference_case.
-    REFERENCE_CONFIGS = {
-        "ref_boi": {
-            "env": ".env.CONFIG.REF_BOI",
-            "reference_case": "boi",
-            "scenario_name": f"{SCENARIO_VARIANT}_ref_boi",
-        },
-        "ref_wp": {
-            "env": ".env.CONFIG.REF_WP",
-            "reference_case": "hp_pv",
-            "scenario_name": f"{SCENARIO_VARIANT}_ref_wp",
-        },
-    }
+    # Falls du die Nachfrageprofile neu erzeugen willst:
+    # - True nur beim ersten Quartier sinnvoll, wenn Profile fehlen oder bewusst neu erzeugt werden sollen.
+    # - Bei vorhandenen Profilen auf False lassen.
+    CALC_USER_PROFILES = False
+    SAVE_USER_PROFILES = False
 
-    all_results, all_saved_files, ref_values = run_reference_and_all_bms(
-        reference_scenario_name=REFERENCE_SCENARIO_NAME,
-        bm_scenario_name=BM_SCENARIO_NAME,
-        bm_configs=BM_CONFIGS,
-        reference_configs=REFERENCE_CONFIGS,
-        topology_option="road",
-        calcUserProfiles=False,
-        saveUserProfiles=False,
-        save_results=True,
-        include_time_series=True,
-        scenario_variant=SCENARIO_VARIANT,
-        scenario_dir=SCENARIO_DIR,
-    )
+    SAVE_RESULTS = True
+    INCLUDE_TIME_SERIES = True
+
+    all_quarter_results = {}
+    all_quarter_saved_files = {}
+    all_quarter_reference_values = {}
+    failed_quarters = {}
+
+    for scenario_variant in SCENARIO_VARIANTS:
+        try:
+            results, saved_files, ref_values = run_one_scenario_variant(
+                scenario_variant=scenario_variant,
+                bm_configs=BM_CONFIGS,
+                calc_user_profiles=CALC_USER_PROFILES,
+                save_user_profiles=SAVE_USER_PROFILES,
+                save_results=SAVE_RESULTS,
+                include_time_series=INCLUDE_TIME_SERIES,
+            )
+
+            all_quarter_results[scenario_variant] = results
+            all_quarter_saved_files[scenario_variant] = saved_files
+            all_quarter_reference_values[scenario_variant] = ref_values
+
+
+        except Exception as exc:
+            failed_quarters[scenario_variant] = repr(exc)
+            print("\n" + "!" * 80)
+            print(f"! FEHLER IN QUARTIER {scenario_variant}: {exc!r}")
+            print("! Weiter mit dem nächsten Quartier.")
+            print("!" * 80 + "\n")
+            continue
+
+        finally:
+            plt.close("all")
+            gc.collect()
+
+    print("\n" + "#" * 80)
+    print("# MEHRQUARTIER-LAUF ABGESCHLOSSEN")
+    print("#" * 80)
+    print(f"Erfolgreich: {len(all_quarter_results)} / {len(SCENARIO_VARIANTS)}")
+
+    if failed_quarters:
+        print("\nFehlgeschlagene Quartiere:")
+        for scenario_variant, message in failed_quarters.items():
+            print(f"  - {scenario_variant}: {message}")
+    else:
+        print("Keine fehlgeschlagenen Quartiere.")
+
     # ═══════════════════════════════════════════════════════════════════
     # OPTION 2: Nur gespeicherte Ergebnisse laden (schnell!)
     # ═══════════════════════════════════════════════════════════════════
 
-    # results_dir = f"results/{RESULTS_SUBFOLDER}"
-    # all_results = load_and_analyze_results(results_dir, SCENARIO_NAME)
+    # results_dir = os.path.join(RESULT_ROOT, RESULTS_SUBFOLDER, "G01")
+    # all_results = load_and_analyze_results(results_dir, "G01_bm")
     # print_loaded_results_summary(all_results)

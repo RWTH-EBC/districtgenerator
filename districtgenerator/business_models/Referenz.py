@@ -287,7 +287,9 @@ class ReferenzBM(BusinessModelBase):
         cost_by_year = {}
 
         for year in support_years:
-            p_gas = self.all_sim_ecoData[year]["price_supply_gas"]
+            p_gas = self.all_sim_ecoData[year].get(
+                "price_supply_gas_effective",
+                self.all_sim_ecoData[year]["price_supply_gas"],)
             cost = 0.0
 
             for c in range(len(clusters)):

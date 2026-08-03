@@ -63,10 +63,17 @@ class WaermecontractingBM(BusinessModelBase):
         heat_by_building = self._heat_delivered_by_building(data)
         bw_heat_total = self._bw_constant_annual(heat_total)
 
-        bw_tac_correction_grid = self._bw_grid_tac_correction_residual(
-            data=data, support_years=support_years)
-        bw_tac_corrected = bw_tac_total - bw_tac_correction_grid
-
+        # B2 TAC reconciliation:
+        # remove design supply_costs_el (Endkunde + EH zu p_eh_static)
+        # add operational EH electricity cost (dynamic profile if enabled)
+        bw_supply_el_design = self._bw_supply_costs_el_design_static(result)
+        bw_eh_el_operational = self._bw_grid_cost_operational(
+            data=data, support_years=support_years, scope="eh")
+        bw_tac_corrected = (
+                bw_tac_total
+                - bw_supply_el_design
+                + bw_eh_el_operational
+        )
         p_min = bw_tac_corrected / bw_heat_total if bw_heat_total > 0 else None
 
         npv_ref_by_building = self.ecoData.get("npv_ref_by_building", {})
@@ -106,7 +113,8 @@ class WaermecontractingBM(BusinessModelBase):
             "bw_tac_total": bw_tac_total,
             "heat_total_kWh": heat_total,
             "bw_heat_total": bw_heat_total,
-            "bw_tac_correction_grid": bw_tac_correction_grid,
+            "bw_supply_el_design": bw_supply_el_design,
+            "bw_eh_el_operational": bw_eh_el_operational,
             "bw_tac_corrected": bw_tac_corrected,
             "p_min": p_min,
             "p_max": p_max,
@@ -159,7 +167,7 @@ class WaermecontractingBM(BusinessModelBase):
             if "PV" in dev_costs:
                 pv_cost_ann = float(dev_costs["PV"].get("subsidized_annual_cost", 0.0))
 
-            bw_pv_cost = self._bw_constant_annual_vdi(pv_cost_ann)
+            bw_pv_cost = self._bw_constant_annual(pv_cost_ann)
             bw_grid_cost = bw_grid_cost_by_building.get(n, 0.0)
             bw_feed_in_revenue = bw_feed_in_by_building.get(n, 0.0)
 

@@ -219,7 +219,7 @@ def orient_network(G, plant):
                 queue.append(neighbor)
     return directed_dict
 
-def run_pipeline_road(district_type, building_width, house_connection, buildings_info, lines_info, transformer_info):
+def run_pipeline_road(district_type, building_width, house_connection, buildings_info, lines_info, transformer_info, output_path=None):
     """
     Consider road constraints, ensuring all main pipelines are laid beneath roads.
     using Steiner Tree algorithm
@@ -455,8 +455,12 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
 
         # Save figure
         # define the save path for the output file
-        current_dir = os.path.dirname(__file__)
-        save_dir = os.path.join(current_dir, '..', 'data', 'scenarios')
+        if output_path is not None:
+            save_dir = output_path
+        else:
+            current_dir = os.path.dirname(__file__)
+            save_dir = os.path.join(current_dir, '..', 'data', 'scenarios')
+
         # create the folder if it doesn't exist
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
@@ -675,8 +679,12 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
 
         # Save figure
         # define the save path for the output file
-        current_dir = os.path.dirname(__file__)
-        save_dir = os.path.join(current_dir, '..', 'data', 'scenarios')
+        if output_path is not None:
+            save_dir = output_path
+        else:
+            current_dir = os.path.dirname(__file__)
+            save_dir = os.path.join(current_dir, '..', 'data', 'scenarios')
+
         # create the folder if it doesn't exist
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)

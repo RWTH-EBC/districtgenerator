@@ -82,6 +82,20 @@ def run_opti_central(data, year, cluster, sim_ecoData):
         sim_ecoData_for_model = dict(sim_ecoData)
         sim_ecoData_for_model["price_el_revenue"] = 0.0
 
+        # Apply effective gas prices (biomethane blend) if enabled.
+        if bool(data.ecoData.get("enable_biomethane_blend", False)):
+            sim_ecoData_for_model["price_supply_gas"] = sim_ecoData_for_model.get(
+                "price_supply_gas_effective",
+                sim_ecoData_for_model["price_supply_gas"],
+            )
+            sim_ecoData_for_model["price_supply_gas_eh"] = sim_ecoData_for_model.get(
+                "price_supply_gas_eh_effective",
+                sim_ecoData_for_model["price_supply_gas_eh"],
+            )
+            sim_ecoData_for_model["co2_gas"] = sim_ecoData_for_model.get(
+                "co2_gas_effective",
+                sim_ecoData_for_model["co2_gas"],
+            )
     # optional debug output
     print(
         f"[run_opti_central] year={year}, cluster={cluster}, "
@@ -1178,6 +1192,13 @@ def build_model(model, data, year, cluster, sim_ecoData):
                 == model.eh_power_HP[t] + model.eh_power_EB[t] + model.eh_power_CC[t]
                 + model.eh_power_ELYZ[t] + model.eh_ch_BAT[t] + network_pump_power[t] + model.eh_power_to_grid[t])
 
+    def eh_no_grid_arbitrage_rule(model, t):
+        # Export limited to own EH generation -> no grid-to-grid arbitrage
+        return model.eh_power_to_grid[t] <= (
+                model.eh_power_PV[t] + model.eh_power_WT[t] + model.eh_power_WAT[t]
+                + model.eh_power_CHP[t] + model.eh_power_BCHP[t] + model.eh_power_WCHP[t]
+                + model.eh_power_FC[t])
+
     # Cooling balance
     def eh_cooling_balance_rule(model, t):
         return (model.eh_cool_AC[t] + model.eh_cool_CC[t] + model.eh_dch_CTES[t]  # Cooling supply
@@ -1212,7 +1233,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.eh_hydrogen_balance = pyo.Constraint(model.t, rule=eh_hydrogen_balance_rule, doc="EnergyHub_hydrogen_balance")
     model.eh_biomass_balance = pyo.Constraint(model.t, rule=eh_biomass_balance_rule, doc="EnergyHub_biomass_balance")
     model.eh_waste_balance = pyo.Constraint(model.t, rule=eh_waste_balance_rule, doc="EnergyHub_waste_balance")
-
+    model.eh_no_grid_arbitrage = pyo.Constraint(model.t, rule=eh_no_grid_arbitrage_rule, doc="No grid-to-grid arbitrage in EH")
     ################################################################################
     # NEIGHBORHOOD ENERGY BALANCES
     ################################################################################
@@ -1322,6 +1343,48 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.to_grid_total_el_eh_constraint = pyo.Constraint(rule=to_grid_total_el_eh_rule, doc="to_grid_total_el_eh")
     model.from_grid_total_el_eh_constraint = pyo.Constraint(rule=from_grid_total_el_eh_rule, doc="from_grid_total_el_eh")
     model.total_district_heat_used_constraint = pyo.Constraint(rule=total_district_heat_used_rule, doc="total_district_heat_used")
+    # --- Dynamic electricity cost aggregates ---
+    model.el_cost_buildings = pyo.Var(within=pyo.Reals, doc="Annual el. cost buildings (€)")
+    model.el_cost_eh = pyo.Var(within=pyo.Reals, doc="Annual el. cost EH (€)")
+
+    use_dynamic_el = (
+            (bool(data.ecoData.get("enable_dynamic_el_price", False))
+             or bool(data.ecoData.get("enable_dynamic_grid_fee", False)))
+            and "price_supply_el_profile" in sim_ecoData
+            and isinstance(sim_ecoData["price_supply_el_profile"], dict)
+            and cluster in sim_ecoData["price_supply_el_profile"]
+    )
+
+    if use_dynamic_el:
+        price_el_t = sim_ecoData["price_supply_el_profile"][cluster]
+        price_el_eh_t = sim_ecoData["price_supply_el_eh_profile"][cluster]
+
+        def el_cost_buildings_rule(model):
+            return model.el_cost_buildings == (dt / 1000.0) * sum(
+                sum(model.res_dom_power[n, t] for n in model.n) * float(price_el_t[t])
+                for t in model.t
+            )
+
+        def el_cost_eh_rule(model):
+            return model.el_cost_eh == (dt / 1000.0) * sum(
+                model.eh_power_from_grid[t] * float(price_el_eh_t[t])
+                for t in model.t
+            )
+    else:
+        def el_cost_buildings_rule(model):
+            return model.el_cost_buildings == (
+                    model.from_grid_total_el_buildings * ecoData["price_supply_el"]
+            )
+
+        def el_cost_eh_rule(model):
+            return model.el_cost_eh == (
+                    model.from_grid_total_el_eh * ecoData["price_supply_el_eh"]
+            )
+
+    model.el_cost_buildings_constraint = pyo.Constraint(rule=el_cost_buildings_rule,
+                                                        doc="Annual electricity cost buildings")
+    model.el_cost_eh_constraint = pyo.Constraint(rule=el_cost_eh_rule,
+                                                 doc="Annual electricity cost EH")
 
     ################################################################################
     # Daily Peak Calculation
@@ -1387,9 +1450,9 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     # Operational costs
     def operational_costs_rule(model):
-        return (model.operational_costs == model.from_grid_total_el_buildings * ecoData["price_supply_el"]
+        return (model.operational_costs == model.el_cost_buildings
                 - model.to_grid_total_el_buildings * ecoData["revenue_feed_in_el"]
-                + model.from_grid_total_el_eh * ecoData["price_supply_el_eh"]
+                + model.el_cost_eh
                 - model.to_grid_total_el_eh * ecoData["revenue_feed_in_el_eh"]
                 + model.from_grid_total_gas * ecoData["price_supply_gas"]
                 + model.from_grid_total_hydrogen * ecoData["price_hydrogen"]
@@ -1697,11 +1760,18 @@ def solve_model_and_extract_results(model, data, year, cluster):
                                    device_set=EH_ECS_STORAGE, time_steps=time_steps)
 
     # Electricity delivered from the energy hub to the internal neighborhood/building grid
-    # This is local EH supply to the quarter, not public-grid feed-in.
     results_dict["eh_to_buildings"] = []
     for t in time_steps:
         results_dict["eh_to_buildings"].append(
             round(pyo.value(model.eh_power_to_grid[t]), 0)
+        )
+
+    # EH electricity procurement from the public grid (time series),
+    # needed for dynamic-price TAC reconciliation in BM postprocessing
+    results_dict["eh_from_grid"] = []
+    for t in time_steps:
+        results_dict["eh_from_grid"].append(
+            round(pyo.value(model.eh_power_from_grid[t]), 0)
         )
 
     ################################################################################

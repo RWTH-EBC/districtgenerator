@@ -237,6 +237,24 @@ class EcoConfig(BaseSettings):
     revenue_feed_in_el: str | list = [0.0794]  # Feed-in electricity price in €/kWh
     price_supply_el_eh: str | list = [0.1590, 0.1554, 0.1518, 0.1482, 0.1446, 0.1410, 0.1394, 0.1378, 0.1362, 0.1346, 0.1330, 0.1302, 0.1274, 0.1246, 0.1218, 0.1190, 0.1190, 0.1190, 0.1190, 0.1190]  # Electricity price for the energy hub in €/kWh
     revenue_feed_in_el_eh: str | list = [0.0794] # Feed-in electricity price for the energy hub in €/kWh
+    vat_rate: float = 0.19
+    vat_rate_eh: float = 0.0
+    price_supply_el_energy: str | list = [0.1269, 0.1254, 0.1205, 0.1174, 0.1106, 0.1026, 0.1010, 0.1003, 0.0977, 0.0966, 0.0958, 0.0933, 0.0909, 0.0884, 0.0860, 0.0836, 0.0847, 0.0858, 0.0869, 0.0880]
+    price_supply_el_grid: str | list = [0.1100, 0.1200, 0.1250, 0.1350, 0.1400, 0.1450, 0.1450, 0.1450, 0.1450, 0.1450, 0.1400, 0.1400, 0.1400, 0.1400, 0.1400, 0.1400, 0.1400, 0.1400, 0.1400, 0.1400]
+    price_supply_el_taxes: str | list = [0.0382, 0.0376, 0.0371, 0.0367, 0.0363, 0.0360, 0.0357, 0.0354, 0.0352, 0.0349, 0.0346, 0.0343, 0.0341, 0.0338, 0.0335, 0.0333, 0.0330, 0.0328, 0.0325, 0.0322]
+    price_supply_el_levies: str | list = [0.0156, 0.0150, 0.0144, 0.0148, 0.0152, 0.0157, 0.0149, 0.0141, 0.0134, 0.0126, 0.0148, 0.0172, 0.0182, 0.0189, 0.0187, 0.0178, 0.0159, 0.0151, 0.0143, 0.0137]
+    price_supply_el_eh_energy: str | list = []
+    price_supply_el_eh_grid: str | list = []
+    price_supply_el_eh_taxes: str | list = []
+    price_supply_el_eh_levies: str | list = []
+    # Kundenanlage: which public retail components are deducted internally.
+    kundenanlage_deduct_grid_charges: bool = False
+    kundenanlage_deduct_taxes: bool = False
+    kundenanlage_deduct_levies: bool = False
+
+    # --- BEW Wärmenetzförderung ---
+    Waermenetzfoerderung_BEW: bool = False
+    foerderquote_BEW: float = 0.4
 
     # --- Trafo & Hausanschluss-Auslegung ---
     # Stute & Klobasa (2024) DIN 42508 Trafo-Investitionskosten [EUR]
@@ -251,16 +269,14 @@ class EcoConfig(BaseSettings):
     kerber_g_residential: float = 0.07  # Kerber-Asymptote (Wohngebäude)
     amev_site_coincidence: float = 0.8  # AMEV "EltAnlagen" 2025 (0.7–0.9)
 
-    # --- Electricity price split (shares of gross retail price) ---
-    # Strompreiszusammensetzung (Quelle: STROM-REPORT, Stand 01|2026)
-    share_el_energy: float = 0.413
-    share_el_grid: float = 0.248
-    share_el_levies: float = 0.179
-    share_el_vat: float = 0.160
-    # Hinweis: share_energy = 1 - 0.248 - 0.179 - 0.160 = 0.413 (implizit)
-
+    # The blend is only applied when enable_dynamic_el_price_blend=True.
+    enable_dynamic_el_price: bool = False
+    enable_dynamic_grid_fee: bool = False
+    # The blend is only applied when enable_biomethane_blend=True.
+    enable_biomethane_blend: bool = False
     # gas and other fuel prices in €/kWh
     price_supply_gas: str | list = [0.1230, 0.1218, 0.1206, 0.1194, 0.1182, 0.1170, 0.1198, 0.1226, 0.1254, 0.1282, 0.1310, 0.1338, 0.1366, 0.1394, 0.1422, 0.1450, 0.1450, 0.1450, 0.1450, 0.1450]    # Gas price in €/kWh
+    price_supply_biomethane: str | list = [ .1840, 0.1796, 0.1752, 0.1708, 0.1664, 0.1620, 0.1656, 0.1692, 0.1728, 0.1764, 0.1800, 0.1838, 0.1876, 0.1914, 0.1952, 0.1990, 0.2038, 0.2086, 0.2134, 0.2182] # Biomethane price in €/kWh
     price_supply_gas_eh: str | list = [0.0820, 0.0794, 0.0768, 0.0742, 0.0716, 0.0690, 0.0708, 0.0726, 0.0744, 0.0762, 0.0780, 0.0796, 0.0812, 0.0828, 0.0844, 0.0860, 0.0860, 0.0860, 0.0860, 0.0860] # Gas price for the energy hub in €/kWh
     revenue_feed_in_gas: str | list = [0.02]  # Revenue for natural gas feed-in €/kWh
     price_gasoline_liter: str | list = [1.70, 1.72, 1.74, 1.76, 1.78, 1.80, 1.80, 1.80, 1.80, 1.80, 1.80, 1.82, 1.84, 1.86, 1.88, 1.90, 1.90, 1.90, 1.90, 1.90]  # Gasoline price in €/liter
@@ -269,6 +285,17 @@ class EcoConfig(BaseSettings):
     price_biomass: str | list = [0.0580, 0.0574, 0.0568, 0.0562, 0.0556, 0.0550, 0.0564, 0.0578, 0.0592, 0.0606, 0.0620, 0.0632, 0.0644, 0.0656, 0.0668, 0.0680, 0.0680, 0.0680, 0.0680, 0.0680]         # Biomass price in €/kWh
     price_oil: str | list = [0.09, 0.094, 0.098, 0.102, 0.106, 0.11, 0.112, 0.114, 0.116, 0.118, 0.12, 0.122, 0.124, 0.126, 0.128, 0.13, 0.132, 0.134, 0.136, 0.138] # Oil price in €/kWh
     price_district_heat: str | list = [0.16385, 0.16216, 0.15793, 0.15500, 0.15352, 0.15019, 0.15003, 0.15484, 0.15675, 0.15880, 0.16072, 0.16827, 0.17442, 0.17918, 0.18256, 0.18456, 0.18665, 0.18867, 0.19055, 0.19233]  # Gross district heat price in €/kWh
+    #
+    grid_tariff_nt_hours: list = [0, 1, 2, 3, 4, 5]
+    grid_tariff_ht_hours: list = [15, 16, 17, 18, 19]
+    grid_tariff_factor_nt: float = 0.10
+    grid_tariff_factor_ht: float = 1.49
+    grid_tariff_factor_st: float = 1.00
+    smard_reference_csv: str = ""
+
+    # Relative model years. With 2025 as year 0:
+    # 2029 -> 4, 2030 -> 5, 2035 -> 10, 2040 -> 15.
+    biomethane_share_gas: str | list = [0.00, 0.00, 0.00, 0.00, 0.10, 0.15, 0.15, 0.15, 0.15, 0.15, 0.30, 0.30, 0.30, 0.30, 0.30, 0.60, 0.60, 0.60, 0.60, 0.60]
 
     # CO2 emission factors in kg/kWh
     co2_el_grid: str | list = [0.328]          # CO2 emissions for electricity import (grid mix) in kg/kWh
@@ -280,7 +307,11 @@ class EcoConfig(BaseSettings):
     co2_district_heat: str | list = [0.200]    # CO2 emissions for district heat in kg/kWh
 
     # Co2 tax in €/t_CO2
-    co2_tax: str | list = [0]              # CO2 tax. Tax on CO2 emissions due to burning natural gas, biomass or waste in €/t_CO2 if relevant for consumer
+    co2_tax: str | list = [0]
+    # Optional for later CO2-cost accounting.
+    # If true, CO2 costs are applied only to the fossil gas share.
+    biomethane_exempt_from_co2_cost: bool = True
+    # CO2 tax. Tax on CO2 emissions due to burning natural gas, biomass or waste in €/t_CO2 if relevant for consumer
 
     # --- BM selection ---
     business_model: str = "reference"  # reference | contracting | cooperative | mieterstrom | kundenanlage
@@ -293,8 +324,11 @@ class EcoConfig(BaseSettings):
     # Bewertungsmethode für Cooperative: 'lcoh' (Option 1) oder 'npv' (Option 3)
     cooperative_evaluation_method: str = "lcoh"
 
-    @field_validator('interpolation_points','price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh',
-                     'revenue_feed_in_el_eh', 'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas',
+    @field_validator('interpolation_points', 'price_supply_el', 'price_supply_el_energy',
+                     'price_supply_el_grid', 'price_supply_el_taxes', 'price_supply_el_levies',
+                     'price_supply_el_eh', 'price_supply_el_eh_energy', 'price_supply_el_eh_grid',
+                     'price_supply_el_eh_taxes', 'price_supply_el_eh_levies',
+                     'revenue_feed_in_el', 'revenue_feed_in_el_eh', 'price_supply_gas','price_supply_biomethane','biomethane_share_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas',
                      'price_gasoline_liter', 'price_hydrogen', 'price_waste', 
                      'price_biomass', 'price_oil', 'price_district_heat',
                      'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen',
@@ -322,9 +356,10 @@ class EcoConfig(BaseSettings):
         """
         # List of all time dependent parameters
         params_to_expand = [
-            'price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh', 'revenue_feed_in_el_eh',
-            'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas', 'price_gasoline_liter', 'price_hydrogen',
-            'price_waste', 'price_biomass', 'price_oil', 'price_district_heat',
+            'price_supply_el', 'price_supply_el_energy', 'price_supply_el_grid','price_supply_el_taxes', 'price_supply_el_levies',
+            'price_supply_el_eh', 'price_supply_el_eh_energy', 'price_supply_el_eh_grid','price_supply_el_eh_taxes', 'price_supply_el_eh_levies',
+            'revenue_feed_in_el', 'revenue_feed_in_el_eh','price_supply_gas', 'price_supply_biomethane', 'biomethane_share_gas',
+            'price_supply_gas_eh', 'revenue_feed_in_gas', 'price_gasoline_liter', 'price_hydrogen','price_waste', 'price_biomass', 'price_oil', 'price_district_heat',
             'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax'
         ]
         
