@@ -1430,7 +1430,8 @@ def parse_position(val):
     # For other data types, return the value as is.
     return val
 
-def _save_profiles_worker(name, elec, dhw, dhw_minutely, occ, gains, EV_carcharging_ondemand,
+# CHANGE AIX HEAT, rm dhw_minutely
+def _save_profiles_worker(name, elec, dhw, occ, gains, EV_carcharging_ondemand,
                           EV_carprofile, ev_capacity, ice_carprofile, nb_units,
                           nb_occ, heatload, bivalent, heatlimit, thick_req, path,
                           time_cfg, individual_car_profiles=None):
@@ -1618,7 +1619,8 @@ def _load_profiles_worker(name, path, time_cfg, gen_cars=True):
         EV_carcharging_ondemand = np.zeros(length)
         ice_carprofile = np.zeros(length)
 
-    return (elec, dhw, dhw_minutely, occ, gains, EV_carcharging_ondemand, EV_carprofile, ice_carprofile,
+    # CHANGE AIX HEAT, rm dhw_minutely
+    return (elec, dhw, occ, gains, EV_carcharging_ondemand, EV_carprofile, ice_carprofile,
             nb_flats, nb_main_rooms, nb_occ, ev_capacity, heatload, bivalent, heatlimit, individual_car_profiles)
 
 
@@ -1710,7 +1712,7 @@ def _run_demand_worker(context, building, calcUserProfiles, saveUserProfiles, ge
             _save_profiles_worker(name=building["unique_name"],
                                   elec=building["user"].elec,
                                   dhw=building["user"].dhw,
-                                  dhw_minutely=building["user"].dhw_minutely,
+                                  # dhw_minutely=building["user"].dhw_minutely,
                                   occ=building["user"].occ,
                                   gains=building["user"].gains,
                                   EV_carcharging_ondemand=building["user"].EV_carcharging_ondemand,
@@ -1728,7 +1730,7 @@ def _run_demand_worker(context, building, calcUserProfiles, saveUserProfiles, ge
                                   individual_car_profiles=building["user"].individual_car_profiles)
     else:
         # Läuft hier rein, wenn calcUserProfiles=False ODER skip_calculation=True (Hybrid)
-        (building["user"].elec, building["user"].dhw, building["user"].dhw_minutely,
+        (building["user"].elec, building["user"].dhw, # building["user"].dhw_minutely,
          building["user"].occ, building["user"].gains,
          building["user"].EV_carcharging_ondemand, building["user"].EV_carprofile,
          building["user"].ice_carprofile, building["user"].nb_flats, building["user"].nb_main_rooms,
@@ -1785,7 +1787,7 @@ def _run_demand_worker(context, building, calcUserProfiles, saveUserProfiles, ge
         "unique_name": building["unique_name"],
         "elec": building["user"].elec,
         "dhw": building["user"].dhw,
-        "dhw_minutely": building["user"].dhw_minutely,
+        # "dhw_minutely": building["user"].dhw_minutely,
         "cooling": building["user"].cooling,
         "heating": building["user"].heat,
         "occ": building["user"].occ,

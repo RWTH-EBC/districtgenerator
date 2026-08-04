@@ -109,7 +109,7 @@ class Users:
         self.nb_occ = []
         self.occ = None
         self.dhw = None
-        self.dhw_minutely = None
+        # self.dhw_minutely = None
         self.elec = None
         self.gains = None
         self.heat = None
