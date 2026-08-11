@@ -69,9 +69,12 @@ MODEL_DISPLAY_NAMES = {
 CANDIDATE_MODEL_DISPLAY_NAMES = {
     "candidate_linear": "Linear",
     "candidate_log": "Logarithmic",
+    "candidate_log_district": "Logarithmic + district type",
     "candidate_shifted_log": "Shifted logarithmic",
     "candidate_exp_saturation": "Exponential saturation",
+    "candidate_exp_saturation_district": "Exponential saturation + district type",
     "candidate_power_law": "Power law",
+    "candidate_power_law_district": "Power law + district type",
     "candidate_gam_lhd": "GAM / spline",
     "candidate_gam_lhd_district": "GAM / spline + district type",
     "candidate_random_forest": "Random forest",
@@ -682,6 +685,48 @@ def power_law_function(x, intercept, scale, exponent):
     return intercept + scale * np.power(x, exponent)
 
 
+def district_dummies_for_columns(district_values, columns):
+    dummies = pd.DataFrame(0.0, index=range(len(district_values)), columns=columns)
+    for column in columns:
+        district = column.replace("district_", "", 1)
+        dummies[column] = (pd.Series(district_values).reset_index(drop=True).astype(str) == district).astype(float)
+    return dummies
+
+
+def fit_candidate_curve_with_district_offsets(train, x, y, base_function, initial_base, lower_base, upper_base):
+    district_dummies = pd.get_dummies(train["district"], prefix="district", drop_first=True, dtype=float)
+    district_dummies = district_dummies.reset_index(drop=True)
+    dummy_values = district_dummies.to_numpy(dtype=float)
+    n_base_parameters = len(initial_base)
+
+    initial = list(initial_base) + [0.0] * dummy_values.shape[1]
+    lower = list(lower_base) + [-np.inf] * dummy_values.shape[1]
+    upper = list(upper_base) + [np.inf] * dummy_values.shape[1]
+
+    def model_with_offsets(x_values, *params):
+        base = base_function(np.asarray(x_values, dtype=float), *params[:n_base_parameters])
+        offsets = dummy_values @ np.asarray(params[n_base_parameters:], dtype=float)
+        return base + offsets
+
+    params, _ = curve_fit(
+        model_with_offsets,
+        x,
+        y,
+        p0=initial,
+        bounds=(lower, upper),
+        maxfev=50000,
+    )
+    district_columns = district_dummies.columns
+
+    def predict(test):
+        test_dummies = district_dummies_for_columns(test["district"], district_columns)
+        base = base_function(candidate_density(test), *params[:n_base_parameters])
+        offsets = test_dummies.to_numpy(dtype=float) @ np.asarray(params[n_base_parameters:], dtype=float)
+        return base + offsets
+
+    return model_with_offsets(x, *params), predict, len(params)
+
+
 def fit_candidate_model(train, response_column, model_name, density_bounds=None):
     x = candidate_density(train)
     y = train[response_column].astype(float).to_numpy()
@@ -706,6 +751,32 @@ def fit_candidate_model(train, response_column, model_name, density_bounds=None)
         def predict(test):
             test_x = np.log(candidate_density(test))
             return result.predict(sm.add_constant(test_x, has_constant="add"))
+
+        return result.fittedvalues, predict, int(result.df_model + 1)
+
+    if model_name == "candidate_log_district":
+        district_dummies = pd.get_dummies(train["district"], prefix="district", drop_first=True, dtype=float)
+        design = pd.concat(
+            [
+                pd.DataFrame({"const": 1.0, "ln_density": np.log(x)}),
+                district_dummies.reset_index(drop=True),
+            ],
+            axis=1,
+        )
+        result = sm.OLS(y, design.astype(float)).fit()
+        columns = design.columns
+
+        def predict(test):
+            district_columns = [column for column in columns if column.startswith("district_")]
+            test_design = pd.concat(
+                [
+                    pd.DataFrame({"const": 1.0, "ln_density": np.log(candidate_density(test))}),
+                    district_dummies_for_columns(test["district"], district_columns),
+                ],
+                axis=1,
+            )
+            test_design = test_design.reindex(columns=columns, fill_value=0.0)
+            return result.predict(test_design.astype(float))
 
         return result.fittedvalues, predict, int(result.df_model + 1)
 
@@ -743,6 +814,18 @@ def fit_candidate_model(train, response_column, model_name, density_bounds=None)
 
         return exponential_saturation_function(x, *params), predict, 3
 
+    if model_name == "candidate_exp_saturation_district":
+        initial = [float(np.mean(y)), float(y[0] - np.mean(y)), 1.0 / max(float(np.mean(x)), 1.0)]
+        return fit_candidate_curve_with_district_offsets(
+            train,
+            x,
+            y,
+            exponential_saturation_function,
+            initial,
+            [-np.inf, -np.inf, 0.0],
+            [np.inf, np.inf, np.inf],
+        )
+
     if model_name == "candidate_power_law":
         initial = [float(np.mean(y)), 1.0, -0.5]
         params, _ = curve_fit(
@@ -758,6 +841,18 @@ def fit_candidate_model(train, response_column, model_name, density_bounds=None)
             return power_law_function(candidate_density(test), *params)
 
         return power_law_function(x, *params), predict, 3
+
+    if model_name == "candidate_power_law_district":
+        initial = [float(np.mean(y)), 1.0, -0.5]
+        return fit_candidate_curve_with_district_offsets(
+            train,
+            x,
+            y,
+            power_law_function,
+            initial,
+            [-np.inf, -np.inf, -5.0],
+            [np.inf, np.inf, 5.0],
+        )
 
     if model_name in {"candidate_gam_lhd", "candidate_gam_lhd_district"}:
         train_design = dmatrix(
@@ -783,7 +878,8 @@ def fit_candidate_model(train, response_column, model_name, density_bounds=None)
                 return_type="dataframe",
             )[0]
             if model_name == "candidate_gam_lhd_district":
-                test_dummies = pd.get_dummies(test["district"], prefix="district", drop_first=True, dtype=float)
+                district_columns = [column for column in columns if column.startswith("district_")]
+                test_dummies = district_dummies_for_columns(test["district"], district_columns)
                 test_design = pd.concat([test_design.reset_index(drop=True), test_dummies.reset_index(drop=True)], axis=1)
             test_design = test_design.reindex(columns=columns, fill_value=0.0)
             return result.predict(test_design.astype(float))
@@ -1006,7 +1102,13 @@ def candidate_model_curve_figure(df, model_name, title, candidate_fit_summary):
     x_min = float(df["linear_heat_density_kwh_per_m_a"].min())
     x_max = float(df["linear_heat_density_kwh_per_m_a"].max())
     density_bounds = (x_min, x_max)
-    if model_name in {"candidate_gam_lhd_district", "candidate_random_forest"}:
+    if model_name in {
+        "candidate_log_district",
+        "candidate_exp_saturation_district",
+        "candidate_power_law_district",
+        "candidate_gam_lhd_district",
+        "candidate_random_forest",
+    }:
         for district in sorted(df["district"].unique()):
             sub = df[df["district"] == district]
             x_values = np.linspace(
@@ -1416,7 +1518,7 @@ def draw_equations_page(fig, beta_by_model, summary, page, candidate_fit_summary
             if page == 1
             else "Categorical regression equations"
             if page == 2
-            else "Model 6-11 equations"
+            else "Candidate model equations"
         ),
         fontsize=15,
         weight="bold",
@@ -1634,14 +1736,24 @@ def save_regression_model_report(
     candidate_curve_pages = [
         ("candidate_shifted_log", "06_model_6_shifted_log", "Model 6: shifted logarithmic"),
         ("candidate_exp_saturation", "07_model_7_exponential_saturation", "Model 7: exponential saturation"),
-        ("candidate_power_law", "08_model_8_power_law", "Model 8: power law"),
-        ("candidate_gam_lhd", "09_model_9_spline", "Model 9: spline / GAM-like"),
+        (
+            "candidate_exp_saturation_district",
+            "08_model_7b_exponential_saturation_plus_district",
+            "Model 7b: exponential saturation with district type",
+        ),
+        ("candidate_power_law", "09_model_8_power_law", "Model 8: power law"),
+        (
+            "candidate_power_law_district",
+            "10_model_8b_power_law_plus_district",
+            "Model 8b: power law with district type",
+        ),
+        ("candidate_gam_lhd", "11_model_9_spline", "Model 9: spline / GAM-like"),
         (
             "candidate_gam_lhd_district",
-            "10_model_10_spline_plus_district",
+            "12_model_10_spline_plus_district",
             "Model 10: spline / GAM-like with district type",
         ),
-        ("candidate_random_forest", "11_model_11_random_forest", "Model 11: random forest"),
+        ("candidate_random_forest", "13_model_11_random_forest", "Model 11: random forest"),
     ]
     for model_name, page_name, title in candidate_curve_pages:
         try:
