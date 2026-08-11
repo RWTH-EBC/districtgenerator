@@ -7,19 +7,10 @@ This script is a Pyomo-based translation of the original Gurobi model.
 """
 
 import pyomo.environ as pyo
-import gurobipy as gp
-from pyomo.util.infeasible import log_infeasible_constraints
-import sys
-from io import StringIO
 import numpy as np
 import time
-from datetime import datetime
 import os
-import matplotlib.pyplot as plt
-import textwrap
-import json
 import districtgenerator.functions.solver_config as solver_config
-from contextlib import redirect_stdout
 
 EH_HEAT_PRODUCERS = ("STC", "HP", "WaterHP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
 EH_RENEWABLE_HEAT = ("STC", "HP", "WaterHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
@@ -109,6 +100,7 @@ def build_model(model, data, devs, param, dem):
     # calculate cluster time horizon
     cluster_horizon = int(data.time["clusterLength"] / data.time["timeResolution"])
     dt = data.time["timeResolution"] / data.time["dataResolution"]
+    is_5g_network = data.heat_grid_data.get("heatgrid_generation") == "5G"
 
     model.clusters = pyo.RangeSet(0, data.time["clusterNumber"] - 1)
     model.time_steps = pyo.RangeSet(0, cluster_horizon - 1)
@@ -125,14 +117,14 @@ def build_model(model, data, devs, param, dem):
     model.observation_time = pyo.Param(initialize=param["observation_time"])
 
     # Create sets for all device types
-    all_devs_list = ["PV", "WT", "STC", "WAT", "HP", "WaterHP", "EB", "CC", "AC", "CHP", "BOI", "GHP",
+    all_devs_list = ["PV", "WT", "STC", "WAT", "HP", "WaterHP", "WaterCC", "EB", "CC", "AC", "CHP", "BOI", "GHP",
                      "BCHP", "BBOI", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "TES",
                      "CTES", "BAT", "GS"]
 
     gas_devs_list = ["CHP", "BOI", "GHP", "SAB", "from_grid", "to_grid"]
-    power_devs_list = ["PV", "WT", "WAT", "HP", "WaterHP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]
+    power_devs_list = ["PV", "WT", "WAT", "HP", "WaterHP", "WaterCC", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]
     heat_devs_list = ["STC", "HP", "WaterHP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]
-    cool_devs_list = ["CC", "AC"]
+    cool_devs_list = ["CC", "WaterCC", "AC"]
     hydrogen_devs_list = ["ELYZ", "FC", "SAB", "import"]
     biom_devs_list = ["BCHP", "BBOI", "import"]
     biomethane_devs_list = ["CHP", "BOI", "GHP", "import"]
@@ -246,6 +238,13 @@ def build_model(model, data, devs, param, dem):
             if min_area is not None: model.constraints.add(model.area[dev] >= min_area)
             if max_area is not None: model.constraints.add(model.area[dev] <= max_area)
 
+    if is_5g_network:
+        # In the 5G model, CC represents the cooling mode of the same
+        # reversible central heat pump. Its cooling capacity may therefore
+        # not exceed the installed HP capacity.
+        model.constraints.add(model.cap["CC"] <= model.cap["HP"])
+        model.constraints.add(model.cap["WaterCC"] <= model.cap["WaterHP"])
+
     # Limited operation based on installed capacity
     for y in model.support_years:
         for d in model.clusters:
@@ -253,10 +252,29 @@ def build_model(model, data, devs, param, dem):
                 # Add constraints for the device operation based on the device capacity
                 for dev in ["STC", "EB", "WaterHP", "BOI", "GHP", "BBOI", "WBOI"]:  # Heat devices
                     model.constraints.add(model.heat[dev, y, d, t] <= model.cap[dev])
-                model.constraints.add(model.heat["HP", y, d, t] <= model.cap["HP"] * devs["HP"]["available_capacity_factor"][d][t])
+                if is_5g_network:
+                    # HP and CC are two operating modes of one reversible
+                    # central HP, so they share the same installed capacity.
+                    # The air-source heating capacity is still derated by
+                    # outdoor temperature, but the cooling mode is not.
+                    model.constraints.add(
+                        model.heat["HP", y, d, t]
+                        <= model.cap["HP"] * devs["HP"]["available_capacity_factor"][d][t]
+                    )
+                    model.constraints.add(
+                        model.heat["HP", y, d, t] + model.cool["CC", y, d, t]
+                        <= model.cap["HP"]
+                    )
+                else:
+                    model.constraints.add(model.heat["HP", y, d, t] <= model.cap["HP"] * devs["HP"]["available_capacity_factor"][d][t])
+                if is_5g_network:
+                    model.constraints.add(
+                        model.heat["WaterHP", y, d, t] + model.cool["WaterCC", y, d, t]
+                        <= model.cap["WaterHP"]
+                    )
                 for dev in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC"]:  # Power devices
                     model.constraints.add(model.power[dev, y, d, t] <= model.cap[dev])
-                for dev in ["CC", "AC"]:  # Cooling devices
+                for dev in ["CC", "WaterCC", "AC"]:  # Cooling devices
                     model.constraints.add(model.cool[dev, y, d, t] <= model.cap[dev])
                 for dev in ["SAB"]:  # Gas devices
                     model.constraints.add(model.gas[dev, y, d, t] <= model.cap[dev])
@@ -297,6 +315,7 @@ def build_model(model, data, devs, param, dem):
                 # Electric heat pump correlation between heat and electric power
                 model.constraints.add(model.heat["HP", y, d, t] == model.power["HP", y, d, t] * devs["HP"]["COP"][y][d][t])
                 model.constraints.add(model.heat["WaterHP", y, d, t] == model.power["WaterHP", y, d, t] * devs["WaterHP"]["COP"][y][d][t])
+                model.constraints.add(model.cool["WaterCC", y, d, t] == model.power["WaterCC", y, d, t] * devs["WaterCC"]["COP"][y][d][t])
                 # Electric boiler correlation between heat and electric power
                 model.constraints.add(model.heat["EB", y, d, t] == model.power["EB", y, d, t] * devs["EB"]["eta_th"])
                 # Compression chiller correlation between cooling and electric power (time-dependent COP)
@@ -352,11 +371,11 @@ def build_model(model, data, devs, param, dem):
                 power_supply = sum(
                     model.power[dev, y, d, t] for dev in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "FC", "from_grid"])
                 power_demand = dem["power"][y][d][t] + sum(
-                    model.power[dev, y, d, t] for dev in ["HP", "WaterHP", "EB", "CC", "ELYZ", "to_grid"]) + model.ch["BAT", y, d, t]
+                    model.power[dev, y, d, t] for dev in ["HP", "WaterHP", "WaterCC", "EB", "CC", "ELYZ", "to_grid"]) + model.ch["BAT", y, d, t]
                 model.constraints.add(power_supply == power_demand)
 
                 # Cooling supply and demand balance
-                cool_supply = model.cool["AC", y, d, t] + model.cool["CC", y, d, t]
+                cool_supply = model.cool["AC", y, d, t] + model.cool["CC", y, d, t] + model.cool["WaterCC", y, d, t]
                 cool_demand = dem["cool"][y][d][t] + model.ch["CTES", y, d, t]
                 model.constraints.add(cool_supply == cool_demand)
 
@@ -436,7 +455,7 @@ def build_model(model, data, devs, param, dem):
                               >= param["peak_heat"])
 
         # Cooling
-        model.constraints.add(model.cap["CC"] + model.cap["AC"] >= param["peak_cool"])
+        model.constraints.add(model.cap["CC"] + model.cap["WaterCC"] + model.cap["AC"] >= param["peak_cool"])
 
         # Power
         model.constraints.add(
@@ -461,7 +480,7 @@ def build_model(model, data, devs, param, dem):
                               >= param["peak_heat"])
 
         # Cooling
-        model.constraints.add(model.cap["CC"] + model.cap["AC"] >= param["peak_cool"])
+        model.constraints.add(model.cap["CC"] + model.cap["WaterCC"] + model.cap["AC"] >= param["peak_cool"])
 
         # Power (with renewable sources)
         model.constraints.add(
@@ -636,12 +655,22 @@ def build_model(model, data, devs, param, dem):
 
     # Investment and operational costs for each device (Annualized)
     for dev in model.all_devs:
-        model.constraints.add(model.inv[dev] == devs[dev]["inv_var"] * model.cap[dev])  # investment costs
-        model.constraints.add(model.inv_base[dev] == devs[dev]["inv_base"] * model.cap[dev])  # unsubsidized investment costs
-        model.constraints.add(model.c_inv[dev] == model.inv[dev] * devs[dev]["ann_factor"])  # annualized investment costs
-        model.constraints.add(model.c_inv_base[dev] == model.inv_base[dev] * devs[dev]["ann_factor"])  # unsubsidized annualized investment costs
-        model.constraints.add(model.c_om[dev] == devs[dev]["cost_om"] * model.inv_base[dev])  # operation and maintenance costs. Use the unsubsidized costs for O&M calculation
-        model.constraints.add(model.c_total[dev] == model.c_inv[dev] + model.c_om[dev])  # total annualized costs for investment and O&M
+        if is_5g_network and dev in ("CC", "WaterCC"):
+            # In 5G, CC is only the cooling-operation variable of the
+            # reversible central HP. The investment is paid through HP.
+            model.constraints.add(model.inv[dev] == 0)
+            model.constraints.add(model.inv_base[dev] == 0)
+            model.constraints.add(model.c_inv[dev] == 0)
+            model.constraints.add(model.c_inv_base[dev] == 0)
+            model.constraints.add(model.c_om[dev] == 0)
+            model.constraints.add(model.c_total[dev] == 0)
+        else:
+            model.constraints.add(model.inv[dev] == devs[dev]["inv_var"] * model.cap[dev])  # investment costs
+            model.constraints.add(model.inv_base[dev] == devs[dev]["inv_base"] * model.cap[dev])  # unsubsidized investment costs
+            model.constraints.add(model.c_inv[dev] == model.inv[dev] * devs[dev]["ann_factor"])  # annualized investment costs
+            model.constraints.add(model.c_inv_base[dev] == model.inv_base[dev] * devs[dev]["ann_factor"])  # unsubsidized annualized investment costs
+            model.constraints.add(model.c_om[dev] == devs[dev]["cost_om"] * model.inv_base[dev])  # operation and maintenance costs. Use the unsubsidized costs for O&M calculation
+            model.constraints.add(model.c_total[dev] == model.c_inv[dev] + model.c_om[dev])  # total annualized costs for investment and O&M
 
     # Combined total annualized investment and O&M costs for all devices
     model.constraints.add(model.total_annual_costs_devices == sum(model.c_total[dev] for dev in model.all_devs))
@@ -855,6 +884,9 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
         else:
             weights[year] = n - year
 
+    def weighted_annual_average(expr_by_year):
+        return sum(expr_by_year[y] * weights[y] for y in model.support_years) / n
+
     # Total energy imports and exports over the whole observation period (weighted sum)
     result_dict["from_el_grid_total"] = int(sum(safe_value(model.from_el_grid_total, y) * weights[y] for y in model.support_years) / 1000)  # MWh
     result_dict["to_el_grid_total"] = int(sum(safe_value(model.to_el_grid_total, y) * weights[y] for y in model.support_years) / 1000)  # MWh
@@ -904,21 +936,20 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     result_dict["rev_feed_in_el_by_year"] = {y: int(safe_value(model.rev_feed_in_el, y)) for y in model.support_years}
     result_dict["rev_feed_in_gas_by_year"] = {y: int(safe_value(model.rev_feed_in_gas, y)) for y in model.support_years}
 
-    # Totals (annualized values for backward compatibility)
-    result_dict["supply_costs_el"] = int(safe_value_single(model.annualized_energy_costs))  # Annualized over all years
+    # Totals as weighted annual averages over the observation period.
+    result_dict["annualized_energy_costs"] = int(safe_value_single(model.annualized_energy_costs))
+    result_dict["supply_costs_el"] = int(weighted_annual_average({y: safe_value(model.supply_costs_el, y) for y in model.support_years}))
     result_dict["cap_costs_el"] = int(safe_value_single(model.cap_costs_el))
     result_dict["total_el_costs"] = result_dict["supply_costs_el"] + result_dict["cap_costs_el"]
-    result_dict["rev_feed_in_el"] = int(sum(safe_value(model.rev_feed_in_el, y) for y in model.support_years) / len(model.support_years))  # Average annual electricity feed-in revenue
-
-    result_dict["supply_costs_gas"] = int(sum(safe_value(model.supply_costs_gas, y) for y in model.support_years) / len(model.support_years))
-    result_dict["supply_costs_biomethane"] = int(sum(safe_value(model.supply_costs_biomethane, y) for y in model.support_years) / len(model.support_years))
+    result_dict["rev_feed_in_el"] = int(weighted_annual_average({y: safe_value(model.rev_feed_in_el, y) for y in model.support_years}))
+    result_dict["supply_costs_gas"] = int(weighted_annual_average({y: safe_value(model.supply_costs_gas, y) for y in model.support_years}))
+    result_dict["supply_costs_biomethane"] = int(weighted_annual_average({y: safe_value(model.supply_costs_biomethane, y) for y in model.support_years}))
     result_dict["cap_costs_gas"] = int(safe_value_single(model.cap_costs_gas))
     result_dict["total_gas_costs"] = result_dict["supply_costs_gas"] + result_dict["supply_costs_biomethane"] + result_dict["cap_costs_gas"]
-    result_dict["rev_feed_in_gas"] = int(sum(safe_value(model.rev_feed_in_gas, y) for y in model.support_years) / len(model.support_years))
-
-    result_dict["supply_costs_biom"] = int(sum(safe_value(model.supply_costs_biom, y) for y in model.support_years) / len(model.support_years))
-    result_dict["supply_costs_waste"] = int(sum(safe_value(model.supply_costs_waste, y) for y in model.support_years) / len(model.support_years))
-    result_dict["supply_costs_hydrogen"] = int(sum(safe_value(model.supply_costs_hydrogen, y) for y in model.support_years) / len(model.support_years))
+    result_dict["rev_feed_in_gas"] = int(weighted_annual_average({y: safe_value(model.rev_feed_in_gas, y) for y in model.support_years}))
+    result_dict["supply_costs_biom"] = int(weighted_annual_average({y: safe_value(model.supply_costs_biom, y) for y in model.support_years}))
+    result_dict["supply_costs_waste"] = int(weighted_annual_average({y: safe_value(model.supply_costs_waste, y) for y in model.support_years}))
+    result_dict["supply_costs_hydrogen"] = int(weighted_annual_average({y: safe_value(model.supply_costs_hydrogen, y) for y in model.support_years}))
 
     # Renewable generation potential (without curtailment)
     result_dict["PV_generation_uncl"] = [x / 1000 * safe_value(model.area, "PV") for x in
@@ -976,7 +1007,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     for y in model.support_years:
         result_dict["power_profile_by_year"][y] = {}
         result_dict["power_kW_by_year"][y] = {}
-        for device in ["PV", "WT", "WAT", "HP", "WaterHP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]:
+        for device in ["PV", "WT", "WAT", "HP", "WaterHP", "WaterCC", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]:
             profile = []
             for d in model.clusters:
                 for t in model.time_steps:
@@ -1004,7 +1035,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     for y in model.support_years:
         result_dict["cool_profile_by_year"][y] = {}
         result_dict["cool_kW_by_year"][y] = {}
-        for device in ["CC", "AC"]:
+        for device in ["CC", "WaterCC", "AC"]:
             profile = []
             for d in model.clusters:
                 for t in model.time_steps:
@@ -1033,7 +1064,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
         result_dict[k]["gen"]["heat"] = int(gen_kwh / 1000)  # MWh over full horizon
 
     # Cooling generation
-    for k in ["CC", "AC"]:
+    for k in ["CC", "WaterCC", "AC"]:
         gen_kwh = dt * sum(safe_value(model.cool, (k, y, d, t)) * param["cluster_weights"][d] * weights[y]
                     for y in model.support_years for d in model.clusters for t in model.time_steps)
         if k not in result_dict:
@@ -1085,7 +1116,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
 
     eps = 0.01
     # Calculate full load hours
-    for k in ["PV", "WT", "WAT", "STC", "HP", "WaterHP", "EB", "CC", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI",
+    for k in ["PV", "WT", "WAT", "STC", "HP", "WaterHP", "WaterCC", "EB", "CC", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI",
               "WCHP", "WBOI", "ELYZ", "FC", "SAB"]:
         cap_k = safe_value(model.cap, k)
         if cap_k > eps:
@@ -1094,7 +1125,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
                 base_gen_kwh = result_dict[k]["gen_kWh"]["power"]
             elif k in ["STC", "HP", "WaterHP", "EB", "BOI", "GHP", "BBOI", "WBOI"]:
                 base_gen_kwh = result_dict[k]["gen_kWh"]["heat"]
-            elif k in ["CC", "AC"]:
+            elif k in ["CC", "WaterCC", "AC"]:
                 base_gen_kwh = result_dict[k]["gen_kWh"]["cooling"]
             elif k == "ELYZ":
                 base_gen_kwh = result_dict[k]["gen_kWh"]["hydrogen"]

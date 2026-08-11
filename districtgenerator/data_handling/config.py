@@ -215,7 +215,7 @@ class EcoConfig(BaseSettings):
     revenue_feed_in_gas: str | list = [0.02]  # Revenue for natural gas feed-in €/kWh
     price_gasoline_liter: str | list = [1.70, 1.72, 1.74, 1.76, 1.78, 1.80, 1.80, 1.80, 1.80, 1.80, 1.80, 1.82, 1.84, 1.86, 1.88, 1.90, 1.90, 1.90, 1.90, 1.90]  # Gasoline price in €/liter
     price_hydrogen: str | list = [0.2990, 0.2938, 0.2886, 0.2834, 0.2782, 0.2730, 0.2678, 0.2626, 0.2574, 0.2522, 0.2470, 0.2418, 0.2366, 0.2314, 0.2262, 0.2210, 0.2176, 0.2142, 0.2108, 0.2074]         # Hydrogen price in €/kWh
-    price_biomethane: str | list = [0.1840, 0.1796, 0.1752, 0.1708, 0.1664, 0.1620, 0.1656, 0.1692, 0.1728, 0.1764, 0.1800, 0.1838, 0.1876, 0.1914, 0.1952, 0.1990, 0.2038, 0.2086, 0.2134, 0.2182, 0.2230]  # Biomethane price in EUR/kWh
+    price_biomethane: str | list = [0.1840, 0.1796, 0.1752, 0.1708, 0.1664, 0.1620, 0.1656, 0.1692, 0.1728, 0.1764, 0.1800, 0.1838, 0.1876, 0.1914, 0.1952, 0.1990, 0.2038, 0.2086, 0.2134, 0.2182]  # Biomethane price in EUR/kWh
     price_waste: str | list = [0.1]            # Waste price in €/kWh
     price_biomass: str | list = [0.0580, 0.0574, 0.0568, 0.0562, 0.0556, 0.0550, 0.0564, 0.0578, 0.0592, 0.0606, 0.0620, 0.0632, 0.0644, 0.0656, 0.0668, 0.0680, 0.0680, 0.0680, 0.0680, 0.0680]         # Biomass price in €/kWh
     price_oil: str | list = [0.09, 0.094, 0.098, 0.102, 0.106, 0.11, 0.112, 0.114, 0.116, 0.118, 0.12, 0.122, 0.124, 0.126, 0.128, 0.13, 0.132, 0.134, 0.136, 0.138] # Oil price in €/kWh
@@ -429,6 +429,7 @@ class HeatGridConfig(BaseSettings):
     physical dimensions, material properties, and costs.
     """
 
+    heatgrid_generation: str = "4G" #Generation of the heat grid. Value can either be "4G" or "5G".
     supply_temperature: str | float = "auto"  # "auto": Temperature determined from buildings heating curves; "float": number is interpreted as the maximum network supply temperature for the selected temperature_mode.
     supply_temperature_safety_margin: float = 0.0  # To consider losses in the 2-pipe model an additional temperature margin in K is added to the calculated EH supply temperature only when supply_temperature="auto"; numeric supply_temperature values are used directly as EH supply temperatures.
     delta_T: float = 15.0  # Temperature reduction from numeric supply_temperature to the minimum supply temperature. Example: supply_temperature=70 and delta_T=10 gives a minimum of 60.
@@ -438,6 +439,8 @@ class HeatGridConfig(BaseSettings):
     enable_low_temp_measures: bool = False  # "geringinvestive Maßnahmen": extra cost, can reduce supply/return temps to 50/40 °C (only if lower than the original system temperatures).
     low_temp_measures_inv_fix: float = 226.0  # €/kW_th, additional investment if these measures are applied.
     D_heating_network: float = 1.0      # Distance between the centerlines of the supply and return pipelines in meters.
+    T_warm_5G: float = 20.0  # Fixed warm pipe temperature of the 5G network in degrees Celsius.
+    T_cold_5G: float = 10.0  # Fixed cold pipe temperature of the 5G network in degrees Celsius.
     T_hot_cooling_network: float = 12.0  # Flow temperature of the cooling network in degrees Celsius.
     T_cold_cooling_network: float = 6.0  # Return temperature of the cooling network in degrees Celsius.
     D_cooling_network: float = 1.0      # Distance between the centerlines of supply and return pipelines in meters.
@@ -827,6 +830,15 @@ class DecentralDeviceConfig(BaseSettings):
     HP__enable_low_temp_measures: bool = False # "geringinvestive Maßnahmen": extra cost, can reduce supply/return temps to 50/40 °C (only if lower than the original system temperatures).
     HP__low_temp_measures_inv_fix: float = 226.0  # €/kW_th, additional investment if these measures are applied.
     HP: dict = {}
+
+    # HP_5G parameters (Reversible decentralized heat pump for 5G networks)
+    HP_5G__grade: float = 0.4  # Quality grade. Ratio of achieved COP/EER to the Carnot value.
+    HP_5G__life_time: int = 20  # Maximum life time in years.
+    HP_5G__inv_base: float = 1300.0  # Unsubsidized investment in €/kWth.
+    HP_5G__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
+    HP_5G__cost_om: float = 0.02  # Operation and maintenance costs as a fraction of investment costs in 1/year.
+    HP_5G__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    HP_5G: dict = {}
 
     # EH parameters (Electric Heater)
     EH__eta_th: float = 1.0  # Thermal efficiency.

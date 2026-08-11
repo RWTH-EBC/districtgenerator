@@ -34,7 +34,7 @@ The model workflow is:
     3) size pipe diameters
     4) compute local hydraulic losses
     5) calculate EH return temperature from building return mixing
-    6) calculate pipe heat losses from
+    6) calculate pipe heat losses
     7) compute pump power and network costs
 """
 
@@ -113,7 +113,6 @@ def heating_curve_supply_temperature_2leiter(T_e, T_ne, T_supply_min, T_supply_m
     )
 
     return np.clip(T_supply, T_supply_min, T_supply_max)
-
 
 def configured_supply_temperature_2leiter(data, T_sup_required):
     """
@@ -227,7 +226,7 @@ def load_parameter_2leiter(data):
 
     # Calculate building heat demand connected to the district heating grid
     for building in data.district:
-        if building["buildingFeatures"]["heater"] not in ["heat_grid", "heat_grid_SH"]:
+        if building["buildingFeatures"]["heater"] not in ["heat_grid", "heat_grid_OEB", "heat_grid_BEB"]:
             continue
 
         heating = building["user"].heat / 1000  # kW
@@ -237,7 +236,7 @@ def load_parameter_2leiter(data):
         if building["buildingFeatures"]["heater"] == "heat_grid":
             net_building_demand = np.maximum(heating + dhw - generationSTC, 0.0)
 
-        elif building["buildingFeatures"]["heater"] == "heat_grid_SH":
+        elif building["buildingFeatures"]["heater"] in ("heat_grid_OEB", "heat_grid_BEB"):
             net_building_demand = np.maximum(heating - generationSTC, 0.0)
 
         building["user"].net_building_demand = net_building_demand  # kW
@@ -262,9 +261,10 @@ def load_parameter_2leiter(data):
     Q_by_node = {}
     UA_SH_by_node = {}
     UA_DHW_by_node = {}
+    requires_heat_grid_standby_by_node = {}
 
     for building in data.district:
-        if building["buildingFeatures"]["heater"] not in ["heat_grid", "heat_grid_SH"]:
+        if building["buildingFeatures"]["heater"] not in ["heat_grid", "heat_grid_OEB", "heat_grid_BEB"]:
             continue
 
         pos_building = tuple(building["buildingFeatures"]["position"])
@@ -298,7 +298,7 @@ def load_parameter_2leiter(data):
         if building["buildingFeatures"]["heater"] == "heat_grid":
             Ts_req = np.maximum(Ts_req_SH, Ts_req_DHW)
 
-        elif building["buildingFeatures"]["heater"] == "heat_grid_SH":
+        elif building["buildingFeatures"]["heater"] in ("heat_grid_OEB", "heat_grid_BEB"):
             Ts_req = Ts_req_SH
 
         # Building heat load
@@ -310,9 +310,13 @@ def load_parameter_2leiter(data):
             Q_DHW_grid = Q_DHW_total
             Q_DHW_decentral = np.zeros(T_len, dtype=float)
 
-        elif building["buildingFeatures"]["heater"] == "heat_grid_SH":
+        elif building["buildingFeatures"]["heater"] == "heat_grid_OEB":
             Q_DHW_grid = np.zeros(T_len, dtype=float)
             Q_DHW_decentral = Q_DHW_total
+
+        elif building["buildingFeatures"]["heater"] == "heat_grid_BEB":
+            Q_DHW_grid = np.zeros(T_len, dtype=float)
+            Q_DHW_decentral = dhw_load.copy()
 
         Q_total = Q_SH + Q_DHW_grid
 
@@ -338,7 +342,7 @@ def load_parameter_2leiter(data):
             UA_SH = 0.0
 
         # Design UA for DHW heat exchanger
-        if building["buildingFeatures"]["heater"] == "heat_grid" and np.any(Q_DHW_grid > 0.0):
+        if building["buildingFeatures"]["heater"] == "heat_grid" and np.any(Q_DHW_total > 0.0):
             Q_DHW_design_W = building["bes_obj"].design_load_dhw * (1.0 + h_loss_subst / 100.0)
             T_cold_DHW_secondary_design = float(T_cold_water)
             T_hot_DHW_secondary_design = float(T_dhw_required)
@@ -369,6 +373,7 @@ def load_parameter_2leiter(data):
         Q_DHW_by_node[node_key] = Q_DHW_grid
         Q_DHW_decentral_by_node[node_key] = Q_DHW_decentral
         Q_by_node[node_key] = Q_total
+        requires_heat_grid_standby_by_node[node_key] = building["buildingFeatures"]["heater"] == "heat_grid"
 
         UA_SH_by_node[node_key] = UA_SH
         UA_DHW_by_node[node_key] = UA_DHW
@@ -385,6 +390,7 @@ def load_parameter_2leiter(data):
     param["Q_by_node"] = Q_by_node
     param["UA_SH_by_node"] = UA_SH_by_node
     param["UA_DHW_by_node"] = UA_DHW_by_node
+    param["requires_heat_grid_standby_by_node"] = requires_heat_grid_standby_by_node
     param["heat_loss_substation"] = heat_loss_substation
     param["net_heat_demand"] = net_heat_demand
 
@@ -397,6 +403,91 @@ def load_parameter_2leiter(data):
     T_sup_design_base = configured_supply_temperature_2leiter(data, T_sup_required)
 
     param["T_sup_design_base"] = T_sup_design_base
+
+    # BEB: DHW preheating from the grid plus electric boosting.
+    dhw_temperature_lift = T_dhw_required - T_cold_water
+
+    # Maximum DHW temperature after the heat-grid heat exchanger.
+    T_DHW_after_preheating = np.clip(T_sup_design_base - dT_HX_sup_DHW, T_cold_water, T_dhw_required)
+
+    # Maximum fraction of the required DHW temperature lift supplied by the heat grid.
+    # For BEB this is applied only when the SH grid is already active.
+    grid_fraction = (T_DHW_after_preheating - T_cold_water) / dhw_temperature_lift
+
+    # Store complete annual profiles for later clustering.
+    data.heat_grid_data["T_DHW_after_preheating"] = T_DHW_after_preheating
+    data.heat_grid_data["dhw_grid_fraction"] = grid_fraction
+
+    for building in data.district:
+        heater = building["buildingFeatures"]["heater"]
+
+        if heater not in ("heat_grid_OEB", "heat_grid_BEB"):
+            continue
+
+        node_key = node_lookup.get(tuple(building["buildingFeatures"]["position"]))
+
+        if node_key is None:
+            print(f"WARNUNG: Gebäude mit node_key {node_key} konnte nicht gefunden werden und wurde übersprungen! [5]")
+            continue
+
+        # Useful DHW demand without substation losses [kW]
+        dhw_load = np.asarray(building["user"].dhw) / 1000.0
+
+        if heater == "heat_grid_OEB":
+            Q_DHW_grid_useful = np.zeros(T_len,dtype=float)
+            Q_DHW_booster = dhw_load.copy()
+            building_grid_fraction = np.zeros(T_len, dtype=float)
+
+        elif heater == "heat_grid_BEB":
+            active_sh_grid = np.asarray(Q_SH_by_node[node_key], dtype=float) > 0.0
+            building_grid_fraction = np.where(active_sh_grid, grid_fraction, 0.0)
+            Q_DHW_grid_useful = dhw_load * building_grid_fraction
+            Q_DHW_booster = dhw_load * (1.0 - building_grid_fraction)
+
+            grid_fraction_design = float(np.max(building_grid_fraction))
+            if grid_fraction_design > 0.0:
+                Q_DHW_design_W = building["bes_obj"].design_load_dhw * grid_fraction_design * (1.0 + h_loss_subst / 100.0)
+                T_cold_DHW_secondary_design = float(T_cold_water)
+                T_hot_DHW_secondary_design = float(np.max(T_DHW_after_preheating[active_sh_grid]))
+                T_s_DHW_primary_design = T_hot_DHW_secondary_design + dT_HX_sup_DHW
+                T_r_DHW_primary_design = T_cold_DHW_secondary_design + dT_HX_ret_DHW_min
+
+                UA_DHW_by_node[node_key] = HX_UA_safety_factor * hx_calc_UA_design(
+                    Q_design_W=Q_DHW_design_W,
+                    T_primary_in_design=T_s_DHW_primary_design,
+                    T_primary_out_design=T_r_DHW_primary_design,
+                    T_secondary_in_design=T_cold_DHW_secondary_design,
+                    T_secondary_out_design=T_hot_DHW_secondary_design
+                )
+            else:
+                UA_DHW_by_node[node_key] = 0.0
+
+        # Substation-loss convention
+        Q_DHW_grid = Q_DHW_grid_useful * (1.0 + h_loss_subst / 100.0)
+
+        # Store building-level profiles in W
+        building["user"].dhw_grid_fraction = building_grid_fraction
+        building["user"].dhw_grid_preheat = Q_DHW_grid_useful * 1000.0
+        building["user"].dhw_booster_demand = Q_DHW_booster * 1000.0
+
+        # Update network node profiles
+        Q_DHW_by_node[node_key] = Q_DHW_grid
+        Q_DHW_decentral_by_node[node_key] = Q_DHW_booster
+
+        if heater == "heat_grid_BEB":
+            T_sec_supply_DHW_by_node[node_key] = np.where(
+                building_grid_fraction > 0.0,
+                T_DHW_after_preheating,
+                T_cold_water
+            )
+
+        Q_by_node[node_key] = Q_SH_by_node[node_key] + Q_DHW_grid
+
+        # Useful network demand used by EH/KPI calculations
+        building["user"].net_building_demand += Q_DHW_grid_useful
+        additional_useful_grid_heat = Q_DHW_grid_useful
+        heat_loss_substation += additional_useful_grid_heat * h_loss_subst/100.0
+        net_heat_demand += Q_DHW_grid
 
     # Annualization factors.
     pipe_lifetime = heat_grid_data["pipe"]["pipe_lifetime"]
@@ -580,15 +671,20 @@ def calc_flow_2leiter(data, param):
         m_SH_max = float(np.max(m_SH_raw)) if np.any(m_SH_raw > 0.0) else 0.0
         m_DHW_max = float(np.max(m_DHW_raw)) if np.any(m_DHW_raw > 0.0) else 0.0
 
-        m_SH = np.maximum(m_SH_raw, alpha * m_SH_max)
-        m_DHW = np.maximum(m_DHW_raw, alpha * m_DHW_max)
+        active_SH = Q_SH_eff > 0.0
+        active_DHW = Q_DHW_eff > 0.0
+        requires_standby = bool(param.get("requires_heat_grid_standby_by_node", {}).get(n, True))
+
+        if requires_standby:
+            m_SH = np.maximum(m_SH_raw, alpha * m_SH_max)
+            m_DHW = np.maximum(m_DHW_raw, alpha * m_DHW_max)
+        else:
+            m_SH = np.where(active_SH, np.maximum(m_SH_raw, alpha * m_SH_max), 0.0)
+            m_DHW = np.where(active_DHW, np.maximum(m_DHW_raw, alpha * m_DHW_max), 0.0)
 
         # Recalculate return temperatures if minimum flow changes the flow
         Tr_SH_actual = np.full(T_len, np.nan, dtype=float)
         Tr_DHW_actual = np.full(T_len, np.nan, dtype=float)
-
-        active_SH = Q_SH_eff > 0.0
-        active_DHW = Q_DHW_eff > 0.0
 
         # If no load, return and supply temperatures are equal
         Tr_SH_actual[~active_SH] = T_sup_EH[~active_SH]
@@ -768,6 +864,10 @@ def compute_pump_power_2leiter(data, param):
             L = pipe["length"]
             V = float(pipe["flow"][t])
 
+            if V <= 1e-12:
+                pipe_dp[pid] = 0.0
+                continue
+
             A = np.pi * d_i ** 2 / 4.0
             v = V / A if A > 0 else 0.0
             Re = v * d_i / nu_f if nu_f > 0 else 0.0
@@ -874,6 +974,8 @@ def calc_heat_loss_pipe_simple_2leiter(data, param):
 
     Positive values mean heat loss to the soil.
     Negative values mean heat gain from the soil.
+    Heat exchange is counted only in timesteps where the pipe segment carries
+    mass flow.
     """
 
     k_soil = data.heat_grid_data["k_soil"]
@@ -896,9 +998,13 @@ def calc_heat_loss_pipe_simple_2leiter(data, param):
         # UA of one pipe line for this segment
         UA = 2.0 * np.pi * k_soil * ks * pipe["length"]  # W/K
 
+        active_pipe = np.abs(np.asarray(pipe["flow"], dtype=float)) > 1e-12
+
         Q_sup = UA * (T_sup_EH - T_soil) / 1000.0  # kW
         Q_ret = UA * (T_ret_EH - T_soil) / 1000.0  # kW
 
+        Q_sup = np.where(active_pipe, Q_sup, 0.0)
+        Q_ret = np.where(active_pipe, Q_ret, 0.0)
         Q_total = Q_sup + Q_ret
 
         pipe["heat_loss_pipe"] = Q_total
@@ -939,8 +1045,6 @@ def calc_heat_loss_pipe_simple_2leiter(data, param):
         )  # MWh/m
 
     return data, param
-
-
 
 #################################################################################################
 #################################################################################################
@@ -1279,22 +1383,26 @@ def compute_and_save_network_costs_2leiter(data, param):
     """Compute annualized network costs and save heat_grid_parameters_outputs.json."""
     output_name = getattr(data, "output_scenario_name", data.scenario_name)
 
-    buildings_connected = [
-        b for b in data.district
-        if b["buildingFeatures"]["heater"] in ["heat_grid", "heat_grid_SH"]
-    ]
+    buildings_connected = [b for b in data.district
+        if b["buildingFeatures"]["heater"] in ["heat_grid", "heat_grid_OEB", "heat_grid_BEB"]]
 
     C_substations = 0.0
     for building in buildings_connected:
-        if building["buildingFeatures"]["heater"] == "heat_grid_SH":
-            substation_capacity = (
-                    building["bes_obj"].design_load_heating / 1000.0
-            )
+
+        if building["buildingFeatures"]["heater"] == "heat_grid_OEB":
+            substation_capacity = building["bes_obj"].design_load_heating / 1000.0
+
         elif building["buildingFeatures"]["heater"] == "heat_grid":
-            substation_capacity = (
-                    building["bes_obj"].design_load_heating / 1000.0
-                    + building["bes_obj"].design_load_dhw / 1000.0
-            )
+            substation_capacity = (building["bes_obj"].design_load_heating + building["bes_obj"].design_load_dhw) / 1000.0
+
+        elif building["buildingFeatures"]["heater"] == "heat_grid_BEB":
+            dhw_fraction_design = float(np.max(getattr(
+                building["user"],
+                "dhw_grid_fraction",
+                data.heat_grid_data["dhw_grid_fraction"]
+            )))
+            substation_capacity = (building["bes_obj"].design_load_heating + building["bes_obj"].design_load_dhw * dhw_fraction_design) / 1000.0
+
         C_substations += substation_capacity * data.heat_grid_data["C_subst"]
 
     substation_lifetime = data.heat_grid_data["lifetime_subst"]

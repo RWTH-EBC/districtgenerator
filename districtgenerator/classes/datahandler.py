@@ -31,6 +31,7 @@ import districtgenerator.functions.clustering_medoid as cm
 from districtgenerator.functions import opti_central
 import districtgenerator.functions.heating_network_simple as heating_network_simple
 from districtgenerator.functions.heating_network_2leiter import network_2leiter_simple
+from districtgenerator.functions.heating_network_5g import network_5G
 from districtgenerator.functions.design_network_with_node import run_pipeline_node
 from districtgenerator.functions.design_network_with_road import run_pipeline_road
 from districtgenerator.functions.heating_network_simple import calculate_soil_temperature
@@ -1428,7 +1429,7 @@ class Datahandler:
 
         # Check if district uses central energy supply (heat grid)
         has_heat_grid = any(
-            building["buildingFeatures"]["heater"] == "heat_grid" or building["buildingFeatures"]["heater"] == "heat_grid_SH"
+            building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_OEB", "heat_grid_BEB")
             for building in self.district)
 
         if has_heat_grid:
@@ -1450,12 +1451,27 @@ class Datahandler:
                 print("Generating and optimizing heating network...")
                 self.generateNetwork(topology_option)
                 self.run_heatingnetwork()
+                self.update_heat_grid_dhw_booster_capacities()
                 self.designCentralDevices(saveGenerationProfiles=True)
                 self.applyCentralDesignClusteringToOperationProfiles()
         else:
             print("No central heat grid detected — skipping heating network design.")
             self.centralDevices = {}
             self.prepareClusteringInputs()
+
+    def update_heat_grid_dhw_booster_capacities(self):
+        # Size decentral DHW boosters from the actual booster demand profile.
+        for building in self.district:
+
+            heater = str(building["buildingFeatures"].get("heater","")).strip()
+            if heater not in ("heat_grid_OEB", "heat_grid_BEB"):
+                continue
+
+            booster_profile = np.asarray(building["user"].dhw_booster_demand, dtype=float)
+            booster_capacity = float(np.max(booster_profile)) if booster_profile.size else 0.0
+
+            building["capacities"]["EWH"] = booster_capacity
+            building["capacities"]["HP"] = 0.0
 
     def saveProfiles(self, name, elec, dhw, dhw_minutely, occ, gains, EV_carcharging_ondemand,
                      EV_carprofile, ev_capacity, ice_carprofile, nb_units,
@@ -1870,14 +1886,6 @@ class Datahandler:
         print("Preparing initial clustering (pre-optimization)...")
         self.clusterProfiles(centralEnergySupply=False)
 
-    def finalizeClusterProfiles(self):
-        """
-        Perform final clustering including central generation and
-        heating network losses after optimization.
-        """
-        print("Finalizing clustering (post-optimization)...")
-        self.clusterProfiles(centralEnergySupply=True)
-
     def _select_profile_periods(self, profile, typedays, cluster_horizon, length_array):
         """
         Select representative periods from a full-year profile using medoid indices.
@@ -1922,6 +1930,12 @@ class Datahandler:
             user.dhw_cluster = self._select_profile_periods(user.dhw, typedays, cluster_horizon, length_array)
             user.heat_cluster = self._select_profile_periods(user.heat, typedays, cluster_horizon, length_array)
             user.cooling_cluster = self._select_profile_periods(user.cooling, typedays, cluster_horizon, length_array)
+            user.dhw_grid_fraction_cluster = self._select_profile_periods(
+                getattr(user, "dhw_grid_fraction", np.zeros(length_array)),
+                typedays, cluster_horizon, length_array)
+            user.decentral_5g_HP_el_cluster = self._select_profile_periods(
+                getattr(user, "decentral_5g_HP_el", np.zeros(length_array)),
+                typedays, cluster_horizon, length_array)
             user.occ_cluster = self._select_profile_periods(user.occ, typedays, cluster_horizon, length_array)
             user.EV_carcharging_ondemand_cluster = self._select_profile_periods(
                 user.EV_carcharging_ondemand, typedays, cluster_horizon, length_array)
@@ -1960,6 +1974,19 @@ class Datahandler:
         self.heat_grid_data["pump_power_cluster"] = self._select_profile_periods(
             np.asarray(self.heat_grid_data.get("P_pump", zero_profile)) / 1000,
             typedays, cluster_horizon, length_array)
+
+        if self.heat_grid_data["heatgrid_generation"] != "5G":
+            if "dhw_grid_fraction" in self.heat_grid_data:
+                self.heat_grid_data["dhw_grid_fraction_cluster"] = self._select_profile_periods(
+                    self.heat_grid_data["dhw_grid_fraction"],
+                    typedays, cluster_horizon, length_array)
+        else:
+            self.heat_grid_data["eh_residual_thermal_5g_cluster"] = self._select_profile_periods(
+                self.heat_grid_data["eh_residual_thermal_5g"],
+                typedays, cluster_horizon, length_array)
+            self.heat_grid_data["net_decentral_HP_el_5g_cluster"] = self._select_profile_periods(
+                self.heat_grid_data["net_decentral_HP_el_5g"],
+                typedays, cluster_horizon, length_array)
 
         self.centralDevices["generation"]["Wind_cluster"] = self._select_profile_periods(
             self.centralDevices["generation"].get("Wind", zero_profile),
@@ -2033,6 +2060,8 @@ class Datahandler:
             adjProfiles[i]["dhw"] = b["user"].dhw[0:lengthArray]
             adjProfiles[i]["heat"] = b["user"].heat[0:lengthArray]
             adjProfiles[i]["cooling"] = b["user"].cooling[0:lengthArray]
+            adjProfiles[i]["dhw_grid_fraction"] = getattr(b["user"], "dhw_grid_fraction", np.zeros(lengthArray))[0:lengthArray]
+            adjProfiles[i]["decentral_5g_HP_el"] = getattr(b["user"], "decentral_5g_HP_el", np.zeros(lengthArray))[0:lengthArray]
             adjProfiles[i]["occ"] = b["user"].occ[0:lengthArray]
             adjProfiles[i]["EV_carcharging_ondemand"] = b["user"].EV_carcharging_ondemand[0:lengthArray]
             adjProfiles[i]["EV_carprofile"] = b["user"].EV_carprofile[0:lengthArray]
@@ -2056,6 +2085,14 @@ class Datahandler:
             adjProfiles["losses_heating_network"] = self.heat_grid_data["total_losses_heating_network"][0:lengthArray]
             adjProfiles["losses_cooling_network"] = self.heat_grid_data["total_losses_cooling_network"][0:lengthArray]
             adjProfiles["pump_power"] = self.heat_grid_data["P_pump"][0:lengthArray]/1000
+            has_dhw_grid_fraction = (self.heat_grid_data["heatgrid_generation"] != "5G"
+                and "dhw_grid_fraction" in self.heat_grid_data)
+
+            if has_dhw_grid_fraction:
+                adjProfiles["dhw_grid_fraction"] = np.asarray(self.heat_grid_data["dhw_grid_fraction"][0:lengthArray],dtype=float)
+            if self.heat_grid_data["heatgrid_generation"] == "5G":
+                adjProfiles["eh_residual_thermal_5g"] = np.asarray(self.heat_grid_data["eh_residual_thermal_5g"][0:lengthArray],dtype=float)
+                adjProfiles["net_decentral_HP_el_5g"] = np.asarray(self.heat_grid_data["net_decentral_HP_el_5g"][0:lengthArray],dtype=float)
 
             if self.centralDevices["capacities"]["WT"]["cap"] > 0:
                 adjProfiles["generationCentralWT"] = self.centralDevices["generation"]["Wind"][0:lengthArray]
@@ -2105,6 +2142,14 @@ class Datahandler:
             scalings.append(False)
 
             inputsClustering.append(adjProfiles[i]["cooling"])
+            weights.append(0)
+            scalings.append(False)
+
+            inputsClustering.append(adjProfiles[i]["dhw_grid_fraction"])
+            weights.append(0)
+            scalings.append(False)
+
+            inputsClustering.append(adjProfiles[i]["decentral_5g_HP_el"])
             weights.append(0)
             scalings.append(False)
 
@@ -2187,6 +2232,26 @@ class Datahandler:
             weights.append(0)
             scalings.append(False)
 
+            if centralEnergySupply == True:
+                has_dhw_grid_fraction = (
+                    self.heat_grid_data["heatgrid_generation"] != "5G"
+                    and "dhw_grid_fraction" in self.heat_grid_data
+                )
+
+            if has_dhw_grid_fraction:
+                inputsClustering.append(adjProfiles["dhw_grid_fraction"])
+                weights.append(0)
+                scalings.append(False)
+
+            if self.heat_grid_data["heatgrid_generation"] == "5G":
+                inputsClustering.append(adjProfiles["eh_residual_thermal_5g"])
+                weights.append(0)
+                scalings.append(False)
+
+                inputsClustering.append(adjProfiles["net_decentral_HP_el_5g"])
+                weights.append(0)
+                scalings.append(False)
+
         # Wind speed (only relevant for clustering)
         inputsClustering.append(adjProfiles["wind_speed"])
         weights.append(0)
@@ -2217,16 +2282,18 @@ class Datahandler:
 
         # safe clustered profiles of all buildings
         for i in range(len(self.district)):
-            index_house = int(9)    # number of profiles per building
+            index_house = int(11)    # number of profiles per building
             self.district[i]["user"].elec_cluster = newProfiles[index_house * i]
             self.district[i]["user"].dhw_cluster = newProfiles[index_house * i + 1]
             self.district[i]["user"].heat_cluster = newProfiles[index_house * i + 2]
             self.district[i]["user"].cooling_cluster = newProfiles[index_house * i + 3]
-            self.district[i]["user"].occ_cluster = newProfiles[index_house * i + 4]
-            self.district[i]["user"].EV_carcharging_ondemand_cluster = newProfiles[index_house * i + 5]
-            self.district[i]["user"].EV_carprofile_cluster = newProfiles[index_house * i + 6]
-            self.district[i]["generationPV_cluster"] = newProfiles[index_house * i + 7]
-            self.district[i]["generationSTC_cluster"] = newProfiles[index_house * i + 8]
+            self.district[i]["user"].dhw_grid_fraction_cluster = newProfiles[index_house * i + 4]
+            self.district[i]["user"].decentral_5g_HP_el_cluster = newProfiles[index_house * i + 5]
+            self.district[i]["user"].occ_cluster = newProfiles[index_house * i + 6]
+            self.district[i]["user"].EV_carcharging_ondemand_cluster = newProfiles[index_house * i + 7]
+            self.district[i]["user"].EV_carprofile_cluster = newProfiles[index_house * i + 8]
+            self.district[i]["generationPV_cluster"] = newProfiles[index_house * i + 9]
+            self.district[i]["generationSTC_cluster"] = newProfiles[index_house * i + 10]
 
         # Get individual car profiles
         profile_counter = index_individual_cars_start
@@ -2278,6 +2345,11 @@ class Datahandler:
             self.centralDevices["generation"]["Wind_cluster"] = newProfiles[index_central + 3]
             self.centralDevices["generation"]["PV_cluster"] = newProfiles[index_central + 4]
             self.centralDevices["generation"]["STC_cluster"] = newProfiles[index_central + 5]
+            if has_dhw_grid_fraction:
+                self.heat_grid_data["dhw_grid_fraction_cluster"] = newProfiles[index_central + 6]
+            if self.heat_grid_data["heatgrid_generation"] == "5G":
+                self.heat_grid_data["eh_residual_thermal_5g_cluster"] = newProfiles[index_central + 6]
+                self.heat_grid_data["net_decentral_HP_el_5g_cluster"] = newProfiles[index_central + 7]
 
         self.site["T_e_cluster"] = newProfiles[-2]
         self.heat_grid_data["T_soil_cluster"] = newProfiles[-1]
@@ -2438,9 +2510,8 @@ class Datahandler:
 
             error_message += "\nPlease check the corresponding 'errorfile_opti_central_*.txt' and '.ilp' files in the 'optimization_results' directory for further information."
             raise Exception(error_message)
-
         has_heat_grid = any(
-            building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_SH")
+            building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_OEB", "heat_grid_BEB",)
             for building in self.district
         )
 
@@ -2560,7 +2631,7 @@ class Datahandler:
         # only get the position of buildings connected to the heat grid
         buildings_info = []
         for building in self.district:
-            if building["buildingFeatures"]["heater"] == "heat_grid" or building["buildingFeatures"]["heater"] == "heat_grid_SH":
+            if building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_OEB", "heat_grid_BEB"):
                 pos = building["buildingFeatures"]["position"]
                 building_dict = {"building": building["unique_name"],
                                  "position": pos}
@@ -2611,7 +2682,7 @@ class Datahandler:
         buildings_info = []
         i = 0
         for building in self.district:
-            if building["buildingFeatures"]["heater"] == "heat_grid" or building["buildingFeatures"]["heater"] == "heat_grid_SH":
+            if building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_OEB", "heat_grid_BEB"):
                 pos = building["buildingFeatures"]["position"]
                 building_dict = {"id": i,
                                  "building": building["unique_name"],
@@ -2677,7 +2748,7 @@ class Datahandler:
             district_type = "unknown"
         connected_building_count = sum(
             1 for building in self.district
-            if building["buildingFeatures"]["heater"] == "heat_grid" or building["buildingFeatures"]["heater"] == "heat_grid_SH"
+            if building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_OEB", "heat_grid_BEB")
         )
         if topology_option == "road":
             topology_file = f"topology_{topology_option}_{scenario_input_name}.json"
@@ -2699,9 +2770,18 @@ class Datahandler:
         -------
         None.
         """
-#        _, param = network_design(self)
-#        network_operation(self, param)
-        _, param = network_2leiter_simple(self)
+
+        if self.heat_grid_data["heatgrid_generation"] == "4G":
+            #_, param = network_design(self)
+            #network_operation(self, param)
+            _, param = network_2leiter_simple(self)
+
+        elif self.heat_grid_data["heatgrid_generation"] == "5G":
+            _, param = network_5G(self)
+
+        else:
+            print("WARNUNG: keine gültige Wärmenetzgeneration angegeben!")
+
 
 def generate_demands_worker_wrapper(args):
     """
