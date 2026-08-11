@@ -9,6 +9,7 @@ KPI calculation, and certificate generation for multiple 30-building scenarios.
 
 from districtgenerator.classes import *
 from districtgenerator.data_handling.config import load_global_config
+import csv
 import os
 import traceback
 import warnings
@@ -20,6 +21,61 @@ SEEDS = range(1, 6)
 BUILDINGS = 30
 CREATE_CERTIFICATE = True
 BUILDING_HEATER_OVERRIDE = "HP,BOI,BBOI"  # Example: "heat_grid", "heat_grid_SH", "HP", "BOI", or "opt". None keeps the scenario CSV values.
+
+
+def _split_heater_values(heater_value):
+    return {
+        part.strip()
+        for part in str(heater_value).split(",")
+        if part.strip()
+    }
+
+
+def _scenario_csv_path(scenario_name):
+    return os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "districtgenerator",
+        "data",
+        "scenarios",
+        f"{scenario_name}.csv"
+    )
+
+
+def _heater_values_from_scenario(scenario_name):
+    with open(_scenario_csv_path(scenario_name), newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle, delimiter=";")
+        return {
+            str(row.get("heater", "")).strip()
+            for row in reader
+            if str(row.get("heater", "")).strip()
+        }
+
+
+def get_system_output_label(scenario_name, env_path=ENV_PATH, building_heater_override=BUILDING_HEATER_OVERRIDE):
+    global_config = load_global_config(env_file=env_path)
+    heatgrid_generation = str(global_config.heatgrid.heatgrid_generation).upper()
+    heater_values = (
+        _split_heater_values(building_heater_override)
+        if building_heater_override is not None
+        else _heater_values_from_scenario(scenario_name)
+    )
+    heat_grid_heaters = heater_values.intersection({"heat_grid", "heat_grid_OEB", "heat_grid_BEB"})
+
+    if not heat_grid_heaters:
+        return "decentral"
+
+    if heatgrid_generation == "5G":
+        return "central_5G"
+
+    central_types = []
+    if "heat_grid" in heat_grid_heaters:
+        central_types.append("4G")
+    if "heat_grid_OEB" in heat_grid_heaters:
+        central_types.append("OEB")
+    if "heat_grid_BEB" in heat_grid_heaters:
+        central_types.append("BEB")
+
+    return "central_" + "_".join(central_types)
 
 
 def get_investment_sensitivity_cases(env_path=ENV_PATH):
@@ -39,7 +95,11 @@ def run_scenario_evaluation(
 ):
     warnings.filterwarnings("ignore", category=FutureWarning)
 
-    run_label = output_scenario_name or scenario_name
+    if output_scenario_name is None:
+        system_label = get_system_output_label(scenario_name, env_path, building_heater_override)
+        output_scenario_name = f"{scenario_name}_{system_label}"
+
+    run_label = output_scenario_name
     print(f"\n=== Running {run_label} ({investment_sensitivity_case} investment case) ===")
 
     data = Datahandler(
@@ -102,7 +162,13 @@ def run_batch():
                 continue
 
             for investment_case in investment_cases:
-                run_label = f"{scenario_name}_inv_{investment_case}" if len(investment_cases) > 1 else scenario_name
+                system_label = get_system_output_label(scenario_name, ENV_PATH, BUILDING_HEATER_OVERRIDE)
+                output_base_name = f"{scenario_name}_{system_label}"
+                run_label = (
+                    f"{output_base_name}_inv_{investment_case}"
+                    if len(investment_cases) > 1
+                    else output_base_name
+                )
 
                 try:
                     run_scenario_evaluation(

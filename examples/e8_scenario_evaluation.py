@@ -7,11 +7,57 @@ We reached the final step, to generate our first district: Generate demand profi
 # Import classes of the districtgenerator to be able to use the district generator.
 from districtgenerator.classes import *
 from districtgenerator.data_handling.config import load_global_config
+import csv
+import os
 import warnings
 
 
-SCENARIO_NAME = "district_F_seed_11_buildings_30"
-ENV_PATH = ".env.CONFIG.PAPER"
+SCENARIO_NAME = "district_F_seed_27_buildings_30"
+ENV_PATH = ".env.CONFIG.EXAMPLE"
+
+
+def _scenario_csv_path(scenario_name):
+    return os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "districtgenerator",
+        "data",
+        "scenarios",
+        f"{scenario_name}.csv"
+    )
+
+
+def _heater_values_from_scenario(scenario_name):
+    with open(_scenario_csv_path(scenario_name), newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle, delimiter=";")
+        return {
+            str(row.get("heater", "")).strip()
+            for row in reader
+            if str(row.get("heater", "")).strip()
+        }
+
+
+def get_system_output_label(scenario_name, env_path=ENV_PATH):
+    global_config = load_global_config(env_file=env_path)
+    heatgrid_generation = str(global_config.heatgrid.heatgrid_generation).upper()
+    heat_grid_heaters = _heater_values_from_scenario(scenario_name).intersection(
+        {"heat_grid", "heat_grid_OEB", "heat_grid_BEB"}
+    )
+
+    if not heat_grid_heaters:
+        return "decentral"
+
+    if heatgrid_generation == "5G":
+        return "central_5G"
+
+    central_types = []
+    if "heat_grid" in heat_grid_heaters:
+        central_types.append("4G")
+    if "heat_grid_OEB" in heat_grid_heaters:
+        central_types.append("OEB")
+    if "heat_grid_BEB" in heat_grid_heaters:
+        central_types.append("BEB")
+
+    return "central_" + "_".join(central_types)
 
 
 def get_investment_sensitivity_cases(env_path=ENV_PATH):
@@ -73,13 +119,15 @@ def run_scenario_evaluation_case(
 
 def example8_scenario_evaluation():
     investment_cases = get_investment_sensitivity_cases(ENV_PATH)
+    system_label = get_system_output_label(SCENARIO_NAME, ENV_PATH)
     results = {}
 
     for investment_case in investment_cases:
+        output_base_name = f"{SCENARIO_NAME}_{system_label}"
         output_scenario_name = (
-            f"{SCENARIO_NAME}_inv_{investment_case}"
+            f"{output_base_name}_inv_{investment_case}"
             if len(investment_cases) > 1
-            else SCENARIO_NAME
+            else output_base_name
         )
         results[investment_case] = run_scenario_evaluation_case(
             scenario_name=SCENARIO_NAME,

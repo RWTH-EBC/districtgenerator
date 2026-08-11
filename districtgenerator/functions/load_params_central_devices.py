@@ -172,7 +172,6 @@ def load_params(data):
     param["wind_speed"] = clustered_series[6]
 
     # Save number of design days and design-day matrix
-    # todo: Adjust this to allow for different clusters in each year?
     param["cluster_weights"] = nc
     param["cluster_matrix"] = z
 
