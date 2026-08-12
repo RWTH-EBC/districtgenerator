@@ -903,7 +903,7 @@ class KPIs:
                 total_number_flats += building["user"].nb_flats
                 for flat in building["user"].nb_occ:
                     total_number_occ += flat
-            elif "+" in building["buildingFeatures"]["building"]: #TODO: This requires a working mixed building implementation
+            elif "+" in building["buildingFeatures"]["building"]:
                 total_area_mixed += building["buildingFeatures"]["area"]
                 total_number_flats += building["user"].nb_res_flats
                 for flat in building["user"].nb_res_occ:
