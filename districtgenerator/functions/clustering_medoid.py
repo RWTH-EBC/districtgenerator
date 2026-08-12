@@ -1,205 +1,40 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import division
-import numpy as np
-import districtgenerator.functions.k_medoids as k_medoids
+import warnings
 import time
+import numpy as np
+import pandas as pd
+import tsam
+from tsam import ClusterConfig
 
-def _distances(values, norm=2):
+_TSAM_SOLVERS = {"gurobi", "cbc", "highs", "cplex"}
+
+
+def _resolve_tsam_solver(pyomo_config):
     """
-    Compute distance matrix for all data sets (rows of values).
-
-    Parameters
-    ----------
-    values : 2-dimensional array
-        Rows represent days and columns values.
-    norm : integer, optional
-        Compute the distance according to this norm. 2 is the standard Euclidean-norm. The default is 2.
-
-    Return
-    ------
-    d : 2-dimensional array
-        Distances between each data set.
+    Map the project's Pyomo solver configuration onto a solver supported by tsam's
+    exact k-medoids MILP. tsam only supports gurobi/cbc/highs/cplex; glpk/scip
+    (both otherwise supported by districtgenerator.functions.solver_config) fall
+    back to highs.
     """
-    # Initialize distance matrix
-    n = values.shape[1]
-    d = np.zeros((n, n))
+    solver_name = "gurobi"
+    if pyomo_config:
+        solver_name = pyomo_config.get("solver_name", solver_name) if isinstance(pyomo_config, dict) \
+            else getattr(pyomo_config, "solver_name", solver_name)
 
-    for i in range(n):  # loop over first days
-        for j in range(i + 1, n):  # loop second days -> only upper right triangle because d is symmetrical
-            diff = np.abs(values[:, i] - values[:, j]) # difference between two days
-            d[i, j] = np.sum(diff ** norm) ** (1 / norm) # normed distance
-
-    # Fill the remaining entries
-    d = d + d.T
-    return d
-
-def _normalize_input(inputs):
-    """
-    Normalize the inputs for clustering.
-    Use min-max normalization to scale each input between 0 and 1.
-
-    Parameters
-    ----------
-    inputs : numpy.ndarray
-        2D array of input profiles with shape (n_profiles, n_timesteps).
-        Each row represents a different input profile.
-
-    Returns
-    -------
-    normalized_inputs : normalized input profiles; with the same shape as inputs.
-    """
-    # Min and max values for each profile
-    min_vals = np.min(inputs, axis=1, keepdims=True)
-    max_vals = np.max(inputs, axis=1, keepdims=True)
-
-    # Normalize each profile, avoiding division by zero
-    range_vals = max_vals - min_vals
-    normalized_inputs = np.divide(
-        inputs - min_vals,
-        range_vals,
-        out=np.zeros_like(inputs), # if not possible value is 0
-        where=range_vals > 0
-    )
-
-    return normalized_inputs
-
-def _denormalize_output(normalizedOutputsTransformed, original_inputs):
-    """
-    This function reverses the normalization applied in _normalize_input for the output cluster periods.
-
-    Parameters
-    ----------
-    normalizedOutputsTransformed : 3-dimensional array Normalized output profiles; shape (n_clusters, n_inputs, len_cluster).
-    original_inputs : 2-dimensional array Original input profiles; shape (n_inputs, total_timesteps).
-    """
-    n_inputs = original_inputs.shape[0]
-
-    # Get the original min and max values for each profile.
-    min_vals = np.min(original_inputs, axis=1, keepdims=True)
-    max_vals = np.max(original_inputs, axis=1, keepdims=True)
-
-    min_vals_base = min_vals.reshape(1, n_inputs, 1)
-    max_vals_base = max_vals.reshape(1, n_inputs, 1)
-
-    # Apply the denormalization formula. for each input profile
-    denormalized_outputs = normalizedOutputsTransformed * (max_vals_base - min_vals_base) + min_vals_base
-    return denormalized_outputs
-
-def _compute_scaling_factors(inputsNormalizedTransformed, normTypicalClusters, clusters, z, nc):
-    """
-    Compute the scaling factors according to Eq. (12) from
-    "Impact of different time series aggregation methods on optimal energy system design" (2018) (Kotzur et al.)
-    """
-    n_inputs = len(inputsNormalizedTransformed)
-    n_clusters = len(clusters)
-
-    scaling_factors = np.zeros((n_inputs, n_clusters)) # Individual scaling factor for each input and cluster
-
-    for j in range(n_inputs):  # Loop over different inputs
-        # Numerator: Sum of the normalized data in each cluster
-        sums_of_all_periods = np.sum(inputsNormalizedTransformed[j], axis=0)
-        true_cluster_sums_norm = z[clusters, :] @ sums_of_all_periods
-
-        # Denominator: Sum of the normalized medoid values * number of periods in the cluster
-        medoid_sums_norm = np.sum(normTypicalClusters[:, j, :], axis=1)
-        denom = medoid_sums_norm * nc
-
-        # Calculate the scaling factors
-        scaling_factors[j, :] = np.divide(
-            true_cluster_sums_norm,
-            denom,
-            out=np.ones(n_clusters),
-            where=denom != 0
+    if solver_name not in _TSAM_SOLVERS:
+        warnings.warn(
+            f"Solver '{solver_name}' is not supported by tsam's k-medoids clustering; falling back to 'highs'."
         )
+        return "highs"
+    return solver_name
 
-    return scaling_factors
 
-def _rescale_profiles(normTypicalClusters, inputs, inputsNormalizedTransformed, clusters, z, nc, scalings):
+def cluster(inputs, number_clusters, len_cluster, norm=2, weights=None, scalings=None, pyomo_config=None):
     """
-    Scaling of the clusters to preserve original demands.
-
-    The scaling follows the procedure described in:
-    "Impact of different time series aggregation methods on optimal energy system design"
-    Kotzur et al. / Renewable Energy 117 (2018) pp. 478 (Scaling of aggregated time series)
-
-    Steps:
-    1. It calculates scaling factors to preserve the energy sum in the normalized space.
-    2. It applies these factors if scalings[i] is True, caps peaks at 1.0, and redistributes the energy deficit.
-    3. It denormalizes the scaled profiles back to the original physical scale.
-
-    Parameters
-    ----------
-    normTypicalClusters : 3-dimensional array that contains the normalized typical clusters. (n_clusters x n_inputs x len_cluster)
-    inputs : 2-dimensional array that contains the original input profiles. (n_inputs x total_timesteps)
-    inputsNormalizedTransformed : All input profiles normalized and reshaped into periods.
-    clusters : list of indices of chosen clusters.
-    z : 2-dimensional array that maps each period to the cluster it was assigned to.
-    nc : array that contains information about how many periods are in each cluster.
-
-    Returns
-    -------
-    scaled_typ_clusters : 3-dimensional array that contains the scaled typical clusters. (n_clusters x n_inputs x len_cluster)
-    """
-    n_inputs = inputs.shape[0]
-    n_clusters = len(clusters)
-
-    # Step 1: Compute scaling factors
-    scaling_factors = _compute_scaling_factors(inputsNormalizedTransformed, normTypicalClusters, clusters, z, nc)
-
-    # Step 2: Apply scaling factors and handle peak capping
-    scaled_normed_typ_clusters = np.zeros_like(normTypicalClusters)
-
-    for j in range(n_inputs):  # Loop over different inputs
-        if scalings[j]:
-            for k in range(n_clusters):
-                norm_profile = normTypicalClusters[k, j, :]
-
-                # Apply the scaling factor
-                scaled_norm_profile = norm_profile * scaling_factors[j, k]
-                target_sum = np.sum(scaled_norm_profile)
-                final_norm_profile = np.copy(scaled_norm_profile)
-
-                # Initialize indices of time steps that can still be scaled
-                idx_scalable = (final_norm_profile > 0) & (final_norm_profile < 1.0)
-
-                # If peaks exceed 1.0, cap them and redistribute the excess energy
-                while any(final_norm_profile > 1.0) and np.any(idx_scalable):
-                    # cap peaks at 1.0
-                    final_norm_profile[final_norm_profile > 1.0] = 1.0
-                    current_sum = np.sum(final_norm_profile)
-                    deficit = target_sum - current_sum
-
-                    if deficit <= target_sum * 1e-6:
-                        break  # Exit if deficit is negligible
-
-                    # Scale the remaining time steps to redistribute the deficit
-                    total_scalable = np.sum(final_norm_profile[idx_scalable])
-                    scal_factor = 1 + (deficit / total_scalable)
-
-                    final_norm_profile[idx_scalable] *= scal_factor
-                    # Update the indices of time steps that can still be scaled
-                    idx_scalable = (final_norm_profile > 0) & (final_norm_profile < 1.0)
-
-                # if at the end there are still peaks above 1.0, cap them. Excess energy is not distributed
-                final_norm_profile[final_norm_profile > 1.0] = 1.0
-
-                scaled_normed_typ_clusters[k, j, :] = final_norm_profile
-
-        else: # if no scaling is desired, just copy the original normalized profile
-            scaled_normed_typ_clusters[:, j, :] = normTypicalClusters[:, j, :]
-
-
-    # Step 3: Denormalize the scaled profiles back to original scale
-
-    scaled_typ_clusters = _denormalize_output(scaled_normed_typ_clusters, inputs)
-
-    return scaled_typ_clusters
-
-
-def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_gap=0.0, weights=None, scalings=None, pyomo_config=None):
-    """
-    Cluster a set of inputs into clusters by solving a k-medoid problem.
+    Cluster a set of inputs into clusters by solving a k-medoid problem, using tsam's
+    exact k-medoids implementation (tsam.aggregate with cluster method "kmedoids").
 
     Parameters
     ----------
@@ -211,17 +46,17 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_ga
     len_day : integer, optional
         Number of time steps per day. The default is 24.
     norm : integer, optional
-        Compute the distance according to this norm. 2 is the standard Euclidean-norm. The default is 2.
-    time_limit : integer, optional
-        Time limit for the optimization in seconds. The default is 300.
-    mip_gap : float, optional
-        Optimality tolerance (0: proven global optimum). The default is 0.0.
+        Compute the distance according to this norm. Only the standard Euclidean-norm
+        (norm=2) is supported, since that is the only distance metric tsam's exact
+        k-medoids implementation offers.
     weights : 1-dimensional array, optional
         Weight for each input. If not provided, all inputs are treated equally.
     scalings : list of booleans, optional
         List indicating whether each input should be scaled to preserve energy demands.
-    pyomo_config : PyomoConfig, optional
-        PyomoConfig instance containing solver settings passed down. if None the settings are directly loaded from the config file with the standard values.
+    pyomo_config : dict, optional
+        Solver settings (as stored on Datahandler.pyomo_config). Only `solver_name` is
+        used, to pick the MILP solver tsam runs the k-medoids problem with. If None,
+        defaults to 'gurobi'.
 
     Returns
     -------
@@ -237,12 +72,7 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_ga
         One entry for each row of the original 'input'.
         Entries are arrays with rows for each time step and columns for each day.
     """
-
-    #! Save inputs to an excel for debugging purposes
-    # import pandas as pd
-    # df = pd.DataFrame(inputs)
-    # df.to_excel("debugging_inputs.xlsx", index=False)
-
+    assert norm == 2, "tsam's k-medoids implementation only supports the Euclidean norm (norm=2)."
 
     ################################################################
     # Step 1: Data validation and preprocessing
@@ -250,95 +80,86 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_ga
 
     n_inputs = inputs.shape[0]
     total_timesteps = inputs.shape[1]
-    # print(f"Number of inputs: {n_inputs}, Total time steps: {total_timesteps}")
 
-    num_periods = total_timesteps // len_cluster # -> Integer division
+    num_periods = total_timesteps // len_cluster  # -> Integer division
     effective_timesteps = num_periods * len_cluster
-    inputs_trimmed = inputs[:, :effective_timesteps] # Trim inputs to ensure they fit into complete periods of length len_cluster
+    inputs_trimmed = inputs[:, :effective_timesteps]  # Trim inputs to ensure they fit into complete periods of length len_cluster
 
     # Set weights if not already given
-    if weights  is None:
+    if weights is None:
         weights = np.ones(n_inputs, dtype=float)
     else:
         try:
-            weights = np.array(weights, dtype=float) # -> Go to except block if conversion fails due to non Number values
+            weights = np.array(weights, dtype=float)  # -> Go to except block if conversion fails due to non Number values
             if len(weights) != n_inputs:
-                raise ValueError("Length of 'weights' must match number of input profiles") # -> Go to except block
+                raise ValueError("Length of 'weights' must match number of input profiles")  # -> Go to except block
             if np.sum(weights) == 0 or np.isnan(np.sum(weights)):
                 weights = np.ones(n_inputs, dtype=float)
-        except:
+        except Exception:
             weights = np.ones(n_inputs, dtype=float)
-            #! Log warning or raise exception?
             print("Warning: 'weights' could not be processed. Check weight assignment. Using equal weights for all inputs.")
-            time.sleep(5) # Wait 5 seconds to make sure the user can see the warning
-    # Normalize weights
-    weights = weights / np.sum(weights)
-
+            time.sleep(5)  # Wait 5 seconds to make sure the user can see the warning
 
     # Default: No profile is scaled
     if scalings is None:
         scalings = [False] * n_inputs
     assert len(scalings) == n_inputs, "Length of 'scalings' must match number of input profiles"
 
-    assert norm > 0, "'norm' must be positive"
-
     ################################################################
-    # Step 2: Prepare inputs for clustering
+    # Step 2: Cluster with tsam
     ################################################################
 
-    # Normalize the inputs
-    normalized_inputs = _normalize_input(inputs=inputs_trimmed)
+    columns = [f"col_{j}" for j in range(n_inputs)]
+    df = pd.DataFrame(inputs_trimmed.T, columns=columns)
+    weights_dict = {col: float(w) for col, w in zip(columns, weights)}
+    exclude_cols = [col for col, scale in zip(columns, scalings) if not scale]
 
-    # Reshape the original profiles into periods (e.g. days/weeks)
+    solver = _resolve_tsam_solver(pyomo_config)
+    with warnings.catch_warnings():
+        # Zero-weight profiles (e.g. dhw/heat/occ passengers, see clustering_processing.py)
+        # are expected and intentional; tsam floors them to its min_weight and warns per
+        # column, which is just noise here since we already know which profiles are unweighted.
+        warnings.filterwarnings("ignore", message=r'weight of ".*" set to the minimal tolerable weighting')
+        result = tsam.aggregate(
+            df,
+            n_clusters=number_clusters,
+            period_duration=float(len_cluster),
+            temporal_resolution=1.0,  # unitless "timesteps": only the period_duration/temporal_resolution ratio matters
+            cluster=ClusterConfig(method="kmedoids", representation="medoid", solver=solver),
+            weights=weights_dict,
+            preserve_column_means=True,
+            rescale_exclude_columns=exclude_cols,
+        )
+
+    ################################################################
+    # Step 3: Reassemble outputs in the ascending-medoid-index convention
+    # expected by callers (both get_params_central_devices.py and
+    # clustering_processing.py independently re-derive cluster ordering by
+    # scanning y/z in ascending original-period-index order, so nc and
+    # scaled_typ_clusters_per_input must follow that same ordering here).
+    ################################################################
+
+    raw_centers = list(result.clustering.cluster_centers)  # tsam cluster id -> original period index
+    order = sorted(range(len(raw_centers)), key=lambda cid: raw_centers[cid])  # position -> tsam cluster id
+
+    nc = np.array([int(round(result.cluster_counts[order[p]])) for p in range(number_clusters)], dtype=int)
+
+    scaled_typ_clusters_per_input = []
+    for col in columns:
+        pivot = result.cluster_representatives[col].unstack("timestep")
+        scaled_typ_clusters_per_input.append(pivot.loc[[order[p] for p in range(number_clusters)]].to_numpy())
+
+    y = np.zeros(num_periods)
+    for idx in raw_centers:
+        y[idx] = 1
+
+    z = np.zeros((num_periods, num_periods))
+    for day, cid in enumerate(result.cluster_assignments):
+        z[raw_centers[cid], day] = 1
+
     inputsTransformed = [
-    inputs_trimmed[i, :].reshape((len_cluster, num_periods), order="F")
-    for i in range(inputs_trimmed.shape[0])
+        inputs_trimmed[i, :].reshape((len_cluster, num_periods), order="F")
+        for i in range(n_inputs)
     ]
 
-    # Reshape the normalized profiles into periods
-    inputsNormalizedTransformed = [
-    normalized_inputs[i, :].reshape((len_cluster, num_periods), order="F")
-    for i in range(normalized_inputs.shape[0])
-    ]
-
-    # Apply weighting and prepare for distance calculation
-    applied_weights = weights ** (1 / norm)
-    inputsScaledTransformed = [
-        inputsNormalizedTransformed[i] * applied_weights[i]
-        for i in range(len(weights))
-    ]
-
-    # Put the normalized and reshaped inputs together
-    L = np.concatenate(tuple(inputsScaledTransformed))
-
-    ################################################################
-    # Step 3: Clustering (k-medoids)
-    ################################################################
-
-    # Compute distances
-    d = _distances(L, norm)
-
-    # Execute optimization model
-    y, z, obj = k_medoids.k_medoids(d, number_clusters, time_limit, mip_gap, pyomo_config=pyomo_config)
-
-    # Get chosen Medoids
-    clusters = [c for c, value in enumerate(y) if value == 1]
-    n_clusters = len(clusters)
-    nc = np.array([int(np.sum(z[c, :])) for c in clusters], dtype=int) # Number of periods in each cluster
-
-    # get normalized typical clusters and their values for each input
-    normTypicalClusters = np.zeros((n_clusters, n_inputs, len_cluster))
-    for k, c in enumerate(clusters):
-        for j in range(n_inputs):
-            normTypicalClusters[k, j, :] = inputsNormalizedTransformed[j][:, c]
-
-    ################################################################
-    # Step 4: Scaling of the clusters to preserve energy demands
-    ################################################################
-
-    scaled_typ_clusters = _rescale_profiles(normTypicalClusters, inputs_trimmed, inputsNormalizedTransformed, clusters, z, nc, scalings)
-
-    # transform scaled_typ_clusters to list of arrays for each input
-    # (n_clusters x n_inputs x len_cluster) -> list of n_inputs arrays with (n_clusters x len_cluster)
-    scaled_typ_clusters_per_input = [scaled_typ_clusters[:, j, :] for j in range(n_inputs)]
     return scaled_typ_clusters_per_input, nc, y, z, inputsTransformed

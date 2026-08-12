@@ -27,7 +27,7 @@ def example8_central_scenario_evaluation():
     # of the energy central and the economic parameters are read from additional
     # .csv and .json data sources.
 
-    data.generateDistrictComplete(calcUserProfiles=True, saveUserProfiles=False)
+    data.generateDistrictComplete(calcUserProfiles=True, saveUserProfiles=True)
 
     # Calculation of the devices' optimal operation
     data.optimizationClusters()

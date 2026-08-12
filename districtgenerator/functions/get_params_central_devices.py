@@ -124,7 +124,6 @@ def get_params(data):
                                     data.time["clusterNumber"],
                                     len_cluster=int(clusterHorizon),
                                     norm = 2,
-                                    mip_gap = 0.02,
                                     scalings=scalings,
                                     pyomo_config=data.pyomo_config)
 
