@@ -917,7 +917,7 @@ class KPIs:
             el_cost_heat = 0.0
             fixed_cost_heat = 0.0
 
-            heat_devices = {"TES", "EB", "FC", "WBOI", "WCHP", "BBOI", "BCHP", "HP", "GHP", "BOI", "CHP", "STC"}
+            heat_devices = {"TES", "EB", "FC", "WBOI", "WCHP", "BBOI", "BCHP", "HP", "GroundHP", "Waste_HeatHP", "Waste_HeatDirect", "GHP", "BOI", "CHP", "STC"}
 
             # Central heat-producing devices only
             for dev, info in self.central_individual_devices_annualized_cost.items():
@@ -1016,13 +1016,15 @@ class KPIs:
                     share_heat = (Q_kWh * price_dh) / (Q_kWh * price_dh + E_kWh * price_el + 1e-9)
                     fuel_cost_heat += cw * share_heat * fuel_kWh * price_h2
 
-                # Electricity cost for HP + EB
+                # Electricity cost for all heat pumps and electric boilers
                 el_heat_from_grid_cluster = 0.0
                 for t in range(T):
                     hp_t = eh_power.get("HP", [0] * T)[t]
+                    ghp_t = eh_power.get("GroundHP", [0] * T)[t]
+                    whhp_t = eh_power.get("Waste_HeatHP", [0] * T)[t]
                     eb_t = eh_power.get("EB", [0] * T)[t]
                     grid_t =eh_power.get("from_grid", [0] * T)[t]
-                    el_heat_t = (hp_t + eb_t) * dt / 3600 / 1000
+                    el_heat_t = (hp_t + ghp_t + whhp_t + eb_t) * dt / 3600 / 1000
                     grid_kWh = grid_t * dt / 3600 / 1000
                     el_heat_from_grid_cluster += min(el_heat_t, grid_kWh)
                 el_cost_heat += cw * el_heat_from_grid_cluster * price_el

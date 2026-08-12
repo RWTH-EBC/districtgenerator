@@ -13,18 +13,19 @@ import time
 import os
 import districtgenerator.functions.solver_config as solver_config
 
-ALL_DEVS = ["PV", "WT", "STC", "WAT", "HP", "EB", "CC", "AC", "CHP", "BOI", "GHP",
+ALL_DEVS = ["PV", "WT", "STC", "WAT", "HP", "GroundHP", "Waste_HeatHP", "Waste_HeatDirect", "EB", "CC", "AC", "CHP", "BOI", "GHP", # Waste_HeatDirect not included as currently not limited
             "BCHP", "BBOI", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "TES",
             "CTES", "BAT", "GS"] # "from_grid", "to_grid", "import" are not included here as they are not actual devices but rather represent grid interactions or waste heat utilization and therefore typical investment and capacity constraints do not apply to them
 GAS_DEVS = ["CHP", "BOI", "GHP", "SAB", "from_grid", "to_grid"]
-POWER_DEVS = ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]
-HEAT_DEVS = ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]
+POWER_DEVS = ["PV", "WT", "WAT", "HP", "GroundHP", "Waste_HeatHP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]
+HEAT_DEVS = ["STC", "HP", "GroundHP", "Waste_HeatHP", "Waste_HeatDirect", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]
 COOL_DEVS = ["CC", "AC"]
 HYDROGEN_DEVS = ["ELYZ", "FC", "SAB", "import"]
 BIOM_DEVS = ["BCHP", "BBOI", "import"]
 WASTE_DEVS = ["WCHP", "WBOI", "import"]
 STORAGE_DEVS = ["TES", "CTES", "BAT", "H2S", "GS"]
 AREA_DEVS = ["PV", "STC"]
+WASTE_HEAT_DEVS = ["Waste_HeatHP", "Waste_HeatDirect"]  # Waste heat devices, including
 
 def run_optim(data, devs, param, dem, result_dict):
     """
@@ -106,6 +107,7 @@ def build_model(model, data, devs, param, dem):
     model.waste_devs = pyo.Set(initialize=WASTE_DEVS)
     model.storage_devs = pyo.Set(initialize=STORAGE_DEVS)
     model.area_devs = pyo.Set(initialize=AREA_DEVS)
+    model.waste_heat_devs = pyo.Set(initialize=WASTE_HEAT_DEVS)
 
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # 2. Create Pyomo Variables
@@ -124,7 +126,7 @@ def build_model(model, data, devs, param, dem):
     model.biom = pyo.Var(model.biom_devs, model.support_years, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
     model.waste = pyo.Var(model.waste_devs, model.support_years, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
     model.ch = pyo.Var(model.storage_devs, model.support_years, model.clusters, model.time_steps, within=pyo.Reals)
-    model.waste_heat = pyo.Var(model.support_years, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
+    model.waste_heat = pyo.Var(model.waste_heat_devs, model.support_years, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
 
     # Storage SOC uses weekly tracking but indexed by support year
     model.soc = pyo.Var(model.storage_devs, model.support_years, model.year, model.time_steps,
@@ -206,7 +208,7 @@ def build_model(model, data, devs, param, dem):
         for d in model.clusters:
             for t in model.time_steps:
                 # Add constraints for the device operation based on the device capacity
-                for dev in ["STC", "EB", "HP", "BOI", "GHP", "BBOI", "WBOI"]:  # Heat devices
+                for dev in ["STC", "EB", "HP", "GroundHP", "Waste_HeatHP", "Waste_HeatDirect", "BOI", "GHP", "BBOI", "WBOI"]:  # Heat devices
                     model.constraints.add(model.heat[dev, y, d, t] <= model.cap[dev])
                 for dev in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC"]:  # Power devices
                     model.constraints.add(model.power[dev, y, d, t] <= model.cap[dev])
@@ -220,6 +222,13 @@ def build_model(model, data, devs, param, dem):
                 model.constraints.add(model.power["to_grid", y, d, t] <= model.grid_limit_el)
                 model.constraints.add(model.gas["from_grid", y, d, t] <= model.grid_limit_gas)
                 model.constraints.add(model.gas["to_grid", y, d, t] <= model.grid_limit_gas)
+
+    # Limited operation based on available waste heat for Waste Heat devices
+    for y in model.support_years:
+        for d in model.clusters:
+            for t in model.time_steps:
+                model.constraints.add(model.waste_heat["Waste_HeatHP", y, d, t] <= param["waste_heat_hp_power_kW_clustered"][d][t]) # Limited by available waste heat power
+                model.constraints.add(model.waste_heat["Waste_HeatDirect", y, d, t] <= param["waste_heat_direct_power_kW_clustered"][d][t]) # Limited by available waste heat power
 
     # Correlation to translate area to capacity for PV and STC
     model.constraints.add(model.cap["PV"] == model.area["PV"] * devs["PV"]["G_stc"] * devs["PV"]["eta"])
@@ -250,6 +259,7 @@ def build_model(model, data, devs, param, dem):
                 model.constraints.add(model.heat["STC", y, d, t] <= devs["STC"]["norm_power_clustered"][d][t] / 1000 * model.area["STC"])
                 # Electric heat pump correlation between heat and electric power
                 model.constraints.add(model.heat["HP", y, d, t] == model.power["HP", y, d, t] * devs["HP"]["COP"][y][d][t])
+                model.constraints.add(model.heat["GroundHP", y, d, t] == model.power["GroundHP", y, d, t] * devs["GroundHP"]["COP"][y][d][t])
                 # Electric boiler correlation between heat and electric power
                 model.constraints.add(model.heat["EB", y, d, t] == model.power["EB", y, d, t] * devs["EB"]["eta_th"])
                 # Compression chiller correlation between cooling and electric power (time-dependent COP)
@@ -284,12 +294,10 @@ def build_model(model, data, devs, param, dem):
                 # Sabatier reactor correlation between hydrogen consumption and gas production
                 model.constraints.add(model.gas["SAB", y, d, t] == model.hydrogen["SAB", y, d, t] * devs["SAB"]["eta"])
 
-                # Waste heat is only used as source heat if the selected HP mode is waste-heat-source.
-                if devs["HP"].get("source") == "waste_heat":
-                    model.constraints.add(model.waste_heat[y, d, t] == model.heat["HP", y, d, t] - model.power["HP", y, d, t])
-                    model.constraints.add(model.waste_heat[y, d, t] <= param["waste_heat"][d][t])
-                else:
-                    model.constraints.add(model.waste_heat[y, d, t] == 0)
+                # Waste Heat devices correlation
+                model.constraints.add(model.waste_heat["Waste_HeatHP", y, d, t] == model.heat["Waste_HeatHP", y, d, t] - model.power["Waste_HeatHP", y, d, t]) # 
+                model.constraints.add(model.heat["Waste_HeatHP", y, d, t] == model.power["Waste_HeatHP", y, d, t] * devs["Waste_HeatHP"]["COP"][y][d][t])
+                model.constraints.add(model.waste_heat["Waste_HeatDirect", y, d, t] == model.heat["Waste_HeatDirect", y, d, t]) # Direct waste heat usage
 
     ################################################################################
     # Energy balances for each time step
@@ -300,7 +308,7 @@ def build_model(model, data, devs, param, dem):
             for t in model.time_steps:
                 # Heat balance
                 heat_supply = sum(model.heat[dev, y, d, t] for dev in
-                                  ["STC", "HP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"])
+                                  ["STC", "HP", "GroundHP", "Waste_HeatHP", "Waste_HeatDirect", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"])
                 heat_demand = dem["heat"][y][d][t] + model.heat["AC", y, d, t] + model.ch["TES", y, d, t]
                 model.constraints.add(heat_supply == heat_demand)
 
@@ -308,7 +316,7 @@ def build_model(model, data, devs, param, dem):
                 power_supply = sum(
                     model.power[dev, y, d, t] for dev in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "FC", "from_grid"])
                 power_demand = dem["power"][y][d][t] + sum(
-                    model.power[dev, y, d, t] for dev in ["HP", "EB", "CC", "ELYZ", "to_grid"]) + model.ch["BAT", y, d, t]
+                    model.power[dev, y, d, t] for dev in ["HP", "GroundHP", "Waste_HeatHP", "EB", "CC", "ELYZ", "to_grid"]) + model.ch["BAT", y, d, t]
                 model.constraints.add(power_supply == power_demand)
 
                 # Cooling supply and demand balance
@@ -338,7 +346,7 @@ def build_model(model, data, devs, param, dem):
 
     if param["peak_dem_met_conv"]:
         # Heating (conventional - only controllable devices)
-        model.constraints.add(model.cap["HP"] + model.cap["EB"]
+        model.constraints.add(model.cap["HP"] + model.cap["GroundHP"] + model.cap["EB"]
                               + model.cap["CHP"] / devs["CHP"]["eta_el"] * devs["CHP"]["eta_th"]
                               + model.cap["BOI"]
                               + model.cap["GHP"]
@@ -361,9 +369,9 @@ def build_model(model, data, devs, param, dem):
         if (param["enable_supply_hydrogen"] == False) and devs["ELYZ"]["feasible"]:
             model.constraints.add(model.cap["ELYZ"] >= param["peak_hydrogen"])
 
-    else:  # With STC, PV, WIND, HYDROPOWER (WAT)
+    else:  # With STC, PV, WIND, HYDROPOWER (WAT), Waste heat Heatpump and exchanger
         # Heating (with renewable sources)
-        model.constraints.add(model.cap["STC"] + model.cap["HP"] + model.cap["EB"]
+        model.constraints.add(model.cap["STC"] + model.cap["HP"] + model.cap["GroundHP"] + model.cap["Waste_HeatHP"] + model.cap["Waste_HeatDirect"] + model.cap["EB"]
                               + model.cap["CHP"] / devs["CHP"]["eta_el"] * devs["CHP"]["eta_th"]
                               + model.cap["BOI"]
                               + model.cap["GHP"]
@@ -454,7 +462,7 @@ def build_model(model, data, devs, param, dem):
         
         model.constraints.add(
             model.waste_heat_used_total[y] == dt * sum(
-                model.waste_heat[y, d, t] * param["cluster_weights"][d]
+                (model.waste_heat["Waste_HeatDirect", y, d, t] + model.waste_heat["Waste_HeatHP", y, d, t]) * param["cluster_weights"][d]
                 for d in model.clusters for t in model.time_steps))
 
     ################################################################################
@@ -876,7 +884,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     for y in model.support_years:
         result_dict["power_profile_by_year"][y] = {}
         result_dict["power_kW_by_year"][y] = {}
-        for device in ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]:
+        for device in ["PV", "WT", "WAT", "HP", "GroundHP", "Waste_HeatHP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]:
             profile = []
             for d in model.clusters:
                 for t in model.time_steps:
@@ -890,7 +898,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     for y in model.support_years:
         result_dict["heat_profile_by_year"][y] = {}
         result_dict["heat_kW_by_year"][y] = {}
-        for device in ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]:
+        for device in ["STC", "HP", "GroundHP", "Waste_HeatHP", "Waste_HeatDirect", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]:
             profile = []
             for d in model.clusters:
                 for t in model.time_steps:
@@ -920,7 +928,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     # Calculate annual generation for each device type structure result_dict[device]["gen_kWh"]["energy_type"] and result_dict[device]["gen"]["energy_type"]
 
     # Heat generation
-    for k in ["STC", "HP", "EB", "BOI", "GHP", "BBOI", "WBOI", "CHP", "BCHP", "WCHP", "FC"]:
+    for k in ["STC", "HP", "GroundHP", "Waste_HeatHP", "Waste_HeatDirect", "EB", "BOI", "GHP", "BBOI", "WBOI", "CHP", "BCHP", "WCHP", "FC"]:
         gen_kwh = dt * sum(safe_value(model.heat, (k, y, d, t)) * param["cluster_weights"][d] * weights[y]
                     for y in model.support_years for d in model.clusters for t in model.time_steps)
         if k not in result_dict:
@@ -985,14 +993,14 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
 
     eps = 0.01
     # Calculate full load hours
-    for k in ["PV", "WT", "WAT", "STC", "HP", "EB", "CC", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI",
+    for k in ["PV", "WT", "WAT", "STC", "HP", "GroundHP", "Waste_HeatHP", "Waste_HeatDirect", "EB", "CC", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI",
               "ELYZ", "FC", "SAB"]:
         cap_k = safe_value(model.cap, k)
         if cap_k > eps:
             # Decide which energy to use as the base for full load hours
             if k in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "FC"]:
                 base_gen_kwh = result_dict[k]["gen_kWh"]["power"]
-            elif k in ["STC", "HP", "EB", "BOI", "GHP", "BBOI", "WBOI"]:
+            elif k in ["STC", "HP", "GroundHP", "Waste_HeatHP", "Waste_HeatDirect", "EB", "BOI", "GHP", "BBOI", "WBOI"]:
                 base_gen_kwh = result_dict[k]["gen_kWh"]["heat"]
             elif k in ["CC", "AC"]:
                 base_gen_kwh = result_dict[k]["gen_kWh"]["cooling"]
