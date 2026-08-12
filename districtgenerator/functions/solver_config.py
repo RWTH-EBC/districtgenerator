@@ -3,6 +3,7 @@
 from pyomo.environ import SolverFactory
 import os, sys
 import json
+import time
 from districtgenerator.data_handling.config import PyomoConfig
 import pyomo.environ as pyo
 from contextlib import redirect_stdout
@@ -130,6 +131,23 @@ OPTION_MAP = {
     }
 }
 
+def _safe_remove_file(path, retries=5, delay=0.2):
+    """Remove a file if possible; ignore temporary Windows file locks."""
+    if not os.path.exists(path):
+        return
+
+    for attempt in range(retries):
+        try:
+            os.remove(path)
+            return
+        except FileNotFoundError:
+            return
+        except PermissionError:
+            if attempt == retries - 1:
+                print(f"WARNUNG: Temporäre Solver-Logdatei konnte nicht gelöscht werden: {path}")
+                return
+            time.sleep(delay)
+
 _NO_INPUT = object()
 
 def create_solver(pyomo_config = None, solver_name=None,timelimit=_NO_INPUT, mipgap=None) -> tuple[SolverFactory, dict]:  # type: ignore
@@ -254,8 +272,7 @@ def execute_and_diagnose(model, pyomo_config, model_name, result_dir):
             pass
 
     # Remove temporary solver log file
-    if os.path.exists(solver_log_path):
-        os.remove(solver_log_path)
+    _safe_remove_file(solver_log_path)
 
     return results
 

@@ -130,7 +130,15 @@ def build_model(model, data, year, cluster, sim_ecoData):
     energyHubData = data.centralDevices
     heatingNetworkData = data.heat_grid_data
 
-    is_5g_fixed = data.heat_grid_data["heatgrid_generation"] == "5G"
+    has_heat_grid_buildings = any(
+        str(building["buildingFeatures"].get("heater", "")).strip()
+        in ("heat_grid", "heat_grid_OEB", "heat_grid_BEB")
+        for building in buildingData
+    )
+    is_5g_fixed = (
+        heatingNetworkData.get("heatgrid_generation") == "5G"
+        and has_heat_grid_buildings
+    )
 
     ################################################################################
     # Setting up the model
@@ -154,6 +162,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
         network_pump_power = [0] * len(T_e)
 
     if is_5g_fixed:
+        if "eh_residual_thermal_5g_cluster" not in heatingNetworkData:
+            raise KeyError("Missing profile 'eh_residual_thermal_5g_cluster' for 5G heat-grid operation.")
         residual_5g = [float(value) * 1000.0 for value in heatingNetworkData["eh_residual_thermal_5g_cluster"][cluster]]
         heat_5g_from_eh = [max(value, 0.0) for value in residual_5g]
         cool_5g_from_eh = [max(-value, 0.0) for value in residual_5g]

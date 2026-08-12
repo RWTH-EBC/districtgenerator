@@ -12,7 +12,7 @@ import os
 import warnings
 
 
-SCENARIO_NAME = "district_F_seed_27_buildings_30"
+SCENARIO_NAME = "district_E_seed_1_buildings_10"
 ENV_PATH = ".env.CONFIG.EXAMPLE"
 
 

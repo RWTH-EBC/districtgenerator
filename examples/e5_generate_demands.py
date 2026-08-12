@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 def example5_generate_demands():
 
     # Initialize District
-    data = Datahandler(scenario_name = "example", env_path=".env.CONFIG.PAPER")
+    data = Datahandler(scenario_name = "district_E_seed_1_buildings_10", env_path=".env.CONFIG.EXAMPLE")
 
     # Generate Environment for the District
     data.generateEnvironment()

@@ -14,7 +14,7 @@ class BES:
     """
 
     def __init__(self, physics, decentral_device_data, design_building_data, file_path, eco_data, pyomo_config,
-                 central_device_data=None, ehdo_model_data=None):
+                 central_device_data=None, ehdo_model_data=None, heat_grid_data=None):
         """
         Constructor of building energy system (BES) class.
 
@@ -34,6 +34,7 @@ class BES:
         self.pyomo_config = pyomo_config
         self.central_device_data = central_device_data
         self.ehdo_model_data = ehdo_model_data
+        self.heat_grid_data = heat_grid_data or {}
 
     def designECS(self, building, site, dt_s):
         """
@@ -211,11 +212,16 @@ class BES:
                     tau_DHW = 1  # hour
                     BES["TES_DHW"] = tau_DHW * self.design_load_dhw  # [Wh]
 
-            # compression chiller (CC)
-            # A compression chiller is only designed if the building is actively cooled
-            # and not connected to a heat grid (since cooling would then be provided centrally).
+            # Cooling capacity.
+            # For HP buildings this represents the reversible HP cooling mode;
+            # for non-HP and 4G heat-grid buildings it represents a separate chiller.
+            # In 5G heat-grid buildings cooling is covered by HP_5G instead.
             if k == "CC":
-                BES["CC"] = self.design_load_cooling * buildingFeatures["cooling"] * (1 - BES["heat_grid"])
+                is_5g_network = str(self.heat_grid_data.get("heatgrid_generation", "")).upper() == "5G"
+                if BES["heat_grid"] and is_5g_network:
+                    BES["CC"] = 0
+                else:
+                    BES["CC"] = self.design_load_cooling * buildingFeatures["cooling"]
 
             # battery (BAT)
             if k == "BAT":

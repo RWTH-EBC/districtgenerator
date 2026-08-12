@@ -452,6 +452,13 @@ class KPIs:
                         subsidized_cost = 0.0
                         unsubsidized_cost = 0.0
 
+                    # For pure decentral heat-pump systems, the compression
+                    # chiller represents the reversible cooling mode of the HP.
+                    # The physical investment is already counted through HP.
+                    if dev == "CC" and district[n]["buildingFeatures"]["heater"] == "HP":
+                        subsidized_cost = 0.0
+                        unsubsidized_cost = 0.0
+
                     calc_annual_investment[n] += subsidized_cost
                     calc_annual_investment_unsubsidized[n] += unsubsidized_cost
                     self.decentral_individual_devices_annualized_cost[n][dev] = {"cap":cap,

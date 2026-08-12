@@ -1820,7 +1820,8 @@ class Datahandler:
                 eco_data=self.ecoData,
                 pyomo_config=self.pyomo_config,
                 central_device_data=self.central_device_data,
-                ehdo_model_data=self.params_ehdo_model
+                ehdo_model_data=self.params_ehdo_model,
+                heat_grid_data=self.heat_grid_data
             )
 
             # get capacities of all possible devices

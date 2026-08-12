@@ -99,7 +99,7 @@ def _get_active_renewable_heat_share(config, year):
 # Core operation model
 def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w, demand_el_w, ev_on_demand_w, site, pv_gen_w,
     stc_gen_w, capacities, dt_s, decentral_device_data, eco_data, pyomo_config, design_building_data, building, cluster_meta,
-    central_device_data=None, ehdo_model_data=None):
+    central_device_data=None, ehdo_model_data=None, concept_name=None):
     """
     Solve fixed-design operation for a single concept (= one capacities dict).
     """
@@ -149,7 +149,7 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
     bat_coeff = dev_param("BAT", "coeff_ch")
 
     cap_HP_kw_th = cap_w("HP") / 1000.0
-    hp_installed = any(cap_w(k) > 0 for k in ["HP", "GHP", "BHP", "H2HP", "OHP"])
+    cc_is_reversible_hp_mode = str(concept_name or building["buildingFeatures"].get("heater", "")).strip() == "HP"
     cap_EH_kw_th = cap_w("EH") / 1000.0
     cap_EWH_kw_th = cap_w("EWH") / 1000.0
     cap_BOI_kw_th = cap_w("BOI") / 1000.0
@@ -172,6 +172,7 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
     cap_TES_DHW_L = cap_TES_DHW_kwh / ((1000 * 4180 * float(decentral_device_data["TES_DHW"]["T_diff_max"]) * 0.001) / 3.6e6)
 
     cap_BAT_kwh = cap_wh("BAT") / 1000.0
+    cap_CC_kw_th = (float(getattr(building["envelope"], "coolingload", 0.0)) * float(building["buildingFeatures"].get("cooling", 0.0)) / 1000.0)
 
     tes_init_frac = float(decentral_device_data.get("TES", {}).get("init"))
     tes_DHW_init_frac = float(decentral_device_data.get("TES_DHW", {}).get("init"))
@@ -262,6 +263,8 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("H2BOI"), eco_data, cap_H2BOI_kw_th, mode="subsidized")
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("CHP"), eco_data, cap_CHP_kw_th, mode="subsidized")
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("FC"), eco_data, cap_FC_kw_th, mode="subsidized")
+    if not cc_is_reversible_hp_mode:
+        fixed_cost += annualized_device_cost_over_horizon(dev_dict("CC"), eco_data, cap_CC_kw_th, mode="subsidized")
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("BAT"), eco_data, cap_BAT_kwh, mode="subsidized")
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("TES"), eco_data, cap_TES_L, mode="subsidized")
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("TES_DHW"), eco_data, cap_TES_DHW_L, mode="subsidized")
@@ -729,7 +732,8 @@ def choose_cheapest_heating_concept_fixed_design(demand_heat_w, demand_dhw_w, de
             building=building,
             cluster_meta=cluster_meta,
             central_device_data=central_device_data,
-            ehdo_model_data=ehdo_model_data
+            ehdo_model_data=ehdo_model_data,
+            concept_name=concept
         )
 
         all_results[concept] = r
