@@ -114,22 +114,71 @@ def load_params(data):
     adjustedHorizon -= clusterHorizon
     adjustedHorizon = int(adjustedHorizon)
 
+    generation = heat_grid_data["generation"]
+    temperature_mode = heat_grid_data["temperature_mode"]
+    if temperature_mode == "heating_curve":
+        T_supply_min = heat_grid_data["T_hot_heating_network"]["heating_curve"]["min"][generation]
+        T_supply_max = heat_grid_data["T_hot_heating_network"]["heating_curve"]["max"][generation]
+        T_return_min = heat_grid_data["T_cold_heating_network"]["heating_curve"]["min"][generation]
+        T_return_max = heat_grid_data["T_cold_heating_network"]["heating_curve"]["max"][generation]
+        T_supply_uncl, T_return_uncl = heating_curve(
+            param_uncl["T_air"], T_supply_min, T_supply_max, T_return_min, T_return_max
+        )
+    elif temperature_mode == "constant":
+        T_supply_const = heat_grid_data["T_hot_heating_network"]["constant"][generation]
+        T_return_const = heat_grid_data["T_cold_heating_network"]["constant"][generation]
+        T_supply_uncl = np.ones_like(param_uncl["T_air"]) * T_supply_const
+        T_return_uncl = np.ones_like(param_uncl["T_air"]) * T_return_const
+
+    dT_pinch_waste_heat = 0.0 # K, temperature difference between waste heat and network fluid at pinch point
+    waste_heat_power_uncl = np.asarray(param_uncl["waste_heat_power_kW"], dtype=float)
+    waste_heat_temp_uncl = param_uncl["waste_heat_temperature"]
+    waste_heat_direct_uncl = np.zeros_like(waste_heat_power_uncl)
+    waste_heat_hp_uncl = np.zeros_like(waste_heat_power_uncl)
+    COP_Waste_HeatHP_uncl = np.zeros_like(waste_heat_power_uncl)
+
+    if waste_heat_temp_uncl is not None:
+        waste_heat_temp_uncl = np.asarray(waste_heat_temp_uncl, dtype=float)
+        direct_mask = waste_heat_temp_uncl >= T_supply_uncl + dT_pinch_waste_heat
+        waste_heat_direct_uncl = np.where(direct_mask, waste_heat_power_uncl, 0.0)
+        waste_heat_hp_uncl = np.where(direct_mask, 0.0, waste_heat_power_uncl)
+
+        eta_carnot = central_device_data["Waste_HeatHP"].get("ASHP_carnot_eff", 0.4)
+        T_sink_K_uncl = T_supply_uncl + 273.15
+        T_source_K_uncl = waste_heat_temp_uncl + 273.15
+        delta_T_uncl = T_sink_K_uncl - T_source_K_uncl + dT_pinch_waste_heat
+        COP_Waste_HeatHP_uncl = np.divide(
+            eta_carnot * T_sink_K_uncl,
+            delta_T_uncl,
+            out=np.zeros_like(delta_T_uncl),
+            where=(waste_heat_hp_uncl > 0.0) & (delta_T_uncl > 0.0)
+        )
+
+    data.heat_grid_data["waste_heat_direct_power_kW"] = waste_heat_direct_uncl
+    data.heat_grid_data["waste_heat_hp_power_kW"] = waste_heat_hp_uncl
+    data.heat_grid_data["COP_Waste_HeatHP"] = COP_Waste_HeatHP_uncl
+    data.heat_grid_data["T_supply_EH"] = T_supply_uncl
+    data.heat_grid_data["T_return_EH"] = T_return_uncl
+
     # Collect the time series to be clustered
     time_series = [dem_uncl["heat"][0:adjustedHorizon], dem_uncl["cool"][0:adjustedHorizon], dem_uncl["power"][0:adjustedHorizon],
                    param_uncl["T_air"][0:adjustedHorizon], param_uncl["GHI"][0:adjustedHorizon], param_uncl["DHI"][0:adjustedHorizon],
-                   param_uncl["wind_speed"][0:adjustedHorizon], param_uncl["waste_heat_power_kW"][0:adjustedHorizon]]
-    
-    # Only cluster temperature when not None
-    if param_uncl["waste_heat_temperature"] is not None:
-        time_series.append(param_uncl["waste_heat_temperature"][0:adjustedHorizon])
+                   param_uncl["wind_speed"][0:adjustedHorizon],
+                   T_supply_uncl[0:adjustedHorizon],
+                   T_return_uncl[0:adjustedHorizon],
+                   waste_heat_direct_uncl[0:adjustedHorizon],
+                   waste_heat_hp_uncl[0:adjustedHorizon],
+                   COP_Waste_HeatHP_uncl[0:adjustedHorizon]]
 
     # Only building demands and weather data are clustered using k-medoids algorithm; secondary time series are clustered manually according to k-medoids result
     inputs = np.array(time_series)
 
-    # Scaling flags for each profile (True = scale after clustering, False = preserve values)
-    scalings = []
-    for feature in inputs:
-        scalings.append(0)
+    # Select representative periods based on weather boundary conditions.
+    # Outdoor temperature is dominant, global horizontal irradiation secondary.
+    # Dependent profiles such as EH temperatures, waste heat split and COP are
+    # carried along from the selected periods, but do not drive clustering.
+    weights = [0, 0, 0, 3, 1, 0, 0, 0, 0, 0, 0, 0]
+    scalings = [False for _ in inputs]
 
     # Execute k-medoids algorithm
     print("Cluster design days...")
@@ -139,6 +188,7 @@ def load_params(data):
                                     len_cluster=int(clusterHorizon),
                                     norm = 2,
                                     mip_gap = 0.02,
+                                    weights=weights,
                                     scalings=scalings,
                                     pyomo_config=data.pyomo_config)
 
@@ -156,17 +206,17 @@ def load_params(data):
     param["GHI"] = clustered_series[4]
     param["DHI"] = clustered_series[5]
     param["wind_speed"] = clustered_series[6]
-    param["waste_heat_power_kW_clustered"] = clustered_series[7]
-
-    # Only retrieve cluster temperature when not None
-    if param_uncl["waste_heat_temperature"] is not None:
-        param["waste_heat_temperature_clustered"] = clustered_series[8]
-    else:
-        param["waste_heat_temperature_clustered"] = None
+    param["T_supply_EH"] = clustered_series[7]
+    param["T_return_EH"] = clustered_series[8]
+    param["waste_heat_direct_power_kW_clustered"] = clustered_series[9]
+    param["waste_heat_hp_power_kW_clustered"] = clustered_series[10]
+    param["COP_Waste_HeatHP_clustered"] = clustered_series[11]
+    param["waste_heat_power_kW_clustered"] = (
+        param["waste_heat_direct_power_kW_clustered"] + param["waste_heat_hp_power_kW_clustered"]
+    )
 
 
     # Save number of design days and design-day matrix
-    # todo: Adjust this to allow for different clusters in each year?
     param["cluster_weights"] = nc
     param["cluster_matrix"] = z
 
@@ -185,6 +235,14 @@ def load_params(data):
         sigma[day] = np.where(param["typedays"] == d)[0][0]
     param["sigma"] = sigma
 
+    result_dict["cluster_meta"] = {
+        "clusterLength": clusterHorizon,
+        "typedays": param["typedays"].copy(),
+        "clusterWeights": param["cluster_weights"].copy(),
+        "clusterMatrix": param["cluster_matrix"].copy(),
+        "sigma": param["sigma"].copy(),
+    }
+
     heat_grid = {
         k: heat_grid_data[k]
         for k in ["T_hot_cooling_network", "T_cold_cooling_network", "delta_T_heatTransfer"]  }
@@ -192,24 +250,8 @@ def load_params(data):
     heat_grid["T_cold_cooling_network"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * heat_grid["T_cold_cooling_network"]
     heat_grid["delta_T_heatTransfer"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * heat_grid["delta_T_heatTransfer"]
 
-    generation = heat_grid_data["generation"]
-    temperature_mode = heat_grid_data["temperature_mode"]
-    if temperature_mode == "heating_curve":
-        # Variable-constant operation mode (Heating curve)
-        T_supply_min = heat_grid_data["T_hot_heating_network"]["heating_curve"]["min"][generation]
-        T_supply_max = heat_grid_data["T_hot_heating_network"]["heating_curve"]["max"][generation]
-        T_return_min = heat_grid_data["T_cold_heating_network"]["heating_curve"]["min"][generation]
-        T_return_max = heat_grid_data["T_cold_heating_network"]["heating_curve"]["max"][generation]
-        T_supply, T_return = heating_curve(param["T_air"], T_supply_min, T_supply_max, T_return_min, T_return_max)
-    elif temperature_mode == "constant":
-        # constant operation mode
-        T_supply_const = heat_grid_data["T_hot_heating_network"]["constant"][generation]
-        T_return_const = heat_grid_data["T_cold_heating_network"]["constant"][generation]
-        T_supply = np.ones((data.time["clusterNumber"], clusterHorizon)) * T_supply_const  # °C
-        T_return = np.ones((data.time["clusterNumber"], clusterHorizon)) * T_return_const  # °C
-
-    heat_grid["T_hot_heating_network"] = T_supply
-    heat_grid["T_cold_heating_network"] = T_return
+    heat_grid["T_hot_heating_network"] = param["T_supply_EH"]
+    heat_grid["T_cold_heating_network"] = param["T_return_EH"]
 
     all_models = {}
     for key, value in central_device_data.items():
@@ -495,28 +537,7 @@ def load_params(data):
 
         # #! Debug Ende
 
-    # Waste_heat pump 'Waste_HeatHP'
-    
-    # Split waste_heat potential into directly available heat (T_waste_heat > T_supply) and heat which can be used utilizing a heat pump (T_waste_heat < T_supply)
-    data.heat_grid_data["waste_heat_direct_power_kW"] = np.zeros((data.time["clusterNumber"], clusterHorizon)) # TODO: This should be moved up and be a year long timeseries not a clustered one that is saved in heat_grid_data
-    data.heat_grid_data["waste_heat_hp_power_kW"] = np.zeros((data.time["clusterNumber"], clusterHorizon)) # TODO: This should be moved up and be a year long timeseries not a clustered one that is saved in heat_grid_data
-    dT_pinch_waste_heat = 0 # K, temperature difference between waste heat and network fluid at pinch point #TODO: Check and maybe use an appropriate value
-
-    if param["waste_heat_temperature_clustered"] is not None:
-        for d in range(data.time["clusterNumber"]):
-            for t in range(clusterHorizon):
-                power_waste_timestep = param["waste_heat_power_kW_clustered"][d][t]
-                if param["waste_heat_temperature_clustered"][d][t]>= heat_grid["T_hot_heating_network"][d][t] + dT_pinch_waste_heat:
-                    data.heat_grid_data["waste_heat_direct_power_kW"][d][t] = power_waste_timestep
-                else:
-                    data.heat_grid_data["waste_heat_hp_power_kW"][d][t] = power_waste_timestep
-    else: 
-        data.heat_grid_data["waste_heat_direct_power_kW"] = np.zeros((data.time["clusterNumber"], clusterHorizon))
-        data.heat_grid_data["waste_heat_hp_power_kW"] = np.zeros((data.time["clusterNumber"], clusterHorizon))
-
-    param["waste_heat_direct_power_kW_clustered"] = copy.deepcopy(data.heat_grid_data["waste_heat_direct_power_kW"]) #TODO this should be a result of the clustering and not a copy of the timeseries
-    param["waste_heat_hp_power_kW_clustered"] = copy.deepcopy(data.heat_grid_data["waste_heat_hp_power_kW"]) #TODO this should be a result of the clustering and not a copy of the timeseries
-
+    # Waste heat pump 'Waste_HeatHP'
     devs["Waste_HeatHP"] = {
         "feasible": all_models["Waste_HeatHP"]["enabled"],
         "inv_var": all_models["Waste_HeatHP"]["inv_var"],
@@ -528,18 +549,11 @@ def load_params(data):
         "ASHP_carnot_eff": all_models["Waste_HeatHP"]["ASHP_carnot_eff"],
     }
 
-    if param["waste_heat_temperature_clustered"] is not None:
-        eta_carnot = devs["Waste_HeatHP"]["ASHP_carnot_eff"] 
-        T_sink_K = heat_grid["T_hot_heating_network"] + 273.15
-        T_source_K = param["waste_heat_temperature_clustered"] + 273.15
-        delta_T = T_sink_K - T_source_K + dT_pinch_waste_heat # K, temperature difference between heat source and heat sink (including pinch point temperature difference if specified)
-        COP_base = np.divide(eta_carnot * T_sink_K, delta_T, out=np.zeros_like(delta_T), where=delta_T > 0) # COP only calculated where delta_T > 0, otherwise COP = 0 as heat pump is not running then
-    else:
-        COP_base = np.zeros((data.time["clusterNumber"], clusterHorizon)) # If no waste heat temperature is provided, COP is set to 0 as a heat pump cannot run
+    devs["Waste_HeatHP"]["COP"] = {
+        year: param["COP_Waste_HeatHP_clustered"] for year in ecoData["interpolation_points"]
+    }
 
-    devs["Waste_HeatHP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
-
-    max_available_waste_heat_power = np.max(data.heat_grid_data["waste_heat_direct_power_kW"]) # Limited by the maximum available waste heat power which can be directly used
+    max_available_waste_heat_power = np.max(waste_heat_direct_uncl)
     devs["Waste_HeatDirect"] = { # Implemented as a seperate device
         "feasible": all_models["Waste_HeatDirect"]["enabled"],
         "inv_var": all_models["Waste_HeatDirect"]["inv_var"],

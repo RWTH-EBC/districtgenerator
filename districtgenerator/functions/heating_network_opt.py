@@ -15,6 +15,15 @@ import textwrap
 from scipy.interpolate import interp1d
 # from districtgenerator.functions.load_params_central_devices import calc_COP
 
+def get_central_air_hp_data(data):
+    """Return central air-source heat pump data for network heat-loss costing."""
+    if "HP" in data.central_device_data:
+        return data.central_device_data["HP"]
+    if "AirHP" in data.central_device_data:
+        return data.central_device_data["AirHP"]
+    raise KeyError("Missing central heat pump data. Expected 'HP' or legacy 'AirHP'.")
+
+
 def network_optimization(data):
     """
     Optimize pipe diameter and iterate on friction factor
@@ -94,17 +103,11 @@ def network_optimization(data):
         # convergence: max absolute change across pipes
         max_diff = max(abs(f_new[pid] - f_old.get(pid, f_new[pid])) for pid in f_new)
 
-        print(f"Iteration {i + 1}: max |Δf| = {max_diff:.6f}")
-
         if max_diff < tol:
             converged = True
-            print(f"Converged after {i + 1} iterations.")
             break
 
         f_old = f_new
-
-    if not converged:
-        print(f"Not converged after {max_iter} iterations. Last max |Δf| = {max_diff:.6f}")
 
     # save the final converged mean friction factor
     param["f_fric_mean"] = float(np.mean([data.pipeline[p]["f_fric"] for p in data.pipeline]))
@@ -265,7 +268,8 @@ def load_parameter(data):
     data.heat_grid_data["pump"]["pump_ann_factor"] = pump_ann_factor
 
     # HP
-    HP_lifetime = data.central_device_data["AirHP"]["life_time"]      # 25a,          Maximum lifetime. source:
+    air_hp_data = get_central_air_hp_data(data)
+    HP_lifetime = air_hp_data["life_time"]      # 25a,          Maximum lifetime. source:
     HP_ann_factor = calc_annual_factor(data, HP_lifetime)
 
     # prepare parameters for the optimization model
@@ -516,8 +520,9 @@ def optimization_diameter(data, param):
     pump_ann_factor = heat_grid_data["pump"]["pump_ann_factor"]  # Annualization Factor
 
     # 3) heat loss
-    inv_HP = data.central_device_data["AirHP"]["inv_var"]  # 1500€/kW,      source:
-    cost_om_HP = data.central_device_data["AirHP"]["cost_om"]  # 0.025,        1/year (fraction of inv_var), source: VDI2067
+    air_hp_data = get_central_air_hp_data(data)
+    inv_HP = air_hp_data["inv_var"]  # 1500€/kW,      source:
+    cost_om_HP = air_hp_data["cost_om"]  # 0.025,        1/year (fraction of inv_var), source: VDI2067
     HP_ann_factor = param["HP_ann_factor"]
 
     # Calculate heat pump COPs
@@ -543,7 +548,7 @@ def optimization_diameter(data, param):
     p_co2 = data.ecoData["co2_tax"][0]                              # 0,            carbon pricing (0.055€/kg in Germany in 2025 from website https://carbonpricingdashboard.worldbank.org/compliance/price)
     EF = data.ecoData["co2_el_grid"][0]                                    # 0.363kg/kWh,  CO2 emissions for electricity import (grid mix)
 
-    # calculate the total unit cost of producing heat of AirHP
+    # calculate the total unit cost of producing heat of central air-source HP
     heat_loss_prefac = (price_el_pumps + p_co2 * EF) / COP_HP           # €/kWh,  total unit cost of producing heat to cover network heat losses.
 
     # 7 get possible norm diameter options for each pipe segment
@@ -1572,9 +1577,10 @@ def output_diameter(data, param):
     # calculate capacity
     cap_HP = np.max(heat_loss_total)
     # calculate investment, o&m cost and electricity cost
-    HP_inv_costs = cap_HP * data.central_device_data["AirHP"]["inv_var"]
+    air_hp_data = get_central_air_hp_data(data)
+    HP_inv_costs = cap_HP * air_hp_data["inv_var"]
     HP_ann_costs = HP_inv_costs * param["HP_ann_factor"]
-    HP_om_costs = HP_inv_costs * data.central_device_data["AirHP"]["cost_om"]
+    HP_om_costs = HP_inv_costs * air_hp_data["cost_om"]
     # calculate yearly COP profile and the eletricity cost for the HP
     devs_param = {
         "feasible": True,

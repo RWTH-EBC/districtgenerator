@@ -393,8 +393,8 @@ class Datahandler:
             """  
                 Add new weatherdatafile_location, if you want an individual location: 
                 Files can be found here: https://www.dwd.de/DE/leistungen/testreferenzjahre/testreferenzjahre.html 
-                Every file has to be stored in the folder reffering to the correct Year and season in the subfolders of '\districtgenerator\data\weather\ 
-                Example: TRY2015_507755060854_Wint.dat has to be stored in '\districtgenerator\data\weather\TRY_2015_Winter' 
+                Every file has to be stored in the folder reffering to the correct Year and season in the subfolders of '\\districtgenerator\\data\\weather\\ 
+                Example: TRY2015_507755060854_Wint.dat has to be stored in '\\districtgenerator\\data\\weather\\TRY_2015_Winter' 
                 Uncomment the following line  
             """
             # weatherdatafile_location = 507755060854
@@ -439,21 +439,6 @@ class Datahandler:
         else:
             self.heat_grid_data['ts_waste_heat_temperature'] = None # Use None as 0 might be misleading for the temperature
             self.heat_grid_data['ts_waste_heat_power_kW'] = np.zeros(8760)
-
-        # #! DEBUG: SHOW Simple plot of the waste heat data (Temperature top and power bottom)
-        # # TODO: Remove this debug plot later on if satisfied with implementation of waste heat data handling
-        # import matplotlib.pyplot as plt
-        # plt.figure(figsize=(10, 5))
-        # plt.subplot(2, 1, 1)
-        # plt.plot(self.heat_grid_data['ts_waste_heat_temperature'])
-        # plt.title('Waste Heat Temperature')
-        # plt.ylabel('Temperature (°C)')
-        # plt.subplot(2, 1, 2)
-        # plt.plot(self.heat_grid_data['ts_waste_heat_power_kW'])
-        # plt.title('Waste Heat Power')
-        # plt.ylabel('Power (kW)')
-        # plt.xlabel('Time (hours)')
-        # plt.show()
 
     def generateEnvironment(self):
         """
@@ -1194,7 +1179,7 @@ class Datahandler:
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8, gen_cars=True):
-        use_multiprocessing = True #todo: False while debugging
+        use_multiprocessing = True # !!False while debugging!!
 
         # Thread count is limited by the maximum available CPU cores. Using more threads than cores usually provides no additional benefit but requires more temporary storage.
         max_threads = min(max_threads, multiprocessing.cpu_count())
@@ -1446,7 +1431,7 @@ class Datahandler:
             self.heat_grid_data["seasonal_storage_kW"] = seasonal_storage_kW
 
             self.designCentralDevices(saveGenerationProfiles=True)
-            self.finalizeClusterProfiles()
+            self.applyCentralDesignClusteringToOperationProfiles()
             
         else:
             print("No central heat grid detected — skipping heating network design.")
@@ -1923,6 +1908,147 @@ class Datahandler:
         print("Finalizing clustering (post-optimization)...")
         self.clusterProfiles(centralEnergySupply=True)
 
+    def _select_profile_periods(self, profile, typedays, cluster_horizon, length_array):
+        """
+        Select representative periods from a full-year profile using medoid indices.
+        """
+        if profile is None:
+            return None
+
+        arr = np.asarray(profile)[0:length_array]
+        num_periods = int(length_array / cluster_horizon)
+        transformed = arr.reshape((cluster_horizon, num_periods), order="F")
+        return np.array([transformed[:, int(day)] for day in typedays])
+
+    def applyCentralDesignClusteringToOperationProfiles(self):
+        """
+        Use the central design clustering as the common clustering basis for operation.
+
+        The central design optimization already selects representative periods
+        for EH demand, weather, network temperatures and waste heat. This method
+        applies the same medoid periods to all profiles required by the later
+        operation optimization.
+        """
+        capacities = self.centralDevices.get("capacities") or {}
+        cluster_meta = capacities.get("cluster_meta")
+        if not cluster_meta:
+            raise RuntimeError(
+                "Central design clustering metadata is missing. "
+                "Cannot prepare operation profiles consistently."
+            )
+
+        cluster_horizon = int(cluster_meta["clusterLength"])
+        typedays = np.asarray(cluster_meta["typedays"], dtype=int)
+        cluster_weights = np.asarray(cluster_meta["clusterWeights"], dtype=int)
+        cluster_matrix = np.asarray(cluster_meta["clusterMatrix"])
+
+        length_array = cluster_horizon
+        while length_array <= len(self.site["T_e"]):
+            length_array += cluster_horizon
+        length_array = int(length_array - cluster_horizon)
+
+        zero_profile = np.zeros(length_array)
+
+        for building in self.district:
+            user = building["user"]
+            user.elec_cluster = self._select_profile_periods(user.elec, typedays, cluster_horizon, length_array)
+            user.dhw_cluster = self._select_profile_periods(user.dhw, typedays, cluster_horizon, length_array)
+            user.heat_cluster = self._select_profile_periods(user.heat, typedays, cluster_horizon, length_array)
+            user.cooling_cluster = self._select_profile_periods(user.cooling, typedays, cluster_horizon, length_array)
+            user.occ_cluster = self._select_profile_periods(user.occ, typedays, cluster_horizon, length_array)
+            user.EV_carcharging_ondemand_cluster = self._select_profile_periods(
+                user.EV_carcharging_ondemand, typedays, cluster_horizon, length_array)
+            user.EV_carprofile_cluster = self._select_profile_periods(
+                user.EV_carprofile, typedays, cluster_horizon, length_array)
+            building["generationPV_cluster"] = self._select_profile_periods(
+                building["generationPV"], typedays, cluster_horizon, length_array)
+            building["generationSTC_cluster"] = self._select_profile_periods(
+                building["generationSTC"], typedays, cluster_horizon, length_array)
+
+            user.individual_car_profiles_cluster = []
+            for car in getattr(user, "individual_car_profiles", []):
+                clustered_car_data = {
+                    "car_id": car.get("car_id"),
+                    "type": car.get("type"),
+                    "location": car.get("location"),
+                    "battery_capacity_wh": car.get("battery_capacity_wh"),
+                    "availability_profile_cluster": self._select_profile_periods(
+                        car.get("availability_profile"), typedays, cluster_horizon, length_array),
+                    "consumption_profile_wh_cluster": self._select_profile_periods(
+                        car.get("consumption_profile_wh"), typedays, cluster_horizon, length_array),
+                    "on_demand_charging_profile_w_cluster": self._select_profile_periods(
+                        car.get("on_demand_charging_profile_w"), typedays, cluster_horizon, length_array),
+                    "fuel_profile_l_cluster": self._select_profile_periods(
+                        car.get("fuel_profile_l"), typedays, cluster_horizon, length_array),
+                }
+                user.individual_car_profiles_cluster.append(clustered_car_data)
+
+        self.heat_grid_data["total_losses_heating_network_cluster"] = self._select_profile_periods(
+            self.heat_grid_data.get("total_losses_heating_network", zero_profile),
+            typedays, cluster_horizon, length_array)
+        self.heat_grid_data["total_losses_cooling_network_cluster"] = self._select_profile_periods(
+            self.heat_grid_data.get("total_losses_cooling_network", zero_profile),
+            typedays, cluster_horizon, length_array)
+        self.heat_grid_data["seasonal_storage_cluster_kW"] = self._select_profile_periods(
+            self.heat_grid_data.get("seasonal_storage_kW", zero_profile),
+            typedays, cluster_horizon, length_array)
+        self.heat_grid_data["pump_power_cluster"] = self._select_profile_periods(
+            self.heat_grid_data.get("pump_power", zero_profile),
+            typedays, cluster_horizon, length_array)
+        self.heat_grid_data["waste_heat_hp_power_kW_cluster"] = self._select_profile_periods(
+            self.heat_grid_data.get("waste_heat_hp_power_kW", zero_profile),
+            typedays, cluster_horizon, length_array)
+        self.heat_grid_data["waste_heat_direct_power_kW_cluster"] = self._select_profile_periods(
+            self.heat_grid_data.get("waste_heat_direct_power_kW", zero_profile),
+            typedays, cluster_horizon, length_array)
+        self.heat_grid_data["COP_Waste_HeatHP_cluster"] = self._select_profile_periods(
+            self.heat_grid_data.get("COP_Waste_HeatHP", zero_profile),
+            typedays, cluster_horizon, length_array)
+        self.heat_grid_data["T_supply_EH_cluster"] = self._select_profile_periods(
+            self.heat_grid_data.get("T_supply_EH", zero_profile),
+            typedays, cluster_horizon, length_array)
+        self.heat_grid_data["T_return_EH_cluster"] = self._select_profile_periods(
+            self.heat_grid_data.get("T_return_EH", zero_profile),
+            typedays, cluster_horizon, length_array)
+
+        self.centralDevices["generation"]["Wind_cluster"] = self._select_profile_periods(
+            self.centralDevices["generation"].get("Wind", zero_profile),
+            typedays, cluster_horizon, length_array)
+        self.centralDevices["generation"]["PV_cluster"] = self._select_profile_periods(
+            self.centralDevices["generation"].get("PV", zero_profile),
+            typedays, cluster_horizon, length_array)
+        self.centralDevices["generation"]["STC_cluster"] = self._select_profile_periods(
+            self.centralDevices["generation"].get("STC", zero_profile),
+            typedays, cluster_horizon, length_array)
+
+        self.site["T_e_cluster"] = self._select_profile_periods(
+            self.site["T_e"], typedays, cluster_horizon, length_array)
+        self.heat_grid_data["T_soil_cluster"] = self._select_profile_periods(
+            self.heat_grid_data["T_soil"], typedays, cluster_horizon, length_array)
+
+        self.clusters = list(range(len(typedays)))
+        self.clusterAssignments = {}
+        for cluster_index, medoid_day in enumerate(typedays):
+            self.clusterAssignments[cluster_index] = [
+                day for day in range(cluster_matrix.shape[1])
+                if cluster_matrix[int(medoid_day), day] == 1
+            ]
+        self.clusterWeights = {
+            cluster_index: int(cluster_weights[cluster_index])
+            for cluster_index in self.clusters
+        }
+        self.cluster_meta = {
+            "clusterWeights": self.clusterWeights,
+            "clusters": self.clusters,
+            "clusterAssignments": self.clusterAssignments,
+            "len_cluster": cluster_horizon,
+            "clusterNumber": len(typedays),
+            "typedays": [int(day) for day in typedays],
+            "source": "central_design_clustering",
+        }
+        for building in self.district:
+            building["cluster_meta"] = self.cluster_meta
+
     def clusterProfiles(self, centralEnergySupply):
         """
         Perform time series aggregation for profiles by using the k-medoids clustering algorithm.
@@ -1972,6 +2098,9 @@ class Datahandler:
             adjProfiles["losses_cooling_network"] = self.heat_grid_data["total_losses_cooling_network"][0:lengthArray]
             adjProfiles["seasonal_storage_kW"] = self.heat_grid_data["seasonal_storage_kW"][0:lengthArray]
             adjProfiles["pump_power"] = self.heat_grid_data["pump_power"][0:lengthArray]
+            adjProfiles["waste_heat_hp_power_kW"] = self.heat_grid_data["waste_heat_hp_power_kW"][0:lengthArray]
+            adjProfiles["waste_heat_direct_power_kW"] = self.heat_grid_data["waste_heat_direct_power_kW"][0:lengthArray]
+            adjProfiles["COP_Waste_HeatHP"] = self.heat_grid_data["COP_Waste_HeatHP"][0:lengthArray]
             
             if self.centralDevices["capacities"]["WT"]["cap"] > 0:
                 adjProfiles["generationCentralWT"] = self.centralDevices["generation"]["Wind"][0:lengthArray]
@@ -1997,21 +2126,18 @@ class Datahandler:
         adjProfiles["T_e"] = self.site["T_e"][0:lengthArray]
         adjProfiles["T_soil"] = self.heat_grid_data["T_soil"][0:lengthArray]
 
-        # Prepare clustering
-        # weights for clustering algorithm indicating the focus onto this profile
-        # The relevant features for clustering are
-        # 1. electricity demand of the buildings (each building with weight 1)
-        # 2. outdoor temperature (weight = number of buildings)
-        # 3. Windspeed (weight = number of buildings) - only if central WT exists
-        # 4. Solar Radiation (weight = number of buildings if central PV or STC exist and + 1 for each building with PV or STC)
-        # The profiles are not scaled currently. If otherwise desired set scalings.append(True) for the relevant profiles.
+        # Prepare clustering.
+        # Representative periods are selected from weather boundary conditions:
+        # outdoor temperature is dominant and global solar radiation secondary.
+        # Demand, generation, network and waste-heat profiles are carried along
+        # from the selected periods, but do not drive the medoid selection.
 
         inputsClustering, weights, scalings = [], [], []
 
         # loop over buildings
         for i in range(len(self.district)):
             inputsClustering.append(adjProfiles[i]["elec"])
-            weights.append(1)
+            weights.append(0)
             scalings.append(False)
 
             inputsClustering.append(adjProfiles[i]["dhw"])
@@ -2097,6 +2223,19 @@ class Datahandler:
             weights.append(0)
             scalings.append(False)
 
+            # waste heat profiles already derived from full-year temperatures
+            inputsClustering.append(adjProfiles["waste_heat_hp_power_kW"])
+            weights.append(0)
+            scalings.append(False)
+
+            inputsClustering.append(adjProfiles["waste_heat_direct_power_kW"])
+            weights.append(0)
+            scalings.append(False)
+
+            inputsClustering.append(adjProfiles["COP_Waste_HeatHP"])
+            weights.append(0)
+            scalings.append(False)
+
             # central renewable generation
             inputsClustering.append(adjProfiles["generationCentralWT"])
             weights.append(0)
@@ -2112,31 +2251,17 @@ class Datahandler:
 
         # Wind speed (only relevant for clustering)
         inputsClustering.append(adjProfiles["wind_speed"])
-        if centralEnergySupply == True and self.centralDevices["capacities"]["WT"]["cap"] > 0: weights.append(len(self.district))
-        else: weights.append(0)
+        weights.append(0)
         scalings.append(False)
 
-        # Solar radiation (only relevant for clustering)
+        # Solar radiation
         inputsClustering.append(adjProfiles["SunTotal"])
-        # determine weight for solar radiation
-        solar_weight = 0
-        if centralEnergySupply == True:
-            if (self.centralDevices["capacities"]["PV"]["cap"] > 0 or
-                self.centralDevices["capacities"]["STC"]["cap"] > 0):
-                solar_weight += len(self.district)
-
-        for i in range(len(self.district)):
-            if (self.district[i]["buildingFeatures"]["f_PV1"] > 0 or
-                self.district[i]["buildingFeatures"]["f_PV2"] > 0 or
-                self.district[i]["buildingFeatures"]["f_STC"] > 0):
-                solar_weight += 1
-
-        weights.append(solar_weight)
+        weights.append(1)
         scalings.append(False)
 
         # ambient temperature
         inputsClustering.append(adjProfiles["T_e"])
-        weights.append(len(self.district))
+        weights.append(3)
         scalings.append(False)
 
         # soil temperature
@@ -2218,16 +2343,17 @@ class Datahandler:
             central_counter += 1
             self.heat_grid_data["pump_power_cluster"] = newProfiles[central_counter]
             central_counter += 1
+            self.heat_grid_data["waste_heat_hp_power_kW_cluster"] = newProfiles[central_counter]
+            central_counter += 1
+            self.heat_grid_data["waste_heat_direct_power_kW_cluster"] = newProfiles[central_counter]
+            central_counter += 1
+            self.heat_grid_data["COP_Waste_HeatHP_cluster"] = newProfiles[central_counter]
+            central_counter += 1
             self.centralDevices["generation"]["Wind_cluster"] = newProfiles[central_counter]
             central_counter += 1
             self.centralDevices["generation"]["PV_cluster"] = newProfiles[central_counter]
             central_counter += 1
             self.centralDevices["generation"]["STC_cluster"] = newProfiles[central_counter]
-
-            #! Important this is currently implemented wrong
-            # TODO: This should be a result of the clustering. However waste_heat_hp_power_kW is currently the clustered output from load_params_central_devices and not the year long time_series
-            self.heat_grid_data["waste_heat_hp_power_kW_cluster"] = copy.deepcopy(self.heat_grid_data["waste_heat_hp_power_kW"]) #TODO: Change this
-            self.heat_grid_data["waste_heat_direct_power_kW_cluster"] = copy.deepcopy(self.heat_grid_data["waste_heat_direct_power_kW"]) # TODO: Change this
 
         self.site["T_e_cluster"] = newProfiles[-2]
         self.heat_grid_data["T_soil_cluster"] = newProfiles[-1]

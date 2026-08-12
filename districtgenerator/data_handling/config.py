@@ -103,8 +103,6 @@ class TimeConfig(BaseSettings):
     clusterNumber: int = 4      # Number of clusters
     dataResolution: int = 3600  # Time resolution of input data in seconds. (If you don't change weather data, here is no need to change).
     dataLength: int = 31536000  # Length of input data in seconds. (If you don't change weather data, here is no need to change).
-    #TODO: Move Project Time here
-    #TODO: Add index of interpolation years for multiyear simulations
 
 
     model_config = SettingsConfigDict(
@@ -488,13 +486,6 @@ class HeatGridConfig(BaseSettings):
         """Convert string 'None' to Python None"""
         if v == "None" or v == "null" or v == "":
             return None
-        return v
-    
-    @field_validator('waste_heat_source_file', mode='before')
-    @classmethod
-    def validate_waste_heat_source_file(cls, v):
-        """Validate that the waste heat source file exists if specified."""
-        pass #TODO: This function should be implemented to avoid later on unspecified errors.
         return v
     
     @model_validator(mode='after')

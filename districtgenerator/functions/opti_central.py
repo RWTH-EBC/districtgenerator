@@ -165,6 +165,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
         network_pump_power = np.zeros_like(T_e)
         waste_heat_power_hp = np.zeros_like(T_e)
         waste_heat_power_direct = np.zeros_like(T_e)
+        COP_Waste_HeatHP = np.zeros_like(T_e)
     else:
         error_string = ""
         
@@ -181,8 +182,9 @@ def build_model(model, data, year, cluster, sim_ecoData):
             error_string += f"Error occurred while loading seasonal storage data for cluster {cluster}: {e}\n"
             
         try:
-            waste_heat_power_hp = heatingNetworkData["waste_heat_hp_power_kW_cluster"][cluster] * 1000 # TODO: Change here when adjusting
+            waste_heat_power_hp = heatingNetworkData["waste_heat_hp_power_kW_cluster"][cluster] * 1000
             waste_heat_power_direct = heatingNetworkData["waste_heat_direct_power_kW_cluster"][cluster] * 1000
+            COP_Waste_HeatHP = heatingNetworkData["COP_Waste_HeatHP_cluster"][cluster]
         except Exception as e:
             error_string += f"Error occurred while loading waste heat potential data for cluster {cluster}: {e}\n"
         
@@ -369,6 +371,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.seasonal_storage_max_W = pyo.Param(model.t, initialize=lambda m, t: seasonal_storage[t], doc="Max available power from seasonal storage in W per timestep")
     model.waste_heat_hp_max_W = pyo.Param(model.t, initialize=lambda m, t: waste_heat_power_hp[t], doc="Max available waste heat potential in W per timestep for the Waste_HeatHP")
     model.waste_heat_direct_max_W = pyo.Param(model.t, initialize=lambda m, t: waste_heat_power_direct[t], doc="Max available waste heat potential in W per timestep for the Waste_HeatDirect")
+    model.COP_Waste_HeatHP = pyo.Param(model.t, initialize=lambda m, t: COP_Waste_HeatHP[t], doc="COP of the Waste_HeatHP for the clustered operation profile")
 
     ################################################################################
     # OPERATIONAL BUILDING VARIABLES
@@ -528,7 +531,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     # BALANCING UNIT VARIABLES
     ################################################################################
 
-    # Electrical power to/from grid at GNP, gas from grid #TODO: Rename variables
+    # Electrical power to/from grid at GNP, gas from grid
     model.power_from_grid = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Electricity imported from the external grid into the neighborhood (at the grid connection point)")
     model.power_to_grid = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Electricity exported from the neighborhood to the external grid (at the grid connection point)")
     model.power_gas_from_grid = pyo.Var(model.t, within=pyo.NonNegativeReals)
@@ -828,21 +831,21 @@ def build_model(model, data, year, cluster, sim_ecoData):
         if energyHubData == {}:
             return model.eh_power_HP[t] == 0
         else:
-            COP_HP_eh = energyHubData["capacities"]["devs"]["HP"]["COP"][year][cluster][t] # TODO: FIX THIS
+            COP_HP_eh = energyHubData["capacities"]["devs"]["HP"]["COP"][year][cluster][t]
             return model.eh_heat_HP[t] == model.eh_power_HP[t] * COP_HP_eh
         
     def eh_groundhp_conversion_rule(model, t):
         if energyHubData == {}:
             return model.eh_power_GroundHP[t] == 0
         else:
-            COP_GroundHP_eh = energyHubData["capacities"]["devs"]["GroundHP"]["COP"][year][cluster][t] # TODO: FIX THIS
+            COP_GroundHP_eh = energyHubData["capacities"]["devs"]["GroundHP"]["COP"][year][cluster][t]
             return model.eh_heat_GroundHP[t] == model.eh_power_GroundHP[t] * COP_GroundHP_eh
         
     def waste_heat_hp_conversion_rule(b, t):
         """Calculate COP and energy balance for waste heat pump."""
         if energyHubData != {}:
             m = b.model()
-            COP_Waste_HeatHP_eh = energyHubData["capacities"]["devs"]["Waste_HeatHP"]["COP"][year][cluster][t] # TODO: FIX THIS
+            COP_Waste_HeatHP_eh = m.COP_Waste_HeatHP[t]
             b.waste_heat_hp_COP = pyo.Constraint(expr=m.eh_heat_Waste_HeatHP[t] == m.eh_power_Waste_HeatHP[t] * COP_Waste_HeatHP_eh)
             b.waste_heat_hp_source = pyo.Constraint(expr=m.eh_waste_heat_hp[t] == m.eh_heat_Waste_HeatHP[t] - m.eh_power_Waste_HeatHP[t])
     
@@ -859,7 +862,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
         if energyHubData == {}:
             return model.eh_power_CC[t] == 0
         else:
-            COP_CC_eh = energyHubData["capacities"]["devs"]["CC"]["COP"][year][cluster][t] # TODO: FIX THIS
+            COP_CC_eh = energyHubData["capacities"]["devs"]["CC"]["COP"][year][cluster][t]
             return model.eh_cool_CC[t] == model.eh_power_CC[t] * COP_CC_eh
 
     def eh_ac_conversion_rule(model, t):
@@ -1446,7 +1449,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
         return model.total_seasonal_dch_potential == dt * sum(model.seasonal_storage_max_W[t] for t in model.t) / 1000
     
     def total_waste_heat_used_rule(model):
-        return model.total_waste_heat_used == dt * sum(model.eh_waste_heat_hp[t] + model.eh_waste_heat_direct[t] for t in model.t) / 1000 #kWh # TODO: Maybe create a new variable that sums up those two for every time step not only totals
+        return model.total_waste_heat_used == dt * sum(model.eh_waste_heat_hp[t] + model.eh_waste_heat_direct[t] for t in model.t) / 1000 #kWh
     
     def total_waste_heat_potential_rule(model):
         return model.total_waste_heat_potential == dt * sum(model.waste_heat_hp_max_W[t] + model.waste_heat_direct_max_W[t] for t in model.t) / 1000 #kWh

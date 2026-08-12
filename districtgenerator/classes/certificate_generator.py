@@ -3222,7 +3222,6 @@ class DataExtractor(ReportComponent):
 
         self.gebaude_df = pd.DataFrame(building_data_list)
 
-        # TODO: Maybe add here dtype casting e.g. ensure area is integer not float ....
     
     def _extract_kennwerte(self):
         """Extracts the general key performance indicators."""
@@ -3231,7 +3230,7 @@ class DataExtractor(ReportComponent):
         to_kW = 1000 # Convert W to kW for power values
         to_MWh = 1000000 # Convert W to MWh for energy values
 
-        # Prepare Data -> # TODO: Move to KPIs class
+        # Prepare Data
         avg_autonomy = sum(self.kpis.energy_autonomy_year[y] for y in years) / len(years)
         avg_scf = sum(self.kpis.scf_year[y] for y in years) / len(years)
         avg_dcf = sum(self.kpis.dcf_year[y] for y in years) / len(years)
@@ -3685,13 +3684,18 @@ class DataExtractor(ReportComponent):
         start_of_year = datetime(2025, 1, 1, 0, 0, 0)
         total_periods = sum(self.data.clusterWeights.values())
 
+        typedays = None
+        if getattr(self.data, "cluster_meta", None):
+            typedays = self.data.cluster_meta.get("typedays")
+
         for k in range(len(self.data.clusters)):#
-            orig_idx = self.data.clusters[k]
+            cluster_key = self.data.clusters[k]
+            orig_idx = int(typedays[k]) if typedays is not None else int(cluster_key)
             start_date = start_of_year + timedelta(seconds=int(orig_idx * cluster_length_sec))
             end_date = start_of_year + timedelta(seconds=int((orig_idx + 1) * cluster_length_sec))
             start_str = start_date.strftime("%d.%m. %H:%M")
             end_str = end_date.strftime("%d.%m. %H:%M")
-            weight_count = self.data.clusterWeights[orig_idx]
+            weight_count = self.data.clusterWeights[cluster_key]
 
             self.cluster_info[k] = {
                 "span": f"{start_str} - {end_str}",

@@ -221,6 +221,22 @@ def _map_options(solver_name, solver_options):
     return mapped_options
 
 
+def _safe_remove_file(path, retries=5, delay=0.2):
+    """Remove a temporary file if Windows has already released it."""
+    if not os.path.exists(path):
+        return
+
+    for attempt in range(retries):
+        try:
+            os.remove(path)
+            return
+        except PermissionError:
+            if attempt == retries - 1:
+                print(f"WARNUNG: Temporäre Solver-Logdatei konnte nicht gelöscht werden: {path}")
+                return
+            time.sleep(delay)
+
+
 def execute_and_diagnose(model, pyomo_config, model_name, result_dir):
     """
     Solves the given Pyomo model and triggers diagnosis if not solved to optimality.
@@ -254,8 +270,7 @@ def execute_and_diagnose(model, pyomo_config, model_name, result_dir):
             pass
 
     # Remove temporary solver log file
-    if os.path.exists(solver_log_path):
-        os.remove(solver_log_path)
+    _safe_remove_file(solver_log_path)
 
     return results
 
