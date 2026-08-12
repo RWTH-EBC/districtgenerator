@@ -3447,28 +3447,21 @@ class DataExtractor(ReportComponent):
                 if not config.get("feasible", False):
                     continue
 
-                if dev == "AirHP" or dev == "GroundHP":
-                    opt_key = "HP"
-                elif dev == "AirCC":
-                    opt_key = "CC"
-                else:
-                    opt_key = dev
-                
                 cap = 0
                 annual_cost_sub = "-"
                 annual_cost_unsub = "-"
-                cost_unit = ""
+                cost_unit = ""            
 
-                if opt_key in capacities:
-                    spec = capacities[opt_key]
+                if dev in capacities:
+                    spec = capacities[dev]
                     # Strict access: if spec is a dict, it MUST have 'cap'
                     cap = round(spec["cap"], 2)
                 
-                    if opt_key in self.kpis.central_individual_devices_annualized_cost:
-                        device_cost_info = self.kpis.central_individual_devices_annualized_cost[opt_key]
+                    if dev in self.kpis.central_individual_devices_annualized_cost:
+                        device_cost_info = self.kpis.central_individual_devices_annualized_cost[dev]
                         annual_cost_sub = round(device_cost_info["subsidized_annual_cost"], 2)
                         annual_cost_unsub = round(device_cost_info["unsubsidized_annual_cost"], 2)
-                        all_cost_devices.discard(opt_key) # Remove this device from the set of devices as it has been processed
+                        all_cost_devices.discard(dev) # Remove this device from the set of devices as it has been processed
                         cost_unit = " €/a"
 
 
@@ -3479,6 +3472,7 @@ class DataExtractor(ReportComponent):
 
                 if cap <= 0:
                     display_cap = not_selected_text
+                    display_unit = ""
 
                 # Append dict to the device list
                 append_energyhub_row(
@@ -3506,31 +3500,6 @@ class DataExtractor(ReportComponent):
                     device_name=name,
                     capacity=f"{display_cap} {display_unit}".strip(),
                     annual_cost=f"{cost}{cost_unit}"
-                )
-
-
-            # Add waste heat potential as a separate row at the end of the table
-            waste_heat_pot_kW = self.data.heat_grid_data.get('nominal_waste_heat_capacity_kW', 0)
-
-            display_cap, display_unit = self._determine_unit(cap=waste_heat_pot_kW*1000, base_unit="W<sub>th</sub>") # Convert kW to W for unit determination
-
-            if waste_heat_pot_kW > 0:
-                # Get waste heat price per kWh from ecoData (can be a list/timeseries)
-                waste_heat_price = self.data.ecoData['price_waste_heat']
-                
-                waste_heat_price_per_kwh = sum(waste_heat_price) / len(waste_heat_price) if waste_heat_price else 0
-                
-                if waste_heat_price_per_kwh > 0:
-                    annual_cost_sub_waste_heat = f"Ø {round(waste_heat_price_per_kwh*100, 1)}"  # ct/kWh
-                    waste_heat_cost_unit = " ct/kWh"
-                else:
-                    annual_cost_sub_waste_heat = "-"
-                    waste_heat_cost_unit = ""
-
-                append_energyhub_row(
-                    device_name=waste_heat_name,
-                    capacity=f"{display_cap} {display_unit}".strip(),
-                    annual_cost=f"{annual_cost_sub_waste_heat}{waste_heat_cost_unit}"
                 )
 
             # Add seasonal storage potential as a separate row at the end of the table
@@ -3773,6 +3742,8 @@ class DataExtractor(ReportComponent):
             "HP": "W<sub>th</sub>",
             "AirHP": "W<sub>th</sub>",
             "GroundHP": "W<sub>th</sub>",
+            "Waste_HeatHP": "W<sub>th</sub>",
+            "Waste_HeatDirect": "W<sub>th</sub>",
             "EB": "W<sub>th</sub>",
             "BOI": "W<sub>th</sub>",
             "GHP": "W<sub>th</sub>",
