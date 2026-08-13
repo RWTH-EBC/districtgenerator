@@ -3370,6 +3370,13 @@ class DataExtractor(ReportComponent):
             [self.translate("kpi_supply_cover_ratio"), f"{round(avg_scf * 100, 1)} %"],
             [self.translate("kpi_demand_cover_ratio"), f"{round(avg_dcf * 100, 1)} %"],
         ]
+        if getattr(self.kpis, "is_5g_network", False):
+            dof = getattr(self.kpis, "demand_overlap_factor_5g", 0.0) * 100.0
+            dof_cluster = getattr(self.kpis, "demand_overlap_factor_5g_cluster", 0.0) * 100.0
+            self.district_operation_kpis.append([
+                self.translate("kpi_demand_overlap_factor_5g"),
+                f"{round(dof, 1)} / {round(dof_cluster, 1)} %"
+            ])
 
         # max loads in kW
         self.max_loads_table = [

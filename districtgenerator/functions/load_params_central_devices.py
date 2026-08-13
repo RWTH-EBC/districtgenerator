@@ -58,8 +58,9 @@ def load_params(data):
         data.heat_grid_data["T_return_EH"] = param_uncl["T_return_EH"]
 
     else:
-        # Initialize demands time series
-        cooling = np.zeros(len(data.district[0]["user"].cooling))
+        # Initialize demand time series. In non-5G networks, cooling is not
+        # supplied by the Energy Hub because no cooling grid is modeled.
+        cooling_total = np.zeros(len(data.district[0]["user"].cooling))
         net_heat_demand = np.zeros(len(data.district[0]["user"].heat))
 
         # todo: here we ignore the buildings electricity demands
@@ -85,19 +86,12 @@ def load_params(data):
                 # Unidirectional flow assumption: local excess heat through STC cannot be fed into the heat grid.
                 net_heat_demand += local_net_demand
 
-                cooling += data.district[b]["user"].cooling / 1000 # kW
-
             # todo: here we ignore the buildings electricity demands
     #        electricityAppliances += data.district[b]["user"].elec / 1000 # kW
     #        electricityEV += data.district[b]["user"].EV_carcharging_ondemand / 1000 # kW
     #        generationPV += data.district[b]["generationPV"] / 1000 # kW
 
         heating_total = net_heat_demand + heat_grid_data["total_losses_heating_network"]
-
-        if "total_losses_cooling_network" not in heat_grid_data:
-            data.heat_grid_data["total_losses_cooling_network"] = np.zeros_like(cooling)
-        total_losses_cooling_network = data.heat_grid_data["total_losses_cooling_network"]
-        cooling_total = cooling + total_losses_cooling_network
         pump_power = data.heat_grid_data["P_pump"]/1000  # kW
 
         # todo: here we ignore the buildings electricity demands

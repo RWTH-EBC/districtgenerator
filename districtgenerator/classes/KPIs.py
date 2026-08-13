@@ -61,6 +61,11 @@ class KPIs:
         self.total_cooling_demand = None
         self.total_electricity_demand = None
         self.total_dhw_demand = None
+        self.demand_overlap_factor_5g = 0.0
+        self.demand_overlap_factor_5g_cluster = 0.0
+        self.annual_heat_cooling_overlap_5g = 0.0
+        self.annual_heat_cooling_overlap_5g_cluster = 0.0
+        self.is_5g_network = str(data.heat_grid_data.get("heatgrid_generation", "")).upper() == "5G"
 
         # initialize input data for calculation of KPIs
         inputData = {}
@@ -1202,6 +1207,11 @@ class KPIs:
         self.total_cooling_peak = max(sum_cool_profile)
         self.total_EV_peak = max(sum_EV_profile)
         self.total_ICE_fuel_liters = float(total_ICE_fuel_liters)
+        if self.is_5g_network:
+            self.demand_overlap_factor_5g = float(data.heat_grid_data.get("demand_overlap_factor_5g", 0.0))
+            self.demand_overlap_factor_5g_cluster = float(data.heat_grid_data.get("demand_overlap_factor_5g_cluster", 0.0))
+            self.annual_heat_cooling_overlap_5g = float(data.heat_grid_data.get("annual_heat_cooling_overlap_5g", 0.0))
+            self.annual_heat_cooling_overlap_5g_cluster = float(data.heat_grid_data.get("annual_heat_cooling_overlap_5g_cluster", 0.0))
 
     def calc_total_consumption_and_emissions(self, data):
         """
@@ -1365,6 +1375,11 @@ class KPIs:
         kpi_data_static["DHW demand Peak (kW)"] = self.total_dhw_peak/1000
         kpi_data_static["Cooling demand Peak (kW)"] = self.total_cooling_peak/1000
         kpi_data_static["EV demand Peak (kW)"] = self.total_EV_peak/1000
+        if self.is_5g_network:
+            kpi_data_static["5G Symmetric Demand Overlap Factor (-)"] = self.demand_overlap_factor_5g
+            kpi_data_static["5G Symmetric Demand Overlap Factor Clustered (-)"] = self.demand_overlap_factor_5g_cluster
+            kpi_data_static["5G Heat-Cooling Overlap (kWh/a)"] = self.annual_heat_cooling_overlap_5g
+            kpi_data_static["5G Heat-Cooling Overlap Clustered (kWh/a)"] = self.annual_heat_cooling_overlap_5g_cluster
         kpi_data_static["Yearly ICE Fuel Consumption (liters/a)"] = self.total_ICE_fuel_liters # Maybe move to yearly KPIs? Even though currently static.
         kpi_data_static[""] = '' # Empty row
 

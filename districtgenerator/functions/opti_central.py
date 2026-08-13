@@ -107,7 +107,7 @@ def run_opti_central(data, year, cluster, sim_ecoData):
     model_building_time = time.time() - start_time
     print(f"Pyomo model built successfully in {model_building_time:.2f} seconds.")
     # solve the model and extract results
-    results_dict = solve_model_and_extract_results(model=model, data=data, year=year, cluster=cluster)
+    results_dict = solve_model_and_extract_results(model=model, data=data, year=year, cluster=cluster, sim_ecoData=sim_ecoData)
     model_solve_time = time.time() - start_time - model_building_time
     if results_dict is not None:
         print(f"Model solved to optimality in {model_solve_time:.2f} seconds.")
@@ -184,7 +184,10 @@ def build_model(model, data, year, cluster, sim_ecoData):
     for n in range(nbuildings):
         Q_DHW[n] = buildingData[n]["user"].dhw_cluster[cluster]
         Q_heating[n] = buildingData[n]["user"].heat_cluster[cluster]
-        Q_cooling[n] = buildingData[n]["user"].cooling_cluster[cluster]
+        if buildingData[n]["buildingFeatures"].get("cooling", 0):
+            Q_cooling[n] = buildingData[n]["user"].cooling_cluster[cluster]
+        else:
+            Q_cooling[n] = [0.0] * len(buildingData[n]["user"].cooling_cluster[cluster])
         elec_dem[n] = buildingData[n]["user"].elec_cluster[cluster]
         decentral_5g_hp_el[n] = [0.0] * len(elec_dem[n])
         if is_5g_fixed and hasattr(buildingData[n]["user"], "decentral_5g_HP_el_cluster"):
@@ -1342,8 +1345,9 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
         return (model.res_dom_power[n, t] + model.power_dom["PV", n, t] + model.power_dom["CHP", n, t] + model.power_dom["FC", n, t]
                 + model.dch_dom["BAT", n, t] + total_ev_discharge
-                == model.power_dom["Elec_dem", n, t] + decentral_5g_hp_el[n][t] + total_ev_charge + model.power_dom["HP", n, t] +
-                model.power_dom["EH", n, t] + model.power_dom["EWH", n, t] + model.ch_dom["BAT", n, t] + model.res_dom_feed[n, t])
+                == model.power_dom["Elec_dem", n, t] + total_ev_charge + model.power_dom["HP", n, t] +
+                model.power_dom["EH", n, t] + model.power_dom["EWH", n, t] + model.power_dom["CC", n, t] +
+                model.ch_dom["BAT", n, t] + model.res_dom_feed[n, t])
 
     # Heat Balance for space heating
     def heating_balance_sh_rule(model, n, t):
@@ -1705,10 +1709,13 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     # Operational costs
     def operational_costs_rule(model):
+        decentral_5g_hp_el_costs = (dt * sum(model.decentral_5g_hp_el[n][t] for n in model.n for t in model.t) / 1000.0
+            * ecoData["price_supply_el_eh"])
         return (model.operational_costs == model.from_grid_total_el_buildings * ecoData["price_supply_el"]
                 - model.to_grid_total_el_buildings * ecoData["revenue_feed_in_el"]
                 + model.from_grid_total_el_eh * ecoData["price_supply_el_eh"]
                 - model.to_grid_total_el_eh * ecoData["revenue_feed_in_el_eh"]
+                + decentral_5g_hp_el_costs
                 + model.from_grid_total_gas * ecoData["price_supply_gas"]
                 + model.total_biomethane_used * ecoData.get("price_biomethane")
                 + model.from_grid_total_hydrogen * ecoData["price_hydrogen"]
@@ -1744,7 +1751,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     return model
 
 
-def solve_model_and_extract_results(model, data, year, cluster):
+def solve_model_and_extract_results(model, data, year, cluster, sim_ecoData):
     """
     Solves the Pyomo model and extracts results in the same format as the original Gurobi code.
     """
@@ -1836,6 +1843,7 @@ def solve_model_and_extract_results(model, data, year, cluster):
     # Overall costs and emissions
     results_dict["Cost_total"] = pyo.value(model.operational_costs)
     results_dict["Emission_total"] = pyo.value(model.co2_total)
+    results_dict["Cost_decentral_HP_5G_el"] = (data.time["timeResolution"] * sum(results_dict["P_decentral_HP_5G"]) / 1000.0 * sim_ecoData["price_supply_el_eh"])
 
     ################################################################################
     # Energy Hub results

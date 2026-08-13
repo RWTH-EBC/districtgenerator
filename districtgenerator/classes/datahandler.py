@@ -1988,6 +1988,32 @@ class Datahandler:
             self.heat_grid_data["net_decentral_HP_el_5g_cluster"] = self._select_profile_periods(
                 self.heat_grid_data["net_decentral_HP_el_5g"],
                 typedays, cluster_horizon, length_array)
+            self.heat_grid_data["net_heat_extraction_5g_cluster"] = self._select_profile_periods(
+                self.heat_grid_data["net_heat_extraction_5g"],
+                typedays, cluster_horizon, length_array)
+            self.heat_grid_data["net_heat_rejection_5g_cluster"] = self._select_profile_periods(
+                self.heat_grid_data["net_heat_rejection_5g"],
+                typedays, cluster_horizon, length_array)
+            overlap_cluster = np.minimum(
+                self.heat_grid_data["net_heat_extraction_5g_cluster"],
+                self.heat_grid_data["net_heat_rejection_5g_cluster"]
+            )
+            heat_weighted = float(np.sum(
+                self.heat_grid_data["net_heat_extraction_5g_cluster"]
+                * cluster_weights[:, None]
+            ))
+            cool_weighted = float(np.sum(
+                self.heat_grid_data["net_heat_rejection_5g_cluster"]
+                * cluster_weights[:, None]
+            ))
+            overlap_weighted = float(np.sum(overlap_cluster * cluster_weights[:, None]))
+            overlap_reference = heat_weighted + cool_weighted
+            self.heat_grid_data["annual_heat_cooling_overlap_5g_cluster"] = overlap_weighted
+            self.heat_grid_data["demand_overlap_factor_5g_cluster"] = (
+                2.0 * overlap_weighted / overlap_reference
+                if overlap_reference > 1e-12
+                else 0.0
+            )
 
         self.centralDevices["generation"]["Wind_cluster"] = self._select_profile_periods(
             self.centralDevices["generation"].get("Wind", zero_profile),
@@ -2094,6 +2120,8 @@ class Datahandler:
             if self.heat_grid_data["heatgrid_generation"] == "5G":
                 adjProfiles["eh_residual_thermal_5g"] = np.asarray(self.heat_grid_data["eh_residual_thermal_5g"][0:lengthArray],dtype=float)
                 adjProfiles["net_decentral_HP_el_5g"] = np.asarray(self.heat_grid_data["net_decentral_HP_el_5g"][0:lengthArray],dtype=float)
+                adjProfiles["net_heat_extraction_5g"] = np.asarray(self.heat_grid_data["net_heat_extraction_5g"][0:lengthArray],dtype=float)
+                adjProfiles["net_heat_rejection_5g"] = np.asarray(self.heat_grid_data["net_heat_rejection_5g"][0:lengthArray],dtype=float)
 
             if self.centralDevices["capacities"]["WT"]["cap"] > 0:
                 adjProfiles["generationCentralWT"] = self.centralDevices["generation"]["Wind"][0:lengthArray]
@@ -2253,6 +2281,14 @@ class Datahandler:
                 weights.append(0)
                 scalings.append(False)
 
+                inputsClustering.append(adjProfiles["net_heat_extraction_5g"])
+                weights.append(0)
+                scalings.append(False)
+
+                inputsClustering.append(adjProfiles["net_heat_rejection_5g"])
+                weights.append(0)
+                scalings.append(False)
+
         # Wind speed (only relevant for clustering)
         inputsClustering.append(adjProfiles["wind_speed"])
         weights.append(0)
@@ -2351,6 +2387,29 @@ class Datahandler:
             if self.heat_grid_data["heatgrid_generation"] == "5G":
                 self.heat_grid_data["eh_residual_thermal_5g_cluster"] = newProfiles[index_central + 6]
                 self.heat_grid_data["net_decentral_HP_el_5g_cluster"] = newProfiles[index_central + 7]
+                self.heat_grid_data["net_heat_extraction_5g_cluster"] = newProfiles[index_central + 8]
+                self.heat_grid_data["net_heat_rejection_5g_cluster"] = newProfiles[index_central + 9]
+                overlap_cluster = np.minimum(
+                    self.heat_grid_data["net_heat_extraction_5g_cluster"],
+                    self.heat_grid_data["net_heat_rejection_5g_cluster"]
+                )
+                cluster_weights = np.asarray(w, dtype=float)
+                heat_weighted = float(np.sum(
+                    self.heat_grid_data["net_heat_extraction_5g_cluster"]
+                    * cluster_weights[:, None]
+                ))
+                cool_weighted = float(np.sum(
+                    self.heat_grid_data["net_heat_rejection_5g_cluster"]
+                    * cluster_weights[:, None]
+                ))
+                overlap_weighted = float(np.sum(overlap_cluster * cluster_weights[:, None]))
+                overlap_reference = heat_weighted + cool_weighted
+                self.heat_grid_data["annual_heat_cooling_overlap_5g_cluster"] = overlap_weighted
+                self.heat_grid_data["demand_overlap_factor_5g_cluster"] = (
+                    2.0 * overlap_weighted / overlap_reference
+                    if overlap_reference > 1e-12
+                    else 0.0
+                )
 
         self.site["T_e_cluster"] = newProfiles[-2]
         self.heat_grid_data["T_soil_cluster"] = newProfiles[-1]

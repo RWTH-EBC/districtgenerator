@@ -166,7 +166,7 @@ def load_parameter_5g_fixed(data):
 
     hp_5g_grade = float(hp_5g_data.get("grade", 0.4))
     COP_min = 1.01
-    COP_max = 8.0
+    COP_max = 7.0
 
     # Build fast lookup: building position -> node id
     node_lookup = {
@@ -257,7 +257,10 @@ def load_parameter_5g_fixed(data):
         sh_load = np.asarray(building["user"].heat, dtype=float) / 1000.0
         dhw_load = np.asarray(building["user"].dhw, dtype=float) / 1000.0
 
-        cooling_profile = getattr(building["user"], "cooling", np.zeros(T_len, dtype=float))
+        if building["buildingFeatures"].get("cooling", 0):
+            cooling_profile = getattr(building["user"], "cooling", np.zeros(T_len, dtype=float))
+        else:
+            cooling_profile = np.zeros(T_len, dtype=float)
         cooling_load = np.asarray(cooling_profile, dtype=float) / 1000.0
 
         # Useful building heat loads before substation losses.
@@ -422,6 +425,14 @@ def load_parameter_5g_fixed(data):
     param["net_decentral_HP_el_5g"] = net_decentral_HP_el
     param["net_decentral_backup_el_5g"] = net_decentral_backup_el
 
+    annual_overlap_5g = float(np.sum(np.minimum(net_heat_extraction_5g, net_heat_rejection_5g)))
+    annual_overlap_reference_5g = float(np.sum(net_heat_extraction_5g) + np.sum(net_heat_rejection_5g))
+    demand_overlap_factor_5g = (2.0 * annual_overlap_5g / annual_overlap_reference_5g
+        if annual_overlap_reference_5g > 1e-12
+        else 0.0)
+    param["annual_heat_cooling_overlap_5g"] = annual_overlap_5g
+    param["demand_overlap_factor_5g"] = demand_overlap_factor_5g
+
     # Store also on data.heat_grid_data for plotting / later coupling
     data.heat_grid_data["net_useful_heat_demand_5g"] = net_useful_heat_demand
     data.heat_grid_data["net_cooling_demand_5g"] = net_cooling_demand
@@ -430,6 +441,8 @@ def load_parameter_5g_fixed(data):
     data.heat_grid_data["net_thermal_balance_5g"] = net_thermal_balance_5g
     data.heat_grid_data["net_decentral_HP_el_5g"] = net_decentral_HP_el
     data.heat_grid_data["net_decentral_backup_el_5g"] = net_decentral_backup_el
+    data.heat_grid_data["annual_heat_cooling_overlap_5g"] = annual_overlap_5g
+    data.heat_grid_data["demand_overlap_factor_5g"] = demand_overlap_factor_5g
 
     # Annualization factors
     pipe_lifetime = heat_grid_data["pipe"]["pipe_lifetime"]
@@ -1437,11 +1450,13 @@ def compute_and_save_network_costs_5g_fixed(data, param):
         dhw_load = np.asarray(building["user"].dhw, dtype=float) / 1000.0
         heat_load = (sh_load + dhw_load) * (1.0 + h_loss_subst / 100.0)
 
-        cooling_profile = getattr(
-            building["user"],
-            "cooling",
-            np.zeros(len(data.heat_grid_data["T_soil"]), dtype=float)
-        )
+        if building["buildingFeatures"].get("cooling", 0):
+            cooling_profile = getattr(
+                building["user"],
+                "cooling",
+                np.zeros(len(data.heat_grid_data["T_soil"]), dtype=float))
+        else:
+            cooling_profile = np.zeros(len(data.heat_grid_data["T_soil"]), dtype=float)
 
         cool_cap = float(np.max(np.asarray(cooling_profile, dtype=float))) / 1000.0
 
@@ -1616,6 +1631,8 @@ def compute_and_save_network_costs_5g_fixed(data, param):
     total_thermal_balance_5g = float(np.sum(param.get("net_thermal_balance_5g", 0.0)))
     total_decentral_HP_el_5g = float(np.sum(param.get("net_decentral_HP_el_5g", 0.0)))
     total_decentral_backup_el_5g = float(np.sum(param.get("net_decentral_backup_el_5g", 0.0)))
+    annual_heat_cooling_overlap_5g = float(param.get("annual_heat_cooling_overlap_5g", 0.0))
+    demand_overlap_factor_5g = float(param.get("demand_overlap_factor_5g", 0.0))
 
     eh_residual_thermal_5g = np.asarray(param["eh_residual_thermal_5g"], dtype=float)
 
@@ -1700,6 +1717,16 @@ def compute_and_save_network_costs_5g_fixed(data, param):
             "value": total_thermal_balance_5g,
             "unit": "kWh",
             "description": "Positive = net building heat extraction, negative = net building heat rejection"
+        },
+        "annual_heat_cooling_overlap_5g": {
+            "value": annual_heat_cooling_overlap_5g,
+            "unit": "kWh",
+            "description": "Annual simultaneous heat extraction and heat rejection before clustering"
+        },
+        "demand_overlap_factor_5g": {
+            "value": demand_overlap_factor_5g * 100.0,
+            "unit": "%",
+            "description": "Full-year symmetric 5G demand overlap factor: 2 * overlap / (heat extraction + heat rejection)"
         },
         "total_decentral_HP_electricity_5g": {
             "value": total_decentral_HP_el_5g,
