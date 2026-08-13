@@ -235,6 +235,7 @@ class KPIs:
         self.el_inj_buildings = {}
         self.el_dem_eh = {}
         self.el_inj_eh = {}
+        self.cost_decentral_HP_5G_el_year = {}
 
         for year in self.inputData["simulated_years"]:
             # Variables for the yearly consumption calculation
@@ -252,6 +253,7 @@ class KPIs:
             self.el_inj_buildings[year] = 0
             self.el_dem_eh[year] = 0
             self.el_inj_eh[year] = 0
+            self.cost_decentral_HP_5G_el_year[year] = 0
 
             # loop over cluster
             for c in range(len(self.inputData["clusters"])):
@@ -272,6 +274,7 @@ class KPIs:
                 self.el_inj_buildings[year] += opt_res["to_grid_total_el_buildings"] * weight
                 self.el_dem_eh[year] += opt_res["from_grid_total_el_eh"] * weight
                 self.el_inj_eh[year] += opt_res["to_grid_total_el_eh"] * weight
+                self.cost_decentral_HP_5G_el_year[year] += opt_res.get("Cost_decentral_HP_5G_el", 0) * weight
 
     def calculateEnergyExchangeWithinDistrict(self, data):
 
@@ -552,7 +555,7 @@ class KPIs:
             self.detailed_costs_year[year] = {
                 "eh_fixed": self.annual_fixed_costs_central,
                 "decentral_fixed": self.annual_fixed_costs_decentral,
-                "electricity": self.el_dem_buildings[year] * ecoData["price_supply_el"] + self.el_dem_eh[year] * ecoData["price_supply_el_eh"],
+                "electricity": (self.el_dem_buildings[year] * ecoData["price_supply_el"] + self.el_dem_eh[year] * ecoData["price_supply_el_eh"] + self.cost_decentral_HP_5G_el_year.get(year, 0.0)),
                 "gas": self.gas_year[year] * ecoData["price_supply_gas"],
                 "biomethane": self.biomethane_year[year] * ecoData.get("price_biomethane"),
                 "oil": self.oil_year[year] * ecoData["price_oil"],

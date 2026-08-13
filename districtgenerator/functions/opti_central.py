@@ -1843,7 +1843,10 @@ def solve_model_and_extract_results(model, data, year, cluster, sim_ecoData):
     # Overall costs and emissions
     results_dict["Cost_total"] = pyo.value(model.operational_costs)
     results_dict["Emission_total"] = pyo.value(model.co2_total)
-    results_dict["Cost_decentral_HP_5G_el"] = (data.time["timeResolution"] * sum(results_dict["P_decentral_HP_5G"]) / 1000.0 * sim_ecoData["price_supply_el_eh"])
+    results_dict["Cost_decentral_HP_5G_el"] = (
+        dt * sum(results_dict["P_decentral_HP_5G"]) / 1000.0
+        * sim_ecoData["price_supply_el_eh"]
+    )
 
     ################################################################################
     # Energy Hub results
