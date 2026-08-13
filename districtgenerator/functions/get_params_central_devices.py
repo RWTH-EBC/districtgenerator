@@ -161,6 +161,15 @@ def get_params(data):
         sigma[day] = np.where(param["typedays"] == d)[0][0]
     param["sigma"] = sigma
 
+    # Expose the chosen design weeks so the operational clustering can reuse them
+    # instead of re-running k-medoids on a second, independent set of profiles.
+    result_dict["cluster_meta"] = {
+        "clusterLength": clusterHorizon,
+        "typedays": np.array(param["typedays"], dtype=int),
+        "clusterWeights": np.array(nc, dtype=int),
+        "clusterMatrix": np.array(z),
+    }
+
     heat_grid = {
         k: heat_grid_data[k]
         for k in ["T_hot_cooling_network", "T_cold_cooling_network", "delta_T_heatTransfer"]  }
