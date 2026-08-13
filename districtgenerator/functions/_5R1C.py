@@ -8,6 +8,7 @@ import numpy as np
 import numpy.linalg as linalg
 
 RES_BUILDING_TYPES = {"SFH", "TH", "MFH", "AB"}
+OPERATIVE_AIR_WEIGHT = 0.5
 
 def _solve(A, b):
     return linalg.solve(A, b)
@@ -84,7 +85,7 @@ def _calculateNoHeat(zoneParameters, T_e, t_m_previous, dt, timestep):
     T_s = x[1]
     T_m = x[0]
 
-    weight = 0.3
+    weight = OPERATIVE_AIR_WEIGHT
     T_op = weight * T_i + (1 - weight) * T_s
     return (T_op, T_m, T_i, T_s)
 
@@ -153,7 +154,7 @@ def _calculateHeat(zoneParameters, T_e, T_set,T_m_init, dt, timestep):
     A[2,1] = - H_tr_is
     A[2,2] = H_ve + H_tr_is
     A[2,3] = -1
-    A[3,2] = 0.3
+    A[3,2] = OPERATIVE_AIR_WEIGHT
     A[3,1] = 1 - A[3,2]
 
     b[0] = Phi_m[timestep] + H_tr_em * T_e[timestep] + C_m * T_m_init / (3600 * dt)
@@ -188,7 +189,7 @@ def _calculateHeat(zoneParameters, T_e, T_set,T_m_init, dt, timestep):
         T_m = x_reduced[0]
         Q_HC = Q_nHC
 
-    weight = 0.3
+    weight = OPERATIVE_AIR_WEIGHT
     T_op = weight * T_i + (1 - weight) * T_s
     return (Q_HC, T_op, T_m, T_i, T_s)
 
@@ -256,7 +257,7 @@ def _calculateCooling(zoneParameters, T_e, T_set,T_m_init, dt, timestep):
     A[2,1] = - H_tr_is
     A[2,2] = H_ve + H_tr_is
     A[2,3] = -1
-    A[3,2] = 0.3
+    A[3,2] = OPERATIVE_AIR_WEIGHT
     A[3,1] = 1 - A[3,2]
 
     b[0] = Phi_m[timestep] + H_tr_em * T_e[timestep] + C_m * T_m_init / (3600 * dt)
@@ -291,7 +292,7 @@ def _calculateCooling(zoneParameters, T_e, T_set,T_m_init, dt, timestep):
         T_m = x_reduced[0]
         Q_HC = Q_nHC
 
-    weight = 0.3
+    weight = OPERATIVE_AIR_WEIGHT
     T_op = weight * T_i + (1 - weight) * T_s
     return (Q_HC, T_op, T_m, T_i, T_s)
 

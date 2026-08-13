@@ -1409,8 +1409,8 @@ class Envelope:
         for i, ori in enumerate(orientations):
             I_sol = SunRad[i, :]  # W/m²
             F_sh_t = np.ones_like(I_sol)
-            mask = (I_sol > 200.0) & (T_out > 19.0)
-            F_sh_t[mask] = 0.25  # 25% of sun passes
+            mask = I_sol > 100.0
+            F_sh_t[mask] = 0.15
 
             if ori in ["south", "west", "north", "east"]:
                 if s_wall is None:
@@ -1465,7 +1465,14 @@ class Envelope:
         A_gf = float(self.A["opaque"].get("groundfloor", 0.0))
         if A_gf > 0:
             U_gf = float(self.U["opaque"].get("groundfloor", 0.0))
-            T_ground = np.full_like(T_out, np.mean(T_out))
+            T_mean = float(np.mean(T_out))
+            T_air_amplitude = 0.5 * float(np.max(T_out) - np.min(T_out))
+            T_ground_amplitude = 0.3 * T_air_amplitude
+            phase_shift_days = 45.0
+            days = np.arange(n, dtype=float) * 365.0 / max(n, 1)
+            T_ground = T_mean - T_ground_amplitude * np.cos(
+                2.0 * np.pi * (days - phase_shift_days) / 365.0
+            )
             theta_eq_opaque += T_ground * U_gf * A_gf / self.UA_tot
 
         # final series
