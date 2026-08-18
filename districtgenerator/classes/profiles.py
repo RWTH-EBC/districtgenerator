@@ -262,13 +262,15 @@ class Profiles:
 
         Returns
         -------
-        dict containing:
-        dhw_power_timeseries_W_minutely : np.ndarray
-            DHW heat demand at 1-minute resolution (W), used for system sizing.
+        dict
+            Dictionary containing:
 
-        dhw_power_timeseries_W : np.ndarray
-            DHW heat demand at the model time resolution (W), used later in
-            the optimization.
+            "dhw_power_timeseries_W_minutely"
+                DHW thermal power demand at one-minute resolution in W.
+
+            "dhw_power_timeseries_W
+                DHW thermal power demand at the configured simulation
+                resolution in W.
         """
 
         # 1. Temperature model (seasonal variation)
@@ -353,7 +355,7 @@ class Profiles:
         Generate electric load profile for one household
 
         Parameters
-        -------
+        ----------
         irradiance : array-like
             If none is given default weather data (TRY 2015 Potsdam) is used.
         el_wrapper : object
@@ -470,7 +472,7 @@ class Profiles:
         Generate electric load profile for one household
 
         Parameters
-        -------
+        ----------
         irradiance : array-like
             If none is given default weather data (TRY 2015 Potsdam) is used.
         el_wrapper : object
@@ -569,7 +571,7 @@ class Profiles:
         Generate profile of internal gains
 
         Parameters
-        -------
+        ----------
         personGain : float
             Heat dissipation of one person
             Source: Elsland, Rainer ; Peksen, Ilhan ; Wietschel, Martin: Are Internal Heat
@@ -591,7 +593,7 @@ class Profiles:
             (https://www.bdew.de/presse/pressemappen/faq-energieeffizienz/), these two categories
             account for approximately 25% of the electricity consumption (excluding lighting and
             electricity for hot water). Hence, the weighted average internal gain factor for appliances is:
-                appGain = 0.75 * 0.80 + 0.25 * 0.25 = 0.66
+            appGain = 0.75 * 0.80 + 0.25 * 0.25 = 0.66
         occ_profile : float
              stochastic occupancy profiles for a district.
         app_load : array-like
@@ -618,7 +620,7 @@ class Profiles:
         Generate profile of internal gains
 
         Parameters
-        -------
+        ----------
         personGain : float
             Heat dissipation of one person
             Source: Elsland, Rainer ; Peksen, Ilhan ; Wietschel, Martin: Are Internal Heat

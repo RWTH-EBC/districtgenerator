@@ -1,10 +1,47 @@
+"""
+District heating and cooling network calculation utilities.
+
+This module aggregates thermal demands of heat-grid-connected buildings,
+estimates network dimensions and costs, calculates buried-pipe thermal losses
+and soil temperatures, annualizes investment costs, and determines constant or
+weather-dependent network temperatures.
+
+Most high-level functions operate on and mutate a DistrictGenerator ``data``
+object in place and return the same object for workflow chaining.
+"""
+
 import numpy as np
 import math
 import scipy.optimize as opt
 import cmath
-import matplotlib.pyplot as plt
 
 def heating_network(data):
+    """
+    Generate and characterize the district heating and cooling network.
+
+    Aggregate the thermal demand of all buildings connected to the heat
+    grid, size and cost the network, annualize its investment, calculate
+    the soil temperature at pipe depth, determine network temperatures,
+    and calculate time-resolved thermal losses.
+
+    Parameters
+    ----------
+    data : object
+        DistrictGenerator data object. The function expects, among others,
+        the attributes ``district``, ``heat_grid_data``, ``time``,
+        ``site``, ``pipe_data``, and ``ecoData``. Buildings connected to
+        the network must use ``"heat_grid"`` as
+        ``buildingFeatures["heater"]``.
+
+    Returns
+    -------
+    data : object
+        The same ``data`` object, updated in place. Added or updated
+        entries in ``data.heat_grid_data`` include net heating and cooling
+        demands, annual demand sums, network dimensions and costs,
+        annualized costs, soil temperature, network temperatures, and
+        thermal losses.
+    """
 
     heat_grid_data = data.heat_grid_data
     timeData = data.time
@@ -58,6 +95,18 @@ def calc_costs(data):
 
     Source:
     - Luis Sánchez-García et al. (2023), "Understanding effective width for district heating," Energy journal.
+
+    Parameters
+    ----------
+    data : object
+        DistrictGenerator data object.
+
+    Returns
+    -------
+    data : object
+        The same ``data`` object, updated in place with network lengths,
+        selected nominal diameters, pipe dimensions, and total investment
+        costs in ``data.heat_grid_data``.
     """
     # Total Land Area (AL) in hectares
     AL = data.site["district_area"]  # unit: ha
@@ -167,13 +216,28 @@ def calc_costs(data):
 
 def calculate_thermal_losses(data):
     """
-
     Calculate thermal losses in heating grid and cooling grid, which are
     assumed to be consisting of separate pre-insulated pipes (single pipes).
     Thermal loss calculation is based on DIN EN 13941 pair of single pipes.
     The interaction between the pipes is accounted for using the multipole
     method, which models the heat loss as a superposition of symmetrical
     and antisymmetrical cases.
+
+    Parameters
+    ----------
+    data : object
+        DistrictGenerator data object containing network temperatures,
+        soil temperatures, pipe dimensions and lengths, pipe spacing,
+        burial depth, soil and insulation conductivities, substation loss
+        percentage, and net heating/cooling demand profiles.
+
+    Returns
+    -------
+    data : object
+        The same ``data`` object, updated in place. The following
+        time-series entries are written to ``data.heat_grid_data``:
+        - total_losses_heating_network in kW.
+        - total_losses_cooling_network in kW.
 
     """
 
@@ -285,6 +349,41 @@ def calculate_thermal_losses(data):
     return data
 
 def calculate_soil_temperature(data, dt):
+    """
+    Calculate the undisturbed soil-temperature profile at network depth.
+
+    Derive an annual harmonic soil-temperature profile from outdoor air
+    temperature, wind speed, relative humidity, global solar radiation,
+    and sky temperature. The model accounts for either a soil surface or
+    an asphalt surface layer and evaluates the temperature at the network
+    installation depth.
+
+    Parameters
+    ----------
+    data : object
+        DistrictGenerator data object. Required weather series are read
+        from ``data.site``:
+
+        - ``"T_e"``: outdoor air temperature [°C].
+        - ``"wind_speed"``: wind speed [m/s].
+        - ``"r_humidity"``: relative humidity [%].
+        - ``"SunTotal"``: global solar irradiance [W/m²].
+        - ``"pressure"``: air pressure [hPa].
+
+        Ground parameters are read from ``data.heat_grid_data``, including
+        ``"asphaltlayer"``, ``"k_soil"``, ``"d_asph"``, and
+        ``"grid_depth"``.
+    dt : float
+        Temporal resolution of the input series in hours.
+
+    Returns
+    -------
+    object
+        The same ``data`` object. The calculated soil-temperature time
+        series [°C] is stored in
+        ``data.heat_grid_data["T_soil"]``.
+
+    """
 
     # LOAD WEATHER DATA
     weather = {}
@@ -399,8 +498,27 @@ def calculate_soil_temperature(data, dt):
 
 
 def cosFit(data, dt):
-    # This function fits a cosine model to a given dataset using
-    # a least-squares optimization approach.
+    """
+    Fit a one-year cosine function to a time series by least squares.
+
+    Parameters
+    ----------
+    data : array_like
+        One-dimensional time series to fit. Values may represent any
+        physical quantity; the fitted mean and amplitude retain the same
+        unit as ``data``.
+    dt : float
+        Temporal spacing between consecutive values in hours.
+
+    Returns
+    -------
+    mean : float
+        Fitted annual mean, in the same unit as ``data``.
+    amp : float
+        Fitted cosine amplitude, in the same unit as ``data``.
+    phase : float
+        Fitted phase angle in radians.
+    """
     omega = 2 * np.pi / 8760
     time = np.arange(len(data)) * dt
 
@@ -467,7 +585,34 @@ def calc_annual_investment(data):
 
 def heating_curve(T_e, T_supply_min, T_supply_max, T_return_min, T_return_max):
     """
-    Sliding temperature heating curve (2D version).
+    Calculate outdoor-temperature-dependent supply and return temperatures.
+
+    Linearly interpolate supply temperature and supply-return temperature
+    difference between outdoor temperatures of -10 °C and 15 °C. Values
+    outside this interval are clamped to the corresponding endpoint by
+    :func:`numpy.interp`.
+
+    Parameters
+    ----------
+    T_e : array_like
+        Outdoor air temperature [°C].
+    T_supply_min : float
+        Supply temperature [°C] assigned at ``T_e = -10 °C``.
+    T_supply_max : float
+        Supply temperature [°C] assigned at ``T_e = 15 °C``.
+    T_return_min : float
+        Return temperature [°C] used to define the supply-return
+        temperature difference at ``T_e = -10 °C``.
+    T_return_max : float
+        Return temperature [°C] used to define the supply-return
+        temperature difference at ``T_e = 15 °C``.
+
+    Returns
+    -------
+    T_supply : numpy.ndarray
+        Interpolated supply-temperature series [°C].
+    T_return : numpy.ndarray
+        Interpolated return-temperature series [°C].
     """
     T_e = np.array(T_e, dtype=float)
 
@@ -491,8 +636,31 @@ def heating_curve(T_e, T_supply_min, T_supply_max, T_return_min, T_return_max):
 
 def get_heating_network_temperatures(data, T_e=None):
     """
-    Reads the correct heating network temperatures from heating_grid.json
-    and returns constant temperatures or time-dependent heating-curve values.
+    Return heating-network supply and return temperatures.
+    Select either constant temperatures or an outdoor-temperature-dependent
+    heating curve according to the configured network generation and
+    temperature mode.
+
+    Parameters
+    ----------
+    data : object
+        DistrictGenerator data object containing ``data.heat_grid_data``.
+        The keys ``"generation"`` and ``"temperature_mode"`` determine
+        which temperature configuration is selected.
+    T_e : array_like, optional
+        Outdoor air temperature [°C]. Required when
+        ``temperature_mode == "heating_curve"`` and ignored in constant
+        mode.
+
+    Returns
+    -------
+    T_hot : numpy.ndarray
+        Heating-network supply temperature [°C]. In constant mode this is
+        a zero-dimensional NumPy array containing the configured scalar;
+        in heating-curve mode it follows the shape of ``T_e``.
+    T_cold : numpy.ndarray
+        Heating-network return temperature [°C], with the same dimensional
+        behavior as ``T_hot``.
     """
     gen = data.heat_grid_data["generation"]               # "3rd", "4th", "5th"
     mode = data.heat_grid_data["temperature_mode"]        # "constant" or "heating_curve"

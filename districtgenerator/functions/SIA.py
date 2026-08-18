@@ -4,6 +4,30 @@ import os
 import pandas as pd
 
 def read_SIA_data():
+    """
+    Read and restructure SIA 2024 building-use data from the package data.
+
+        Load the ``SIA2024`` worksheet from ``data/SIA2024.xlsx`` and convert
+        its tabular zone, energy, ventilation, profile, and building-type
+        composition data into the nested dictionary structure used by
+        DistrictGenerator.
+
+        Returns
+        -------
+        dict
+            Nested SIA 2024 data dictionary. It contains two groups of
+            top-level keys:
+
+            - Zone identifiers represented as strings. Each zone contains
+              general zone parameters, energy-use and ventilation values for
+              ``"standard"``, ``"goal"``, and ``"existing"`` states, a
+              24-element people profile, a 24-element device profile, and a
+              12-element monthly profile.
+            - Building-type identifiers such as ``"Living: MFH"``,
+              ``"Living: SFH"``, ``"OB"``, ``"SC"``, and others. Each maps
+              SIA zone names to their configured proportional share in that
+              building type.
+    """
     current_file = os.path.abspath(__file__)
     districtgenerator_dir = os.path.dirname(os.path.dirname(current_file))
     sia_xlsx_path = os.path.join(districtgenerator_dir, 'data', 'SIA2024.xlsx')

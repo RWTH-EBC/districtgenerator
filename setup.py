@@ -6,7 +6,7 @@ with open("requirements.txt") as f:
 
 setuptools.setup(name='districtgenerator',
                  python_requires='~=3.12',
-                 version='0.0.1',
+                 version='0.1.2',
                  description='Energy profile generation and '
                              'optimization of districts',
                  url='https://github.com/RWTH-EBC/districtgenerator',

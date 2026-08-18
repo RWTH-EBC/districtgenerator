@@ -142,12 +142,8 @@ class Users:
     def generate_number_flats_and_rooms(self, area):
         """
         Generate number of flats and main rooms for different building types.
-        Possible building types are:
-            - single family house (SFH)
-            - terraced house (TH)
-            - multifamily house (MFH)
-            - apartment block (AB)
-            - Defined non-residential building types (see non_residential_behavior.json and config.py)
+        Possible building types are: single family house (SFH), terraced house (TH),multifamily house (MFH),
+        apartment block (AB), defined non-residential building types (see non_residential_behavior.json and config.py)
 
         Parameters
         ----------

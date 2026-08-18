@@ -1,5 +1,20 @@
 # created Sep 2024
+"""Non-residential building archetypes and behavior configuration.
 
+This module provides two complementary representations used by
+DistrictGenerator:
+
+* :class:`NonResidential` creates a simplified non-residential building
+  archetype from use type, construction year, retrofit level, and floor area.
+* :class:`GenericNonResidential` exposes use-specific behavioral assumptions
+  loaded from ``non_residential_behavior.json``.
+
+Envelope properties and surface-estimation factors are loaded from the
+packaged JSON data in ``data/non_residential``. The implementation follows the
+DistrictGenerator non-residential archetype approach and provides the geometry
+and use-specific parameters required by the building, profile, and thermal
+models.
+"""
 import os
 import json
 from dataclasses import dataclass
@@ -22,52 +37,44 @@ class NonResidential(object):
     east, south and west)
 
     In TEASER it is assumed,  that the surface is the product of the given net_leased_area and specific estimation factors. These
-    estimation factors where build by dividing the given 'surface area' by the 'reference floor area' in TABULA. The same approach is followed here. 
+    estimation factors where build by dividing the given 'surface area' by the 'reference floor area' in TABULA. The same approach is followed here.
 
-    Obliagotry Parameters
+    Parameters
     ----------
-
     name : str
-        Individual name
+        Individual building or building-part name.
     year_of_construction : int
-        Year of first construction
-    net_leased_area : float [m2]
-            Total net leased area of the building, or of the building part if it is a mixed-use building. This is area is NOT the footprint of a building
-    total_building_area : float [m2]
-            Total net leased area of building. This is area is NOT the footprint of a building
-    usage: str 
-        Type of the building, according to Data NWG. Options are: "oag", "rnt", "hlc", "sdc", "clt", "spf", "hbr", "pwo", "trd", "tud", "trs", "gs1", "gs2"
-    construction_type : str
-        construction type of the building
+        Year of first construction.
+    net_leased_area : float
+        Net leased area represented by this archetype in m². For a
+        mixed-use building this can be the area of only the
+        non-residential part.
+    total_building_area : float
+        Total net leased area of the complete building in m².
+    usage : str
+        Non-residential archetype identifier used to select packaged
+        envelope and surface-estimation data.
+    construction_type : {"Light", "Medium", "Heavy", "Tabula"}
+        Construction type used by downstream thermal calculations.
     retrofit_level : str
-        retrofit level of the building
-    number_of_floors : int
-        Number of floors of the building. If not specified, the estimation factor gf1 is used to calculate the ground floor area. Number of floors is not needed for Building simulation.
-
-    Attributes
-    ----------
-    outer_area : dict [degree: m2]
-        Dictionary with orientation as key and sum of outer wall areas of
-        that direction as value.
-    window_area : dict [degree: m2]
-        Dictionary with orientation as key and sum of window areas of
-        that direction as value.
-    volume : float [m3]
-        Total volume.
+        Retrofit-state identifier used to select envelope parameters
+        for the applicable building-age group.
+    number_of_floors : int or None, optional
+        Number of building floors. If omitted, the ground-floor
+        estimation factor is used to derive a representative
+        one-floor area.
+    is_mixed_part : bool, optional
+        Whether the archetype represents the non-residential part of a
+        mixed-use building. If ``True``, the roof area of this part is
+        set to zero because another building part is assumed above it.
     """
 
-    def __init__(
-        self,
-        name,
-        year_of_construction,
-        net_leased_area,
-        total_building_area,
-        usage,  
-        construction_type,
-        retrofit_level,
-        number_of_floors = None,
-        is_mixed_part = False
-    ):
+    def __init__(self, name, year_of_construction, net_leased_area, total_building_area, usage,
+                 construction_type, retrofit_level, number_of_floors = None, is_mixed_part = False):
+        """
+        Constructor of NonResidential class.
+
+        """
         self.name = name 
         self.year_of_construction = year_of_construction
         self.net_leased_area = float(net_leased_area)
@@ -120,9 +127,19 @@ class NonResidential(object):
 
     def generate_archetype(self):
         """
-        Generates an archetype building.
+        Generate simplified external surface geometry for the archetype. Adaption of TEASER archetype
+        generation for Non-Residential Building Typology.
 
-        Adaption of TEASER archetype generation for Non-Residential Building Typology.
+        Populate ``outer_area`` and ``window_area`` from the loaded
+        surface-estimation factors. External wall and window areas are
+        distributed equally among four cardinal orientations; one ground
+        floor and one roof surface are generated when the respective
+        estimation factors are non-zero.
+
+        Returns
+        -------
+        None
+            The method modifies the instance in place.
         """
 
         if self.number_of_floors is None:
@@ -172,25 +189,19 @@ class NonResidential(object):
 
     def load_surface_estimation_factors(self):
         """
-        Load surface estimation factors data from a JSON file
-        # rt - rooftop
-        # ow - outer wall 
-        # gf - ground floor
-        # win - window 
-
-        Average number of floors (avg_nfloors)
+        Load use- and age-specific surface-estimation factors.
+        Read ``data/non_residential/surface_estimation_factors.json`` and
+        select the parameter set corresponding to ``usage`` and
+        ``year_of_construction``.
 
         Returns
         -------
-        dict
-            Dictionary with the surface estimation factors:
-            {
-                'rt1': 0.625,
-                'ow1': 0.77604,
-                'gf1': 0.625,
-                'win1': 0.18854,
-                'avg_nfloors': 1.31
-                }
+        dict or None
+            Surface-estimation factors for the matching building-age
+            interval. Expected entries include ``rt1`` (roof), ``ow1``
+            (outer wall), ``gf1`` (ground floor), and ``win1`` (window).
+            ``None`` is returned implicitly if the archetype exists but no
+            configured age interval contains ``year_of_construction``.
         """
         DATA_DIR_PATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
         DATA_PATH = os.path.join(DATA_DIR_PATH, 'data', 'non_residential', 'surface_estimation_factors.json')
@@ -213,17 +224,16 @@ class NonResidential(object):
     
     def load_building_data(self):
         """
-        Load building data from a JSON file
-
-        Parameters
-        ----------
-        file_path : str
-            Path to the JSON file
+        Load envelope parameters for the selected archetype.
+        Read ``data/non_residential/non_residential_envelope.json`` and
+        select parameters matching ``usage``, ``year_of_construction``,
+        and ``retrofit_level``.
 
         Returns
         -------
         dict
-            Dictionary with the building data
+            Envelope-parameter mapping for the matching archetype,
+            building-age interval, and retrofit level.
         """
         DATA_DIR_PATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
         DATA_PATH = os.path.join(DATA_DIR_PATH, 'data', 'non_residential', 'non_residential_envelope.json')

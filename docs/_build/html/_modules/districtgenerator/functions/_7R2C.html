@@ -1,0 +1,1002 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>districtgenerator.functions._7R2C &mdash; DistrictGenerator 0.1.2 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=92734c54"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            DistrictGenerator
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../README.html">DistrictGenerator</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">Classes and internal functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../EXAMPLES.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../about/index.html">About DistrictGenerator</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">DistrictGenerator</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">districtgenerator.functions._7R2C</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for districtgenerator.functions._7R2C</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">"""Dynamic 7R2C thermal-zone solver based on VDI 6007.</span>
+
+<span class="sd">The model represents the thermal zone using five temperature nodes:</span>
+
+<span class="sd">* indoor air,</span>
+<span class="sd">* internal-wall surface,</span>
+<span class="sd">* internal-wall thermal mass,</span>
+<span class="sd">* external-wall surface, and</span>
+<span class="sd">* external-wall thermal mass.</span>
+
+<span class="sd">The thermal network is solved using a backward-Euler time integration</span>
+<span class="sd">scheme.</span>
+
+<span class="sd">Notes</span>
+<span class="sd">-----</span>
+<span class="sd">The solver requires an initialized envelope for which the VDI 6007</span>
+<span class="sd">thermal parameters and equivalent outdoor temperatures have already</span>
+<span class="sd">been calculated.</span>
+
+<span class="sd">Solar radiation and internal gains are not passed directly to the</span>
+<span class="sd">solver. Their effects are represented through quantities previously</span>
+<span class="sd">calculated and stored in the envelope object.</span>
+
+<span class="sd">The current implementation assumes infiltration-based ventilation.</span>
+<span class="sd">Heating and cooling can be distributed between the indoor-air and</span>
+<span class="sd">surface nodes, and temperature control is based on operative</span>
+<span class="sd">temperature.</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="n">RES_BUILDING_TYPES</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"SFH"</span><span class="p">,</span> <span class="s2">"TH"</span><span class="p">,</span> <span class="s2">"MFH"</span><span class="p">,</span> <span class="s2">"AB"</span><span class="p">}</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_area_fraction_aw</span><span class="p">(</span><span class="n">envelope</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the external-surface fraction of the room-side area.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    envelope : object</span>
+<span class="sd">        Envelope-like object providing ``Aaw_tot`` and ``Araum_tot`` in square</span>
+<span class="sd">        metres. Missing attributes are interpreted as zero.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    float</span>
+<span class="sd">        Ratio of external-wall area to total room-side area, clipped to</span>
+<span class="sd">        the interval [0, 1].</span>
+<span class="sd">    """</span>
+    <span class="n">Araum</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="s2">"Araum_tot"</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)),</span> <span class="mf">1e-12</span><span class="p">)</span>
+    <span class="n">Aaw</span>   <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="s2">"Aaw_tot"</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
+    <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">Aaw</span> <span class="o">/</span> <span class="n">Araum</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">))</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_radiative_split_weights</span><span class="p">(</span><span class="n">envelope</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Return the fraction of radiant gains assigned to external surfaces.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    envelope : object</span>
+<span class="sd">        Envelope-like object that may provide a ``_surface_list`` containing</span>
+<span class="sd">        surface objects with ``surface_type``, ``rad_heat_trans_coef``,</span>
+<span class="sd">        ``_opaque_area``, and ``_glazed_area`` attributes.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    float: Fraction of radiant gains assigned to external surfaces. The complementary fraction ``1 - f_aw``</span>
+<span class="sd">            is assigned to internal surfaces.</span>
+<span class="sd">    """</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">surfaces</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="s2">"_surface_list"</span><span class="p">,</span> <span class="p">[])</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+        <span class="n">surfaces</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="n">AW_TYPES</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"ExtWall"</span><span class="p">,</span> <span class="s2">"Roof"</span><span class="p">,</span> <span class="s2">"GroundFloor"</span><span class="p">}</span>
+    <span class="n">IW_TYPES</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"IntWall"</span><span class="p">,</span> <span class="s2">"IntCeiling"</span><span class="p">,</span> <span class="s2">"IntFloor"</span><span class="p">}</span>
+
+    <span class="n">aw_eff</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">iw_eff</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">surfaces</span><span class="p">:</span>
+        <span class="n">hr</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="s2">"rad_heat_trans_coef"</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
+        <span class="n">st</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="s2">"surface_type"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">st</span> <span class="ow">in</span> <span class="n">AW_TYPES</span><span class="p">:</span>
+            <span class="c1"># interior-facing area = opaque + glazing on the facade</span>
+            <span class="n">aw_eff</span> <span class="o">+=</span> <span class="n">hr</span> <span class="o">*</span> <span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="s2">"_opaque_area"</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
+                            <span class="o">+</span> <span class="nb">float</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="s2">"_glazed_area"</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)))</span>
+        <span class="k">elif</span> <span class="n">st</span> <span class="ow">in</span> <span class="n">IW_TYPES</span><span class="p">:</span>
+            <span class="n">iw_eff</span> <span class="o">+=</span> <span class="n">hr</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="s2">"_opaque_area"</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
+
+    <span class="n">total</span> <span class="o">=</span> <span class="n">aw_eff</span> <span class="o">+</span> <span class="n">iw_eff</span>
+    <span class="k">if</span> <span class="n">total</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">:</span>
+        <span class="c1"># fall back to geometric fraction if anything is missing</span>
+        <span class="k">return</span> <span class="n">_area_fraction_aw</span><span class="p">(</span><span class="n">envelope</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">aw_eff</span> <span class="o">/</span> <span class="n">total</span>
+
+<div class="viewcode-block" id="build_params_from_envelope">
+<a class="viewcode-back" href="../../../districtgenerator.functions.html#districtgenerator.functions._7R2C.build_params_from_envelope">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">build_params_from_envelope</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="n">dt_s</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Build the numerical 7R2C parameter dictionary from an envelope.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    envelope : object</span>
+<span class="sd">        Parameterized Envelope-like object. It must provide the VDI 6007 thermal</span>
+<span class="sd">        parameters ``R1AW``, ``R1IW``, ``C1AW``, ``C1IW``, ``RrestAW``,</span>
+<span class="sd">        ``RalphaStarAW``, ``RalphaStarIW``, ``UA_tot``, ``Aaw_tot``, and</span>
+<span class="sd">        ``Araum_tot``. It must also provide ``rho_air``, ``c_p_air``, ``V_dot``,</span>
+<span class="sd">        ``V_dot_infiltration``, ``eta_temp_vent``, and ``V`` for the air and</span>
+<span class="sd">        ventilation terms.</span>
+<span class="sd">    dt_s : float</span>
+<span class="sd">        Simulation time step in seconds.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict of str to float</span>
+<span class="sd">        Solver parameters with the following entries:</span>
+
+<span class="sd">        ``C1IW``, ``C1AW``, ``C_air``</span>
+<span class="sd">            Thermal capacitances in J/K.</span>
+<span class="sd">        ``RalphaStarIW``, ``RalphaStarAW``, ``R1IW``, ``R1AW``, ``RrestAW``</span>
+<span class="sd">            Thermal resistances in K/W.</span>
+<span class="sd">        ``H_ve``, ``UA_tot``</span>
+<span class="sd">            Heat-transfer coefficients in W/K.</span>
+<span class="sd">        ``Aaw_tot``, ``Araum_tot``</span>
+<span class="sd">            Areas in m².</span>
+<span class="sd">        ``dt``</span>
+<span class="sd">            Time step in seconds.</span>
+
+<span class="sd">    """</span>
+    <span class="c1"># Sanity checks for attributes created by _VDI6007_params</span>
+    <span class="n">needed</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"R1AW"</span><span class="p">,</span> <span class="s2">"R1IW"</span><span class="p">,</span> <span class="s2">"C1AW"</span><span class="p">,</span> <span class="s2">"C1IW"</span><span class="p">,</span> <span class="s2">"RrestAW"</span><span class="p">,</span>
+              <span class="s2">"RalphaStarAW"</span><span class="p">,</span> <span class="s2">"RalphaStarIW"</span><span class="p">,</span>
+              <span class="s2">"UA_tot"</span><span class="p">,</span> <span class="s2">"Aaw_tot"</span><span class="p">,</span> <span class="s2">"Araum_tot"</span><span class="p">]</span>
+    <span class="n">missing</span> <span class="o">=</span> <span class="p">[</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">needed</span> <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="n">k</span><span class="p">)]</span>
+    <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Envelope is missing attributes </span><span class="si">{</span><span class="n">missing</span><span class="si">}</span><span class="s2">. "</span>
+            <span class="s2">"Run envelope._VDI6007_params(SunRad, internal_gains) first."</span>
+        <span class="p">)</span>
+
+    <span class="c1"># Ventilation conductance (W/K)</span>
+    <span class="c1"># Accounting for heat recovery in mechanical ventilation, but not in infiltration</span>
+    <span class="n">H_ve</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">rho_air</span><span class="p">)</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">c_p_air</span><span class="p">)</span> <span class="o">/</span> <span class="mf">3600.0</span> <span class="o">*</span> <span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">V_dot</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">eta_temp_vent</span><span class="p">))</span> <span class="o">+</span> <span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">V_dot_infiltration</span><span class="p">))</span>
+
+    <span class="c1"># A tiny air capacity for numerical stability (or scale with volume)</span>
+    <span class="c1"># Rule of thumb: ~ 1.2 kJ/K per m² zone floor area</span>
+    <span class="n">C_air</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">rho_air</span><span class="p">)</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">c_p_air</span><span class="p">)</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">V</span><span class="p">)</span>  <span class="c1"># J/K</span>
+
+    <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">C1IW</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">C1IW</span><span class="p">),</span>  <span class="n">C1AW</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">C1AW</span><span class="p">),</span> <span class="n">C_air</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">C_air</span><span class="p">),</span>
+                <span class="n">RalphaStarIW</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">RalphaStarIW</span><span class="p">),</span> <span class="n">RalphaStarAW</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">RalphaStarAW</span><span class="p">),</span>
+                <span class="n">R1IW</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">R1IW</span><span class="p">),</span> <span class="n">R1AW</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">R1AW</span><span class="p">),</span> <span class="n">RrestAW</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">RrestAW</span><span class="p">),</span>
+                <span class="n">H_ve</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">H_ve</span><span class="p">),</span> <span class="n">UA_tot</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">UA_tot</span><span class="p">),</span>
+                <span class="n">Aaw_tot</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">Aaw_tot</span><span class="p">),</span> <span class="n">Araum_tot</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">Araum_tot</span><span class="p">),</span> <span class="n">dt</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">dt_s</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="prepare_gains_from_envelope">
+<a class="viewcode-back" href="../../../districtgenerator.functions.html#districtgenerator.functions._7R2C.prepare_gains_from_envelope">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">prepare_gains_from_envelope</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="n">rad_frac</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.60</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Prepare convective and radiative gain time series for the 7R2C solver.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    envelope : object</span>
+<span class="sd">        Envelope-like object containing solar gain series ``Q_il_kon`` and</span>
+<span class="sd">        ``Q_il_str`` generated by the equivalent-temperature calculation, and an</span>
+<span class="sd">        ``internal_gains`` time series for non-solar internal gains. If the solar</span>
+<span class="sd">        gain attributes are absent, zero-valued solar gains are created using the</span>
+<span class="sd">        length of ``theta_eq_tot`` when available.</span>
+<span class="sd">    rad_frac : float, default 0.60</span>
+<span class="sd">        Fraction of ``envelope.internal_gains`` treated as radiative. The</span>
+<span class="sd">        remaining fraction is assigned directly to the zone-air node as a</span>
+<span class="sd">        convective gain. Values are not clipped to [0, 1].</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict of str to numpy.ndarray</span>
+<span class="sd">        Dictionary containing equally sized power time series in watts:</span>
+
+<span class="sd">        ``Q_il_kon_I``</span>
+<span class="sd">            Total convective gains applied to the zone-air node.</span>
+<span class="sd">        ``Q_il_str_iw``</span>
+<span class="sd">            Total radiant gains assigned to internal-wall surfaces.</span>
+<span class="sd">        ``Q_il_str_aw``</span>
+<span class="sd">            Total radiant gains assigned to external-envelope surfaces.</span>
+
+<span class="sd">    """</span>
+    <span class="c1"># --- solar (from theta_eq precomp) ---</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">Q_sol_kon</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">Q_il_kon</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">Q_sol_str</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">Q_il_str</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="s2">"theta_eq_tot"</span><span class="p">,</span> <span class="p">[]))</span> <span class="ow">or</span> <span class="mi">0</span>
+        <span class="n">Q_sol_kon</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="n">Q_sol_str</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">Q_sol_kon</span><span class="p">)</span>
+    <span class="n">Q_int_kon</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">Q_int_str</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+
+    <span class="c1"># pick source of non-solar internal gains (total array)</span>
+    <span class="n">gains_src</span> <span class="o">=</span> <span class="n">envelope</span><span class="o">.</span><span class="n">internal_gains</span>
+    <span class="k">if</span> <span class="n">gains_src</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">gains_src</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)[:</span><span class="n">n</span><span class="p">]</span>
+        <span class="n">Q_int_str</span><span class="p">[:</span><span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="p">)]</span> <span class="o">+=</span> <span class="n">rad_frac</span> <span class="o">*</span> <span class="n">v</span>
+        <span class="n">Q_int_kon</span><span class="p">[:</span><span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="p">)]</span> <span class="o">+=</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">rad_frac</span><span class="p">)</span> <span class="o">*</span> <span class="n">v</span>
+
+    <span class="c1"># totals</span>
+    <span class="n">Q_kon_total</span> <span class="o">=</span> <span class="n">Q_sol_kon</span> <span class="o">+</span> <span class="n">Q_int_kon</span>
+    <span class="n">Q_str_total</span> <span class="o">=</span> <span class="n">Q_sol_str</span> <span class="o">+</span> <span class="n">Q_int_str</span>
+
+    <span class="c1"># --- split radiant to BOTH IW and AW (physically realistic) ---</span>
+    <span class="n">f_aw</span> <span class="o">=</span> <span class="n">_radiative_split_weights</span><span class="p">(</span><span class="n">envelope</span><span class="p">)</span>
+    <span class="n">f_iw</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">-</span> <span class="n">f_aw</span>
+    <span class="n">Q_il_str_aw</span> <span class="o">=</span> <span class="n">f_aw</span> <span class="o">*</span> <span class="n">Q_str_total</span>
+    <span class="n">Q_il_str_iw</span> <span class="o">=</span> <span class="n">f_iw</span> <span class="o">*</span> <span class="n">Q_str_total</span>
+
+    <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">Q_il_kon_I</span><span class="o">=</span><span class="n">Q_kon_total</span><span class="p">,</span> <span class="n">Q_il_str_iw</span><span class="o">=</span><span class="n">Q_il_str_iw</span><span class="p">,</span> <span class="n">Q_il_str_aw</span><span class="o">=</span><span class="n">Q_il_str_aw</span><span class="p">)</span></div>
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># 7R2C zone solver (Backward Euler)</span>
+<span class="c1"># Nodes:</span>
+<span class="c1">#   T_il : air node (IL)     [°C]  (small capacity C_air)</span>
+<span class="c1">#   T_iw : internal wall     [°C]  (capacity C1IW)</span>
+<span class="c1">#   T_aw : external wall     [°C]  (capacity C1AW)</span>
+<span class="c1">#</span>
+<span class="c1"># Resistances/Conductances:</span>
+<span class="c1">#   Air ↔ IW      : RalphaStarIW</span>
+<span class="c1">#   Air ↔ AW      : RalphaStarAW</span>
+<span class="c1">#   Air ↔ Outside : 1/H_ve   (ventilation)</span>
+<span class="c1">#   AW  ↔ Outside : R1AW (dynamic path to θ_eq)  +  RrestAW (residual to T_ext)</span>
+<span class="c1">#</span>
+<span class="c1"># Gains:</span>
+<span class="c1">#   Convective to Air: Q_il_kon_I</span>
+<span class="c1">#   Radiant to IW   : Q_il_str_iw</span>
+<span class="c1">#   Radiant to AW   : Q_il_str_aw</span>
+<span class="c1"># HVAC:</span>
+<span class="c1">#   Q_HC applied at air node (positive = heating, negative = cooling)</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_step5_free_float</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="n">state5</span><span class="p">,</span> <span class="n">T_ext</span><span class="p">,</span> <span class="n">theta_eq</span><span class="p">,</span> <span class="n">gains_t</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Advance the five-node thermal model by one free-floating time step.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    params : dict</span>
+<span class="sd">        Solver parameter dictionary as returned by</span>
+<span class="sd">        :func:`build_params_from_envelope`.</span>
+<span class="sd">    state5 : array_like of float</span>
+<span class="sd">        Previous thermal state ordered as ``[T_air, T_s_iw, T_m_iw, T_s_aw, T_m_aw]`` in °C.</span>
+<span class="sd">    T_ext : float</span>
+<span class="sd">        Outdoor air temperature in °C.</span>
+<span class="sd">    theta_eq : float</span>
+<span class="sd">        Equivalent external-envelope temperature in °C.</span>
+<span class="sd">    gains_t : dict</span>
+<span class="sd">        Heat gains for the current time step in watts. Required keys are ``Q_il_kon_I``, ``Q_il_str_iw``, and ``Q_il_str_aw``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    numpy.ndarray</span>
+<span class="sd">        Updated state with shape ``(5,)`` and ordering ``[T_air, T_s_iw,</span>
+<span class="sd">        T_m_iw, T_s_aw, T_m_aw]`` in °C.</span>
+
+<span class="sd">    """</span>
+    <span class="n">dt</span>    <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s2">"dt"</span><span class="p">]</span>
+    <span class="n">C_air</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s2">"C_air"</span><span class="p">];</span>   <span class="n">C1IW</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s2">"C1IW"</span><span class="p">];</span>   <span class="n">C1AW</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s2">"C1AW"</span><span class="p">]</span>
+    <span class="n">G_aiw</span> <span class="o">=</span> <span class="mf">1.0</span><span class="o">/</span><span class="n">params</span><span class="p">[</span><span class="s2">"RalphaStarIW"</span><span class="p">]</span>
+    <span class="n">G_aaw</span> <span class="o">=</span> <span class="mf">1.0</span><span class="o">/</span><span class="n">params</span><span class="p">[</span><span class="s2">"RalphaStarAW"</span><span class="p">]</span>
+    <span class="n">G_1iw</span> <span class="o">=</span> <span class="mf">1.0</span><span class="o">/</span><span class="n">params</span><span class="p">[</span><span class="s2">"R1IW"</span><span class="p">]</span>
+    <span class="n">G_1aw</span> <span class="o">=</span> <span class="mf">1.0</span><span class="o">/</span><span class="n">params</span><span class="p">[</span><span class="s2">"R1AW"</span><span class="p">]</span>
+    <span class="n">G_rest</span><span class="o">=</span> <span class="mf">1.0</span><span class="o">/</span><span class="n">params</span><span class="p">[</span><span class="s2">"RrestAW"</span><span class="p">]</span>
+    <span class="n">H_inf</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s2">"H_ve"</span><span class="p">]</span>  <span class="c1"># treat H_ve as infiltration only</span>
+
+    <span class="n">T_air_p</span><span class="p">,</span> <span class="n">T_s_iw_p</span><span class="p">,</span> <span class="n">T_m_iw_p</span><span class="p">,</span> <span class="n">T_s_aw_p</span><span class="p">,</span> <span class="n">T_m_aw_p</span> <span class="o">=</span> <span class="n">state5</span>  <span class="c1"># surfaces have no C, prev only for completeness</span>
+
+    <span class="n">Q_kon_I</span>  <span class="o">=</span> <span class="n">gains_t</span><span class="p">[</span><span class="s2">"Q_il_kon_I"</span><span class="p">]</span>
+    <span class="n">Q_str_iw</span> <span class="o">=</span> <span class="n">gains_t</span><span class="p">[</span><span class="s2">"Q_il_str_iw"</span><span class="p">]</span>
+    <span class="n">Q_str_aw</span> <span class="o">=</span> <span class="n">gains_t</span><span class="p">[</span><span class="s2">"Q_il_str_aw"</span><span class="p">]</span>
+
+    <span class="n">A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">));</span> <span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+
+    <span class="c1"># Air</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">C_air</span><span class="o">/</span><span class="n">dt</span> <span class="o">+</span> <span class="n">G_aiw</span> <span class="o">+</span> <span class="n">G_aaw</span> <span class="o">+</span> <span class="n">H_inf</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">G_aiw</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">G_aaw</span>
+    <span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>   <span class="o">=</span> <span class="p">(</span><span class="n">C_air</span><span class="o">/</span><span class="n">dt</span><span class="p">)</span><span class="o">*</span><span class="n">T_air_p</span> <span class="o">+</span> <span class="n">Q_kon_I</span> <span class="o">+</span> <span class="n">H_inf</span><span class="o">*</span><span class="n">T_ext</span>
+
+    <span class="c1"># IW surface</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">G_aiw</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">G_aiw</span> <span class="o">+</span> <span class="n">G_1iw</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">G_1iw</span>
+    <span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>   <span class="o">=</span> <span class="n">Q_str_iw</span>
+
+    <span class="c1"># IW mass</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">G_1iw</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">C1IW</span><span class="o">/</span><span class="n">dt</span> <span class="o">+</span> <span class="n">G_1iw</span>
+    <span class="n">b</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>   <span class="o">=</span> <span class="p">(</span><span class="n">C1IW</span><span class="o">/</span><span class="n">dt</span><span class="p">)</span><span class="o">*</span><span class="n">T_m_iw_p</span>
+
+    <span class="c1"># AW surface</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">G_aaw</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">G_aaw</span> <span class="o">+</span> <span class="n">G_1aw</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">G_1aw</span>
+    <span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>   <span class="o">=</span> <span class="n">Q_str_aw</span>
+
+    <span class="c1"># AW mass  (dynamic link to surface + residual to θ_eq)</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">4</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">G_1aw</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">4</span><span class="p">,</span><span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">C1AW</span><span class="o">/</span><span class="n">dt</span> <span class="o">+</span> <span class="n">G_1aw</span> <span class="o">+</span> <span class="n">G_rest</span>
+    <span class="n">b</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span>   <span class="o">=</span> <span class="p">(</span><span class="n">C1AW</span><span class="o">/</span><span class="n">dt</span><span class="p">)</span><span class="o">*</span><span class="n">T_m_aw_p</span> <span class="o">+</span> <span class="n">G_rest</span><span class="o">*</span><span class="n">theta_eq</span>
+
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_step5_with_setpoint</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="n">state5</span><span class="p">,</span> <span class="n">T_ext</span><span class="p">,</span> <span class="n">theta_eq</span><span class="p">,</span> <span class="n">gains_t</span><span class="p">,</span>
+                         <span class="n">T_set</span><span class="p">,</span> <span class="n">w_op</span><span class="p">,</span> <span class="n">f_aw</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span><span class="mf">0.</span><span class="p">,</span><span class="mf">1.</span><span class="p">),</span> <span class="n">Q_limit</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                         <span class="n">Q_limit_cool</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Advance one time step while enforcing an operative-temperature setpoint.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    params : dict</span>
+<span class="sd">        Solver parameter dictionary as returned by</span>
+<span class="sd">        :func:`build_params_from_envelope`.</span>
+<span class="sd">    state5 : array_like of float</span>
+<span class="sd">        Previous state ordered as ``[T_air, T_s_iw, T_m_iw, T_s_aw, T_m_aw]``</span>
+<span class="sd">        in °C.</span>
+<span class="sd">    T_ext : float</span>
+<span class="sd">        Outdoor air temperature in °C.</span>
+<span class="sd">    theta_eq : float</span>
+<span class="sd">        Equivalent external-envelope temperature in °C.</span>
+<span class="sd">    gains_t : dict</span>
+<span class="sd">        Current convective and radiative gains in watts. Required keys are</span>
+<span class="sd">        ``Q_il_kon_I``, ``Q_il_str_iw``, and ``Q_il_str_aw``.</span>
+<span class="sd">    T_set : float</span>
+<span class="sd">        Target operative temperature in °C.</span>
+<span class="sd">    w_op : float</span>
+<span class="sd">        Weight of zone-air temperature in the operative-temperature equation.</span>
+<span class="sd">        The surface-temperature contribution receives weight ``1 - w_op``.</span>
+<span class="sd">    f_aw : float</span>
+<span class="sd">        Fraction of the mean room-side surface temperature represented by the</span>
+<span class="sd">        external-envelope surface temperature.</span>
+<span class="sd">    sigma : tuple of float, default (0.0, 0.0, 1.0)</span>
+<span class="sd">        Fractions of HVAC power assigned to the internal-wall surface,</span>
+<span class="sd">        external-envelope surface, and zone-air node, respectively. The values</span>
+<span class="sd">        are used directly and are not normalized.</span>
+<span class="sd">    Q_limit : float, optional</span>
+<span class="sd">        Maximum positive heating power in W. ``None`` disables the heating limit.</span>
+<span class="sd">    Q_limit_cool : float, optional</span>
+<span class="sd">        Maximum cooling-power magnitude in W. Cooling is represented internally by</span>
+<span class="sd">        negative ``Q_HC``; ``None`` disables the cooling limit.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    T_air : float</span>
+<span class="sd">        Zone-air temperature in °C.</span>
+<span class="sd">    T_s_iw : float</span>
+<span class="sd">        Internal-wall surface temperature in °C.</span>
+<span class="sd">    T_m_iw : float</span>
+<span class="sd">        Internal-wall mass temperature in °C.</span>
+<span class="sd">    T_s_aw : float</span>
+<span class="sd">        External-envelope surface temperature in °C.</span>
+<span class="sd">    T_m_aw : float</span>
+<span class="sd">        External-envelope mass temperature in °C.</span>
+<span class="sd">    Q_HC : float</span>
+<span class="sd">        HVAC power in W; positive values denote heating and negative values denote</span>
+<span class="sd">        cooling.</span>
+<span class="sd">    """</span>
+    <span class="n">dt</span>    <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s2">"dt"</span><span class="p">]</span>
+    <span class="n">C_air</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s2">"C_air"</span><span class="p">];</span>   <span class="n">C1IW</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s2">"C1IW"</span><span class="p">];</span>   <span class="n">C1AW</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s2">"C1AW"</span><span class="p">]</span>
+    <span class="n">G_aiw</span> <span class="o">=</span> <span class="mf">1.0</span><span class="o">/</span><span class="n">params</span><span class="p">[</span><span class="s2">"RalphaStarIW"</span><span class="p">]</span>
+    <span class="n">G_aaw</span> <span class="o">=</span> <span class="mf">1.0</span><span class="o">/</span><span class="n">params</span><span class="p">[</span><span class="s2">"RalphaStarAW"</span><span class="p">]</span>
+    <span class="n">G_1iw</span> <span class="o">=</span> <span class="mf">1.0</span><span class="o">/</span><span class="n">params</span><span class="p">[</span><span class="s2">"R1IW"</span><span class="p">]</span>
+    <span class="n">G_1aw</span> <span class="o">=</span> <span class="mf">1.0</span><span class="o">/</span><span class="n">params</span><span class="p">[</span><span class="s2">"R1AW"</span><span class="p">]</span>
+    <span class="n">G_rest</span><span class="o">=</span> <span class="mf">1.0</span><span class="o">/</span><span class="n">params</span><span class="p">[</span><span class="s2">"RrestAW"</span><span class="p">]</span>
+    <span class="n">H_inf</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s2">"H_ve"</span><span class="p">]</span>  <span class="c1"># infiltration only</span>
+
+    <span class="n">T_air_p</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">T_m_iw_p</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">T_m_aw_p</span> <span class="o">=</span> <span class="n">state5</span>
+
+    <span class="n">Q_kon_I</span>  <span class="o">=</span> <span class="n">gains_t</span><span class="p">[</span><span class="s2">"Q_il_kon_I"</span><span class="p">]</span>
+    <span class="n">Q_str_iw</span> <span class="o">=</span> <span class="n">gains_t</span><span class="p">[</span><span class="s2">"Q_il_str_iw"</span><span class="p">]</span>
+    <span class="n">Q_str_aw</span> <span class="o">=</span> <span class="n">gains_t</span><span class="p">[</span><span class="s2">"Q_il_str_aw"</span><span class="p">]</span>
+
+    <span class="n">A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">6</span><span class="p">,</span><span class="mi">6</span><span class="p">));</span> <span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">6</span><span class="p">)</span>
+
+    <span class="c1"># Air (include −σ_conv*Q_HC on LHS)</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">C_air</span><span class="o">/</span><span class="n">dt</span> <span class="o">+</span> <span class="n">G_aiw</span> <span class="o">+</span> <span class="n">G_aaw</span> <span class="o">+</span> <span class="n">H_inf</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">G_aiw</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">G_aaw</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">5</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">sigma</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>   <span class="o">=</span> <span class="p">(</span><span class="n">C_air</span><span class="o">/</span><span class="n">dt</span><span class="p">)</span><span class="o">*</span><span class="n">T_air_p</span> <span class="o">+</span> <span class="n">Q_kon_I</span> <span class="o">+</span> <span class="n">H_inf</span><span class="o">*</span><span class="n">T_ext</span>
+
+    <span class="c1"># IW surface (−σ_iw*Q_HC on LHS)</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">G_aiw</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">G_aiw</span> <span class="o">+</span> <span class="n">G_1iw</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">G_1iw</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">5</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">sigma</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>   <span class="o">=</span> <span class="n">Q_str_iw</span>
+
+    <span class="c1"># IW mass</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">G_1iw</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">C1IW</span><span class="o">/</span><span class="n">dt</span> <span class="o">+</span> <span class="n">G_1iw</span>
+    <span class="n">b</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>   <span class="o">=</span> <span class="p">(</span><span class="n">C1IW</span><span class="o">/</span><span class="n">dt</span><span class="p">)</span><span class="o">*</span><span class="n">T_m_iw_p</span>
+
+    <span class="c1"># AW surface (−σ_aw*Q_HC on LHS)</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">G_aaw</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">G_aaw</span> <span class="o">+</span> <span class="n">G_1aw</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">G_1aw</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span><span class="mi">5</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">sigma</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>   <span class="o">=</span> <span class="n">Q_str_aw</span>
+
+    <span class="c1"># AW mass</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">4</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">G_1aw</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">4</span><span class="p">,</span><span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">C1AW</span><span class="o">/</span><span class="n">dt</span> <span class="o">+</span> <span class="n">G_1aw</span> <span class="o">+</span> <span class="n">G_rest</span>
+    <span class="n">b</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span>   <span class="o">=</span> <span class="p">(</span><span class="n">C1AW</span><span class="o">/</span><span class="n">dt</span><span class="p">)</span><span class="o">*</span><span class="n">T_m_aw_p</span> <span class="o">+</span> <span class="n">G_rest</span><span class="o">*</span><span class="n">theta_eq</span>
+
+    <span class="c1"># Operative temperature constraint:</span>
+    <span class="c1"># T_op = w_op * T_air + (1-w_op) * [ (1-f_aw)*T_s_iw + f_aw*T_s_aw ] = T_set</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">5</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">w_op</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">5</span><span class="p">,</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">w_op</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">f_aw</span><span class="p">)</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">5</span><span class="p">,</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">5</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">w_op</span><span class="p">)</span> <span class="o">*</span> <span class="n">f_aw</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">5</span><span class="p">,</span><span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">A</span><span class="p">[</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">b</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span>   <span class="o">=</span> <span class="n">T_set</span>
+
+    <span class="n">sol</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+    <span class="n">T_air</span><span class="p">,</span> <span class="n">T_s_iw</span><span class="p">,</span> <span class="n">T_m_iw</span><span class="p">,</span> <span class="n">T_s_aw</span><span class="p">,</span> <span class="n">T_m_aw</span><span class="p">,</span> <span class="n">Q_HC</span> <span class="o">=</span> <span class="n">sol</span>
+
+    <span class="c1"># Optional clamp (heating)</span>
+    <span class="k">if</span> <span class="n">Q_limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">Q_HC</span> <span class="o">&gt;</span> <span class="n">Q_limit</span><span class="p">:</span>
+        <span class="n">Qc</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">Q_limit</span><span class="p">)</span>  <span class="c1"># cap only the positive (heating) side</span>
+        <span class="c1"># Re-solve with Q_HC fixed</span>
+        <span class="n">A3</span> <span class="o">=</span> <span class="n">A</span><span class="p">[:</span><span class="mi">5</span><span class="p">,</span> <span class="p">:</span><span class="mi">5</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">();</span>
+        <span class="n">b3</span> <span class="o">=</span> <span class="n">b</span><span class="p">[:</span><span class="mi">5</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="c1"># Move Q terms to RHS</span>
+        <span class="n">b3</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+=</span> <span class="n">sigma</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">Qc</span>
+        <span class="n">b3</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="n">sigma</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">Qc</span>
+        <span class="n">b3</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">sigma</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">Qc</span>
+        <span class="n">T_air</span><span class="p">,</span> <span class="n">T_s_iw</span><span class="p">,</span> <span class="n">T_m_iw</span><span class="p">,</span> <span class="n">T_s_aw</span><span class="p">,</span> <span class="n">T_m_aw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">A3</span><span class="p">,</span> <span class="n">b3</span><span class="p">)</span>
+        <span class="n">Q_HC</span> <span class="o">=</span> <span class="n">Qc</span>
+
+    <span class="c1"># Optional clamp (cooling)</span>
+    <span class="k">if</span> <span class="n">Q_limit_cool</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">Q_HC</span> <span class="o">&lt;</span> <span class="o">-</span><span class="nb">float</span><span class="p">(</span><span class="n">Q_limit_cool</span><span class="p">):</span>
+        <span class="n">Qc</span> <span class="o">=</span> <span class="o">-</span><span class="nb">float</span><span class="p">(</span><span class="n">Q_limit_cool</span><span class="p">)</span>  <span class="c1"># ADDED: cap negative (cooling) side</span>
+        <span class="n">A3</span> <span class="o">=</span> <span class="n">A</span><span class="p">[:</span><span class="mi">5</span><span class="p">,</span> <span class="p">:</span><span class="mi">5</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">b3</span> <span class="o">=</span> <span class="n">b</span><span class="p">[:</span><span class="mi">5</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">b3</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+=</span> <span class="n">sigma</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">Qc</span>
+        <span class="n">b3</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="n">sigma</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">Qc</span>
+        <span class="n">b3</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">sigma</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">Qc</span>
+        <span class="n">T_air</span><span class="p">,</span> <span class="n">T_s_iw</span><span class="p">,</span> <span class="n">T_m_iw</span><span class="p">,</span> <span class="n">T_s_aw</span><span class="p">,</span> <span class="n">T_m_aw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">A3</span><span class="p">,</span> <span class="n">b3</span><span class="p">)</span>
+        <span class="n">Q_HC</span> <span class="o">=</span> <span class="n">Qc</span>
+
+    <span class="k">return</span> <span class="n">T_air</span><span class="p">,</span> <span class="n">T_s_iw</span><span class="p">,</span> <span class="n">T_m_iw</span><span class="p">,</span> <span class="n">T_s_aw</span><span class="p">,</span> <span class="n">T_m_aw</span><span class="p">,</span> <span class="n">Q_HC</span>
+
+<div class="viewcode-block" id="simulate_7r2c">
+<a class="viewcode-back" href="../../../districtgenerator.functions.html#districtgenerator.functions._7R2C.simulate_7r2c">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">simulate_7r2c</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="n">T_ext</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">dt_s</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">theta_eq</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                  <span class="n">T_set_heat</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">T_set_cool</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                  <span class="n">cooling_season_days</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">145</span><span class="p">,</span> <span class="mi">255</span><span class="p">),</span> <span class="n">w_op</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span> <span class="n">night_setback</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+                  <span class="n">calendar</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Simulate the VDI 6007-inspired five-node thermal model.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    envelope : object</span>
+<span class="sd">        Fully prepared Envelope-like object containing the VDI 6007 parameters,</span>
+<span class="sd">        gain time series, temperature setpoints, and ``heatload``. If available,</span>
+<span class="sd">        ``coolingload`` is used as the cooling-power limit.</span>
+<span class="sd">    T_ext : numpy.ndarray</span>
+<span class="sd">        Outdoor dry-bulb temperature time series in °C. Its length defines the</span>
+<span class="sd">        number of simulation steps.</span>
+<span class="sd">    dt_s : float</span>
+<span class="sd">        Simulation time step in seconds.</span>
+<span class="sd">    theta_eq : numpy.ndarray, optional</span>
+<span class="sd">        Equivalent external-envelope temperature in °C. If ``None``, ``T_ext`` is</span>
+<span class="sd">        used. The array must provide at least as many values as ``T_ext``.</span>
+<span class="sd">    T_set_heat : array_like, optional</span>
+<span class="sd">        Operative heating setpoint in °C for each time step. If ``None``, a</span>
+<span class="sd">        constant series based on ``envelope.T_set_min`` is used.</span>
+<span class="sd">    T_set_cool : array_like, optional</span>
+<span class="sd">        Operative cooling setpoint in °C for each time step. If ``None``, a</span>
+<span class="sd">        constant series based on ``envelope.T_set_max`` is used.</span>
+<span class="sd">    cooling_season_days : tuple of int, default (145, 255)</span>
+<span class="sd">        Inclusive 1-based day-of-year interval in which cooling is enabled when</span>
+<span class="sd">        ``calendar`` is ``None``.</span>
+<span class="sd">    w_op : float, default 0.5</span>
+<span class="sd">        Weight of zone-air temperature in the operative-temperature calculation.</span>
+<span class="sd">        The remaining weight is assigned to the area-weighted room-side surface</span>
+<span class="sd">        temperature. Values are not clipped to [0, 1].</span>
+<span class="sd">    night_setback : bool, default False</span>
+<span class="sd">        If ``True``, replace heating and cooling setpoints from 22:00 to 05:59 by</span>
+<span class="sd">        ``T_set_min_night`` and ``T_set_max_night`` respectively, with fallback</span>
+<span class="sd">        offsets of -3 K and +1 K.</span>
+<span class="sd">    calendar : dict, optional</span>
+<span class="sd">        Calendar-based season definition. Required keys are</span>
+<span class="sd">        ``heating_period_start``, ``heating_period_end``,</span>
+<span class="sd">        ``cooling_period_start``, and ``cooling_period_end``. Optional Boolean keys</span>
+<span class="sd">        ``consider_heating_period`` and ``consider_cooling_period`` default to</span>
+<span class="sd">        ``True``. Calendar day indices are zero-based and interval end values are</span>
+<span class="sd">        exclusive.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict of str to numpy.ndarray</span>
+<span class="sd">        Time series with the same length as ``T_ext``:</span>
+
+<span class="sd">        ``Q_H``</span>
+<span class="sd">            Heating demand in W, reported as non-negative values.</span>
+<span class="sd">        ``Q_C``</span>
+<span class="sd">            Cooling demand in W, reported as non-negative values.</span>
+<span class="sd">        ``T_op``</span>
+<span class="sd">            Operative zone temperature in °C.</span>
+<span class="sd">        ``T_air``</span>
+<span class="sd">            Zone-air temperature in °C.</span>
+<span class="sd">        ``T_s_iw``, ``T_m_iw``</span>
+<span class="sd">            Internal-wall surface and mass temperatures in °C.</span>
+<span class="sd">        ``T_s_aw``, ``T_m_aw``</span>
+<span class="sd">            External-envelope surface and mass temperatures in °C.</span>
+<span class="sd">    """</span>
+
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">T_ext</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">theta_eq</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">theta_eq</span> <span class="o">=</span> <span class="n">T_ext</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="c1"># Build parameters and gains</span>
+    <span class="n">params</span> <span class="o">=</span> <span class="n">build_params_from_envelope</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="n">dt_s</span><span class="p">)</span>
+    <span class="n">gains</span> <span class="o">=</span> <span class="n">prepare_gains_from_envelope</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="n">rad_frac</span><span class="o">=</span><span class="mf">0.60</span><span class="p">)</span>
+    <span class="n">Q_il_kon_I</span> <span class="o">=</span> <span class="n">gains</span><span class="p">[</span><span class="s2">"Q_il_kon_I"</span><span class="p">][:</span><span class="n">n</span><span class="p">]</span>
+    <span class="n">Q_il_str_iw</span> <span class="o">=</span> <span class="n">gains</span><span class="p">[</span><span class="s2">"Q_il_str_iw"</span><span class="p">][:</span><span class="n">n</span><span class="p">]</span>
+    <span class="n">Q_il_str_aw</span> <span class="o">=</span> <span class="n">gains</span><span class="p">[</span><span class="s2">"Q_il_str_aw"</span><span class="p">][:</span><span class="n">n</span><span class="p">]</span>
+
+    <span class="c1"># Setpoints</span>
+    <span class="k">if</span> <span class="n">T_set_heat</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">T_set_heat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">T_set_min</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">T_set_heat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">T_set_heat</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)[:</span><span class="n">n</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">T_set_cool</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">T_set_cool</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">T_set_max</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">T_set_cool</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">T_set_cool</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)[:</span><span class="n">n</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">night_setback</span><span class="p">:</span>
+        <span class="c1"># define night hours: 22:00-05:59</span>
+        <span class="n">steps_per_day</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="mf">86400.0</span> <span class="o">/</span> <span class="n">dt_s</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+            <span class="n">hod</span> <span class="o">=</span> <span class="p">(</span><span class="n">t</span> <span class="o">%</span> <span class="n">steps_per_day</span><span class="p">)</span> <span class="o">*</span> <span class="n">dt_s</span> <span class="o">/</span> <span class="mf">3600.0</span>
+            <span class="k">if</span> <span class="n">hod</span> <span class="o">&gt;=</span> <span class="mi">22</span> <span class="ow">or</span> <span class="n">hod</span> <span class="o">&lt;</span> <span class="mi">6</span><span class="p">:</span>
+                <span class="n">T_set_heat</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="s2">"T_set_min_night"</span><span class="p">,</span> <span class="n">T_set_heat</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">-</span> <span class="mf">3.0</span><span class="p">))</span>
+                <span class="n">T_set_cool</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="s2">"T_set_max_night"</span><span class="p">,</span> <span class="n">T_set_cool</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">+</span> <span class="mf">1.0</span><span class="p">))</span>
+
+    <span class="c1"># Cooling season mask</span>
+    <span class="n">steps_per_day</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="mf">86400.0</span> <span class="o">/</span> <span class="n">dt_s</span><span class="p">))</span>
+    <span class="n">day_of_year</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="o">//</span> <span class="n">steps_per_day</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">cool_on</span> <span class="o">=</span> <span class="p">(</span><span class="n">day_of_year</span> <span class="o">&gt;=</span> <span class="n">cooling_season_days</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">day_of_year</span> <span class="o">&lt;=</span> <span class="n">cooling_season_days</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="c1"># Calendar-based seasons</span>
+    <span class="k">if</span> <span class="n">calendar</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">heating_start</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">calendar</span><span class="p">[</span><span class="s2">"heating_period_start"</span><span class="p">])</span>
+        <span class="n">heating_end</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">calendar</span><span class="p">[</span><span class="s2">"heating_period_end"</span><span class="p">])</span>
+        <span class="n">cooling_start</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">calendar</span><span class="p">[</span><span class="s2">"cooling_period_start"</span><span class="p">])</span>
+        <span class="n">cooling_end</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">calendar</span><span class="p">[</span><span class="s2">"cooling_period_end"</span><span class="p">])</span>
+
+        <span class="n">consider_cooling</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">calendar</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"consider_cooling_period"</span><span class="p">,</span> <span class="kc">True</span><span class="p">))</span>
+        <span class="n">consider_heating</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">calendar</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"consider_heating_period"</span><span class="p">,</span> <span class="kc">True</span><span class="p">))</span>
+
+        <span class="n">day</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="o">//</span> <span class="n">steps_per_day</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+
+        <span class="n">cool_on</span> <span class="o">=</span> <span class="p">(</span><span class="n">day</span> <span class="o">&gt;=</span> <span class="n">cooling_start</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">day</span> <span class="o">&lt;</span> <span class="n">cooling_end</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">consider_cooling</span>
+
+        <span class="n">heat_on</span> <span class="o">=</span> <span class="p">(</span><span class="o">~</span><span class="p">((</span><span class="n">day</span> <span class="o">&gt;=</span> <span class="n">heating_end</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">day</span> <span class="o">&lt;</span> <span class="n">heating_start</span><span class="p">)))</span> <span class="o">&amp;</span> <span class="n">consider_heating</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">heat_on</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+
+    <span class="n">f_aw</span> <span class="o">=</span> <span class="n">_area_fraction_aw</span><span class="p">(</span><span class="n">envelope</span><span class="p">)</span>
+
+    <span class="c1"># Initialize arrays</span>
+    <span class="n">T_air</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n</span><span class="p">);</span> <span class="n">T_s_iw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n</span><span class="p">);</span> <span class="n">T_m_iw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+    <span class="n">T_s_aw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n</span><span class="p">);</span> <span class="n">T_m_aw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n</span><span class="p">);</span> <span class="n">T_op</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+    <span class="n">Q_H</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n</span><span class="p">);</span> <span class="n">Q_C</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+
+    <span class="c1"># Initial state (all nodes near heat setpoint)</span>
+    <span class="n">T0</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="s2">"T_set_min"</span><span class="p">,</span> <span class="mf">20.0</span><span class="p">)</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">)</span>
+    <span class="n">state5</span> <span class="o">=</span> <span class="p">(</span><span class="n">T0</span><span class="p">,</span> <span class="n">T0</span><span class="p">,</span> <span class="n">T0</span><span class="p">,</span> <span class="n">T0</span><span class="p">,</span> <span class="n">T0</span><span class="p">)</span>
+
+    <span class="n">Q_lim</span> <span class="o">=</span> <span class="n">envelope</span><span class="o">.</span><span class="n">heatload</span>
+    <span class="n">Q_lim_cool</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="s2">"coolingload"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">sigma</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>  <span class="c1"># default: all convective to air</span>
+
+    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+        <span class="n">g_t</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+            <span class="n">Q_il_kon_I</span><span class="o">=</span><span class="n">Q_il_kon_I</span><span class="p">[</span><span class="n">t</span><span class="p">],</span>
+            <span class="n">Q_il_str_iw</span><span class="o">=</span><span class="n">Q_il_str_iw</span><span class="p">[</span><span class="n">t</span><span class="p">],</span>
+            <span class="n">Q_il_str_aw</span><span class="o">=</span><span class="n">Q_il_str_aw</span><span class="p">[</span><span class="n">t</span><span class="p">],</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Free-float</span>
+        <span class="n">T_air_ff</span><span class="p">,</span> <span class="n">T_s_iw_ff</span><span class="p">,</span> <span class="n">T_m_iw_ff</span><span class="p">,</span> <span class="n">T_s_aw_ff</span><span class="p">,</span> <span class="n">T_m_aw_ff</span> <span class="o">=</span> <span class="n">_step5_free_float</span><span class="p">(</span>
+            <span class="n">params</span><span class="p">,</span> <span class="n">state5</span><span class="p">,</span> <span class="n">T_ext</span><span class="p">[</span><span class="n">t</span><span class="p">],</span> <span class="n">theta_eq</span><span class="p">[</span><span class="n">t</span><span class="p">],</span> <span class="n">g_t</span>
+        <span class="p">)</span>
+        <span class="n">T_op_ff</span> <span class="o">=</span> <span class="n">w_op</span> <span class="o">*</span> <span class="n">T_air_ff</span> <span class="o">+</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">w_op</span><span class="p">)</span> <span class="o">*</span> <span class="p">((</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">f_aw</span><span class="p">)</span> <span class="o">*</span> <span class="n">T_s_iw_ff</span> <span class="o">+</span> <span class="n">f_aw</span> <span class="o">*</span> <span class="n">T_s_aw_ff</span><span class="p">)</span>
+
+        <span class="c1"># Gate heating with heat_on; cooling with cool_on (calendar or default)</span>
+        <span class="n">need_heat</span> <span class="o">=</span> <span class="p">(</span><span class="n">T_op_ff</span> <span class="o">&lt;</span> <span class="n">T_set_heat</span><span class="p">[</span><span class="n">t</span><span class="p">])</span> <span class="ow">and</span> <span class="n">heat_on</span><span class="p">[</span><span class="n">t</span><span class="p">]</span>
+        <span class="n">need_cool</span> <span class="o">=</span> <span class="p">(</span><span class="n">T_op_ff</span> <span class="o">&gt;</span> <span class="n">T_set_cool</span><span class="p">[</span><span class="n">t</span><span class="p">])</span> <span class="ow">and</span> <span class="n">cool_on</span><span class="p">[</span><span class="n">t</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">need_heat</span> <span class="ow">or</span> <span class="n">need_cool</span><span class="p">:</span>
+            <span class="n">T_target</span> <span class="o">=</span> <span class="n">T_set_heat</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="k">if</span> <span class="n">need_heat</span> <span class="k">else</span> <span class="n">T_set_cool</span><span class="p">[</span><span class="n">t</span><span class="p">]</span>
+            <span class="n">T_air_t</span><span class="p">,</span> <span class="n">T_s_iw_t</span><span class="p">,</span> <span class="n">T_m_iw_t</span><span class="p">,</span> <span class="n">T_s_aw_t</span><span class="p">,</span> <span class="n">T_m_aw_t</span><span class="p">,</span> <span class="n">Q_HC</span> <span class="o">=</span> <span class="n">_step5_with_setpoint</span><span class="p">(</span>
+                <span class="n">params</span><span class="p">,</span> <span class="n">state5</span><span class="p">,</span> <span class="n">T_ext</span><span class="p">[</span><span class="n">t</span><span class="p">],</span> <span class="n">theta_eq</span><span class="p">[</span><span class="n">t</span><span class="p">],</span> <span class="n">g_t</span><span class="p">,</span>
+                <span class="n">T_set</span><span class="o">=</span><span class="n">T_target</span><span class="p">,</span> <span class="n">w_op</span><span class="o">=</span><span class="n">w_op</span><span class="p">,</span> <span class="n">f_aw</span><span class="o">=</span><span class="n">f_aw</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">sigma</span><span class="p">,</span>
+                <span class="n">Q_limit</span><span class="o">=</span><span class="n">Q_lim</span><span class="p">,</span> <span class="n">Q_limit_cool</span><span class="o">=</span><span class="n">Q_lim_cool</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">T_air_t</span><span class="p">,</span> <span class="n">T_s_iw_t</span><span class="p">,</span> <span class="n">T_m_iw_t</span><span class="p">,</span> <span class="n">T_s_aw_t</span><span class="p">,</span> <span class="n">T_m_aw_t</span> <span class="o">=</span> \
+                <span class="n">T_air_ff</span><span class="p">,</span> <span class="n">T_s_iw_ff</span><span class="p">,</span> <span class="n">T_m_iw_ff</span><span class="p">,</span> <span class="n">T_s_aw_ff</span><span class="p">,</span> <span class="n">T_m_aw_ff</span>
+            <span class="n">Q_HC</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+        <span class="c1"># Store &amp; advance</span>
+        <span class="n">T_air</span><span class="p">[</span><span class="n">t</span><span class="p">],</span> <span class="n">T_s_iw</span><span class="p">[</span><span class="n">t</span><span class="p">],</span> <span class="n">T_m_iw</span><span class="p">[</span><span class="n">t</span><span class="p">],</span> <span class="n">T_s_aw</span><span class="p">[</span><span class="n">t</span><span class="p">],</span> <span class="n">T_m_aw</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> \
+            <span class="n">T_air_t</span><span class="p">,</span> <span class="n">T_s_iw_t</span><span class="p">,</span> <span class="n">T_m_iw_t</span><span class="p">,</span> <span class="n">T_s_aw_t</span><span class="p">,</span> <span class="n">T_m_aw_t</span>
+        <span class="n">T_op</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="n">w_op</span> <span class="o">*</span> <span class="n">T_air_t</span> <span class="o">+</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">w_op</span><span class="p">)</span> <span class="o">*</span> <span class="p">((</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">f_aw</span><span class="p">)</span> <span class="o">*</span> <span class="n">T_s_iw_t</span> <span class="o">+</span> <span class="n">f_aw</span> <span class="o">*</span> <span class="n">T_s_aw_t</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">Q_HC</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">Q_H</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="n">Q_HC</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">Q_C</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">Q_HC</span>
+
+        <span class="n">state5</span> <span class="o">=</span> <span class="p">(</span><span class="n">T_air_t</span><span class="p">,</span> <span class="n">T_s_iw_t</span><span class="p">,</span> <span class="n">T_m_iw_t</span><span class="p">,</span> <span class="n">T_s_aw_t</span><span class="p">,</span> <span class="n">T_m_aw_t</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">Q_H</span><span class="o">=</span><span class="n">Q_H</span><span class="p">,</span> <span class="n">Q_C</span><span class="o">=</span><span class="n">Q_C</span><span class="p">,</span> <span class="n">T_op</span><span class="o">=</span><span class="n">T_op</span><span class="p">,</span>
+                <span class="n">T_air</span><span class="o">=</span><span class="n">T_air</span><span class="p">,</span>
+                <span class="n">T_s_iw</span><span class="o">=</span><span class="n">T_s_iw</span><span class="p">,</span> <span class="n">T_m_iw</span><span class="o">=</span><span class="n">T_m_iw</span><span class="p">,</span>
+                <span class="n">T_s_aw</span><span class="o">=</span><span class="n">T_s_aw</span><span class="p">,</span> <span class="n">T_m_aw</span><span class="o">=</span><span class="n">T_m_aw</span><span class="p">)</span></div>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_build_setpoints_arrays</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">dt_h</span><span class="p">,</span> <span class="n">building_type</span><span class="p">,</span> <span class="n">night_setback</span><span class="p">,</span> <span class="n">holidays</span><span class="p">,</span> <span class="n">initial_day</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Construct heating and cooling setpoint time series.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    envelope : object</span>
+<span class="sd">        Envelope-like object providing ``T_set_min`` and ``T_set_max``. Night and</span>
+<span class="sd">        free-day setpoints are read from ``T_set_min_night``,</span>
+<span class="sd">        ``T_set_max_night``, and ``T_set_min_free_day`` when available.</span>
+<span class="sd">    n : int</span>
+<span class="sd">        Number of time steps.</span>
+<span class="sd">    dt_h : float</span>
+<span class="sd">        Time-step duration in hours.</span>
+<span class="sd">    building_type : str</span>
+<span class="sd">        Building-type identifier. ``SFH``, ``TH``, ``MFH``, and ``AB`` are treated</span>
+<span class="sd">        as residential; all other values follow the non-residential schedule.</span>
+<span class="sd">    night_setback : bool</span>
+<span class="sd">        For residential buildings, enable the 22:00--05:59 night setback. For</span>
+<span class="sd">        non-residential buildings the implemented workday/night schedule is applied</span>
+<span class="sd">        independently of this flag.</span>
+<span class="sd">    holidays : iterable of int or None</span>
+<span class="sd">        Zero-based simulation-day indices treated as holidays for non-residential</span>
+<span class="sd">        buildings.</span>
+<span class="sd">    initial_day : int, default 0</span>
+<span class="sd">        Weekday index of simulation day zero, with Monday = 0 and Sunday = 6.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    T_heat : numpy.ndarray</span>
+<span class="sd">        Heating-setpoint series in °C with length ``n``.</span>
+<span class="sd">    T_cool : numpy.ndarray</span>
+<span class="sd">        Cooling-setpoint series in °C with length ``n``.</span>
+
+<span class="sd">    """</span>
+    <span class="n">dt_s</span> <span class="o">=</span> <span class="n">dt_h</span> <span class="o">*</span> <span class="mf">3600.0</span>
+    <span class="n">steps_per_day</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="mf">86400.0</span> <span class="o">/</span> <span class="n">dt_s</span><span class="p">))</span>
+    <span class="n">T_heat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">T_set_min</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">T_cool</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">T_set_max</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">building_type</span> <span class="ow">in</span> <span class="n">RES_BUILDING_TYPES</span><span class="p">:</span>
+        <span class="c1"># Residential: night 22:00–05:59 only if night_setback requested</span>
+        <span class="k">if</span> <span class="n">night_setback</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+                <span class="n">hod</span> <span class="o">=</span> <span class="p">(</span><span class="n">t</span> <span class="o">%</span> <span class="n">steps_per_day</span><span class="p">)</span> <span class="o">*</span> <span class="n">dt_s</span> <span class="o">/</span> <span class="mf">3600.0</span>
+                <span class="k">if</span> <span class="n">hod</span> <span class="o">&gt;=</span> <span class="mi">22</span> <span class="ow">or</span> <span class="n">hod</span> <span class="o">&lt;</span> <span class="mi">6</span><span class="p">:</span>
+                    <span class="n">T_heat</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="s2">"T_set_min_night"</span><span class="p">,</span> <span class="n">envelope</span><span class="o">.</span><span class="n">T_set_min</span> <span class="o">-</span> <span class="mf">3.0</span><span class="p">))</span>
+                    <span class="n">T_cool</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="s2">"T_set_max_night"</span><span class="p">,</span> <span class="n">envelope</span><span class="o">.</span><span class="n">T_set_max</span> <span class="o">+</span> <span class="mf">1.0</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Non-residential: night 18:00–05:59, weekends/holidays = free day; disable cooling on free days</span>
+        <span class="n">holidays</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">holidays</span> <span class="ow">or</span> <span class="p">[])</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+            <span class="n">day</span> <span class="o">=</span> <span class="n">t</span> <span class="o">//</span> <span class="n">steps_per_day</span>  <span class="c1"># day index starting at 0</span>
+            <span class="n">hod</span> <span class="o">=</span> <span class="p">(</span><span class="n">t</span> <span class="o">%</span> <span class="n">steps_per_day</span><span class="p">)</span> <span class="o">*</span> <span class="n">dt_s</span> <span class="o">/</span> <span class="mf">3600.0</span>
+            <span class="n">weekday</span> <span class="o">=</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">initial_day</span><span class="p">)</span> <span class="o">+</span> <span class="nb">int</span><span class="p">(</span><span class="n">day</span><span class="p">))</span> <span class="o">%</span> <span class="mi">7</span>  <span class="c1"># 0=Mon,...,6=Sun</span>
+            <span class="n">is_weekend</span> <span class="o">=</span> <span class="p">(</span><span class="n">weekday</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+            <span class="n">is_holiday</span> <span class="o">=</span> <span class="p">(</span><span class="n">day</span> <span class="ow">in</span> <span class="n">holidays</span><span class="p">)</span>
+            <span class="n">working_day</span> <span class="o">=</span> <span class="p">(</span><span class="ow">not</span> <span class="n">is_weekend</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="ow">not</span> <span class="n">is_holiday</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">hod</span> <span class="o">&gt;=</span> <span class="mi">18</span> <span class="ow">or</span> <span class="n">hod</span> <span class="o">&lt;</span> <span class="mi">6</span><span class="p">:</span>  <span class="c1"># night</span>
+                <span class="n">T_heat</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="s2">"T_set_min_night"</span><span class="p">,</span> <span class="n">envelope</span><span class="o">.</span><span class="n">T_set_min</span> <span class="o">-</span> <span class="mf">3.0</span><span class="p">))</span> <span class="k">if</span> <span class="n">working_day</span> \
+                            <span class="k">else</span> <span class="nb">float</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="s2">"T_set_min_free_day"</span><span class="p">,</span> <span class="n">envelope</span><span class="o">.</span><span class="n">T_set_min</span> <span class="o">-</span> <span class="mf">3.0</span><span class="p">))</span>
+                <span class="n">T_cool</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="s2">"T_set_max_night"</span><span class="p">,</span> <span class="n">envelope</span><span class="o">.</span><span class="n">T_set_max</span> <span class="o">+</span> <span class="mf">1.0</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">T_heat</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">T_set_min</span><span class="p">)</span> <span class="k">if</span> <span class="n">working_day</span> \
+                            <span class="k">else</span> <span class="nb">float</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="s2">"T_set_min_free_day"</span><span class="p">,</span> <span class="n">envelope</span><span class="o">.</span><span class="n">T_set_min</span><span class="p">))</span>
+                <span class="c1"># Cooling only on working hours of working days; otherwise set very high to turn it off</span>
+                <span class="n">T_cool</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">envelope</span><span class="o">.</span><span class="n">T_set_max</span><span class="p">)</span> <span class="k">if</span> <span class="n">working_day</span> <span class="k">else</span> <span class="mf">100.0</span>
+
+    <span class="k">return</span> <span class="n">T_heat</span><span class="p">,</span> <span class="n">T_cool</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_map_states_for_legacy</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="n">T_air</span><span class="p">,</span> <span class="n">T_s_iw</span><span class="p">,</span> <span class="n">T_m_iw</span><span class="p">,</span> <span class="n">T_s_aw</span><span class="p">,</span> <span class="n">T_m_aw</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Map five-node temperatures to the legacy three-temperature interface.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    envelope : object</span>
+<span class="sd">        Envelope-like object providing ``C1IW``, ``C1AW``, ``Aaw_tot``, and</span>
+<span class="sd">        ``Araum_tot``. Missing capacitances default to zero.</span>
+<span class="sd">    T_air : array_like</span>
+<span class="sd">        Zone-air temperature series in °C.</span>
+<span class="sd">    T_s_iw : array_like</span>
+<span class="sd">        Internal-wall surface temperature series in °C.</span>
+<span class="sd">    T_m_iw : array_like</span>
+<span class="sd">        Internal-wall mass temperature series in °C.</span>
+<span class="sd">    T_s_aw : array_like</span>
+<span class="sd">        External-envelope surface temperature series in °C.</span>
+<span class="sd">    T_m_aw : array_like</span>
+<span class="sd">        External-envelope mass temperature series in °C.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    T_m : array_like</span>
+<span class="sd">        Legacy mass temperature, calculated as a heat-capacity-weighted mean of</span>
+<span class="sd">        ``T_m_iw`` and ``T_m_aw``.</span>
+<span class="sd">    T_i : array_like</span>
+<span class="sd">        Legacy indoor temperature, equal to ``T_air``.</span>
+<span class="sd">    T_s : array_like</span>
+<span class="sd">        Legacy surface temperature, calculated from internal and external surface</span>
+<span class="sd">        temperatures using the external area fraction.</span>
+
+<span class="sd">    """</span>
+    <span class="n">C1IW</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="s2">"C1IW"</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
+    <span class="n">C1AW</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="s2">"C1AW"</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
+    <span class="n">Csum</span> <span class="o">=</span> <span class="n">C1IW</span> <span class="o">+</span> <span class="n">C1AW</span> <span class="k">if</span> <span class="p">(</span><span class="n">C1IW</span> <span class="o">+</span> <span class="n">C1AW</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="mf">1.0</span>
+    <span class="n">f_aw</span> <span class="o">=</span> <span class="n">_area_fraction_aw</span><span class="p">(</span><span class="n">envelope</span><span class="p">)</span>
+
+    <span class="n">T_m</span> <span class="o">=</span> <span class="p">(</span><span class="n">C1IW</span><span class="o">*</span><span class="n">T_m_iw</span> <span class="o">+</span> <span class="n">C1AW</span><span class="o">*</span><span class="n">T_m_aw</span><span class="p">)</span> <span class="o">/</span> <span class="n">Csum</span>
+    <span class="n">T_i</span> <span class="o">=</span> <span class="n">T_air</span>
+    <span class="n">T_s</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">f_aw</span><span class="p">)</span><span class="o">*</span><span class="n">T_s_iw</span> <span class="o">+</span> <span class="n">f_aw</span><span class="o">*</span><span class="n">T_s_aw</span>
+    <span class="k">return</span> <span class="n">T_m</span><span class="p">,</span> <span class="n">T_i</span><span class="p">,</span> <span class="n">T_s</span>
+
+
+<div class="viewcode-block" id="calc">
+<a class="viewcode-back" href="../../../districtgenerator.functions.html#districtgenerator.functions._7R2C.calc">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">calc</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="n">T_e</span><span class="p">,</span> <span class="n">calendar</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">initial_day</span><span class="p">,</span> <span class="n">building_type</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Calculate heating/cooling demand using the legacy 7R2C wrapper interface.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    envelope : object</span>
+<span class="sd">        Prepared Envelope-like object required by :func:`simulate_7r2c`. It must</span>
+<span class="sd">        additionally provide ``theta_eq_tot``.</span>
+<span class="sd">    T_e : array_like</span>
+<span class="sd">        Outdoor air temperature time series in °C.</span>
+<span class="sd">    calendar : dict</span>
+<span class="sd">        Calendar definition passed to :func:`simulate_7r2c`. The key ``holidays``</span>
+<span class="sd">        must contain zero-based simulation-day indices. Heating and cooling period</span>
+<span class="sd">        keys required by :func:`simulate_7r2c` must also be present.</span>
+<span class="sd">    dt : float</span>
+<span class="sd">        Simulation time step in hours.</span>
+<span class="sd">    initial_day : int</span>
+<span class="sd">        Weekday index of the first simulation day, with Monday = 0 and Sunday = 6.</span>
+<span class="sd">    building_type : str</span>
+<span class="sd">        Building-type identifier used to construct residential or</span>
+<span class="sd">        non-residential setpoint schedules.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Q_H : numpy.ndarray</span>
+<span class="sd">        Non-negative heating demand in W.</span>
+<span class="sd">    Q_C : numpy.ndarray</span>
+<span class="sd">        Non-negative cooling demand in W.</span>
+<span class="sd">    T_op : numpy.ndarray</span>
+<span class="sd">        Operative temperature in °C.</span>
+<span class="sd">    T_m : numpy.ndarray</span>
+<span class="sd">        Legacy aggregated mass temperature in °C.</span>
+<span class="sd">    T_i : numpy.ndarray</span>
+<span class="sd">        Legacy indoor-air temperature in °C.</span>
+<span class="sd">    T_s : numpy.ndarray</span>
+<span class="sd">        Legacy aggregated surface temperature in °C.</span>
+<span class="sd">    """</span>
+    <span class="n">T_e</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">T_e</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">T_e</span><span class="p">)</span>
+
+    <span class="n">holidays</span> <span class="o">=</span> <span class="n">calendar</span><span class="p">[</span><span class="s2">"holidays"</span><span class="p">]</span>
+
+    <span class="c1"># Build setpoints like the old logic (no night setback branch), honoring initial_day</span>
+    <span class="n">T_heat</span><span class="p">,</span> <span class="n">T_cool</span> <span class="o">=</span> <span class="n">_build_setpoints_arrays</span><span class="p">(</span>
+        <span class="n">envelope</span><span class="o">=</span><span class="n">envelope</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="n">n</span><span class="p">,</span> <span class="n">dt_h</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span>
+        <span class="n">building_type</span><span class="o">=</span><span class="n">building_type</span><span class="p">,</span> <span class="n">night_setback</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">holidays</span><span class="o">=</span><span class="n">holidays</span><span class="p">,</span>
+        <span class="n">initial_day</span><span class="o">=</span><span class="n">initial_day</span>
+    <span class="p">)</span>
+    <span class="c1"># Use theta_eq</span>
+    <span class="n">theta_eq</span> <span class="o">=</span> <span class="n">envelope</span><span class="o">.</span><span class="n">theta_eq_tot</span>
+
+    <span class="n">out</span> <span class="o">=</span> <span class="n">simulate_7r2c</span><span class="p">(</span>
+        <span class="n">envelope</span><span class="o">=</span><span class="n">envelope</span><span class="p">,</span>
+        <span class="n">T_ext</span><span class="o">=</span><span class="n">T_e</span><span class="p">,</span>
+        <span class="n">dt_s</span><span class="o">=</span><span class="n">dt</span> <span class="o">*</span> <span class="mf">3600.0</span><span class="p">,</span>
+        <span class="n">theta_eq</span><span class="o">=</span><span class="n">theta_eq</span><span class="p">,</span>
+        <span class="n">T_set_heat</span><span class="o">=</span><span class="n">T_heat</span><span class="p">,</span>
+        <span class="n">T_set_cool</span><span class="o">=</span><span class="n">T_cool</span><span class="p">,</span>
+        <span class="n">night_setback</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">calendar</span><span class="o">=</span><span class="n">calendar</span><span class="p">)</span>
+
+    <span class="n">T_m</span><span class="p">,</span> <span class="n">T_i</span><span class="p">,</span> <span class="n">T_s</span> <span class="o">=</span> <span class="n">_map_states_for_legacy</span><span class="p">(</span>
+        <span class="n">envelope</span><span class="p">,</span>
+        <span class="n">out</span><span class="p">[</span><span class="s2">"T_air"</span><span class="p">],</span>
+        <span class="n">out</span><span class="p">[</span><span class="s2">"T_s_iw"</span><span class="p">],</span> <span class="n">out</span><span class="p">[</span><span class="s2">"T_m_iw"</span><span class="p">],</span>
+        <span class="n">out</span><span class="p">[</span><span class="s2">"T_s_aw"</span><span class="p">],</span> <span class="n">out</span><span class="p">[</span><span class="s2">"T_m_aw"</span><span class="p">],</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">out</span><span class="p">[</span><span class="s2">"Q_H"</span><span class="p">],</span> <span class="n">out</span><span class="p">[</span><span class="s2">"Q_C"</span><span class="p">],</span> <span class="n">out</span><span class="p">[</span><span class="s2">"T_op"</span><span class="p">],</span> <span class="n">T_m</span><span class="p">,</span> <span class="n">T_i</span><span class="p">,</span> <span class="n">T_s</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="calc_night_setback">
+<a class="viewcode-back" href="../../../districtgenerator.functions.html#districtgenerator.functions._7R2C.calc_night_setback">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">calc_night_setback</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="n">T_e</span><span class="p">,</span> <span class="n">calendar</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">initial_day</span><span class="p">,</span> <span class="n">building_type</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Calculate demand with night-setback-aware setpoint schedules.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    envelope : object</span>
+<span class="sd">        Prepared Envelope-like object required by :func:`simulate_7r2c`.</span>
+<span class="sd">    T_e : array_like</span>
+<span class="sd">        Outdoor air temperature time series in °C.</span>
+<span class="sd">    calendar : dict</span>
+<span class="sd">        Calendar definition passed to :func:`simulate_7r2c`. The key ``holidays``</span>
+<span class="sd">        must contain zero-based simulation-day indices. Heating and cooling period</span>
+<span class="sd">        keys required by :func:`simulate_7r2c` must also be present.</span>
+<span class="sd">    dt : float</span>
+<span class="sd">        Simulation time step in hours.</span>
+<span class="sd">    initial_day : int</span>
+<span class="sd">        Weekday index of the first simulation day, with Monday = 0 and Sunday = 6.</span>
+<span class="sd">    building_type : str</span>
+<span class="sd">        Building-type identifier used to construct residential or</span>
+<span class="sd">        non-residential setpoint schedules.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Q_H : numpy.ndarray</span>
+<span class="sd">        Non-negative heating demand in W.</span>
+<span class="sd">    Q_C : numpy.ndarray</span>
+<span class="sd">        Non-negative cooling demand in W.</span>
+<span class="sd">    T_op : numpy.ndarray</span>
+<span class="sd">        Operative temperature in °C.</span>
+<span class="sd">    T_m : numpy.ndarray</span>
+<span class="sd">        Legacy aggregated mass temperature in °C.</span>
+<span class="sd">    T_i : numpy.ndarray</span>
+<span class="sd">        Legacy indoor-air temperature in °C.</span>
+<span class="sd">    T_s : numpy.ndarray</span>
+<span class="sd">        Legacy aggregated surface temperature in °C.</span>
+
+<span class="sd">    """</span>
+    <span class="n">T_e</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">T_e</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">T_e</span><span class="p">)</span>
+
+    <span class="n">holidays</span> <span class="o">=</span> <span class="n">calendar</span><span class="p">[</span><span class="s2">"holidays"</span><span class="p">]</span>
+
+    <span class="c1"># Build setpoints like the old night-setback logic, honoring initial_day</span>
+    <span class="n">T_heat</span><span class="p">,</span> <span class="n">T_cool</span> <span class="o">=</span> <span class="n">_build_setpoints_arrays</span><span class="p">(</span>
+        <span class="n">envelope</span><span class="o">=</span><span class="n">envelope</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="n">n</span><span class="p">,</span> <span class="n">dt_h</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span>
+        <span class="n">building_type</span><span class="o">=</span><span class="n">building_type</span><span class="p">,</span> <span class="n">night_setback</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">holidays</span><span class="o">=</span><span class="n">holidays</span><span class="p">,</span>
+        <span class="n">initial_day</span><span class="o">=</span><span class="n">initial_day</span>
+    <span class="p">)</span>
+    <span class="n">theta_eq</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="s2">"theta_eq_tot"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">simulate_7r2c</span><span class="p">(</span>
+        <span class="n">envelope</span><span class="o">=</span><span class="n">envelope</span><span class="p">,</span>
+        <span class="n">T_ext</span><span class="o">=</span><span class="n">T_e</span><span class="p">,</span>
+        <span class="n">dt_s</span><span class="o">=</span><span class="n">dt</span> <span class="o">*</span> <span class="mf">3600.0</span><span class="p">,</span>
+        <span class="n">theta_eq</span><span class="o">=</span><span class="n">theta_eq</span><span class="p">,</span>
+        <span class="n">T_set_heat</span><span class="o">=</span><span class="n">T_heat</span><span class="p">,</span>
+        <span class="n">T_set_cool</span><span class="o">=</span><span class="n">T_cool</span><span class="p">,</span>
+        <span class="n">night_setback</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># we've already embedded the setback into arrays</span>
+        <span class="n">calendar</span><span class="o">=</span><span class="n">calendar</span><span class="p">)</span>
+
+    <span class="n">T_m</span><span class="p">,</span> <span class="n">T_i</span><span class="p">,</span> <span class="n">T_s</span> <span class="o">=</span> <span class="n">_map_states_for_legacy</span><span class="p">(</span>
+        <span class="n">envelope</span><span class="p">,</span>
+        <span class="n">out</span><span class="p">[</span><span class="s2">"T_air"</span><span class="p">],</span>
+        <span class="n">out</span><span class="p">[</span><span class="s2">"T_s_iw"</span><span class="p">],</span> <span class="n">out</span><span class="p">[</span><span class="s2">"T_m_iw"</span><span class="p">],</span>
+        <span class="n">out</span><span class="p">[</span><span class="s2">"T_s_aw"</span><span class="p">],</span> <span class="n">out</span><span class="p">[</span><span class="s2">"T_m_aw"</span><span class="p">],</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">out</span><span class="p">[</span><span class="s2">"Q_H"</span><span class="p">],</span> <span class="n">out</span><span class="p">[</span><span class="s2">"Q_C"</span><span class="p">],</span> <span class="n">out</span><span class="p">[</span><span class="s2">"T_op"</span><span class="p">],</span> <span class="n">T_m</span><span class="p">,</span> <span class="n">T_i</span><span class="p">,</span> <span class="n">T_s</span><span class="p">)</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Joel Schoelzel.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

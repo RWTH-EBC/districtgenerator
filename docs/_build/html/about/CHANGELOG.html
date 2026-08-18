@@ -6,16 +6,16 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Version History &mdash; DistrictGenerator 0.1.0 documentation</title>
+  <title>Version History &mdash; DistrictGenerator 0.1.2 documentation</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
-      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
 
   
       <script src="../_static/jquery.js?v=5d32c60e"></script>
       <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="../_static/documentation_options.js?v=01f34227"></script>
-      <script src="../_static/doctools.js?v=9bcbadda"></script>
-      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../_static/documentation_options.js?v=92734c54"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -49,6 +49,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../EXAMPLES.html">Examples</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="index.html">About DistrictGenerator</a><ul class="current">
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Version History</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#v0-1-2">v0.1.2</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#v0-1-1">v0.1.1</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#v0-1-0">v0.1.0</a></li>
 </ul>
@@ -85,6 +86,21 @@
              
   <section id="version-history">
 <h1>Version History<a class="headerlink" href="#version-history" title="Link to this heading"></a></h1>
+<section id="v0-1-2">
+<h2>v0.1.2<a class="headerlink" href="#v0-1-2" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>7R2C building modeling according to VDI 6007-1</p></li>
+<li><p>Peaks and sums of time series are preserved during clustering</p></li>
+<li><p>All optimizations migrated to Pyomo</p></li>
+<li><p>Additional heat generators and local heating networks with simplified design and consideration of waste heat</p></li>
+<li><p>2-pipe models for heating networks (4th generation and 5th generation (bidirectional))</p></li>
+<li><p>Expansion of the building types to include non-residential buildings (e.g., office buildings, schools, restaurants,
+supermarkets)</p></li>
+<li><p>Reworked structure of loading (static) data such as parameters using pydantic</p></li>
+<li><p>Enabled the usage of config files (.env) to change (static) parameters</p></li>
+<li><p>Renaming of example.csv to a specified scenario name (used for output as well)</p></li>
+</ul>
+</section>
 <section id="v0-1-1">
 <h2>v0.1.1<a class="headerlink" href="#v0-1-1" title="Link to this heading"></a></h2>
 <ul class="simple">

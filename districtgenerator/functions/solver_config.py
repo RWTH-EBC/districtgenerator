@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-This script provides functions to create a Pyomo solver instance based on a given configuration, execute the optimization, and diagnose issues if the solver does not terminate with an optimal solution.
+This script provides functions to create a Pyomo solver instance based on a given configuration,
+execute the optimization, and diagnose issues if the solver does not terminate with an optimal solution.
 """
 import os
 import pyomo.environ as pyo
@@ -138,8 +139,9 @@ def create_solver(pyomo_config = None, solver_name=None,timelimit=_NO_INPUT, mip
     """
     Returns a Pyomo solver instance based on the provided solver name.
     Creates the solver with options from a JSON file or function arguments.
-    -------
+
     Parameters
+    -------
     pyomo_config : PyomoConfig, optional
         PyomoConfig instance containing solver settings. if None the settings are directly loaded from the config file with the standard values.
     solver_name : str,
@@ -154,7 +156,8 @@ def create_solver(pyomo_config = None, solver_name=None,timelimit=_NO_INPUT, mip
 
     -------
     Returns
-    tuple: (SolverFactory instance, dict of solver options)
+    -------
+        tuple: (SolverFactory instance, dict of solver options)
     """
     # If no PyomoConfig is provided, load the default configuration
     if pyomo_config is None:

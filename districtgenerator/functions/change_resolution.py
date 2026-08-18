@@ -13,20 +13,23 @@ def changeResolution(values, oldResolution, newResolution, method="mean"):
     """
     Changes the temporal resolution of a time series with constant sampling intervals.
 
-    ----------
-
     Parameters
     ----------
-    - values: Array-like, the original time series data to be resampled.
-    - oldResolution: Integer, original time step in seconds (e.g. 3600 for hourly data).
-    - newResolution: Integer, desired time step in seconds after resampling.
-    - method: {"mean", "sum"}, optional. Determines how resampling is handled:
-        - "mean": Averages values when increasing time step (e.g. for power).
-        - "sum": Sums values when increasing time step (e.g. for energy). Default is "mean".
+    values : array_like
+        Original time-series values.
+    oldResolution : int
+        Original temporal resolution in seconds.
+    newResolution : int
+        Target temporal resolution in seconds.
+    method : {"mean", "sum"}, optional
+        Aggregation method. ``"mean"`` is appropriate for quantities
+        such as power, whereas ``"sum"`` is appropriate for quantities
+        such as energy. The default is ``"mean"``.
 
     Returns
-    ----------
-    - valuesResampled: Array of resampled values at the new resolution.
+    -------
+    numpy.ndarray
+        Resampled time series.
     """
     # Compute original time indexes
     timeOld = np.arange(len(values)) * oldResolution

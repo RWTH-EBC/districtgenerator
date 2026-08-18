@@ -1,14 +1,73 @@
 # -*- coding: utf-8 -*-
+"""
+Thermal-envelope utilities for the VDI 6007 7R2C building model.
 
-import json
-import os
+This module defines the :class:`Envelope` and :class:`Surface` classes used to
+translate TEASER or non-residential building data into thermal parameters for
+a reduced-order VDI 6007 representation. It also provides helper functions for
+long-wave radiation and thermal-network aggregation.
+
+The docstrings follow PEP 257 and the NumPy/numpydoc section conventions so
+that the API can be rendered consistently by Sphinx-based documentation.
+"""
+
 import numpy as np
 from teaser.project import Project
 from .non_residential import GenericNonResidential, NonResidential
 import logging
 
 class Surface:
-    """Lightweight surface abstraction for VDI6007 aggregation."""
+    """
+    Represent one building surface for the VDI 6007 thermal-network aggregation.
+    The class stores geometric, thermal, and transfer-matrix data for one opaque
+    or glazed surface group. Instances are created by :class:`Envelope` and are
+    used to derive the reduced resistance-capacitance parameters of the 7R2C
+    model.
+
+    Parameters
+    ----------
+    name : str
+        Human-readable name of the surface group.
+    surface_type : str
+        Surface category. Expected values are ``"ExtWall"``, ``"Roof"``,
+        ``"GroundFloor"``, ``"IntWall"``, ``"IntCeiling"``, or ``"IntFloor"``.
+    area : float
+        Total surface area in m².
+    opaque_area : float
+        Opaque part of the surface area in m².
+    glazed_area : float
+        Glazed part of the surface area in m².
+    u_value : float
+        Thermal transmittance in W/(m² K).
+    kappa : float
+        Area-related heat capacity in J/(m² K).
+    A1n_t2 : numpy.ndarray
+        Complex 2 x 2 transfer matrix for a two-day excitation period.
+    A1n_t7 : numpy.ndarray
+        Complex 2 x 2 transfer matrix for a seven-day excitation period.
+    omega_bt : numpy.ndarray
+        Angular frequencies corresponding to the two- and seven-day periods in
+        rad/s.
+    window : dict or None, optional
+        Window properties associated with the surface. When present, the mapping
+        is expected to contain ``u_value``, ``g_value``, ``Ri_w``, and ``Rl_w``.
+    conv_heat_trans_coef_int : float, optional
+        Internal convective heat-transfer coefficient in W/(m² K).
+    conv_heat_trans_coef_ext : float, optional
+        External convective heat-transfer coefficient in W/(m² K).
+    rad_heat_trans_coef : float, optional
+        Radiative heat-transfer coefficient in W/(m² K).
+    thermal_resistances : sequence of float or None, optional
+        Layer thermal resistances in m² K/W. If omitted, a single resistance of
+        ``1 / u_value`` is used when ``u_value`` is positive.
+
+    Attributes
+    ----------
+    thermal_resistances : list of float
+        Thermal resistances used by the VDI 6007 reduction.
+    window : dict or None
+        Window properties associated with this surface group.
+    """
 
     def __init__(self, name, surface_type, area, opaque_area, glazed_area,
                  u_value, kappa, A1n_t2, A1n_t7, omega_bt,
@@ -17,6 +76,9 @@ class Surface:
                  conv_heat_trans_coef_ext=20.0,
                  rad_heat_trans_coef=5.0,
                  thermal_resistances=None):
+        """
+        Initialize a VDI 6007 surface representation.
+        """
 
         self.name = name
         self.surface_type = surface_type
@@ -114,31 +176,57 @@ class Surface:
 
 class Envelope:
     """
-    Abstract class for envelop component management handling.
+    Represent a building envelope with a VDI 6007-based 7R2C thermal model.
+
+    The envelope combines building geometry, construction properties, ventilation parameters, thermal masses,
+    and solar boundary conditions. Residential buildings obtain archetype data from TEASER; non-residential buildings
+    use the project-specific non-residential typology and SIA 2024 data.
 
     Parameters
     ----------
-    prj : Project()
-        Project() instance of TEASER, contains functions to generate archetype buildings.
+    prj : teaser.project.Project or NonResidential
+        Building project containing geometry and construction information.
     building_params : dict
-        Building parameters like construction year, retrofit.
-    construction_data : string
-        Building type.
-    file_path : str
-        File path.
+        Building-specific scenario parameters. The mapping must contain ``id``,
+        ``year``, ``retrofit``, and ``building``. ``id_teaser`` can additionally
+        be supplied for TEASER residential buildings.
+    construction_data : str
+        Construction-data identifier used to select component properties.
+    physics : dict
+        Physical parameters. At minimum, ``c_p_air`` and ``rho_air`` are used.
+    design_building_data : dict
+        Building-design parameters including temperature set points, ventilation rate, bivalent temperature,
+        and heating-limit temperature.
+    file_path : str or os.PathLike
+        Path associated with the building or project input data.
+    SIA2024 : dict or None, optional
+        SIA 2024 usage and ventilation data. Required for supported non-residential building types.
 
     Attributes
     ----------
     id : int
-        ID of the building form the scenario-json-file.
+        Internal building identifier.
     construction_year : int
         Construction year of the building.
     retrofit : int
-        Abbreviations of the retrofit level of the building.
-        0: standard; 1: retrofit; 2: advanced retrofit (according to the web-database TABULA).
-    usage_short : string
-        building types. Possible are:
-        SFH: single family house; TH: terraced house; MFH: multifamily house; AB: apartment block.
+        Retrofit level. ``0`` denotes the standard state, ``1`` a usual retrofit,
+        and ``2`` an advanced retrofit.
+    usage_short : str
+        Short building-use identifier, for example ``SFH``, ``TH``, ``MFH``, or
+        ``AB`` for residential buildings.
+    is_residential : bool
+        Whether the building belongs to a supported residential archetype.
+    U : dict
+        Thermal transmittances of opaque components and windows.
+    kappa : dict
+        Area-related heat capacities of envelope components.
+    A : dict
+        Building and component areas in m².
+    V : float
+        Building volume in m³.
+    _surface_list : list of Surface
+        Surface groups used by the VDI 6007 aggregation.
+
     """
 
     def __init__(self, prj, building_params, construction_data, physics, design_building_data, file_path, SIA2024 = None):
@@ -193,8 +281,7 @@ class Envelope:
 
         Parameters
         ----------
-        physics : json file
-            Physical and use-specific parameters.
+        None.
 
         Returns
         -------
@@ -214,9 +301,19 @@ class Envelope:
 
     def setup_ventilation(self):
         """
-        Calculates ventilation parameters (Airflows, Heat Recovery Efficiency, H_ve)
-        and sets them as class attributes.
-        Sets: self.eta_temp_vent, self.V_dot, self.V_dot_infiltration
+        Calculate design ventilation and infiltration airflows.
+
+        Residential buildings use the configured ventilation rate and no heat recovery. For non-residential
+        buildings, zone-weighted airflow and infiltration values are derived from SIA 2024 data and the selected
+        building standard. Sets class attributes: self.eta_temp_vent, self.V_dot, self.V_dot_infiltration
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None.
         """
         if self.is_residential:
             V_dot_area = self.ventilationRate * self.V  # m³/h
@@ -246,7 +343,6 @@ class Envelope:
             # Ventilation is sum of required ventilation over all zones
             V_dot_area = 0
             V_dot_infiltration = 0
-
             for number, data in self.SIA2024.items():
                 zone_name = data.get('Zone_name_GER')
                 if zone_name:
@@ -261,7 +357,6 @@ class Envelope:
                         # Ventilation to balance out Infiltration
                         q_v_infiltration = data['airFlow_infiltration_perA_perh'][mode]
                         V_dot_infiltration += zone_area * q_v_infiltration
-
 
         self.eta_temp_vent = eta_temp_vent
         self.V_dot = V_dot_area
@@ -1006,8 +1101,9 @@ class Envelope:
 
         Returns
         -------
-        dict with H_walls, H_window, H_roof, H_groundfloor, H_vent, H_envelope_air, H_total :
-            Transmission heat transfer coefficients [W/K]
+        H : dict
+            transmission heat transfer coefficients: H_walls, H_window, H_roof, H_groundfloor, H_vent,
+            H_envelope_air, H_total in W/K
         """
         # Thermal bridge surcharge for opaque components (categroy A) [table 2, DIN/TS 12831-1]
         U_TB = 0.05  # [W/m²K]
@@ -1025,10 +1121,14 @@ class Envelope:
 
     def calculateHeatCapacity(self, prj=None):
         """
-        Compute building effective thermal mass heat capacity C_m [J/K]
-        from area-related heat capacities kappa [J/m²K] and areas [m²].
+        Compute building effective thermal mass heat capacity C_m [J/K] from area-related heat capacities kappa [J/m²K] and areas [m²].
 
         This is a simple, robust aggregation for the cooling-load storage factor.
+
+        Returns
+        -------
+        Cm : float
+            Building effective thermal mass heat capacity [J/K].
         """
         Cm = 0.0
 
@@ -1047,11 +1147,11 @@ class Envelope:
 
     def calcCoolingLoad(self, site, method="design", nb_occ=2):
         """
-        Calculate design (nominal) cooling load at design outside temperature
+        Calculate design (nominal) cooling load at design outside temperature.
         Compare to SIA2024 or VDI2078 for more details on the method.
-        https://cms.sia.ch/de/api/getMedia/941
+        https://cms.sia.ch/de/api/getMedia/941.
+        Static calculation pyhsically based on VDI 2078 (1996) and DIN EN ISO 13790 .
 
-        Static calculation pyhsically based on VDI 2078 (1996) and DIN EN ISO 13790
         Parameters
         ----------
         site : dict
@@ -1124,7 +1224,8 @@ class Envelope:
         return max(Q_nC, 0)
 
     def _calc_solar_load_design(self):
-        """Helper to calculate solar gains based on VDI 2078 (Table D.2 for July).
+        """
+        Helper to calculate solar gains based on VDI 2078 (Table D.2 for July).
         Conservative estimate for peak summer conditions.
         Returns
         -------
@@ -1158,7 +1259,8 @@ class Envelope:
         return Q_solar
 
     def _calc_internal_loads_design(self, nb_occ):
-        """Helper to calculate sensible and latent internal gains.
+        """
+        Helper to calculate sensible and latent internal gains.
 
         Parameters
         ----------
@@ -1203,13 +1305,16 @@ class Envelope:
         return Q_internal_sensible, Q_internal_latent
 
     def _calc_latent_ventilation_load(self, site, T_i):
-        """Helper to calculate latent ventilation heat gains (dehumidification).
+        """
+        Helper to calculate latent ventilation heat gains (dehumidification).
+
         Parameters
         ----------
         site : dict
             Site information including altitude.
         T_i : float
             Indoor temperature in °C.
+
         Returns
         -------
         Q_vent_latent : float
@@ -1239,15 +1344,26 @@ class Envelope:
 
         return 0
 
-    def _VDI6007_params(self, SunRad):
-        """Calculates the thermal zone parameters of the VDI 6007.
+    def _VDI6007_params(self):
 
-        Results stored as attributes:
-        Araum_tot, Aaw_tot, Araum_opaque, Aaw_opaque,
-        R1AW, R1IW, C1AW, C1IW,
-        RgesAW, RrestAW,
-        RalphaStarIL, RalphaStarAW, RalphaStarIW,
-        UA_tot, Htr_op, Htr_w
+        """
+        Calculate aggregated 7R2C thermal-zone parameters according to VDI 6007.
+        The method stores the aggregated external- and internal-surface resistances and capacitances, 
+        star-network resistances, areas, and transmission coefficients on the instance. Important attributes: 
+        ``R1AW``, ``R1IW``, ``C1AW``, ``C1IW``, ``RgesAW``, ``RrestAW``, ``RalphaStarIL``,
+        ``RalphaStarAW``, ``RalphaStarIW``, ``UA_tot``, ``Htr_op``, and ``Htr_w``.
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        ------
+        None.
+
+        Notes
+        -----
+
         """
 
         alphaStr = 5      # VDI 6007
@@ -1371,11 +1487,13 @@ class Envelope:
               - weather["SunRad"] : ndarray with shape (5, n)
                 order: [south, west, north, east, roof], unit W/m²
               - weather["ssw"] : array, sky state factor [0–1]
+        internal_gains : array-like
+            Internal-gain time series
 
         Returns
         -------
-        np.ndarray
-            Time series of θ_eq [°C].
+        None.
+
         """
         T_out = np.asarray(weather["T_e"], dtype=float)
         n = len(T_out)
@@ -1482,31 +1600,28 @@ class Envelope:
         self.internal_gains = internal_gains
 
 def long_wave_radiation(theta_a, SSW):
-    '''Estimation of sky and ground temperatures and longwave radiation from the atmosphere and ground via VDI6007 model:
-    theta_a outdoor air temperature [°C]
-    SSW factor to count the clear non-clear sky
+    """
+    Estimate long-wave sky and ground radiation according to VDI 6007.
 
     Parameters
     ----------
-    theta_a : numpy.array
-        external temperature [°C]
-    SSW : float
-        factor to count the clear non-clear sky range 0-1 (1 clear sky)
+    theta_a : array-like
+        Outdoor air temperature in °C.
+    SSW : float or array-like
+        Sky-state factor between 0 and 1, where 1 represents clear sky. If an
+        array is supplied, it must be broadcast-compatible with ``theta_a``.
 
     Returns
     -------
-    tuple
-        tupleof np.array:
-        irradiance from sky vault,
-        irradiance from ground,
-        ground equivalent temeprature,
-        sky equivalent temeperature
-
-    Raises
-    ------
-    TypeError
-        if not numpy array or floats
-    '''
+    Ea : numpy.ndarray
+        Atmospheric long-wave irradiance in W/m².
+    Ee : numpy.ndarray
+        Ground-related long-wave irradiance term in W/m².
+    theta_erd : numpy.ndarray
+        Equivalent ground temperature in °C.
+    theta_atm : numpy.ndarray
+        Equivalent sky temperature in °C.
+    """
 
     Ea_1 = 9.9 * 5.671 * 10 ** (-14) * (273.15 + theta_a) ** 6
 
@@ -1525,33 +1640,32 @@ def long_wave_radiation(theta_a, SSW):
 
 
 def impedence_parallel(R, C, T_RA=5.):
-    '''Given two vectors (thermal resistances R and thermal
-    capacitances C) of length m (number of walls of the same type, ie either
-    IW or AW), calculates the equivalent complex thermal resistance Zeq
-    according to T_RA (period in days)
+    """
+    Aggregate parallel thermal impedances into one resistance-capacitance pair.
+
+    Given thermal resistances and capacitances for surface groups of the same
+    category, the function calculates the equivalent complex impedance at the
+    selected reference period and converts it back to an equivalent resistance
+    and capacitance.
 
     Parameters
     ----------
-    R : numpy.array
-        numpy.array with the surfaces resistances
-    C: numpy.array
-        numpy.array with the surfaces capacitances
-    T_RA: float
-        Reference time (number of days)
+    R : numpy.ndarray
+        One-dimensional array of thermal resistances in K/W.
+    C : numpy.ndarray
+        One-dimensional array of thermal capacitances in J/K.
+    T_RA : float, optional
+        Reference period in days. The default is 5.0 days.
 
     Returns
     -------
-    tuple
-        tuple of floats: the equivalent resistance anc capacitance
-
-    Raises
-    ------
-    TypeError
-        if not numpy arrays or floats
-    '''
+    R1eq : float
+        Equivalent thermal resistance in K/W.
+    C1eq : float
+        Equivalent thermal capacitance in J/K.
+    """
 
     # Check input data type
-
     if not isinstance(R, np.ndarray):
         raise TypeError(f'ERROR impedenceParallel function, input R is not a np.array: R {R}')
     if not isinstance(C, np.ndarray):
@@ -1577,32 +1691,31 @@ def impedence_parallel(R, C, T_RA=5.):
 
     return R1eq, C1eq
 
+
 def tri2star(T1, T2, T3):
-    '''Transforms three resistances in triangular connection into
-    three resistances in star connection
+    """
+    Transform three delta-connected resistances into an equivalent star network.
 
     Parameters
     ----------
     T1 : float
-        Resistance 1
-    T2: float
-        Resistance 2
-    T3: float
-        Resistance 3
+        First delta resistance.
+    T2 : float
+        Second delta resistance.
+    T3 : float
+        Third delta resistance.
 
     Returns
     -------
-    tuple
-        tuple of floats: 3 new resistances (star connection)
-
-    Raises
-    ------
-    TypeError
-        if not or floats
-    '''
+    S1 : float
+        First star resistance, opposite ``T1`` in the implemented convention.
+    S2 : float
+        Second star resistance, opposite ``T2`` in the implemented convention.
+    S3 : float
+        Third star resistance, opposite ``T3`` in the implemented convention.
+    """
 
     # Check input data type
-
     if not isinstance(T1, float):
         raise TypeError(f'ERROR tri2star function, input T1 is not a float: T1 {T1}')
     if not isinstance(T2, float):
@@ -1620,4 +1733,5 @@ def tri2star(T1, T2, T3):
     S1 = T2 * T3 / T_sum
     S2 = T1 * T3 / T_sum
     S3 = T2 * T1 / T_sum
+
     return S1, S2, S3

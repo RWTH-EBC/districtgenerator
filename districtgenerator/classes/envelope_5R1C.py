@@ -112,8 +112,15 @@ class Envelope:
     def setup_ventilation(self):
         """
         Calculates ventilation parameters (Airflows, Heat Recovery Efficiency, H_ve)
-        and sets them as class attributes.
-        Sets: self.eta_temp_vent, self.V_dot
+        and sets them as class attributes. Sets: self.eta_temp_vent, self.V_dot
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None.
         """
         if self.is_residential:
             V_dot_area = self.ventilationRate * self.V  # m³/h
@@ -706,8 +713,8 @@ class Envelope:
         Calculate design (nominal) cooling load at design outside temperature
         Compare to SIA2024 or VDI2078 for more details about the method.
         https://cms.sia.ch/de/api/getMedia/941
-
         Static calculation pyhsically based on VDI 2078 (1996) and DIN EN ISO 13790
+
         Parameters
         ----------
         site : dict
@@ -860,6 +867,7 @@ class Envelope:
 
     def _calc_latent_ventilation_load(self, site, T_i):
         """Helper to calculate latent ventilation heat gains (dehumidification).
+
         Parameters
         ----------
         site : dict

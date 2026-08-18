@@ -1,5 +1,6 @@
 districtgenerator/results/*
 districtgenerator/data/scenarios/*
+.venv
 errorfile.txt
 build
 *.bk

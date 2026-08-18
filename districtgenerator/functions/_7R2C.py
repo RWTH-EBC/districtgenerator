@@ -1,24 +1,31 @@
 # -*- coding: utf-8 -*-
-"""
-VDI 6007–inspired 5-node dynamic zone solver (Backward Euler).
+"""Dynamic 7R2C thermal-zone solver based on VDI 6007.
 
-Nodes: Air, IW_surface, IW_mass, AW_surface, AW_mass.
-Resistances: Air↔IW (RalphaStarIW), Air↔AW (RalphaStarAW),
-             IW_surface↔IW_mass (R1IW), AW_surface↔AW_mass (R1AW),
-             AW_mass↔outside (RrestAW via θ_eq/T_ext).
+The model represents the thermal zone using five temperature nodes:
 
-Requirements:
-- Provide an Envelope instance that has already run:
-    envelope._VDI6007_params(...)
-    envelope.calcNormativeProperties(...)
-  so that R*, C*, θ_eq and gain time series are available on the Envelope.
-- The solver itself does NOT take SunRad/internal_gains as arguments; those are
-  already embedded in the Envelope (e.g., theta_eq_tot, Q_il_kon, Q_il_str).
+* indoor air,
+* internal-wall surface,
+* internal-wall thermal mass,
+* external-wall surface, and
+* external-wall thermal mass.
 
-Assumptions:
-- No mechanical supply air; the air balance uses infiltration only (H_ve).
-- Heating/cooling acts with an optional split (sigma) across air and surfaces.
-- Control is by operative temperature.
+The thermal network is solved using a backward-Euler time integration
+scheme.
+
+Notes
+-----
+The solver requires an initialized envelope for which the VDI 6007
+thermal parameters and equivalent outdoor temperatures have already
+been calculated.
+
+Solar radiation and internal gains are not passed directly to the
+solver. Their effects are represented through quantities previously
+calculated and stored in the envelope object.
+
+The current implementation assumes infiltration-based ventilation.
+Heating and cooling can be distributed between the indoor-air and
+surface nodes, and temperature control is based on operative
+temperature.
 """
 
 from typing import Dict, Optional, Tuple
@@ -27,14 +34,39 @@ import numpy as np
 RES_BUILDING_TYPES = {"SFH", "TH", "MFH", "AB"}
 
 def _area_fraction_aw(envelope) -> float:
+    """Return the external-surface fraction of the room-side area.
+
+    Parameters
+    ----------
+    envelope : object
+        Envelope-like object providing ``Aaw_tot`` and ``Araum_tot`` in square
+        metres. Missing attributes are interpreted as zero.
+
+    Returns
+    -------
+    float
+        Ratio of external-wall area to total room-side area, clipped to
+        the interval [0, 1].
+    """
     Araum = max(float(getattr(envelope, "Araum_tot", 0.0)), 1e-12)
     Aaw   = float(getattr(envelope, "Aaw_tot", 0.0))
     return float(np.clip(Aaw / Araum, 0.0, 1.0))
 
 def _radiative_split_weights(envelope) -> float:
     """
-    Return f_aw = fraction of *radiant* internal gains that should hit AW.
-    It uses area × h_rad on the room-side for each surface.
+    Return the fraction of radiant gains assigned to external surfaces.
+
+    Parameters
+    ----------
+    envelope : object
+        Envelope-like object that may provide a ``_surface_list`` containing
+        surface objects with ``surface_type``, ``rad_heat_trans_coef``,
+        ``_opaque_area``, and ``_glazed_area`` attributes.
+
+    Returns
+    -------
+    float: Fraction of radiant gains assigned to external surfaces. The complementary fraction ``1 - f_aw``
+            is assigned to internal surfaces.
     """
     try:
         surfaces = getattr(envelope, "_surface_list", [])
@@ -65,26 +97,36 @@ def _radiative_split_weights(envelope) -> float:
 
 def build_params_from_envelope(envelope, dt_s: float) -> Dict[str, float]:
     """
-    Build the solver parameter dict from an Envelope instance.
+    Build the numerical 7R2C parameter dictionary from an envelope.
 
     Parameters
     ----------
-    envelope : Envelope
-        Your Envelope instance (after calling _VDI6007_params and calcNormativeProperties).
+    envelope : object
+        Parameterized Envelope-like object. It must provide the VDI 6007 thermal
+        parameters ``R1AW``, ``R1IW``, ``C1AW``, ``C1IW``, ``RrestAW``,
+        ``RalphaStarAW``, ``RalphaStarIW``, ``UA_tot``, ``Aaw_tot``, and
+        ``Araum_tot``. It must also provide ``rho_air``, ``c_p_air``, ``V_dot``,
+        ``V_dot_infiltration``, ``eta_temp_vent``, and ``V`` for the air and
+        ventilation terms.
     dt_s : float
-        Timestep [s].
+        Simulation time step in seconds.
 
     Returns
     -------
-    dict
-        Keys:
-        - C1IW, C1AW    [J/K] (zone heat capacities for IW and AW)
-        - C_air         [J/K] (small air capacity; optional, derived)
-        - RalphaStarIW, RalphaStarAW  [K/W]
-        - R1IW, R1AW, RrestAW  [K/W]
-        - H_ve          [W/K] (ventilation conductance)
-        - UA_tot        [W/K]
-        - areas: Aaw_tot, Araum_tot
+    dict of str to float
+        Solver parameters with the following entries:
+
+        ``C1IW``, ``C1AW``, ``C_air``
+            Thermal capacitances in J/K.
+        ``RalphaStarIW``, ``RalphaStarAW``, ``R1IW``, ``R1AW``, ``RrestAW``
+            Thermal resistances in K/W.
+        ``H_ve``, ``UA_tot``
+            Heat-transfer coefficients in W/K.
+        ``Aaw_tot``, ``Araum_tot``
+            Areas in m².
+        ``dt``
+            Time step in seconds.
+
     """
     # Sanity checks for attributes created by _VDI6007_params
     needed = ["R1AW", "R1IW", "C1AW", "C1IW", "RrestAW",
@@ -105,46 +147,41 @@ def build_params_from_envelope(envelope, dt_s: float) -> Dict[str, float]:
     # Rule of thumb: ~ 1.2 kJ/K per m² zone floor area
     C_air = float(envelope.rho_air) * float(envelope.c_p_air) * float(envelope.V)  # J/K
 
-    return dict(
-        C1IW=float(envelope.C1IW),
-        C1AW=float(envelope.C1AW),
-        C_air=float(C_air),
+    return dict(C1IW=float(envelope.C1IW),  C1AW=float(envelope.C1AW), C_air=float(C_air),
+                RalphaStarIW=float(envelope.RalphaStarIW), RalphaStarAW=float(envelope.RalphaStarAW),
+                R1IW=float(envelope.R1IW), R1AW=float(envelope.R1AW), RrestAW=float(envelope.RrestAW),
+                H_ve=float(H_ve), UA_tot=float(envelope.UA_tot),
+                Aaw_tot=float(envelope.Aaw_tot), Araum_tot=float(envelope.Araum_tot), dt=float(dt_s))
 
-        RalphaStarIW=float(envelope.RalphaStarIW),
-        RalphaStarAW=float(envelope.RalphaStarAW),
-
-        R1IW=float(envelope.R1IW),
-        R1AW=float(envelope.R1AW),
-        RrestAW=float(envelope.RrestAW),
-
-        H_ve=float(H_ve),
-        UA_tot=float(envelope.UA_tot),
-
-        Aaw_tot=float(envelope.Aaw_tot),
-        Araum_tot=float(envelope.Araum_tot),
-
-        dt=float(dt_s),
-    )
-
-def prepare_gains_from_envelope(envelope,
-                                rad_frac: float = 0.60) -> Dict[str, np.ndarray]:
+def prepare_gains_from_envelope(envelope, rad_frac: float = 0.60) -> Dict[str, np.ndarray]:
     """
-      Build 7R2C gains time series:
-      - Q_il_kon_I : convective to air [W]  (solar + non-solar)
-      - Q_il_str_iw: radiant to IW [W]      (solar + non-solar, split)
-      - Q_il_str_aw: radiant to AW [W]      (solar + non-solar, split)
+    Prepare convective and radiative gain time series for the 7R2C solver.
 
-    Uses solar gains from envelope.calc_theta_eq():
-      envelope.Q_il_kon, envelope.Q_il_str
+    Parameters
+    ----------
+    envelope : object
+        Envelope-like object containing solar gain series ``Q_il_kon`` and
+        ``Q_il_str`` generated by the equivalent-temperature calculation, and an
+        ``internal_gains`` time series for non-solar internal gains. If the solar
+        gain attributes are absent, zero-valued solar gains are created using the
+        length of ``theta_eq_tot`` when available.
+    rad_frac : float, default 0.60
+        Fraction of ``envelope.internal_gains`` treated as radiative. The
+        remaining fraction is assigned directly to the zone-air node as a
+        convective gain. Values are not clipped to [0, 1].
 
-    Adds non-solar internal gains (people/equipment/lighting) either from:
-      - 'internal_gains' argument, or
-      - envelope.internal_gains (if argument is None)
+    Returns
+    -------
+    dict of str to numpy.ndarray
+        Dictionary containing equally sized power time series in watts:
 
-    'internal_gains' can be:
-      { "Q_int_str": array_like, "Q_int_kon": array_like }   # already split
-      or
-      { "Q_int": array_like, "rad_frac": float }             # total + split
+        ``Q_il_kon_I``
+            Total convective gains applied to the zone-air node.
+        ``Q_il_str_iw``
+            Total radiant gains assigned to internal-wall surfaces.
+        ``Q_il_str_aw``
+            Total radiant gains assigned to external-envelope surfaces.
+
     """
     # --- solar (from theta_eq precomp) ---
     try:
@@ -176,12 +213,7 @@ def prepare_gains_from_envelope(envelope,
     Q_il_str_aw = f_aw * Q_str_total
     Q_il_str_iw = f_iw * Q_str_total
 
-    return dict(
-        Q_il_kon_I=Q_kon_total,
-        Q_il_str_iw=Q_il_str_iw,
-        Q_il_str_aw=Q_il_str_aw,
-    )
-
+    return dict(Q_il_kon_I=Q_kon_total, Q_il_str_iw=Q_il_str_iw, Q_il_str_aw=Q_il_str_aw)
 
 # ---------------------------------------------------------------------------
 # 7R2C zone solver (Backward Euler)
@@ -206,8 +238,28 @@ def prepare_gains_from_envelope(envelope,
 
 def _step5_free_float(params, state5, T_ext, theta_eq, gains_t):
     """
-    5-node BE step without HVAC.
-    Unknowns: [T_air, T_s_iw, T_m_iw, T_s_aw, T_m_aw]
+    Advance the five-node thermal model by one free-floating time step.
+
+    Parameters
+    ----------
+    params : dict
+        Solver parameter dictionary as returned by
+        :func:`build_params_from_envelope`.
+    state5 : array_like of float
+        Previous thermal state ordered as ``[T_air, T_s_iw, T_m_iw, T_s_aw, T_m_aw]`` in °C.
+    T_ext : float
+        Outdoor air temperature in °C.
+    theta_eq : float
+        Equivalent external-envelope temperature in °C.
+    gains_t : dict
+        Heat gains for the current time step in watts. Required keys are ``Q_il_kon_I``, ``Q_il_str_iw``, and ``Q_il_str_aw``.
+
+    Returns
+    -------
+    numpy.ndarray
+        Updated state with shape ``(5,)`` and ordering ``[T_air, T_s_iw,
+        T_m_iw, T_s_aw, T_m_aw]`` in °C.
+
     """
     dt    = params["dt"]
     C_air = params["C_air"];   C1IW = params["C1IW"];   C1AW = params["C1AW"]
@@ -261,11 +313,56 @@ def _step5_with_setpoint(params, state5, T_ext, theta_eq, gains_t,
                          T_set, w_op, f_aw, sigma=(0.,0.,1.), Q_limit=None,
                          Q_limit_cool=None):
     """
-    Enforce T_op = T_set, with HVAC split:
-      sigma = (σ_iw_rad, σ_aw_rad, σ_conv_air)
-    Unknowns: [T_air, T_s_iw, T_m_iw, T_s_aw, T_m_aw, Q_HC]
-    NOTE: If you want AIR setpoint instead, replace the constraint row by:
-          [1, 0, 0, 0, 0, 0] and RHS = T_set.
+    Advance one time step while enforcing an operative-temperature setpoint.
+
+    Parameters
+    ----------
+    params : dict
+        Solver parameter dictionary as returned by
+        :func:`build_params_from_envelope`.
+    state5 : array_like of float
+        Previous state ordered as ``[T_air, T_s_iw, T_m_iw, T_s_aw, T_m_aw]``
+        in °C.
+    T_ext : float
+        Outdoor air temperature in °C.
+    theta_eq : float
+        Equivalent external-envelope temperature in °C.
+    gains_t : dict
+        Current convective and radiative gains in watts. Required keys are
+        ``Q_il_kon_I``, ``Q_il_str_iw``, and ``Q_il_str_aw``.
+    T_set : float
+        Target operative temperature in °C.
+    w_op : float
+        Weight of zone-air temperature in the operative-temperature equation.
+        The surface-temperature contribution receives weight ``1 - w_op``.
+    f_aw : float
+        Fraction of the mean room-side surface temperature represented by the
+        external-envelope surface temperature.
+    sigma : tuple of float, default (0.0, 0.0, 1.0)
+        Fractions of HVAC power assigned to the internal-wall surface,
+        external-envelope surface, and zone-air node, respectively. The values
+        are used directly and are not normalized.
+    Q_limit : float, optional
+        Maximum positive heating power in W. ``None`` disables the heating limit.
+    Q_limit_cool : float, optional
+        Maximum cooling-power magnitude in W. Cooling is represented internally by
+        negative ``Q_HC``; ``None`` disables the cooling limit.
+
+    Returns
+    -------
+    T_air : float
+        Zone-air temperature in °C.
+    T_s_iw : float
+        Internal-wall surface temperature in °C.
+    T_m_iw : float
+        Internal-wall mass temperature in °C.
+    T_s_aw : float
+        External-envelope surface temperature in °C.
+    T_m_aw : float
+        External-envelope mass temperature in °C.
+    Q_HC : float
+        HVAC power in W; positive values denote heating and negative values denote
+        cooling.
     """
     dt    = params["dt"]
     C_air = params["C_air"];   C1IW = params["C1IW"];   C1AW = params["C1AW"]
@@ -354,56 +451,70 @@ def _step5_with_setpoint(params, state5, T_ext, theta_eq, gains_t,
 
     return T_air, T_s_iw, T_m_iw, T_s_aw, T_m_aw, Q_HC
 
-def simulate_7r2c(envelope,
-                  T_ext: np.ndarray,
-                  dt_s: float,
-                  theta_eq: Optional[np.ndarray] = None,
-                  T_set_heat: Optional[np.ndarray] = None,
-                  T_set_cool: Optional[np.ndarray] = None,
-                  cooling_season_days: Tuple[int, int] = (145, 255),
-                  w_op: float = 0.5,
-                  night_setback: bool = False,
+def simulate_7r2c(envelope, T_ext: np.ndarray, dt_s: float, theta_eq: Optional[np.ndarray] = None,
+                  T_set_heat: Optional[np.ndarray] = None, T_set_cool: Optional[np.ndarray] = None,
+                  cooling_season_days: Tuple[int, int] = (145, 255), w_op: float = 0.5, night_setback: bool = False,
                   calendar: Optional[Dict] = None):
     """
-Run a simulation with the 5-node model (Air + IW_s + IW_m + AW_s + AW_m).
+    Simulate the VDI 6007-inspired five-node thermal model.
 
-Parameters
-----------
-envelope : Envelope
-    Envelope with VDI-6007 parameters/gains already computed
-    (R*, C*, theta_eq_tot, Q_il_kon, Q_il_str, setpoints, etc.).
-T_ext : array_like [°C]
-    Outdoor dry-bulb temperature time series.
-dt_s : float
-    Time step in seconds.
-theta_eq : array_like [°C], optional
-    Equivalent exterior temperature for AW (sol-air). If None, falls back to T_ext.
-T_set_heat : array_like [°C], optional
-    Heating setpoint (operative). Defaults to envelope.T_set_min if None.
-T_set_cool : array_like [°C], optional
-    Cooling setpoint (operative). Defaults to envelope.T_set_max if None.
-cooling_season_days : tuple(int, int), default (145, 255)
-    Inclusive DOY window when cooling is allowed.
-w_op : float, default 0.5
-    Operative weighting: T_op = w_op*T_air + (1-w_op)*T_s,
-    where T_s is the area-weighted interior surface temperature.
-night_setback : bool, default False
-    If True, applies the envelope’s night setpoints to the setpoint arrays.
-calendar : dict, optional  # ADDED
-    If provided, overrides heating/cooling enable seasons using:
-      heating_period_start, heating_period_end, consider_heating_period
-      cooling_period_start, cooling_period_end, consider_cooling_period
+    Parameters
+    ----------
+    envelope : object
+        Fully prepared Envelope-like object containing the VDI 6007 parameters,
+        gain time series, temperature setpoints, and ``heatload``. If available,
+        ``coolingload`` is used as the cooling-power limit.
+    T_ext : numpy.ndarray
+        Outdoor dry-bulb temperature time series in °C. Its length defines the
+        number of simulation steps.
+    dt_s : float
+        Simulation time step in seconds.
+    theta_eq : numpy.ndarray, optional
+        Equivalent external-envelope temperature in °C. If ``None``, ``T_ext`` is
+        used. The array must provide at least as many values as ``T_ext``.
+    T_set_heat : array_like, optional
+        Operative heating setpoint in °C for each time step. If ``None``, a
+        constant series based on ``envelope.T_set_min`` is used.
+    T_set_cool : array_like, optional
+        Operative cooling setpoint in °C for each time step. If ``None``, a
+        constant series based on ``envelope.T_set_max`` is used.
+    cooling_season_days : tuple of int, default (145, 255)
+        Inclusive 1-based day-of-year interval in which cooling is enabled when
+        ``calendar`` is ``None``.
+    w_op : float, default 0.5
+        Weight of zone-air temperature in the operative-temperature calculation.
+        The remaining weight is assigned to the area-weighted room-side surface
+        temperature. Values are not clipped to [0, 1].
+    night_setback : bool, default False
+        If ``True``, replace heating and cooling setpoints from 22:00 to 05:59 by
+        ``T_set_min_night`` and ``T_set_max_night`` respectively, with fallback
+        offsets of -3 K and +1 K.
+    calendar : dict, optional
+        Calendar-based season definition. Required keys are
+        ``heating_period_start``, ``heating_period_end``,
+        ``cooling_period_start``, and ``cooling_period_end``. Optional Boolean keys
+        ``consider_heating_period`` and ``consider_cooling_period`` default to
+        ``True``. Calendar day indices are zero-based and interval end values are
+        exclusive.
 
-Returns
--------
-dict[str, np.ndarray]
-    'Q_H'   [W]  heating (+),
-    'Q_C'   [W]  cooling (+),
-    'T_op'  [°C] operative temperature,
-    'T_air' [°C] air node,
-    'T_s_iw' [°C] IW surface, 'T_m_iw' [°C] IW mass,
-    'T_s_aw' [°C] AW surface, 'T_m_aw' [°C] AW mass.
-"""
+    Returns
+    -------
+    dict of str to numpy.ndarray
+        Time series with the same length as ``T_ext``:
+
+        ``Q_H``
+            Heating demand in W, reported as non-negative values.
+        ``Q_C``
+            Cooling demand in W, reported as non-negative values.
+        ``T_op``
+            Operative zone temperature in °C.
+        ``T_air``
+            Zone-air temperature in °C.
+        ``T_s_iw``, ``T_m_iw``
+            Internal-wall surface and mass temperatures in °C.
+        ``T_s_aw``, ``T_m_aw``
+            External-envelope surface and mass temperatures in °C.
+    """
 
     n = len(T_ext)
 
@@ -519,6 +630,40 @@ dict[str, np.ndarray]
                 T_s_aw=T_s_aw, T_m_aw=T_m_aw)
 
 def _build_setpoints_arrays(envelope, n, dt_h, building_type, night_setback, holidays, initial_day: int = 0):
+    """
+    Construct heating and cooling setpoint time series.
+
+    Parameters
+    ----------
+    envelope : object
+        Envelope-like object providing ``T_set_min`` and ``T_set_max``. Night and
+        free-day setpoints are read from ``T_set_min_night``,
+        ``T_set_max_night``, and ``T_set_min_free_day`` when available.
+    n : int
+        Number of time steps.
+    dt_h : float
+        Time-step duration in hours.
+    building_type : str
+        Building-type identifier. ``SFH``, ``TH``, ``MFH``, and ``AB`` are treated
+        as residential; all other values follow the non-residential schedule.
+    night_setback : bool
+        For residential buildings, enable the 22:00--05:59 night setback. For
+        non-residential buildings the implemented workday/night schedule is applied
+        independently of this flag.
+    holidays : iterable of int or None
+        Zero-based simulation-day indices treated as holidays for non-residential
+        buildings.
+    initial_day : int, default 0
+        Weekday index of simulation day zero, with Monday = 0 and Sunday = 6.
+
+    Returns
+    -------
+    T_heat : numpy.ndarray
+        Heating-setpoint series in °C with length ``n``.
+    T_cool : numpy.ndarray
+        Cooling-setpoint series in °C with length ``n``.
+
+    """
     dt_s = dt_h * 3600.0
     steps_per_day = int(round(86400.0 / dt_s))
     T_heat = np.full(n, float(envelope.T_set_min), dtype=float)
@@ -556,6 +701,37 @@ def _build_setpoints_arrays(envelope, n, dt_h, building_type, night_setback, hol
     return T_heat, T_cool
 
 def _map_states_for_legacy(envelope, T_air, T_s_iw, T_m_iw, T_s_aw, T_m_aw):
+    """
+    Map five-node temperatures to the legacy three-temperature interface.
+
+    Parameters
+    ----------
+    envelope : object
+        Envelope-like object providing ``C1IW``, ``C1AW``, ``Aaw_tot``, and
+        ``Araum_tot``. Missing capacitances default to zero.
+    T_air : array_like
+        Zone-air temperature series in °C.
+    T_s_iw : array_like
+        Internal-wall surface temperature series in °C.
+    T_m_iw : array_like
+        Internal-wall mass temperature series in °C.
+    T_s_aw : array_like
+        External-envelope surface temperature series in °C.
+    T_m_aw : array_like
+        External-envelope mass temperature series in °C.
+
+    Returns
+    -------
+    T_m : array_like
+        Legacy mass temperature, calculated as a heat-capacity-weighted mean of
+        ``T_m_iw`` and ``T_m_aw``.
+    T_i : array_like
+        Legacy indoor temperature, equal to ``T_air``.
+    T_s : array_like
+        Legacy surface temperature, calculated from internal and external surface
+        temperatures using the external area fraction.
+
+    """
     C1IW = float(getattr(envelope, "C1IW", 0.0))
     C1AW = float(getattr(envelope, "C1AW", 0.0))
     Csum = C1IW + C1AW if (C1IW + C1AW) > 0 else 1.0
@@ -569,12 +745,41 @@ def _map_states_for_legacy(envelope, T_air, T_s_iw, T_m_iw, T_s_aw, T_m_aw):
 
 def calc(envelope, T_e, calendar, dt, initial_day, building_type):
     """
-    Returns (Q_H, Q_C, T_op, T_m, T_i, T_s).
+    Calculate heating/cooling demand using the legacy 7R2C wrapper interface.
 
     Parameters
     ----------
+    envelope : object
+        Prepared Envelope-like object required by :func:`simulate_7r2c`. It must
+        additionally provide ``theta_eq_tot``.
+    T_e : array_like
+        Outdoor air temperature time series in °C.
+    calendar : dict
+        Calendar definition passed to :func:`simulate_7r2c`. The key ``holidays``
+        must contain zero-based simulation-day indices. Heating and cooling period
+        keys required by :func:`simulate_7r2c` must also be present.
+    dt : float
+        Simulation time step in hours.
     initial_day : int
-        Day-of-week index for the first time step (0=Monday, …, 6=Sunday).
+        Weekday index of the first simulation day, with Monday = 0 and Sunday = 6.
+    building_type : str
+        Building-type identifier used to construct residential or
+        non-residential setpoint schedules.
+
+    Returns
+    -------
+    Q_H : numpy.ndarray
+        Non-negative heating demand in W.
+    Q_C : numpy.ndarray
+        Non-negative cooling demand in W.
+    T_op : numpy.ndarray
+        Operative temperature in °C.
+    T_m : numpy.ndarray
+        Legacy aggregated mass temperature in °C.
+    T_i : numpy.ndarray
+        Legacy indoor-air temperature in °C.
+    T_s : numpy.ndarray
+        Legacy aggregated surface temperature in °C.
     """
     T_e = np.asarray(T_e, dtype=float)
     n = len(T_e)
@@ -611,12 +816,41 @@ def calc(envelope, T_e, calendar, dt, initial_day, building_type):
 
 def calc_night_setback(envelope, T_e, calendar, dt, initial_day, building_type):
     """
-    Returns (Q_H, Q_C, T_op, T_m, T_i, T_s).
+    Calculate demand with night-setback-aware setpoint schedules.
 
     Parameters
     ----------
+    envelope : object
+        Prepared Envelope-like object required by :func:`simulate_7r2c`.
+    T_e : array_like
+        Outdoor air temperature time series in °C.
+    calendar : dict
+        Calendar definition passed to :func:`simulate_7r2c`. The key ``holidays``
+        must contain zero-based simulation-day indices. Heating and cooling period
+        keys required by :func:`simulate_7r2c` must also be present.
+    dt : float
+        Simulation time step in hours.
     initial_day : int
-        Day-of-week index for the first time step (0=Monday, …, 6=Sunday).
+        Weekday index of the first simulation day, with Monday = 0 and Sunday = 6.
+    building_type : str
+        Building-type identifier used to construct residential or
+        non-residential setpoint schedules.
+
+    Returns
+    -------
+    Q_H : numpy.ndarray
+        Non-negative heating demand in W.
+    Q_C : numpy.ndarray
+        Non-negative cooling demand in W.
+    T_op : numpy.ndarray
+        Operative temperature in °C.
+    T_m : numpy.ndarray
+        Legacy aggregated mass temperature in °C.
+    T_i : numpy.ndarray
+        Legacy indoor-air temperature in °C.
+    T_s : numpy.ndarray
+        Legacy aggregated surface temperature in °C.
+
     """
     T_e = np.asarray(T_e, dtype=float)
     n = len(T_e)
