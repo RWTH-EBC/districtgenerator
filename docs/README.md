@@ -113,7 +113,7 @@ The minimal input data set was defined following the [TABULA archetype approach]
 - gammaPV: azimuth angle of roof side 1 in degrees (0° = south-facing orientation)
 - EV_charging: electric vehicle charging behavior (bidirectional = charging and discharging with use as electricity storage, on-demand = charging as needed, intelligent = optimized charging)
 
-The example_decentral.csv file can be used as [template](../districtgenerator/data/scenarios/example_decentral.csv).
+The example_decentral.csv file can be used as [template](https://github.com/RWTH-EBC/districtgenerator/blob/develop/districtgenerator/data/scenarios/example_decentral.csv).
 
 ### Additional configuration categories and input data
 
