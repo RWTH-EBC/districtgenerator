@@ -130,14 +130,14 @@ class Datahandler:
         if scenario_file_path is not None:
             self.scenario_file_path = os.path.join(scenario_file_path, self.demand_variant)
         elif project_data_path is not None:
-            self.scenario_file_path = os.path.join(project_data_path, "DG", "scenarios", self.demand_variant)
+            self.scenario_file_path = os.path.join(project_data_path, "scenarios", self.demand_variant)
         else:
             self.scenario_file_path = os.path.join(self.filePath, 'scenarios', self.demand_variant)
 
         if resultPath is not None:
             self.resultPath = resultPath
         elif project_data_path is not None:
-            self.resultPath = os.path.join(project_data_path, "DG", "results")
+            self.resultPath = os.path.join(project_data_path, "results")
         else:
             self.resultPath = os.path.join(self.srcPath, 'results')
 
