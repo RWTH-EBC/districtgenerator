@@ -558,9 +558,9 @@ class Header(BaseReportFlowable):
         
         c.restoreState()
 
-class Energiekennwerte(BaseReportFlowable):
+class key_performance_indicator(BaseReportFlowable):
     """
-    Generates the Energiekennwerte section of the certificate.
+    Generates the key performance indicator section of the certificate.
     Arranges a summary table on the left, and a pie chart stacked above 
     a max loads table on the right.
     """
@@ -864,9 +864,9 @@ class Title(BaseReportFlowable):
         c.setFillColorRGB(*self.color)
         c.drawString(0, 0, self.title_text)
 
-class Quartiersstruktur(BaseReportFlowable):
+class district_structure(BaseReportFlowable):
     """
-    This class generates the Quartiersstruktur section of the certificate providing a summary of the building stock and the neighborhood characteristics.
+    This class generates the district structure section of the certificate providing a summary of the building stock and the neighborhood characteristics.
     """
     def __init__(self, summary_table_data: list, general_info: list) -> None:
         super().__init__()
@@ -2078,29 +2078,29 @@ class CertificateLayout(ReportComponent):
         self.story.append(header)
         self.add_standard_spacer('large')
 
-    def create_energiekennwerte(self, data_energiekennwerte):
-        """Creates the Energiekennwerte section and adds it to the story."""
+    def create_key_performance_indicator(self, data_key_performance_indicator):
+        """Creates the key performance indicator section and adds it to the story."""
         title = self.translate("title_kpis")
         box = FrameBox(title=title)
         frame_width, frame_height = self.certificate_builder.get_Framesize(id='TitleContentFrame')
         avail_w, avail_h = FrameBox.get_available_space_content(frame_width, frame_height)
         
-        energiekennwerte = Energiekennwerte(kpi_data=data_energiekennwerte, availWidth=avail_w)
-        box.set_content(energiekennwerte)
+        class_key_performance_indicator = key_performance_indicator(kpi_data=data_key_performance_indicator, availWidth=avail_w)
+        box.set_content(class_key_performance_indicator)
         self.story.append(box)
         self.add_standard_spacer()
 
-    def create_quartiersstruktur(self, data_quartiersstruktur):
-        """Creates the Quartiersstruktur section and adds it to the story."""
+    def create_data_district_structure(self, data_district_structure):
+        """Creates the district structure section and adds it to the story."""
         title = self.translate("title_district_structure")
         box = FrameBox(title=title)
         
-        quartiersstruktur_flowable = Quartiersstruktur(
-            summary_table_data=data_quartiersstruktur["summary_table"],
-            general_info=data_quartiersstruktur["general_info"]
+        district_structure_flowable = district_structure(
+            summary_table_data=data_district_structure["summary_table"],
+            general_info=data_district_structure["general_info"]
         )
         
-        box.set_content(quartiersstruktur_flowable, full_width=False)
+        box.set_content(district_structure_flowable, full_width=False)
         self.story.append(box)
         self.add_standard_spacer()
 
@@ -2162,9 +2162,9 @@ class CertificateLayout(ReportComponent):
         # 3. Add them to the document story
         self.story.extend(boxes)
 
-    def create_quartiersstruktur_details(self, data_quartiersstruktur):
+    def create_district_structure_details(self, data_district_structure):
         """Creates the detailed matrix on a landscape page."""
-        df_details = data_quartiersstruktur["df_details"]
+        df_details = data_district_structure["df_details"]
         
         if df_details.empty:
             return
@@ -2654,8 +2654,8 @@ class DataExtractor(ReportComponent):
         self.data = data
         self.kpis = kpis
         self.building_stats = {}
-        self.gebaude_df = None
-        self.kennwerte = None
+        self.building_df = None
+        self.key_performance_indicator = None
         self.optimization_results = None
         self.district_structure = None
         self.energyhub_df = None
@@ -2664,7 +2664,7 @@ class DataExtractor(ReportComponent):
 
         
 
-        # Building features to be included in the gebaude_df and the keys to extract the data from buildingFeatures
+        # Building features to be included in the building_df and the keys to extract the data from buildingFeatures
         self.mapping_building_list = OrderedDict([ # key: display name value: data key to extract value from buildingFeatures
             (self.translate("name_building_type"), "building"),
             (self.translate("name_building_year"), "year"),
@@ -2746,11 +2746,11 @@ class DataExtractor(ReportComponent):
             # Add dictionary to the list
             building_data_list.append(building_dict)
 
-        self.gebaude_df = pd.DataFrame(building_data_list)
+        self.building_df = pd.DataFrame(building_data_list)
 
         # TODO: Maybe add here dtype casting e.g. ensure area is integer not float ....
     
-    def _extract_kennwerte(self):
+    def _extract_key_performance_indicator(self):
         """Extracts the general key performance indicators."""
         years = self.kpis.inputData["simulated_years"]
         obs_time = self.data.ecoData["observation_time"]
@@ -2761,8 +2761,6 @@ class DataExtractor(ReportComponent):
         avg_autonomy = sum(self.kpis.energy_autonomy_year[y] for y in years) / len(years)
         avg_scf = sum(self.kpis.scf_year[y] for y in years) / len(years)
         avg_dcf = sum(self.kpis.dcf_year[y] for y in years) / len(years)
-
-        
 
         # Overall_summary
         self.district_key_kpis = [
@@ -2836,7 +2834,7 @@ class DataExtractor(ReportComponent):
 
             # Maybe later add also the development of the energy demand over the years as a stacked bar if renovation measures or other changes are implemented in the multi-year simulation.
 
-            self.kennwerte = {
+            self.key_performance_indicator = {
             "district_key_kpis": self.district_key_kpis,
             "district_operation_kpis": self.district_operation_kpis,
             "max_loads_table": self.max_loads_table,
@@ -3173,7 +3171,7 @@ class DataExtractor(ReportComponent):
     def _extract_data(self):
         """Extracts and processes all necessary data for the certificate."""
         self._process_buildings()
-        self._extract_kennwerte()
+        self._extract_key_performance_indicator()
         self._extract_district_structure()
         self._extract_energyhub_data()
         self._extract_decentral_data()
@@ -3313,8 +3311,8 @@ class DataExtractor(ReportComponent):
         return adjusted_cap, adjusted_unit
 
 
-    def get_kennwerte(self):
-        return self.kennwerte
+    def get_key_performance_indicator(self):
+        return self.key_performance_indicator
 
     def get_optimization_results(self):
         return self.optimization_results
@@ -3323,7 +3321,7 @@ class DataExtractor(ReportComponent):
         return self.district_structure
     
     def get_building_df(self):
-        return self.gebaude_df
+        return self.building_df
 
     def get_energyhub_df(self):
         return self.energyhub_df
@@ -3396,8 +3394,8 @@ class CertificateBuilder(ReportComponent):
 
         story.append(NextPageTemplate('TitlePage'))
         self.layout.create_header()
-        self.layout.create_energiekennwerte(data_energiekennwerte=self.data_object.get_kennwerte())
-        self.layout.create_quartiersstruktur(data_quartiersstruktur=self.data_object.get_district_structure())
+        self.layout.create_key_performance_indicator(data_key_performance_indicator=self.data_object.get_key_performance_indicator())
+        self.layout.create_data_district_structure(data_district_structure=self.data_object.get_district_structure())
         
         story.extend(self.layout.get_story())
         self.layout.reset_story()
@@ -3410,7 +3408,7 @@ class CertificateBuilder(ReportComponent):
         story.append(NextPageTemplate('ContentPage'))
         story.append(PageBreak()) 
 
-        self.layout.create_yearly_bar_charts(self.data_object.get_kennwerte())
+        self.layout.create_yearly_bar_charts(self.data_object.get_key_performance_indicator())
         story.extend(self.layout.get_story())
         self.layout.reset_story()
         story.append(PageBreak())
@@ -3427,7 +3425,7 @@ class CertificateBuilder(ReportComponent):
         self.layout.reset_story()
 
         story.append(PageBreak()) 
-        self.layout.create_quartiersstruktur_details(data_quartiersstruktur=self.data_object.get_district_structure())
+        self.layout.create_district_structure_details(data_district_structure=self.data_object.get_district_structure())
         story.extend(self.layout.get_story())
         self.layout.reset_story()
 

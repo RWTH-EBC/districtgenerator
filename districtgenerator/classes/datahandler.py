@@ -1091,68 +1091,69 @@ class Datahandler:
             building["buildingFeatures"] = building["buildingFeatures"].copy()
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
-    # def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8, gen_cars=True):
-    #     self.buildings_total = len(self.district)
-    #     self.buildings_completed = 0
-    #     self.save_progress()
-    #
-    #     results = []
-    #
-    #     # Threads avoid pickling issues on Windows (no spawn, no handle duplication).
-    #     with ThreadPoolExecutor(max_workers=max_threads) as ex:
-    #         future_map = {
-    #             ex.submit(self.generate_demands_worker, building, calcUserProfiles, saveUserProfiles, gen_cars): building[
-    #                 "unique_name"]
-    #             for building in self.district
-    #         }
-    #
-    #         for fut in as_completed(future_map):
-    #             unique_name = future_map[fut]
-    #             #try:
-    #             result = fut.result()
-    #             #except Exception as e:
-    #             #    print(f"Error in building {unique_name}: {e}")
-    #             #    continue
-    #
-    #             self.buildings_completed += 1
-    #             results.append(result)
-    #             self.save_progress()
-    #
-    #             print(f"building {self.buildings_completed}/{self.buildings_total} calculated "
-    #                 f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): {unique_name}")
-    #
-    #     # Write results back to district objects
-    #     for result in results:
-    #         building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
-    #         building["user"].elec = result["elec"]
-    #         building["user"].dhw = result["dhw"]
-    #         building["user"].dhw_minutely = result.get("dhw_minutely")
-    #         building["user"].cooling = result["cooling"]
-    #         building["user"].heat = result["heating"]
-    #
-    #         building["user"].occ = result["occ"]
-    #
-    #         building["user"].EV_carcharging_ondemand =  result["EV_carcharging_ondemand"]
-    #         building["user"].EV_carprofile = result["EV_carprofile"]
-    #         building["user"].ev_capacity = result.get("ev_capacity")
-    #         building["user"].ice_carprofile = result["ice_carprofile"]
-    #
-    #         building["user"].gains = result["gains"]
-    #         building["user"].nb_units = result["nb_units"]
-    #         building["user"].nb_occ = result["nb_occ"]
-    #         building["user"].individual_car_profiles = result.get("individual_car_profiles", [])
-    #
-    #         # If Envelope is not safely serializable, keep the existing one and only store what you need.
-    #         # If you really need it, keep it, but threads don't require pickling so it's fine.
-    #         building["envelope"] = result["envelope"]
-    #         building_features = building["buildingFeatures"].copy()
-    #         building_features["night_setback"] = result["night_setback"]
-    #         building["buildingFeatures"] = building_features
-    #
-    #     self.save_progress()
-    #
-    #     print("Finished generating demands with threading!")
+    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8, gen_cars=True):
+         self.buildings_total = len(self.district)
+         self.buildings_completed = 0
+         self.save_progress()
 
+         results = []
+
+         # Threads avoid pickling issues on Windows (no spawn, no handle duplication).
+         with ThreadPoolExecutor(max_workers=max_threads) as ex:
+             future_map = {
+                 ex.submit(self.generate_demands_worker, building, calcUserProfiles, saveUserProfiles, gen_cars): building[
+                     "unique_name"]
+                 for building in self.district
+             }
+
+             for fut in as_completed(future_map):
+                 unique_name = future_map[fut]
+                 #try:
+                 result = fut.result()
+                 #except Exception as e:
+                 #    print(f"Error in building {unique_name}: {e}")
+                 #    continue
+
+                 self.buildings_completed += 1
+                 results.append(result)
+                 self.save_progress()
+
+                 print(f"building {self.buildings_completed}/{self.buildings_total} calculated "
+                     f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): {unique_name}")
+
+         # Write results back to district objects
+         for result in results:
+             building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
+             building["user"].elec = result["elec"]
+             building["user"].dhw = result["dhw"]
+             building["user"].dhw_minutely = result.get("dhw_minutely")
+             building["user"].cooling = result["cooling"]
+             building["user"].heat = result["heating"]
+
+             building["user"].occ = result["occ"]
+
+             building["user"].EV_carcharging_ondemand =  result["EV_carcharging_ondemand"]
+             building["user"].EV_carprofile = result["EV_carprofile"]
+             building["user"].ev_capacity = result.get("ev_capacity")
+             building["user"].ice_carprofile = result["ice_carprofile"]
+
+             building["user"].gains = result["gains"]
+             building["user"].nb_units = result["nb_units"]
+             building["user"].nb_occ = result["nb_occ"]
+             building["user"].individual_car_profiles = result.get("individual_car_profiles", [])
+
+             # If Envelope is not safely serializable, keep the existing one and only store what you need.
+             # If you really need it, keep it, but threads don't require pickling so it's fine.
+             building["envelope"] = result["envelope"]
+             building_features = building["buildingFeatures"].copy()
+             building_features["night_setback"] = result["night_setback"]
+             building["buildingFeatures"] = building_features
+
+         self.save_progress()
+
+         print("Finished generating demands with threading!")
+
+    """
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8, gen_cars=True):
         self.buildings_total = len(self.district)
         self.buildings_completed = 0
@@ -1219,7 +1220,7 @@ class Datahandler:
 
         # Combine demand profiles for mixed-use buildings
         self.combine_mixed_building_demands(saveUserProfiles)
-
+    """
 
     def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles, gen_cars = True):
         """
@@ -1281,7 +1282,7 @@ class Datahandler:
             building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
         elif building.get("thermal_model") == "7R2C":
             # Compute VDI6007 params
-            building["envelope"]._VDI6007_params(self.site["SunRad"])
+            building["envelope"]._VDI6007_params()
             # Compute equivalent temperature
             building["envelope"].calc_theta_eq(self.site, building["user"].gains)
         else:
@@ -2381,7 +2382,7 @@ def _run_demand_worker(context, building, calcUserProfiles, saveUserProfiles, ge
     if building.get("thermal_model") == "5R1C":
         building["envelope"].calcNormativeProperties(site["SunRad"], building["user"].gains)
     elif building.get("thermal_model") == "7R2C":
-        building["envelope"]._VDI6007_params(site["SunRad"])
+        building["envelope"]._VDI6007_params()
         building["envelope"].calc_theta_eq(site, building["user"].gains)
     else:
         raise ValueError(f"Unknown thermal_model_type: {design_building_data['thermal_model_type']}")
