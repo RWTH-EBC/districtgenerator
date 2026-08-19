@@ -13,6 +13,7 @@ import warnings
 def example8_scenario_evaluation():
     warnings.filterwarnings("ignore", category=FutureWarning)
 
+
     # Initialize District
     data = Datahandler(scenario_name = "district_F_seed_1_buildings_32", env_path=".env.CONFIG.PAPER")
 
