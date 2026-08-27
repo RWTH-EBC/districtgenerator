@@ -279,26 +279,147 @@ class Datahandler:
 
         # --- 2. Load scenario data ---
 
-        dtype_dict = {'id': str, 'building': str, 'year': int, 'retrofit': int, 'construction_type': int, 'night_setback': int,
-                    'area': float, 'heater': str, 'cooling': int, 'EV': float, 'f_TES': float, 'f_BAT': float, 'f_PV1': float, 'f_PV2': float,
-                    'f_STC': float, 'gamma_PV': float, 'ev_charging': str,}
+        # BA-robust-v2:
+        # Die QG-Inputdateien kÃ¶nnen deutsche Dezimalkommas enthalten
+        # (z. B. "290,9455705069433"). Wenn pd.read_csv direkt mit
+        # dtype={... float ...} liest, bricht Pandas vor der spÃ¤teren
+        # robusten Konvertierung ab. Deshalb wird zuerst alles als Text
+        # gelesen und danach spaltenweise robust numerisch umgewandelt.
+
+        def _to_numeric_series_robust(series, default=np.nan):
+            s = series.astype(str).str.strip()
+            s = s.replace({
+                "": np.nan,
+                "None": np.nan,
+                "none": np.nan,
+                "nan": np.nan,
+                "NaN": np.nan,
+                "<NA>": np.nan,
+                "null": np.nan,
+                "NULL": np.nan,
+            })
+
+            # Leerzeichen, geschÃ¼tzte Leerzeichen etc. entfernen
+            s = s.astype("string").str.replace("\u00a0", "", regex=False)
+            s = s.str.replace(" ", "", regex=False)
+
+            # EuropÃ¤isches Format: 1.234,56 -> 1234.56
+            mask_eu = s.str.contains(
+                r"^[-+]?\d{1,3}(?:\.\d{3})+,\d+$",
+                regex=True,
+                na=False,
+            )
+            s.loc[mask_eu] = (
+                s.loc[mask_eu]
+                .str.replace(".", "", regex=False)
+                .str.replace(",", ".", regex=False)
+            )
+
+            # Dezimalkomma ohne Tausenderpunkt: 123,45 -> 123.45
+            mask_decimal_comma = (
+                s.str.contains(",", regex=False, na=False)
+                & ~s.str.contains(".", regex=False, na=False)
+            )
+            s.loc[mask_decimal_comma] = s.loc[mask_decimal_comma].str.replace(",", ".", regex=False)
+
+            out = pd.to_numeric(s, errors="coerce")
+            if not (isinstance(default, float) and np.isnan(default)):
+                out = out.fillna(default)
+            return out
+
+        scenario_dtype = {
+            "id": str,
+            "building": str,
+            "heater": str,
+            "ev_charging": str,
+        }
+
+        def _read_scenario_csv(path):
+            return pd.read_csv(
+                path,
+                delimiter=";",
+                converters={"position": parse_position},
+                dtype=scenario_dtype,
+                keep_default_na=False,
+                na_values=[],
+            )
 
         # %% load scenario file with building information
         if self.heat_map_berlin:
             # %% load heat map berlin formatted scenario file
-            self.map_wkb_to_scenario_format(self.scenario_file_path + "/" + self.scenario_name + ".csv",
-                                            self.scenario_file_path + "/" + self.scenario_name + "_dg.csv")
-            self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}_dg.csv"), delimiter=";",
-                                         converters={"position": parse_position}, dtype=dtype_dict).set_index("id", drop=False))
+            self.map_wkb_to_scenario_format(
+                self.scenario_file_path + "/" + self.scenario_name + ".csv",
+                self.scenario_file_path + "/" + self.scenario_name + "_dg.csv",
+            )
+            self.scenario = _read_scenario_csv(
+                os.path.join(self.scenario_file_path, f"{self.scenario_name}_dg.csv")
+            ).set_index("id", drop=False)
             self.pv_stc_potential = pd.read_csv(
                 self.scenario_file_path + "/" + self.scenario_name + "_pv_stc_potential.csv",
-                delimiter=';',
-                usecols=["uuid", "richtung", "neigung", "dachtyp", "modanetto"]
+                delimiter=";",
+                usecols=["uuid", "richtung", "neigung", "dachtyp", "modanetto"],
             )
         else:
             # %% load normal formatted scenario file
-            self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
-                                         converters={"position": parse_position}, dtype=dtype_dict).set_index("id", drop=False))
+            self.scenario = _read_scenario_csv(
+                os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv")
+            ).set_index("id", drop=False)
+
+        # ------------------------------------------------------------------
+        # BA-Erweiterung: numerische Szenario-Spalten robust konvertieren
+        # ------------------------------------------------------------------
+
+        numeric_defaults = {
+            # Pflicht-/Standardspalten
+            "year": np.nan,
+            "retrofit": 0,
+            "construction_type": 2,
+            "night_setback": 0,
+            "area": np.nan,
+            "cooling": 0,
+            "EV": 0.0,
+            "f_TES": 35.0,
+            "f_BAT": 0.0,
+            "f_PV1": 0.0,
+            "f_PV2": 0.0,
+            "f_STC": 0.0,
+            "gamma_PV": np.nan,
+            # neue BA-Spalten
+            "SolTh_kWh": 0.0,
+            "beta": np.nan,
+        }
+
+        for col, default in numeric_defaults.items():
+            if col not in self.scenario.columns:
+                self.scenario[col] = default
+            self.scenario[col] = _to_numeric_series_robust(self.scenario[col], default=default)
+
+        # Pflichtwerte prÃ¼fen, weil TEASER/DG sie nicht sinnvoll ersetzen kann.
+        required_numeric = ["year", "area"]
+        bad_required = [col for col in required_numeric if self.scenario[col].isna().any()]
+        if bad_required:
+            examples = self.scenario.loc[
+                self.scenario[bad_required].isna().any(axis=1),
+                ["id", "building"] + bad_required,
+            ].head(10)
+            raise ValueError(
+                "Scenario contains invalid required numeric values in: "
+                + ", ".join(bad_required)
+                + "\nExamples:\n"
+                + examples.to_string(index=False)
+            )
+
+        # Integer-Spalten nach der robusten Konvertierung wieder als int setzen.
+        int_columns = ["year", "retrofit", "construction_type", "night_setback", "cooling"]
+        for col in int_columns:
+            self.scenario[col] = self.scenario[col].round().astype(int)
+
+        # Nur SolTh_kWh und PV-/STC-Faktoren bekommen wirklich 0 als Default.
+        # beta/gamma dÃ¼rfen NaN bleiben, wenn keine Solarthermie vorhanden ist.
+        self.scenario["SolTh_kWh"] = self.scenario["SolTh_kWh"].fillna(0.0)
+        self.scenario["f_PV1"] = self.scenario["f_PV1"].fillna(0.0)
+        self.scenario["f_PV2"] = self.scenario["f_PV2"].fillna(0.0)
+        self.scenario["f_STC"] = self.scenario["f_STC"].fillna(0.0)
 
         json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
 
@@ -306,6 +427,38 @@ class Datahandler:
             with open(json_path, encoding="utf-8") as json_file:
                 jsonData = json.load(json_file)
                 self.site["district_parameters"] = jsonData["parameters"]
+
+        # ------------------------------------------------------------------
+        # BA.jca-Erweiterung:
+        # FW ist ein Zwischenwert aus der Input-Erstellung.
+        # FÃ¼r den DistrictGenerator soll FW exakt wie BOI behandelt werden.
+        # ------------------------------------------------------------------
+
+        if "heater" in self.scenario.columns:
+            self.scenario["heater"] = (
+                self.scenario["heater"]
+                .astype(str)
+                .str.strip()
+                .replace({
+                    "FW": "BOI",
+                    "fw": "BOI",
+                    "Fw": "BOI",
+                    "fW": "BOI",
+                })
+            )
+
+            invalid_heater_mask = self.scenario["heater"].str.lower().isin(
+                ["", "nan", "none", "<na>", "null"]
+            )
+            if invalid_heater_mask.any():
+                examples = self.scenario.loc[invalid_heater_mask, ["id", "building", "heater"]].head(10)
+                raise ValueError(
+                    "Scenario contains buildings without valid heater after FW->BOI mapping. "
+                    "Please fix the input assignment. Examples:\n"
+                    + examples.to_string(index=False)
+                )
+        else:
+            raise ValueError("Scenario input is missing required column 'heater'.")
 
         # --- 3. Load pipe data based on the selected heat grid generation ---
 
@@ -365,12 +518,12 @@ class Datahandler:
             print("Postal code cannot be found, location changed to Aachen")
             self.site["zip"] = "52064"
             self.site["Location"] = 507755060854
-            """  
-                Add new weatherdatafile_location, if you want an individual location: 
-                Files can be found here: https://www.dwd.de/DE/leistungen/testreferenzjahre/testreferenzjahre.html 
-                Every file has to be stored in the folder reffering to the correct Year and season in the subfolders of '\districtgenerator\data\weather\ 
-                Example: TRY2015_507755060854_Wint.dat has to be stored in '\districtgenerator\data\weather\TRY_2015_Winter' 
-                Uncomment the following line  
+            """
+                Add new weatherdatafile_location, if you want an individual location:
+                Files can be found here: https://www.dwd.de/DE/leistungen/testreferenzjahre/testreferenzjahre.html
+                Every file has to be stored in the folder reffering to the correct Year and season in the subfolders of '\districtgenerator\data\weather\
+                Example: TRY2015_507755060854_Wint.dat has to be stored in '\districtgenerator\data\weather\TRY_2015_Winter'
+                Uncomment the following line
             """
             # weatherdatafile_location = 507755060854
 
@@ -497,7 +650,7 @@ class Datahandler:
 
         # KLZ added to site_data based on nearest VDI station (generate_klz_site_data.py)
         klz = filtered_data.iloc[0]['KLZ']
-        # Cooling limit temperatures based on Cooling Laod Zones (Kühllastzonen)
+        # Cooling limit temperatures based on Cooling Laod Zones (KÃ¼hllastzonen)
         # Calculated based on estimated amplitude based on VDI 2078 p. 117
         # To account for thermal mass and avoid outliers, T_me is used as average plus amplitude
         vdi_climate_data = {
@@ -719,7 +872,7 @@ class Datahandler:
             combined_building["dhwpower"] = main_building["dhwpower"] + secondary_building["dhwpower"]
 
             print(f"Combined mixed building {parent_id}: "
-                  f"{main_type} + {secondary_type} → NEW combined building")
+                  f"{main_type} + {secondary_type} â†’ NEW combined building")
 
             # Save combined profiles to Excel file
             if saveUserProfiles:
@@ -916,9 +1069,9 @@ class Datahandler:
                 buildings_to_process.append(secondary_building)
 
                 print(f"Split mixed building {building['buildingFeatures']['original_bldg_id']}: "
-                      f"{building['buildingFeatures']['building']} (Total: {total_area:.0f} m², {total_floors} floors) -> "
-                      f"{main_type} ({main_area:.0f} m², {main_floors} floors) + "
-                      f"{secondary_type} ({secondary_area:.0f} m², {secondary_floors} floor)")
+                      f"{building['buildingFeatures']['building']} (Total: {total_area:.0f} mÂ², {total_floors} floors) -> "
+                      f"{main_type} ({main_area:.0f} mÂ², {main_floors} floors) + "
+                      f"{secondary_type} ({secondary_area:.0f} mÂ², {secondary_floors} floor)")
 
         # Replace district with processed buildings
         new_district = []
@@ -995,14 +1148,14 @@ class Datahandler:
                 # The method estimates the number of floors by:
                 # - Assigning a range of possible floor areas per level based on building type.
                 # - Randomly selecting a value within the assigned range using the TABULA German Building Typology.
-                # - Calculating the total number of floors by dividing the building’s total floor area
+                # - Calculating the total number of floors by dividing the buildingâ€™s total floor area
                 #   by the selected single-floor area.
 
                 # Check if floors are already fixed those are used (from mixed building splitting)
                 if "fixed_floors" in building["buildingFeatures"]:
                     number_of_floors = building["buildingFeatures"]["fixed_floors"]
                 elif building_type == "single_family_house":
-                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(building_type))  
+                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(building_type))
                     # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
                     number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
 
@@ -1043,7 +1196,7 @@ class Datahandler:
                                     number_of_floors=number_of_floors,
                                     height_of_floors=height_of_floors,
                                     net_leased_area=building["buildingFeatures"]["area"])
-                
+
                 if building["buildingFeatures"].get("is_mixed_part", False):
                     if isinstance(prj, Project):
                         mixed_res_part = prj.buildings[-1]
@@ -1180,7 +1333,7 @@ class Datahandler:
 
         for result in results:
             building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
-            
+
             if not calcUserProfiles:
                 if "user" not in building:
                     building["user"] = DummyUser()
@@ -1241,7 +1394,7 @@ class Datahandler:
                                           path=os.path.join(self.resultPath, 'demands'),
                                           initial_day=self.initial_day,
                                           gen_cars=gen_cars)
-                
+
             if building.get("thermal_model") == "5R1C":
                 building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
             elif building.get("thermal_model") == "7R2C":
@@ -1285,7 +1438,7 @@ class Datahandler:
                                   envelope_areas=building["envelope"].A,
                                   path=os.path.join(self.resultPath, 'demands'),
                                   individual_car_profiles=building["user"].individual_car_profiles)
-                
+
                 self.saveHeatingProfile(heat=building["user"].heat,
                                         cooling=building["user"].cooling,
                                         name=building["unique_name"],
@@ -1295,12 +1448,12 @@ class Datahandler:
             # Generate dummy user and envelope objects instead of Teaser and User objects as demand calculation is skipped.
             if "user" not in building:
                 building["user"] = DummyUser()
-            
+
             if "envelope" not in building:
                 building["envelope"] = DummyEnvelope()
                 building["envelope"].construction_year = building["buildingFeatures"]["year"]
                 building["envelope"].retrofit = building["buildingFeatures"]["retrofit"]
-                    
+
 
             (building["user"].elec, building["user"].dhw,
              building["user"].occ, building["user"].gains,
@@ -1357,7 +1510,7 @@ class Datahandler:
         self.initializeBuildings()
 
         if calcUserProfiles: # Only generate the building envelopes and user objects if we need to calculate new profiles.
-            self.generateBuildings() 
+            self.generateBuildings()
 
         self.generateDemands(calcUserProfiles, saveUserProfiles, gen_cars=gen_cars)
         self.designDecentralDevices(saveGenerationProfiles=True)
@@ -1378,7 +1531,7 @@ class Datahandler:
                 not isinstance(p, tuple) or len(p) != 2 or not all(isinstance(x, (int, float)) for x in p)
                 for p in self.scenario["position"]))
             if missing_positions:
-                print("No district geometry found — running simple heating network design.")
+                print("No district geometry found â€” running simple heating network design.")
                 heating_network_simple.heating_network(self)
             else:
                 print("Generating and optimizing heating network...")
@@ -1400,9 +1553,9 @@ class Datahandler:
 
             self.designCentralDevices(saveGenerationProfiles=True)
             self.finalizeClusterProfiles()
-            
+
         else:
-            print("No central heat grid detected — skipping heating network design.")
+            print("No central heat grid detected â€” skipping heating network design.")
             self.centralDevices = {}
             self.prepareClusteringInputs()
 
@@ -1684,6 +1837,45 @@ class Datahandler:
 
         return heat, cooling
 
+
+    def _ba_safe_float(self, value, default=np.nan):
+        """
+        Robust conversion for optional BA columns such as beta, gamma_PV and SolTh_kWh.
+        Accepts numeric values, empty cells, NaN and German decimal commas.
+        """
+        try:
+            if value is None or pd.isna(value):
+                return default
+
+            if isinstance(value, str):
+                value = value.strip().replace(",", ".")
+                if value == "":
+                    return default
+
+            return float(value)
+
+        except Exception:
+            return default
+
+
+    def _ba_scale_stc_profile_to_target_kwh(self, stc_profile_w, target_kwh):
+        """
+        Scales a reference solar thermal profile in W so that its annual
+        generation equals target_kwh.
+        """
+        dt_h = self.time["timeResolution"] / 3600
+
+        stc_profile_w = np.asarray(stc_profile_w, dtype=float)
+        reference_kwh = stc_profile_w.sum() * dt_h / 1000
+
+        if target_kwh <= 0 or reference_kwh <= 0:
+            return np.zeros_like(stc_profile_w), 0.0, reference_kwh
+
+        scale_factor = target_kwh / reference_kwh
+        return stc_profile_w * scale_factor, scale_factor, reference_kwh
+
+
+
     def designDecentralDevices(self, saveGenerationProfiles=True):
         """
         Calculate capacities, generation profiles of renewable energies and EV load profiles for decentral devices.
@@ -1719,7 +1911,7 @@ class Datahandler:
                     # Check if roof is flat and adjust tilt and azimuth accordingly
                     if roof_type == "flach":
                         tilt = 30  # Flat roofs: 30 degrees tilt
-                        azimuth = 0  # Flat roofs: south orientation (0°)
+                        azimuth = 0  # Flat roofs: south orientation (0Â°)
                     else:
                         azimuth = row["richtung"]  # Orientation (gamma)
                         tilt = row["neigung"]  # Tilt angle (beta)
@@ -1752,18 +1944,73 @@ class Datahandler:
 
             else:
                 # calculate PV and STC generation
-                building["generationPV"], building["generationSTC"] = \
-                    sun.calcPVAndSTCProfile(time=self.time,
-                                            site=self.site,
-                                            devices=self.decentral_device_data,
-                                            area_roof=building["envelope"].A["opaque"]["roof"],
-                                            # In Germany, this is a roof pitch between 30 and 35 degrees
-                                            beta=[35],
-                                            # surface azimuth angles (Orientation to the south: 0°)
-                                            gamma=[building["buildingFeatures"]["gamma_PV"]],
-                                            usageFactorPV1=building["buildingFeatures"]["f_PV1"],
-                                            usageFactorPV2=building["buildingFeatures"]["f_PV2"],
-                                            usageFactorSTC=building["buildingFeatures"]["f_STC"])
+                # ------------------------------------------------------------------
+                # BA-Erweiterung:
+                # Solarthermie nicht mehr Ã¼ber f_STC, sondern Ã¼ber SolTh_kWh.
+                # FÃ¼r SolTh_kWh > 0:
+                #   1. Referenzprofil mit usageFactorSTC = 1 berechnen
+                #   2. auf gewÃ¼nschte Jahreserzeugung SolTh_kWh skalieren
+                # FÃ¼r SolTh_kWh = 0:
+                #   generationSTC = 0
+                # ------------------------------------------------------------------
+
+                features = building["buildingFeatures"]
+
+                area_roof = building["envelope"].A["opaque"]["roof"]
+
+                f_pv1 = self._ba_safe_float(features.get("f_PV1", 0.0), 0.0)
+                f_pv2 = self._ba_safe_float(features.get("f_PV2", 0.0), 0.0)
+
+                solth_target_kwh = self._ba_safe_float(
+                    features.get("SolTh_kWh", 0.0),
+                    0.0
+                )
+
+                # beta/gamma werden nur wirklich gebraucht, wenn Solarthermie oder PV vorhanden ist.
+                # Falls leer, wird intern ein neutraler Standard genutzt.
+                beta_value = self._ba_safe_float(features.get("beta", np.nan), np.nan)
+                gamma_value = self._ba_safe_float(features.get("gamma_PV", np.nan), np.nan)
+
+                if pd.isna(beta_value):
+                    beta_value = 35.0
+
+                if pd.isna(gamma_value):
+                    gamma_value = 0.0
+
+                # PV bleibt kompatibel zur bisherigen Logik.
+                # STC wird zunÃ¤chst als VollflÃ¤chen-Referenz mit usageFactorSTC = 1 berechnet.
+                pv_profile, stc_reference_profile = sun.calcPVAndSTCProfile(
+                    time=self.time,
+                    site=self.site,
+                    devices=self.decentral_device_data,
+                    area_roof=area_roof,
+                    beta=[beta_value],
+                    gamma=[gamma_value],
+                    usageFactorPV1=f_pv1,
+                    usageFactorPV2=f_pv2,
+                    usageFactorSTC=1.0 if solth_target_kwh > 0 else 0.0,
+                )
+
+                building["generationPV"] = pv_profile
+
+                if solth_target_kwh > 0:
+                    scaled_stc_profile, stc_scale_factor, stc_reference_kwh = (
+                        self._ba_scale_stc_profile_to_target_kwh(
+                            stc_reference_profile,
+                            solth_target_kwh,
+                        )
+                    )
+
+                    building["generationSTC"] = scaled_stc_profile
+
+                    # Diagnosewerte im buildingFeatures speichern
+                    features["SolTh_reference_kWh_f_STC_1"] = stc_reference_kwh
+                    features["SolTh_scale_factor_equivalent_f_STC"] = stc_scale_factor
+
+                else:
+                    building["generationSTC"] = np.zeros_like(pv_profile)
+                    features["SolTh_reference_kWh_f_STC_1"] = 0.0
+                    features["SolTh_scale_factor_equivalent_f_STC"] = 0.0
 
         # Pre-cluster for the optimization of the decentral heating system
         def is_opt_like(v):
@@ -2079,9 +2326,10 @@ class Datahandler:
                 solar_weight += len(self.district)
 
         for i in range(len(self.district)):
-            if (self.district[i]["buildingFeatures"]["f_PV1"] > 0 or
-                self.district[i]["buildingFeatures"]["f_PV2"] > 0 or
-                self.district[i]["buildingFeatures"]["f_STC"] > 0):
+            if (self.district[i]["buildingFeatures"].get("f_PV1", 0) > 0 or
+                self.district[i]["buildingFeatures"].get("f_PV2", 0) > 0 or
+                self.district[i]["buildingFeatures"].get("f_STC", 0) > 0 or
+                self.district[i]["buildingFeatures"].get("SolTh_kWh", 0) > 0):
                 solar_weight += 1
 
         weights.append(solar_weight)
@@ -2324,7 +2572,7 @@ class Datahandler:
             error_message = "The following optimization runs failed:\n"
             for year, cluster in failed_optimizations:
                 error_message += f"  - Year: {year}, Cluster: {cluster}\n"
-            
+
             error_message += "\nPlease check the corresponding 'errorfile_opti_central_*.txt' and '.ilp' files in the 'optimization_results' directory for further information."
             raise Exception(error_message)
 
@@ -2499,12 +2747,12 @@ class Datahandler:
 
             mapping = {
                 "Gaskessel": "BOI",
-                "Fernwärme": "heat_grid",
+                "FernwÃ¤rme": "heat_grid",
                 "Blockheizkraftwerk": "CHP",
-                "Wärmepumpe": "HP",
+                "WÃ¤rmepumpe": "HP",
                 "Heat Pump": "HP",
                 "Biomassekessel": "BBOI",
-                "Ölkessel": "OBOI",
+                "Ã–lkessel": "OBOI",
                 "Wasserstoffkessel": "H2BOI",
                 "opt": "opt",
                 "opt_geg": "opt_geg",
@@ -2642,7 +2890,7 @@ class Datahandler:
                 )
                 return None
 
-            if row.get("heat_relevance") != "wärmerelevant":
+            if row.get("heat_relevance") != "wÃ¤rmerelevant":
                 print_row_problem(
                     row_index, alkis_id, "heat_relevance", row.get("heat_relevance"),
                     "building is not heat-relevant"
@@ -2821,14 +3069,14 @@ class Datahandler:
                 jsonData = json.load(json_file)
                 transformer_info = jsonData["values"]["transformer_station"]
         else:
-            # if JSON file not found → Extract building coordinates from district data
+            # if JSON file not found â†’ Extract building coordinates from district data
             district_type = "unknown"
 
             # Randomly choose one building as transformer base
             chosen_building = random.choice(buildings_info)
             base_pos = chosen_building["position"]
 
-            # Apply small random offset between choosen building and transformer (e.g., ±5 meters)
+            # Apply small random offset between choosen building and transformer (e.g., Â±5 meters)
             min_dist = 5  # minimum 5 meters away
             max_dist = 10  # minimum 5 meters away
             distance = random.uniform(min_dist, max_dist)
@@ -2879,8 +3127,8 @@ class Datahandler:
         Parameters
         ----------
         topology_option: string
-            “node”: ignores road constraints,
-            “road”: considers road constraints, ensuring all main pipelines are laid beneath roads.
+            â€œnodeâ€: ignores road constraints,
+            â€œroadâ€: considers road constraints, ensuring all main pipelines are laid beneath roads.
         Returns
         -------
         None.
@@ -2946,8 +3194,8 @@ class DummyEnvelope: pass
 
 def generate_demands_worker_wrapper(args):
     """
-    Wrapper-Funktion außerhalb der Klasse, da multiprocessing pickling benötigt.
-    Args enthält (building, calcUserProfiles, saveUserProfiles, andere Parameter)
+    Wrapper-Funktion auÃŸerhalb der Klasse, da multiprocessing pickling benÃ¶tigt.
+    Args enthÃ¤lt (building, calcUserProfiles, saveUserProfiles, andere Parameter)
     """
     self_ref, building, calcUserProfiles, saveUserProfiles, gen_cars = args
     self_ref.generate_demands_worker(building, calcUserProfiles, saveUserProfiles, gen_cars=gen_cars)
@@ -2977,7 +3225,7 @@ def generate_demands_worker_wrapper(args):
 def parse_position(val):
     """
     The building coordinates read directly from CSV files are often irregular and need correction.
-    For example: ('1','2','.','3',',','4','5','.','6') → (12.3, 45.6)
+    For example: ('1','2','.','3',',','4','5','.','6') â†’ (12.3, 45.6)
     """
     # If the input is a string like "(12.3,45.6)", parse it into a tuple of floats.
     if isinstance(val, str):
