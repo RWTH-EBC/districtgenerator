@@ -1404,7 +1404,7 @@ class Datahandler:
                 self.heat_grid_data["om_costs"] = 0
 
             self.designCentralDevices(saveGenerationProfiles=True)
-            self.finalizeClusterProfiles()
+            self.applyCentralDesignClusteringToOperationProfiles()
         else:
             print("No central heat grid detected and no energy hub designed — skipping heating network design.")
             self.centralDevices = {}
@@ -1780,6 +1780,101 @@ class Datahandler:
         """
         print("Finalizing clustering (post-optimization)...")
         self.clusterProfiles(centralEnergySupply=True)
+
+    def _select_profile_periods(self, profile, typedays, cluster_horizon, length_array):
+        """
+        Select representative periods from a full-year profile using medoid indices,
+        instead of clustering the profile itself.
+        """
+        if profile is None:
+            return None
+
+        arr = np.asarray(profile)[0:length_array]
+        num_periods = int(length_array / cluster_horizon)
+        transformed = arr.reshape((cluster_horizon, num_periods), order="F")
+        return np.array([transformed[:, int(day)] for day in typedays])
+
+    def applyCentralDesignClusteringToOperationProfiles(self):
+        """
+        Reuse the design-stage clustering (already computed while dimensioning the
+        central devices) as the operational clustering, instead of independently
+        re-clustering the per-building profiles a second time.
+        """
+        print("Applying design clustering to operation profiles...")
+
+        cluster_meta = self.centralDevices["capacities"]["cluster_meta"]
+        cluster_horizon = int(cluster_meta["clusterLength"])
+        typedays = np.asarray(cluster_meta["typedays"], dtype=int)
+        cluster_matrix = np.asarray(cluster_meta["clusterMatrix"])
+
+        length_array = cluster_horizon
+        while length_array <= len(self.site["T_e"]):
+            length_array += cluster_horizon
+        length_array = int(length_array - cluster_horizon)
+
+        for building in self.district:
+            user = building["user"]
+            user.elec_cluster = self._select_profile_periods(user.elec, typedays, cluster_horizon, length_array)
+            user.dhw_cluster = self._select_profile_periods(user.dhw, typedays, cluster_horizon, length_array)
+            user.heat_cluster = self._select_profile_periods(user.heat, typedays, cluster_horizon, length_array)
+            user.cooling_cluster = self._select_profile_periods(user.cooling, typedays, cluster_horizon, length_array)
+            user.occ_cluster = self._select_profile_periods(user.occ, typedays, cluster_horizon, length_array)
+            user.EV_carcharging_ondemand_cluster = self._select_profile_periods(
+                user.EV_carcharging_ondemand, typedays, cluster_horizon, length_array)
+            user.EV_carprofile_cluster = self._select_profile_periods(
+                user.EV_carprofile, typedays, cluster_horizon, length_array)
+            user.generationPV_cluster = self._select_profile_periods(
+                user.generationPV, typedays, cluster_horizon, length_array)
+            user.generationSTC_cluster = self._select_profile_periods(
+                user.generationSTC, typedays, cluster_horizon, length_array)
+
+            user.individual_car_profiles_cluster = []
+            for car in user.individual_car_profiles:
+                user.individual_car_profiles_cluster.append({
+                    "car_id": car.get("car_id"),
+                    "type": car.get("type"),
+                    "location": car.get("location"),
+                    "battery_capacity_wh": car.get("battery_capacity_wh"),
+                    "availability_profile_cluster": self._select_profile_periods(
+                        car.get("availability_profile"), typedays, cluster_horizon, length_array),
+                    "consumption_profile_wh_cluster": self._select_profile_periods(
+                        car.get("consumption_profile_wh"), typedays, cluster_horizon, length_array),
+                    "on_demand_charging_profile_w_cluster": self._select_profile_periods(
+                        car.get("on_demand_charging_profile_w"), typedays, cluster_horizon, length_array),
+                    "fuel_profile_l_cluster": self._select_profile_periods(
+                        car.get("fuel_profile_l"), typedays, cluster_horizon, length_array),
+                })
+
+        self.heat_grid_data["total_losses_heating_network_cluster"] = self._select_profile_periods(
+            self.heat_grid_data["total_losses_heating_network"], typedays, cluster_horizon, length_array)
+        self.heat_grid_data["total_losses_cooling_network_cluster"] = self._select_profile_periods(
+            self.heat_grid_data["total_losses_cooling_network"], typedays, cluster_horizon, length_array)
+        self.heat_grid_data["pump_power_cluster"] = self._select_profile_periods(
+            self.heat_grid_data["pump_power"], typedays, cluster_horizon, length_array)
+        self.heat_grid_data["T_soil_cluster"] = self._select_profile_periods(
+            self.heat_grid_data["T_soil"], typedays, cluster_horizon, length_array)
+
+        self.centralDevices["generation"]["Wind_cluster"] = self._select_profile_periods(
+            self.centralDevices["generation"]["Wind"], typedays, cluster_horizon, length_array)
+        self.centralDevices["generation"]["PV_cluster"] = self._select_profile_periods(
+            self.centralDevices["generation"]["PV"], typedays, cluster_horizon, length_array)
+        self.centralDevices["generation"]["STC_cluster"] = self._select_profile_periods(
+            self.centralDevices["generation"]["STC"], typedays, cluster_horizon, length_array)
+
+        self.site["T_e_cluster"] = self._select_profile_periods(
+            self.site["T_e"], typedays, cluster_horizon, length_array)
+
+        # clusters / clusterAssignments / clusterWeights, keyed by original-period
+        # index of each medoid (same convention as clustering_processing.clustering_processing)
+        self.clusters = [int(medoid) for medoid in typedays]
+        self.clusterAssignments = {}
+        for medoid in self.clusters:
+            self.clusterAssignments[medoid] = [
+                i for i in range(cluster_matrix.shape[1]) if cluster_matrix[medoid][i] == 1
+            ]
+        self.clusterWeights = {
+            medoid: len(self.clusterAssignments[medoid]) for medoid in self.clusters
+        }
 
     def clusterProfiles(self, centralEnergySupply):
         """

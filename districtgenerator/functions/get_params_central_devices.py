@@ -124,7 +124,6 @@ def get_params(data):
                                     data.time["clusterNumber"],
                                     len_cluster=int(clusterHorizon),
                                     norm = 2,
-                                    mip_gap = 0.02,
                                     scalings=scalings,
                                     pyomo_config=data.pyomo_config)
 
@@ -161,6 +160,15 @@ def get_params(data):
         d = np.where(z[:,day] == 1 )[0][0]
         sigma[day] = np.where(param["typedays"] == d)[0][0]
     param["sigma"] = sigma
+
+    # Expose the chosen design weeks so the operational clustering can reuse them
+    # instead of re-running k-medoids on a second, independent set of profiles.
+    result_dict["cluster_meta"] = {
+        "clusterLength": clusterHorizon,
+        "typedays": np.array(param["typedays"], dtype=int),
+        "clusterWeights": np.array(nc, dtype=int),
+        "clusterMatrix": np.array(z),
+    }
 
     heat_grid = {
         k: heat_grid_data[k]
