@@ -597,11 +597,12 @@ class CalendarConfig(BaseSettings):
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
     )
 
-class ScenarioName(BaseSettings):
+class Scenario(BaseSettings):
     """
-    ScenarioName class to manage the scenario name for the district generator.
+    Scenario class to manage the scenario for the district generator and type of parallelization.
     """
     scenario_name: str = 'base_scenario' # default value for scenario name
+    parallelization: str = 'multiprocessing' # default value for parallelization type, options: 'multiprocessing', 'threading'
 
     model_config = SettingsConfigDict(
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
@@ -1446,8 +1447,9 @@ class GlobalConfig(BaseModel):
         Configuration parameters for central devices in the district.
     calendar : CalendarConfig
         Configuration parameters for calendar settings, such as holidays and initial days.
-    scenario_name : ScenarioName
+    scenario : Scenario
         The name of the scenario being configured, used for identification and output purposes.
+        And type of parallelization for generating profiles
     report : ReportConfig
         Configuration parameters for reporting and output generation, including formats and paths.
 
@@ -1463,7 +1465,7 @@ class GlobalConfig(BaseModel):
     decentral: 'DecentralDeviceConfig'
     central: 'CentralDeviceConfig'
     calendar: 'CalendarConfig'
-    scenario_name: ScenarioName
+    scenario: 'Scenario'
     report: 'ReportConfig'
 class Settings(BaseSettings):
     """
@@ -1529,6 +1531,6 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         decentral=DecentralDeviceConfig(_env_file=env_file_path),
         central=CentralDeviceConfig(_env_file=env_file_path),
         calendar=CalendarConfig(_env_file=env_file_path),
-        scenario_name = ScenarioName(_env_file=env_file_path),
+        scenario=Scenario(_env_file=env_file_path),
         report=ReportConfig(_env_file=env_file_path)
     )

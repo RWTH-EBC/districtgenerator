@@ -31,7 +31,6 @@ import districtgenerator.functions.heating_network_simple as heating_network_sim
 from districtgenerator.functions.heating_network_simple import calculate_soil_temperature
 from districtgenerator.data_handling.config import GlobalConfig, load_global_config
 import multiprocessing as mp
-from concurrent.futures import ProcessPoolExecutor, as_completed
 
 class Datahandler:
     """
@@ -58,14 +57,9 @@ class Datahandler:
         File path.
     """
 
-    def __init__(self,
-                 scenario_name = None,
-                 resultPath = None,
-                 scenario_file_path = None,
-                 srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                 filePath = None,
-                 env_path = None
-                 ):
+    def __init__(self, scenario_name = None, resultPath = None,  scenario_file_path = None,
+                 srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))), filePath = None,
+                 env_path = None):
         """
         Constructor of Datahandler class.
 
@@ -224,7 +218,9 @@ class Datahandler:
         for attr, value in global_config.heatgrid.__dict__.items():
             self.heat_grid_data[attr] = value
 
-        self.scenario_name = scenario_name or global_config.scenario_name.scenario_name or "example_decentral"
+        #self.scenario_name = scenario_name or global_config.scenario.scenario_name or "example_decentral"
+        self.scenario_name = global_config.scenario.scenario_name
+        self.parallelization =  global_config.scenario.parallelization
 
         # --- 2. Load scenario data ---
 
@@ -1091,97 +1087,58 @@ class Datahandler:
             building["buildingFeatures"] = building["buildingFeatures"].copy()
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
-    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8, gen_cars=True):
-         self.buildings_total = len(self.district)
-         self.buildings_completed = 0
-         self.save_progress()
+    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_workers=8, gen_cars=True):
+        """
+        Generate demand profiles for all buildings.
 
-         results = []
+        Parameters
+        ----------
+        calcUserProfiles : bool, optional
+            Whether user profiles should be calculated.
+        saveUserProfiles : bool, optional
+            Whether generated user profiles should be saved.
+        max_workers : int, optional
+            Maximum number of parallel workers.
+        gen_cars : bool, optional
+            Whether car profiles should be generated.
+        use_multiprocessing : str
+            ProcessPoolExecutor or ThreadPoolExecutor is used.
+        """
 
-         # Threads avoid pickling issues on Windows (no spawn, no handle duplication).
-         with ThreadPoolExecutor(max_workers=max_threads) as ex:
-             future_map = {
-                 ex.submit(self.generate_demands_worker, building, calcUserProfiles, saveUserProfiles, gen_cars): building[
-                     "unique_name"]
-                 for building in self.district
-             }
-
-             for fut in as_completed(future_map):
-                 unique_name = future_map[fut]
-                 #try:
-                 result = fut.result()
-                 #except Exception as e:
-                 #    print(f"Error in building {unique_name}: {e}")
-                 #    continue
-
-                 self.buildings_completed += 1
-                 results.append(result)
-                 self.save_progress()
-
-                 print(f"building {self.buildings_completed}/{self.buildings_total} calculated "
-                     f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): {unique_name}")
-
-         # Write results back to district objects
-         for result in results:
-             building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
-             building["user"].elec = result["elec"]
-             building["user"].dhw = result["dhw"]
-             building["user"].dhw_minutely = result.get("dhw_minutely")
-             building["user"].cooling = result["cooling"]
-             building["user"].heat = result["heating"]
-
-             building["user"].occ = result["occ"]
-
-             building["user"].EV_carcharging_ondemand =  result["EV_carcharging_ondemand"]
-             building["user"].EV_carprofile = result["EV_carprofile"]
-             building["user"].ev_capacity = result.get("ev_capacity")
-             building["user"].ice_carprofile = result["ice_carprofile"]
-
-             building["user"].gains = result["gains"]
-             building["user"].nb_units = result["nb_units"]
-             building["user"].nb_occ = result["nb_occ"]
-             building["user"].individual_car_profiles = result.get("individual_car_profiles", [])
-
-             # If Envelope is not safely serializable, keep the existing one and only store what you need.
-             # If you really need it, keep it, but threads don't require pickling so it's fine.
-             building["envelope"] = result["envelope"]
-             building_features = building["buildingFeatures"].copy()
-             building_features["night_setback"] = result["night_setback"]
-             building["buildingFeatures"] = building_features
-
-         self.save_progress()
-
-         print("Finished generating demands with threading!")
-
-    """
-    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8, gen_cars=True):
         self.buildings_total = len(self.district)
         self.buildings_completed = 0
         self.save_progress()
-
-        # Minimal, picklable context passed to each worker process.
-        context = {
-            "site": self.site,
-            "calendar": self.calendar,
-            "time": self.time,
-            "decentral_device_data": self.decentral_device_data,
-            "resultPath": self.resultPath,
-            "initial_day": self.initial_day,
-            "design_building_data": self.design_building_data,
-        }
-
         results = []
 
-        # mp_context "spawn" is required on Windows and safest cross-platform.
-        mp_ctx = mp.get_context("spawn")
+        # ------------------------------------------------------------------
+        # Select parallelization method
+        # ------------------------------------------------------------------
+        if self.parallelization == "multiprocessing":
+            # Minimal, picklable context passed to each worker process
+            context = {"site": self.site,
+                       "calendar": self.calendar,
+                       "time": self.time,
+                       "decentral_device_data": self.decentral_device_data,
+                       "resultPath": self.resultPath,
+                       "initial_day": self.initial_day,
+                       "design_building_data": self.design_building_data}
+            # "spawn" is required on Windows and safest cross-platform
+            mp_ctx = mp.get_context("spawn")
+            executor = ProcessPoolExecutor(max_workers=max_workers, mp_context=mp_ctx)
+            worker_function = lambda ex, building: ex.submit(_run_demand_worker, context, building, calcUserProfiles,
+                                                             saveUserProfiles, gen_cars)
+            parallelization_method = "multiprocessing"
+        elif self.parallelization == "threading":
+            executor = ThreadPoolExecutor(max_workers=max_workers)
+            worker_function = lambda ex, building: ex.submit(self.generate_demands_worker, building,
+                                                             calcUserProfiles, saveUserProfiles, gen_cars)
+            parallelization_method = "threading"
 
-        with ProcessPoolExecutor(max_workers=max_threads, mp_context=mp_ctx) as ex:
-            future_map = {
-                ex.submit(_run_demand_worker, context, building, calcUserProfiles, saveUserProfiles, gen_cars):
-                    building["unique_name"]
-                for building in self.district
-            }
-
+        # ------------------------------------------------------------------
+        # Execute workers
+        # ------------------------------------------------------------------
+        with executor as ex:
+            future_map = {worker_function(ex, building): building["unique_name"] for building in self.district}
             for fut in as_completed(future_map):
                 unique_name = future_map[fut]
                 result = fut.result()
@@ -1190,37 +1147,39 @@ class Datahandler:
                 results.append(result)
                 self.save_progress()
 
-                print(f"building {self.buildings_completed}/{self.buildings_total} calculated "
-                      f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): {unique_name}")
+                print(f"building "f"{self.buildings_completed}/"f"{self.buildings_total} calculated "
+                    f"({self.buildings_completed / self.buildings_total * 100:.1f}%): "f"{unique_name}")
 
-        # Write results back to district objects (unchanged).
+        # ------------------------------------------------------------------
+        # Write results back to district
+        # ------------------------------------------------------------------
         for result in results:
             building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
+
             building["user"].elec = result["elec"]
             building["user"].dhw = result["dhw"]
             building["user"].dhw_minutely = result.get("dhw_minutely")
             building["user"].cooling = result["cooling"]
             building["user"].heat = result["heating"]
             building["user"].occ = result["occ"]
-            building["user"].EV_carcharging_ondemand = result["EV_carcharging_ondemand"]
+            building["user"].EV_carcharging_ondemand = (result["EV_carcharging_ondemand"])
             building["user"].EV_carprofile = result["EV_carprofile"]
             building["user"].ev_capacity = result.get("ev_capacity")
             building["user"].ice_carprofile = result["ice_carprofile"]
             building["user"].gains = result["gains"]
             building["user"].nb_units = result["nb_units"]
             building["user"].nb_occ = result["nb_occ"]
-            building["user"].individual_car_profiles = result.get("individual_car_profiles", [])
+            building["user"].individual_car_profiles = result.get("individual_car_profiles", [],)
             building["envelope"] = result["envelope"]
             building_features = building["buildingFeatures"].copy()
             building_features["night_setback"] = result["night_setback"]
             building["buildingFeatures"] = building_features
 
         self.save_progress()
-        print("Finished generating demands with multiprocessing!")
-
+        print(f"Finished generating demands with "f"{parallelization_method}!")
         # Combine demand profiles for mixed-use buildings
         self.combine_mixed_building_demands(saveUserProfiles)
-    """
+
 
     def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles, gen_cars = True):
         """
