@@ -2690,6 +2690,17 @@ class Datahandler:
 
             value = str(heating_system_raw).strip()
 
+            is_custom_optimization = (
+                "," in value
+                or (value.startswith("[") and value.endswith("]"))
+                or (value.startswith("(") and value.endswith(")"))
+                or (value.startswith("{") and value.endswith("}"))
+                or value.lower().startswith(("opt:", "opt[", "opt(", "opt{"))
+            )
+
+            if is_custom_optimization:
+                return value
+
             mapping = {
                 "Gaskessel": "BOI",
                 "Fernwärme": "DH",
@@ -2701,7 +2712,6 @@ class Datahandler:
                 "Wasserstoffkessel": "H2BOI",
                 "opt": "opt",
                 "opt_geg": "opt_geg",
-                "opt_custom": "opt_custom",
                 "heat_grid": "heat_grid",
             }
 

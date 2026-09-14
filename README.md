@@ -109,6 +109,22 @@ If you use **Option B**, the Wärmekataster CSV must contain at least these colu
 - `number_floors`
 - `heating_system`
 
+The `heating_system` column must contain one of the following values:
+
+| Value in Wärmekataster CSV              | Meaning                                                                  |
+|-----------------------------------------|-------------------------------------------------------------------------|
+| `Gaskessel`                             | Gas boiler                                                                       |
+| `Fernwärme`                             | External/existing district heating supply; no local heat network or Energy Hub is designed |
+| `Blockheizkraftwerk`                    | Combined heat and power unit                                                     |
+| `Wärmepumpe`                            | Heat pump                                                                        |
+| `Biomassekessel`                        | Biomass boiler (pellets)                                                         |
+| `Ölkessel`                              | Oil boiler                                                                       |
+| `Wasserstoffkessel`                     | Hydrogen boiler                                                                  |
+| `opt`                                   | Optimize the building heating system from all allowed decentralized technologies |
+| `opt_geg`                               | Optimize using the GEG-compatible technology set                                 |
+| `HP,BBOI`  | Optimize using only the listed decentralized technologies                        |
+| `heat_grid`                             | Local modeled heat network; pipes and the Energy Hub are designed by the tool    |
+
 Notes (based on mapping checks/logic):
 - Buildings are filtered out if values are missing/invalid or if:
   - `gross_floor_area` is missing/≤0 or > 20000
@@ -176,8 +192,8 @@ Provide a scenario CSV (e.g., based on the template) with one row per building.
   - `FC` — Fuel cell CHP (fuel-cell-based combined heat and power)
   - `BOI` — Boiler (generic; usually gas/oil depending on scenario assumptions)
   - `STC` — Solar thermal collectors (typically as DHW/space-heating support)
-  - `heat_grid` — Connection to a district heating network --> automatically creats district heating
-  - `DH` — District heating network connection (Fernwärme)
+  - `heat_grid` — Local modeled heat network; pipes and the Energy Hub are designed by the tool
+  - `DH` — External/existing district heating supply (Fernwärme), without local heat-network or Energy Hub design
   - `BBOI` — Biomass boiler
   - `OBOI` — Oil boiler
   - `H2BOI` — Hydrogen boiler
