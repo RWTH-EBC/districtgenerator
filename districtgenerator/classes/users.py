@@ -12,6 +12,7 @@ import richardsonpy.classes.appliance as app_model
 import richardsonpy.classes.lighting as light_model
 import districtgenerator.functions._5R1C as heating_5R1C
 import districtgenerator.functions._7R2C as heating_7R2C
+import districtgenerator.functions._FourElements as heating_FourElements
 from districtgenerator.classes.non_residential import GenericNonResidential
 
 RES_BUILDINGS = {"SFH", "TH", "MFH", "AB"}
@@ -743,6 +744,8 @@ class Users:
             heating = heating_5R1C
         elif thermal_model == "7R2C":
             heating = heating_7R2C
+        elif thermal_model == "FourElements":
+            heating = heating_FourElements
         else:
             raise ValueError(f"Unknown thermal_model_type: {thermal_model}")
 

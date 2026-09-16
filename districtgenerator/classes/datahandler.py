@@ -17,6 +17,7 @@ import holidays as hol
 from teaser.project import Project
 from .envelope_5R1C import Envelope as Envelope_5R1C
 from .envelope_7R2C import Envelope as Envelope_7R2C
+from .envelope_FourElements import Envelope as Envelope_FourElements
 from .solar import Sun
 from .users import Users
 from .system import BES
@@ -1009,6 +1010,9 @@ class Datahandler:
                 elif self.design_building_data["thermal_model_type"] == "7R2C":
                     Envelope = Envelope_7R2C
                     building["thermal_model"] = "7R2C"
+                elif self.design_building_data["thermal_model_type"] == "FourElements":
+                    Envelope = Envelope_FourElements
+                    building["thermal_model"] = "FourElements"
                 else:
                     raise ValueError(f"Unknown thermal_model_type: {self.design_building_data['thermal_model_type']}")
 
@@ -1240,6 +1244,11 @@ class Datahandler:
         if building.get("thermal_model") == "5R1C":
             building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
         elif building.get("thermal_model") == "7R2C":
+            # Compute VDI6007 params
+            building["envelope"]._VDI6007_params()
+            # Compute equivalent temperature
+            building["envelope"].calc_theta_eq(self.site, building["user"].gains)
+        elif building.get("thermal_model") == "FourElements":
             # Compute VDI6007 params
             building["envelope"]._VDI6007_params()
             # Compute equivalent temperature
@@ -2436,6 +2445,9 @@ def _run_demand_worker(context, building, calcUserProfiles, saveUserProfiles, ge
     if building.get("thermal_model") == "5R1C":
         building["envelope"].calcNormativeProperties(site["SunRad"], building["user"].gains)
     elif building.get("thermal_model") == "7R2C":
+        building["envelope"]._VDI6007_params()
+        building["envelope"].calc_theta_eq(site, building["user"].gains)
+    elif building.get("thermal_model") == "FourElements":
         building["envelope"]._VDI6007_params()
         building["envelope"].calc_theta_eq(site, building["user"].gains)
     else:
