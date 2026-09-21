@@ -13,7 +13,7 @@ def example7_decentral_scenario_evaluation():
     # Initialize District
     # To use specific parameters, you can provide your own .env.CONFIG file in the data/env folder (see e6)
     # Refer to it like this: Datahandler(env_path=".env.CONFIG.EXAMPLE") and put it in ./data
-    data = Datahandler(scenario_name = "example_decentral", env_path=".env.CONFIG.FREIBURG")
+    data = Datahandler(scenario_name = "example_decentral", env_path=".env.CONFIG.EXAMPLE")
 
     # We directly generate a complete district.
     # Note that now more information in the .csv file are needed.
@@ -34,7 +34,7 @@ def example7_decentral_scenario_evaluation():
     # the number of occupants in the building. The electric vehicle capacity is choosen based on the proportion
     # of electric vehicles in Germany (see data/car_segment.json).
     # In addition, you can choose between the following charging behaviors: on_demand, intelligent and bi_directional
-    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False)
+    data.generateDistrictComplete(calcUserProfiles=True, saveUserProfiles=False, gen_cars=True, designEnergyhub=True)
 
     # Calculation of the devices' optimal operation
     data.optimizationClusters()

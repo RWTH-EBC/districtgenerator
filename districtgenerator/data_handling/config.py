@@ -2,14 +2,10 @@ from dataclasses import field
 from pathlib import Path
 import os
 
-from typing import Any, Dict, Optional, Set, Tuple, Type, ClassVar
+from typing import Dict, Optional, Set, Tuple, ClassVar
 
 from pydantic import BaseModel, Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
-from pydantic_settings.sources import PydanticBaseSettingsSource
-
-from dotenv import dotenv_values
-
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ### Helper functions ###
 def parse_float_list(value: any) -> list[float]:
@@ -156,9 +152,9 @@ class DesignBuildingConfig(BaseSettings):
 
     # Currently not in .env.CONFIG as info is static:
     # Abbreviations of the selectable building types.
-    buildings_short: list = field(default_factory=lambda: ["SFH", "MFH", "TH", "AB","OB","SC","GS", "RE", "MFH+GR", "AB+GR", "MFH+RE", "AB+RE"])
+    buildings_short: list = field(default_factory=lambda: ["SFH", "MFH", "TH", "AB","OB","SC","GS", "RE", "UNI", "HOSPITAL", "CULTURE", "SPORT", "RETAIL", "WORKSHOP"])
     # Names of the four selectable building types.
-    buildings_long: list = field(default_factory=lambda: ["single_family_house", "multi_family_house", "terraced_house", "apartment_block", "office", "school", "grocery_store", "restaurant", "multi_family_house+grocery_store", "apartment_block+grocery_store", "multi_family_house+restaurant", "apartment_block+restaurant"])
+    buildings_long: list = field(default_factory=lambda: ["single_family_house", "multi_family_house", "terraced_house", "apartment_block", "office", "school", "grocery_store", "restaurant", "research_building", "healthcare_building", "cultural_building", "sports_hall", "retail_building", "workshop_building"])
     # Abbreviations of the retrofit levels.
     retrofit_short: list = field(default_factory=lambda: [0, 1, 2])
     # Names of the retrofit levels.
@@ -172,12 +168,12 @@ class DesignBuildingConfig(BaseSettings):
     # Names of the construction types of the non residential buildings
     construction_type_long: list = field(default_factory=lambda: ["Light", "Medium", "Heavy"])
     # The additional power required by the heating system to meet the domestic hot water demand per square meter in the building types:
-    # SFH, MFH, TH, AB, OB, SC, GS, and RE.
+    # SFH, MFH, TH, AB, OB, SC, GS, and RE, and UNI, HOSPITAL, CULTURE, SPORT, RETAIL, WORKSHOP.
     # Source: SIA2024 Standard-Nutzungsbedingungen für die Energie- und Gebäudetechnik"
-    dhwpower: list = field(default_factory=lambda: [3, 3, 3, 3, 7.1, 8.6, 7.2, 24])
-    # Mean drawoff DHW volume per day and person for each building type (SFH, MFH, TH, AB, OB, SC, GS, RE).
+    dhwpower: list = field(default_factory=lambda: [3, 3, 3, 3, 7.1, 8.6, 7.2, 24, 5.8, 6.4, 12, 30.7, 1.9, 0.95])
+    # Mean drawoff DHW volume per day and person for each building type (SFH, MFH, TH, AB, OB, SC, GS, RE, UNI, HOSPITAL, CULTURE, SPORT, RETAIL, WORKSHOP).
     # Source: 12831-3/A100 Table NA.4 for residential buildings and SIA2024 Standard-Nutzungsbedingungen für die Energie- und Gebäudetechnik for non-residential buildings
-    mean_drawoff_vol_per_day: list = field(default_factory=lambda: [40, 40, 40, 40, 6, 1.5, 1.5, 8])
+    mean_drawoff_vol_per_day: list = field(default_factory=lambda: [40, 40, 40, 40, 6, 1.5, 1.5, 8, 2, 60, 2, 100, 2, 3])
 
     model_config = SettingsConfigDict(
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
@@ -569,7 +565,7 @@ class EHDOConfig(BaseSettings):
     enable_supply_limit_gas: bool = False   # Enable limit annual gas import, bool.
 
     # Other options
-    peak_dem_met_conv: bool = True  # Meet peak demands of unclustered demands, bool.
+    peak_dem_met_conv: bool = True  # Meet peak demands without utilizing fluctuating sources (STC, PV, WT), bool.
     co2_el_feed_in: float = 0       #! CO₂ emission credit for electricity feed-in kg/kWh (Move to EcoConfig)
     co2_gas_feed_in: float = 0      #! CO₂ emission credit for gas feed-in kg/kWh (Move to EcoConfig)
     n_clusters: int = 12            # Number of design days.
@@ -584,7 +580,7 @@ class EHDOConfig(BaseSettings):
 
 class CalendarConfig(BaseSettings):
     """
-    CalenderConfig class to manage calendar-related parameters for the district generator.
+    CalendarConfig class to manage calendar-related parameters for the district generator.
     This class contains parameters related to holidays and initial days for different years.
     """
     consider_heating_period: bool = True    # Consider heating period in the clustering (True) or calculate whole year (False)
@@ -601,14 +597,193 @@ class CalendarConfig(BaseSettings):
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
     )
 
-class ScenarioName(BaseSettings):
+class Scenario(BaseSettings):
     """
-    ScenarioName class to manage the scenario name for the district generator.
+    Scenario class to manage the scenario for the district generator and type of parallelization.
     """
     scenario_name: str = 'base_scenario' # default value for scenario name
+    parallelization: str = 'multiprocessing' # default value for parallelization type, options: 'multiprocessing', 'threading'
 
     model_config = SettingsConfigDict(
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
+    )
+
+class ReportConfig(BaseSettings):
+    """
+    ReportConfig class to manage the configuration for report generation in the districtgenerator.
+    Configuration parameters for the generation of the Quartiersenergieausweis (PDF certificate).
+    Change Layout, as well as colors and fonts to match corporate design.
+    Colors can be defined as HEX codes or RGB tuples. HEX codes will be automatically converted to RGB tupels. RGB tuples should be in the range 0-255 for each value.
+    """
+
+    # Layout
+    pagesize: str = "A4" # Alternatives: A3, A4; Layout optimized for A4 Format
+
+    # Language
+    language: str = "en" # Language for the report, selected between: "de" (German) and "en" (English).    
+
+    kpi_save_type: str = "xlsx" # File format for saving all KPIs, selected between: "xlsx" and "csv".
+
+    # --- Colors Dictionary ---
+    colors: dict = {} 
+    colors__primary_color: str | Tuple[float, float, float] = "#368427" # Main color of the Report, Used for Frames and Lines
+    colors__secondary_color: str | Tuple[float, float, float] = "#86A91A" # Secondary color of the report e.g. used for bars in graphs
+    colors__background: str | Tuple[float, float, float] = "#FFFFFF" # Color for the background of the report and for background in tables
+    colors__text: str | Tuple[float, float, float] = "#000000" # Color of the text and titles in report 
+    colors__text_light: str | Tuple[float, float, float] = "#3C3C3C" # Color of the text for additional information that is supposed to be less prominent
+
+    # Colors for energy types in graphs
+    colors__energy__electricity: str | Tuple[float, float, float] = "#00551F"
+    colors__energy__heating: str | Tuple[float, float, float] = "#86A91A"
+    colors__energy__dhw: str | Tuple[float, float, float] = "#368427"
+    colors__energy__cooling: str | Tuple[float, float, float] = "#7ABAD6"
+    colors__energy__ev: str | Tuple[float, float, float] = "#663399"
+
+    # Colors for energy sources and cost categories in graphs
+    colors__source__electricity: str | Tuple[float, float, float] = "#00551F" # Grid electricity
+    colors__source__gas: str | Tuple[float, float, float] = "#F39C12" # Natural gas
+    colors__source__oil: str | Tuple[float, float, float] = "#344EFB" # Heating oil
+    colors__source__waste: str | Tuple[float, float, float] = "#8B5A2B" # Waste
+    colors__source__biomass: str | Tuple[float, float, float] = "#27AE60" # Biomass
+    colors__source__district_heat: str | Tuple[float, float, float] = "#C0392B" # District heating
+    colors__source__hydrogen: str | Tuple[float, float, float] = "#2980B9" # Hydrogen
+    colors__source__waste_heat: str | Tuple[float, float, float] = "#E67E22" # Waste heat
+
+    # Colors for fixed costs and revenues in financial charts
+    colors__source__eh_fixed: str | Tuple[float, float, float] = "#2C3E50" # Central energy hub fixed costs
+    colors__source__decentral_fixed: str | Tuple[float, float, float] = "#7F8C8D" # Decentralized fixed costs
+    colors__source__revenue_feed_in_el: str | Tuple[float, float, float] = "#F10F84" # Revenue from electricity feed-in
+
+    # Colors for district layout:
+    colors__layout__building_connected: str | Tuple[float, float, float] = "#2ECC71" # Color for buildings connected to the heatgrid
+    colors__layout__building_not_connected: str | Tuple[float, float, float] = "#95A5A6" # Color for buildings that are not connected to the heatgrid
+    colors__layout__eh: str | Tuple[float, float, float] = "#E74C3C" # Color for the energy hub
+    colors__layout__pipe: str | Tuple[float, float, float] = "#3498DB" # Color for the pipes in the district layout graph
+
+    # Sizes of the elements in the district layout visualization
+    sizes: dict = {}
+    sizes__building: float = 7 # Radius of the circles representing buildings
+    sizes__eh: float = 10 # Radius of the circle representing the energy hub
+    sizes__pipe: float = 5 # Thickness of the lines representing the pipes in the district layout graph
+    sizes__label: int = 8 # Font size for labels in the district layout graph
+    sizes__legend_text: int = 9 # Font size for text in legends in the district layout graph
+
+    # Options to show or hide elements in the district layout visualization
+    layout_options: dict = {}
+    layout_options__show_building_labels: bool = True # Whether to show the labels for the buildings and the Energy Hub in the district layout graph, bool
+    layout_options__show_pipe_labels: bool = True # Whether to show labels for the pipes in the district layout graph, bool
+
+    # --- Fonts Dictionary ---
+    fonts: dict = {}
+    fonts__regular: str = 'Helvetica'
+    fonts__bold: str = 'Helvetica-Bold'
+
+    #Sizes
+    fonts__sizes__title: int = 20
+    fonts__sizes__section_title: int = 16
+    fonts__sizes__subsection_title: int = 14
+    fonts__sizes__highlighted: int = 12
+    fonts__sizes__body: int = 12
+    fonts__sizes__small: int = 10
+    fonts__sizes__table: float = 11.5
+    fonts__sizes__axis_values: int = 8
+    fonts__sizes__dense: int = 7
+    fonts__sizes__page_number: int = 9
+
+    def parse_none_string(cls, v):
+        """Convert string 'None' to Python None"""
+        if v == "None" or v == "null" or v == "":
+            return None
+        return v
+
+    @model_validator(mode='after')
+    def process_config(self) -> 'ReportConfig':
+        """Translate HEX to RGB and build all nested dictionaries."""
+        
+        field_names = list(self.__dict__.keys())
+        
+        # 1. Translate Colors first
+        for field_name in field_names:
+            if field_name.startswith('colors__'):
+                val = getattr(self, field_name)
+                
+                # Translate color inputs to RGB tuples in the range 0-1
+                # Case A: It's a string 
+                if isinstance(val, str):
+                    val = val.strip()
+                    
+                    # HEX Code
+                    if val.startswith('#'):
+                        hex_code = val.lstrip('#')
+                        if len(hex_code) == 6:
+                            rgb_tuple = tuple(int(hex_code[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+                            setattr(self, field_name, rgb_tuple)
+                        else:
+                            raise ValueError(f"Invalid HEX code '{val}' for field {field_name}")
+                    
+                    # stringified Tuple like "(54, 132, 39)" or "54, 132, 39"
+                    else:
+                        clean_val = val.replace('(', '').replace(')', '').replace('[', '').replace(']', '')
+                        parts = [float(p.strip()) for p in clean_val.split(',')]
+                        if len(parts) == 3:
+                            if any(p < 0 or p > 255 for p in parts):
+                                raise ValueError(f"RGB values must be between 0 and 255 for field {field_name}. Got: {val}")
+                            if any(p > 1.0 for p in parts):
+                                rgb_tuple = tuple(p / 255.0 for p in parts)
+                            else:
+                                rgb_tuple = tuple(parts)
+                            setattr(self, field_name, rgb_tuple)
+                        else:
+                            raise ValueError(f"RGB input must have exactly 3 values. Got: {val}")
+                
+                # Case B: It's already a Tuple/List
+                elif isinstance(val, (tuple, list)):
+                    if len(val) == 3:
+                        if any(p > 1.0 for p in val):
+                            if any(p < 0 or p > 255 for p in val):
+                                raise ValueError(f"RGB values must be between 0 and 255 for field {field_name}. Got: {val}")
+                            rgb_tuple = tuple(float(p) / 255.0 for p in val)
+                            setattr(self, field_name, rgb_tuple)
+                        else:
+                            setattr(self, field_name, tuple(float(p) for p in val))
+                    else:
+                        raise ValueError(f"RGB tuple must have exactly 3 values. Got: {val}")
+
+        # 2. Build nested dictionaries (Supports both colors and fonts)
+        for field_name in field_names:
+            # Skip if we already deleted this attribute in a previous iteration
+            if not hasattr(self, field_name):
+                continue
+
+            if isinstance(getattr(self, field_name), dict):
+                if getattr(self, field_name) == {}:
+                    target_dict = {}
+                    prefix = f"{field_name}__"
+                    
+                    for attr_name in field_names:
+                        if attr_name.startswith(prefix) and hasattr(self, attr_name):
+                            key_path = attr_name[len(prefix):]
+                            keys = key_path.split('__')
+                            
+                            current_dict = target_dict
+                            for i, key in enumerate(keys):
+                                if i == len(keys) - 1:
+                                    current_dict[key] = getattr(self, attr_name)
+                                else:
+                                    if key not in current_dict:
+                                        current_dict[key] = {}
+                                    current_dict = current_dict[key]
+                    
+                    setattr(self, field_name, target_dict)
+                    
+                    for attr_name in field_names:
+                        if attr_name.startswith(prefix) and hasattr(self, attr_name):
+                            delattr(self, attr_name)
+                            
+        return self
+
+    model_config = SettingsConfigDict(
+        extra='ignore' # Ignores all other variables in the .env.CONFIG file
     )
 
 class DecentralDeviceConfig(BaseSettings):
@@ -749,7 +924,7 @@ class DecentralDeviceConfig(BaseSettings):
     # TES parameters (Thermal Energy Storage)
     TES__soc_min: float = 0.0  # Minimum state of charge.
     TES__soc_max: float = 1.0  # Maximum state of charge.
-    TES__eta_standby: float = 0.97  # Standby hourly efficiency (accounts for self-discharge).
+    TES__eta_standby: float = 0.998  # Standby hourly efficiency (accounts for self-discharge).
     TES__eta_ch: float = 1.0  # Charging and discharging efficiency.
     TES__coeff_ch: float = 10000.0  # Charging and discharging coefficient in Watt per Watthour.
     TES__init: float = 0.5  # Initial state of charge.
@@ -761,9 +936,9 @@ class DecentralDeviceConfig(BaseSettings):
     TES: dict = {}
 
     # BAT parameters (Battery Storage)
-    BAT__soc_min: float = 0.0  # Minimum state of charge.
+    BAT__soc_min: float = 0.1  # Minimum state of charge.
     BAT__soc_max: float = 0.95  # Maximum state of charge.
-    BAT__eta_standby: float = 0.97  # Standby hourly efficiency (accounts for self-discharge).
+    BAT__eta_standby: float = 0.99999  # Standby hourly efficiency (accounts for self-discharge).
     BAT__eta_ch: float = 0.97  # Charging and discharging efficiency.
     BAT__coeff_ch: float = 0.8  # Charging and discharging coefficient in Watt per Watthour.
     BAT__init: float = 0.5  # Initial state of charge.
@@ -785,6 +960,29 @@ class DecentralDeviceConfig(BaseSettings):
     EV__cost_om: float = 0.0  # Operation and maintenance costs as a fraction of total investment costs (percentage).
     EV__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     EV: dict = {}
+
+    # EH_DHW parameters (instantaneous Electric Heating for Domestic Water) #TODO: Change for plausible values
+    EH_DHW__eta_th: float = 1.0  # Thermal efficiency.
+    EH_DHW__life_time: int = 25  # Maximum life time in years.
+    EH_DHW__inv_base: float = 40.0  # Unsubsidized investment in €/kW.
+    EH_DHW__cost_om: float = 0.0096  # Operation and maintenance costs as a fraction of investment costs in 1/year.
+    EH_DHW__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    EH_DHW: dict = {}
+
+    # TES_DHW parameters (DHW Thermal Energy Storage) #TODO: Change for plausible values
+    TES_DHW__soc_min: float = 0.0  # Minimum state of charge.
+    TES_DHW__soc_max: float = 1.0  # Maximum state of charge.
+    TES_DHW__eta_standby: float = 0.998  # Standby hourly efficiency (accounts for self-discharge).
+    TES_DHW__eta_ch: float = 1.0  # Charging and discharging efficiency.
+    TES_DHW__coeff_ch: float = 10000.0  # Charging and discharging coefficient in Watt per Watthour.
+    TES_DHW__init: float = 0.5  # Initial state of charge.
+    TES_DHW__T_diff_max: int = 35  # Maximum temperature difference in degree Celsius.
+    TES_DHW__T_DHW_needed: int = 50 # Needed DHW temperature in °C.
+    TES_DHW__life_time: int = 20  # Maximum life time in years.
+    TES_DHW__inv_base: float = 11.0  # Unsubsidized investment in €/liter.
+    TES_DHW__cost_om: float = 0.013  # Operation and maintenance costs as a fraction of investment costs in 1/year.
+    TES_DHW__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    TES_DHW: dict = {}
 
     @model_validator(mode='after')
     def build_device_dicts(self) -> 'DecentralDeviceConfig':
@@ -931,10 +1129,11 @@ class CentralDeviceConfig(BaseSettings):
     GHP: dict = {}
 
     # HP parameters (Heat Pump)
-    HP__feasible: bool = False  # Should this be considered for the central optimization.
-    HP__CCOP_feasible: bool = True  # Should this be considered for the central optimization (constant COP).
-    HP__ASHP_feasible: bool = False  # Should this be considered for the central optimization (air source).
-    HP__CSV_feasible: bool = False  # Should this be considered for the central optimization (CSV data).
+    HP__feasible: bool = False  # Is an Heat Pump feasible?
+    HP__CCOP_feasible: bool = True  # Should it be modeled with a constant COP?
+    HP__ASHP_carnot_feasible: bool = False  # Should this be modeled as an Air Source Heat Pump with Carnot efficiency?
+    HP__ASHP_model_feasible: bool = False  # COP model for ammonia large scale heat pumps based on DOI: 10.18462/iir.gl.2018.1386
+    HP__CSV_feasible: bool = False  # Should this be modeled with a CSV file for the COP?
     HP__inv_base: float = 1110  # Unsubsidized investment in €/kW.
     HP__life_time: int = 20  # Maximum life time in years.
     HP__cost_om: float = 0.033  # Cost of operation and maintenance as a percentage of investment.
@@ -945,16 +1144,6 @@ class CentralDeviceConfig(BaseSettings):
     HP__COP_const: float = 4  # Constant Coefficient of Performance (COP).
     HP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     HP: dict = {}
-
-    # AirHP parameters (Air Source Heat Pump)
-    AirHP__feasible: bool = True  # Should this be considered for the central optimization.
-    AirHP__life_time: int = 25  # Maximum life time in years.
-    AirHP__inv_base: float = 1110  # Unsubsidized investment in €/kWth.
-    AirHP__cost_om: float = 0.033  # Cost of operation and maintenance as a percentage of investment.
-    AirHP__min_cap: float = 0  # Minimum capacity in kWth.
-    AirHP__max_cap: float = 20000  # Maximum capacity in kWth.
-    AirHP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
-    AirHP: dict = {}
 
     # GroundHP parameters (Ground Source Heat Pump)
     GroundHP__feasible: bool = False  # Should this be considered for the central optimization.
@@ -978,7 +1167,9 @@ class CentralDeviceConfig(BaseSettings):
     EB: dict = {}
 
     # CC parameters (Chiller)
-    CC__feasible: bool = False  # Should this be considered for the central optimization.
+    CC__feasible: bool = False  # CC using a constant COP.
+    CC__CCOP_feasible: bool = True  # Should it be modeled with a constant COP?
+    CC__ASCC_model_feasible: bool = False  # COP model for ammonia large scale heat pumps based on DOI: 10.18462/iir.gl.2018.1386
     CC__inv_base: float = 700  # Unsubsidized investment in €/kW.
     CC__COP: float = 3.5  # Coefficient of Performance (COP).
     CC__life_time: int = 20  # Maximum life time in years.
@@ -987,16 +1178,6 @@ class CentralDeviceConfig(BaseSettings):
     CC__max_cap: float = 500  # Maximum capacity in kW.
     CC__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     CC: dict = {}
-
-    # AirCC parameters (Air Cooled Chiller)
-    AirCC__feasible: bool = False  # Should this be considered for the central optimization.
-    AirCC__life_time: int = 20  # Maximum life time in years.
-    AirCC__inv_base: float = 700  # Unsubsidized investment in €/kW.
-    AirCC__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
-    AirCC__min_cap: float = 0  # Minimum capacity in kW.
-    AirCC__max_cap: float = 500  # Maximum capacity in kW.
-    AirCC__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
-    AirCC: dict = {}
 
     # AC parameters (Absorption Chiller)
     AC__feasible: bool = False  # Should this be considered for the central optimization.
@@ -1186,6 +1367,45 @@ class CentralDeviceConfig(BaseSettings):
                             delattr(self, attr_name)
 
         return self
+    
+    @model_validator(mode='after')
+    def validate_hp_cc_configuration(self) -> 'CentralDeviceConfig':
+        """Validate HP model selection after dictionaries are built."""
+        hp_dict = getattr(self, 'HP', {})
+        cc_dict = getattr(self, 'CC', {})
+        
+        if not hp_dict:
+            raise ValueError("HP configuration is missing. Ensure that the HP dictionary is built correctly.")
+        if not cc_dict:
+            raise ValueError("CC configuration is missing. Ensure that the CC dictionary is built correctly.")
+        
+        hp_flags = [
+            hp_dict.get('CCOP_feasible', False),
+            hp_dict.get('ASHP_carnot_feasible', False),
+            hp_dict.get('ASHP_model_feasible', False),
+            hp_dict.get('CSV_feasible', False)
+        ]
+        cc_flags = [
+            cc_dict.get('CCOP_feasible', False),
+            cc_dict.get('ASCC_model_feasible', False)
+        ]
+        
+        active_count_hp = sum(hp_flags)
+        active_count_cc = sum(cc_flags)
+
+        if hp_dict['feasible'] and active_count_hp > 1:
+            raise ValueError("Only one HP model configuration can be True.")
+            
+        if hp_dict['feasible'] and active_count_hp == 0:
+            raise ValueError("If HP is feasible, at least one HP model configuration must be True.")
+        
+        if cc_dict['feasible'] and active_count_cc > 1:
+            raise ValueError("Only one CC model configuration can be True.")
+        
+        if cc_dict['feasible'] and active_count_cc == 0:
+            raise ValueError("If CC is feasible, at least one CC model configuration must be True.")
+            
+        return self
 
     model_config = SettingsConfigDict(
         env_prefix="C_",
@@ -1227,8 +1447,11 @@ class GlobalConfig(BaseModel):
         Configuration parameters for central devices in the district.
     calendar : CalendarConfig
         Configuration parameters for calendar settings, such as holidays and initial days.
-    scenario_name : ScenarioName
+    scenario : Scenario
         The name of the scenario being configured, used for identification and output purposes.
+        And type of parallelization for generating profiles
+    report : ReportConfig
+        Configuration parameters for reporting and output generation, including formats and paths.
 
     """
     location: 'LocationConfig'
@@ -1242,8 +1465,8 @@ class GlobalConfig(BaseModel):
     decentral: 'DecentralDeviceConfig'
     central: 'CentralDeviceConfig'
     calendar: 'CalendarConfig'
-    scenario_name: ScenarioName
-
+    scenario: 'Scenario'
+    report: 'ReportConfig'
 class Settings(BaseSettings):
     """
     Settings class to manage global configuration parameters.
@@ -1308,5 +1531,6 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         decentral=DecentralDeviceConfig(_env_file=env_file_path),
         central=CentralDeviceConfig(_env_file=env_file_path),
         calendar=CalendarConfig(_env_file=env_file_path),
-        scenario_name = ScenarioName(_env_file=env_file_path)
+        scenario=Scenario(_env_file=env_file_path),
+        report=ReportConfig(_env_file=env_file_path)
     )

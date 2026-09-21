@@ -5,16 +5,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>districtgenerator.classes.users &mdash; DistrictGenerator 0.1.0 documentation</title>
+  <title>districtgenerator.classes.users &mdash; DistrictGenerator 0.1.2 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
-      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
 
   
       <script src="../../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="../../../_static/documentation_options.js?v=01f34227"></script>
-      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
-      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../../_static/documentation_options.js?v=92734c54"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" /> 
@@ -73,88 +73,178 @@
              
   <h1>Source code for districtgenerator.classes.users</h1><div class="highlight"><pre>
 <span></span><span class="c1"># -*- coding: utf-8 -*-</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">os</span><span class="o">,</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">statistics</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">random</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">rd</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.profils</span><span class="w"> </span><span class="kn">import</span> <span class="n">Profiles</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.profiles</span><span class="w"> </span><span class="kn">import</span> <span class="n">Profiles</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">power_simulation_non_residential</span> <span class="k">as</span> <span class="n">wrap_light</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">richardsonpy</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">richardsonpy.classes.stochastic_el_load_wrapper</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">wrap</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">richardsonpy.classes.appliance</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">app_model</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">richardsonpy.classes.lighting</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">light_model</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">districtgenerator.functions.heating_profile_5R1C</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">heating</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">districtgenerator.functions._5R1C</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">heating_5R1C</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">districtgenerator.functions._7R2C</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">heating_7R2C</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">districtgenerator.classes.non_residential</span><span class="w"> </span><span class="kn">import</span> <span class="n">GenericNonResidential</span>
+
+<span class="n">RES_BUILDINGS</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"SFH"</span><span class="p">,</span> <span class="s2">"TH"</span><span class="p">,</span> <span class="s2">"MFH"</span><span class="p">,</span> <span class="s2">"AB"</span><span class="p">}</span>
 
 <div class="viewcode-block" id="Users">
 <a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">Users</span><span class="p">():</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Building Users class describing the number of occupants and their configs</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Users</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Building Users class describing the number of occupants and their configs.</span>
 
-<span class="sd">    Attributes:</span>
+<span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">        - building (object): buildings objects of TEASER project</span>
-<span class="sd">        - area (int): Floor area of different building types</span>
-<span class="sd">        - nb_flats (int): number of flats in building</span>
-<span class="sd">        - annual_el_demand (array): annual elictricity consumption in dependency of the building type and the number of occupants</span>
-<span class="sd">        - lighting_index (int): This index defines the lighting configuration of the houshold.</span>
-<span class="sd">        - el_wrapper (object): This objects holdes information about the lighting and appliance configuration.</span>
-<span class="sd">        - nc_occ (list): list with the number of occupants for each flat of the current building.</span>
-<span class="sd">        - occ (array): occupancy profile for each flat of the current building.</span>
-<span class="sd">        - dhw (array): drinking hot water profile for each building.</span>
-<span class="sd">        - elec (array): electrical demand for each building.</span>
-<span class="sd">        - gains (array): internal gains for each building.</span>
-<span class="sd">        - heat (array): heat demand for each building.</span>
-<span class="sd">        - cooling (array): cooling demand for each building.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">building</span><span class="p">,</span> <span class="n">area</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Initialize the Users object</span>
-<span class="sd">        &quot;&quot;&quot;</span>
+<span class="sd">    building : string</span>
+<span class="sd">        Building type according to TABULA database.</span>
+<span class="sd">    area : integer</span>
+<span class="sd">        Total floor area of the building [m²].</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    building : string</span>
+<span class="sd">        Building type according to TABULA database.</span>
+<span class="sd">    nb_flats : integer</span>
+<span class="sd">        Number of flats in building.</span>
+<span class="sd">    nb_rooms : integer</span>
+<span class="sd">        Number of rooms in the building</span>
+<span class="sd">    nb_main_rooms : integer</span>
+<span class="sd">        Number of main rooms (= working rooms) in the Building. For example the office rooms in an office building</span>
+<span class="sd">    total_main_area : float</span>
+<span class="sd">        The Area of the main rooms</span>
+<span class="sd">    annual_el_demand_zones : dict</span>
+<span class="sd">        The annual electricity demand of each zone of the building, without considering the electricity needed for lighting</span>
+<span class="sd">    annual_el_demand_per_flat : array-like</span>
+<span class="sd">        Annual electricity consumption in dependency of the building type and the number of occupants.</span>
+<span class="sd">    lighting_index : integer</span>
+<span class="sd">        This index defines the lighting configuration of the household.</span>
+<span class="sd">    bulbs_power : list</span>
+<span class="sd">        List of the rated electrical power of the light bulbs required for the building</span>
+<span class="sd">    el_wrapper : object</span>
+<span class="sd">        This objects holds information about the lighting and appliance configuration.</span>
+<span class="sd">    nc_occ : list</span>
+<span class="sd">        List with the number of occupants for each flat of the current building.</span>
+<span class="sd">    occ : array-like</span>
+<span class="sd">        Occupancy profile for each flat of the current building.</span>
+<span class="sd">    dhw : array-like</span>
+<span class="sd">        Drinking hot water profile for each building.</span>
+<span class="sd">    elec : array-like</span>
+<span class="sd">        Electrical demand for each building.</span>
+<span class="sd">    gains : array-like</span>
+<span class="sd">        Internal gains for each building.</span>
+<span class="sd">    heat : array-like</span>
+<span class="sd">        Heat demand for each building.</span>
+<span class="sd">    """</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">nb_units</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        Unified number of 'units' in the building:</span>
+<span class="sd">        - residential: number of flats</span>
+<span class="sd">        - non-residential: number of main rooms</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_residential</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_main_rooms</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span>
+
+    <span class="nd">@nb_units</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">nb_units</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_residential</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">nb_main_rooms</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">building</span><span class="p">,</span> <span class="n">area</span><span class="p">,</span> <span class="n">year_of_construction</span><span class="p">,</span> <span class="n">retrofit</span><span class="p">,</span> <span class="n">SIA2024</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        Constructor of Users class.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        None.</span>
+<span class="sd">        """</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">=</span> <span class="n">building</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand_per_flat</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nb_rooms</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nb_main_rooms</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_main_area</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand_zones</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">annual_heat_demand</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">annual_cooling_demand</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">lighting_index</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bulbs_power</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">el_wrapper</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">occ</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dhw</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dhw_minutely</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">elec</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">gains</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">heat</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cooling</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">EV_carprofile</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">EV_carcharging_ondemand</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ev_capacity</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ice_carprofile</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">individual_car_profiles</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">has_ventilation</span> <span class="o">=</span> <span class="kc">False</span> <span class="c1"># Usually no ventilation system in residential buildings.</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">rng</span> <span class="o">=</span> <span class="n">rng</span> <span class="k">if</span> <span class="n">rng</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">rd</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_residential</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="ow">in</span> <span class="n">RES_BUILDINGS</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">generate_number_flats</span><span class="p">(</span><span class="n">area</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">generate_number_occupants</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">generate_annual_el_consumption</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">generate_lighting_index</span><span class="p">()</span>
+
+        <span class="c1"># Initialize SIA class and read data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">SIA2024</span> <span class="o">=</span> <span class="n">SIA2024</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_residential</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">building_zones</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">SIA2024</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">building</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">nwg_config</span> <span class="o">=</span> <span class="n">GenericNonResidential</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">building</span><span class="p">)</span> <span class="c1"># Load configuration for non-residential building.</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">generate_number_flats_and_rooms</span><span class="p">(</span><span class="n">area</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">generate_number_occupants</span><span class="p">(</span><span class="n">area</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_residential</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">generate_annual_el_consumption_residential</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">generate_annual_app_el_consumption_non_residential</span><span class="p">(</span>
+                <span class="n">area</span><span class="p">,</span> <span class="n">year_of_construction</span><span class="p">,</span> <span class="n">retrofit</span><span class="p">)</span>  <span class="c1"># Annual electricity consumption of all devices including the electricity required for ventilation and excluding the electricity required for lighting</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">generate_lighting_index</span><span class="p">(</span><span class="n">area</span><span class="p">,</span> <span class="n">year_of_construction</span><span class="p">,</span> <span class="n">retrofit</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">create_el_wrapper</span><span class="p">()</span>
 
-
-<div class="viewcode-block" id="Users.generate_number_flats">
-<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.generate_number_flats">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">generate_number_flats</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">area</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Generate number of flats for different of building types.</span>
+<div class="viewcode-block" id="Users.generate_number_flats_and_rooms">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.generate_number_flats_and_rooms">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_number_flats_and_rooms</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">area</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        Generate number of flats and main rooms for different building types.</span>
+<span class="sd">        Possible building types are: single family house (SFH), terraced house (TH),multifamily house (MFH),</span>
+<span class="sd">        apartment block (AB), defined non-residential building types (see non_residential_behavior.json and config.py)</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">            - area (int): Floor area of different building types</span>
+<span class="sd">        area : integer</span>
+<span class="sd">            Floor area of different building types.</span>
 
 <span class="sd">        Returns</span>
-<span class="sd">        ----------</span>
-<span class="sd">        - nb_flats (int): number of flats in building</span>
+<span class="sd">        -------</span>
+<span class="sd">        nb_flats : int</span>
+<span class="sd">            The estimated number of flats.</span>
+<span class="sd">        total_main_area : float</span>
+<span class="sd">            The main area consists only of the main zones in the building</span>
+<span class="sd">        """</span>
 
-<span class="sd">        &quot;&quot;&quot;</span>
-
+        <span class="c1"># Residential buildings</span>
         <span class="c1"># If the building is a SFH or TH,</span>
         <span class="c1"># it has only one flat.</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;SFH&quot;</span><span class="p">,</span> <span class="s2">&quot;TH&quot;</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">"SFH"</span><span class="p">,</span> <span class="s2">"TH"</span><span class="p">]:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span> <span class="o">=</span> <span class="mi">1</span>
 
         <span class="c1"># If the building is a MFH or AB,</span>
         <span class="c1"># we estimate the number of flats probabilistically.</span>
-        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;MFH&quot;</span><span class="p">,</span> <span class="s2">&quot;AB&quot;</span><span class="p">]:</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">"MFH"</span><span class="p">,</span> <span class="s2">"AB"</span><span class="p">]:</span>
             <span class="c1"># Data source: Federal Statistical Office of Germany (Destatis), Zensus 2022</span>
             <span class="c1"># URL: https://www.zensus2022.de/</span>
             <span class="c1"># This method estimates the number of flats for multi-family houses (MFH) and apartment buildings (AB)</span>
@@ -171,7 +261,7 @@
             <span class="n">probabilities</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.05896</span><span class="p">,</span> <span class="mf">0.181403</span><span class="p">,</span> <span class="mf">0.23811</span><span class="p">,</span> <span class="mf">0.17094</span><span class="p">,</span> <span class="mf">0.118865</span><span class="p">,</span> <span class="mf">0.107155</span><span class="p">,</span> <span class="mf">0.067465</span><span class="p">,</span> <span class="mf">0.0350566</span><span class="p">,</span> <span class="mf">0.02204</span><span class="p">]</span>
             <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
                 <span class="c1"># Choose one consistent flat size for the entire building</span>
-                <span class="n">chosen_area_range</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="o">.</span><span class="n">choices</span><span class="p">(</span><span class="n">area_categories</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">probabilities</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">chosen_area_range</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">choices</span><span class="p">(</span><span class="n">area_categories</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">probabilities</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
                 <span class="n">chosen_area</span> <span class="o">=</span> <span class="p">(</span><span class="n">chosen_area_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">chosen_area_range</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">//</span> <span class="mi">2</span>  <span class="c1"># Use the mean area of the selected range</span>
 
                 <span class="c1"># Calculate the number of flats using rounding to the nearest integer</span>
@@ -179,346 +269,605 @@
 
                 <span class="c1"># Ensure at least 2 flats</span>
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-                    <span class="k">break</span></div>
+                    <span class="k">break</span>
+
+        <span class="c1"># Non-residential buildings</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">nb_rooms</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="c1"># Primary zone is the main zone of the building, which is used to determine the mean area per main room for occupancy calculations.</span>
+            <span class="n">primary_main_zone</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nwg_config</span><span class="o">.</span><span class="n">get_main_zone_name</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">primary_main_zone</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Primary main zone not specified for building type '</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">building</span><span class="si">}</span><span class="s2">' in non-residential behavior configuration. Cannot calculate number of main rooms."</span><span class="p">)</span>
+
+            <span class="c1"># Find the mean area per main room for the primary main zone from the SIA2024 data.</span>
+            <span class="c1"># This is used to estimate the number of main rooms in the building based on the total area of the building and the proportion of the area that is considered as main space.</span>
+            <span class="n">mean_area_per_main_room</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">for</span> <span class="n">data</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">SIA2024</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'Zone_name_GER'</span><span class="p">)</span> <span class="o">==</span> <span class="n">primary_main_zone</span><span class="p">:</span>
+                    <span class="n">mean_area_per_main_room</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'area_room'</span><span class="p">)</span>
+                    <span class="k">break</span>
+
+            <span class="k">if</span> <span class="n">mean_area_per_main_room</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Main zone '</span><span class="si">{</span><span class="n">primary_main_zone</span><span class="si">}</span><span class="s2">' not found in SIA2024 data for building type '</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">building</span><span class="si">}</span><span class="s2">'. Cannot calculate number of main rooms."</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">number</span><span class="p">,</span> <span class="n">data</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">SIA2024</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">zone_name</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'Zone_name_GER'</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">zone_name</span><span class="p">:</span>
+                    <span class="c1"># Sum total rooms for the entire building</span>
+                    <span class="n">proportion</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">building_zones</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">zone_name</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+                    <span class="n">nb_rooms</span> <span class="o">+=</span> <span class="n">area</span> <span class="o">*</span> <span class="n">proportion</span> <span class="o">/</span> <span class="n">data</span><span class="p">[</span><span class="s1">'area_room'</span><span class="p">]</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">nb_rooms</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="n">nb_rooms</span><span class="p">)</span>
+
+            <span class="n">proportion_main_space</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">building_zones</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">zone</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">zone</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">nwg_config</span><span class="o">.</span><span class="n">get_main_room_zones</span><span class="p">())</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">total_main_area</span> <span class="o">=</span> <span class="n">area</span> <span class="o">*</span> <span class="n">proportion_main_space</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">nb_main_rooms</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">total_main_area</span> <span class="o">/</span> <span class="n">rd</span><span class="o">.</span><span class="n">gauss</span><span class="p">(</span><span class="n">mean_area_per_main_room</span><span class="p">,</span> <span class="n">mean_area_per_main_room</span> <span class="o">*</span> <span class="mf">0.1</span><span class="p">)),</span> <span class="mi">1</span><span class="p">)</span>
+
+            <span class="c1"># Checks here and raise Exceptions if incosistant values are generated</span>
+            <span class="k">if</span> <span class="n">proportion_main_space</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Main space proportion is 0. Check 'main_room_zones' for '</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">building</span><span class="si">}</span><span class="s2">'."</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">nb_rooms</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Calculated total rooms is 0 (due to small area). Building area must be larger."</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">nb_main_rooms</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">nb_rooms</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">nb_main_rooms</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nb_rooms</span> <span class="c1"># Number of main rooms limited by total rooms. Maybe a warning here?</span></div>
+
+
 
 
 <div class="viewcode-block" id="Users.generate_number_occupants">
 <a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.generate_number_occupants">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">generate_number_occupants</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Generate number of occupants for different of building types.</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_number_occupants</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">area</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        Generate number of occupants for different building types.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">            - building (object): building type and number of flats</span>
+<span class="sd">        random_nb : random number in [0,1).</span>
 
 <span class="sd">        Returns</span>
-<span class="sd">        ----------</span>
-<span class="sd">            - nb_occ (list): list with the number of occupants for each flat of the current building.</span>
+<span class="sd">        -------</span>
+<span class="sd">        None.</span>
+<span class="sd">        """</span>
 
-<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># --- Residential buildings ---</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">&quot;SFH&quot;</span><span class="p">:</span>
-            <span class="c1"># choose random number of occupants (2-5) for single family houses  (assumption)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_residential</span><span class="p">:</span>
+            <span class="c1"># choose random number of occupants (1-5) for residential houses (assumption)</span>
+            <span class="c1"># Probabilities of having 1, 2, 3, 4 or 5 occupants in a residential house, assuming a maximum of 5 occupants.</span>
+            <span class="c1"># Sources: https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-mietwohnungen.html</span>
+            <span class="c1">#          https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-eigentuemerwohnungen.html</span>
+            <span class="n">res_probs</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="s2">"SFH"</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.245114</span><span class="p">,</span> <span class="mf">0.402323</span><span class="p">,</span> <span class="mf">0.154148</span><span class="p">,</span> <span class="mf">0.148869</span><span class="p">,</span> <span class="mf">0.049623</span><span class="p">),</span>
+                    <span class="s2">"TH"</span><span class="p">:</span>  <span class="p">(</span><span class="mf">0.236817</span><span class="p">,</span> <span class="mf">0.400092</span><span class="p">,</span> <span class="mf">0.157261</span><span class="p">,</span> <span class="mf">0.154371</span><span class="p">,</span> <span class="mf">0.051457</span><span class="p">),</span>
+                    <span class="s2">"MFH"</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.490622</span><span class="p">,</span> <span class="mf">0.307419</span><span class="p">,</span> <span class="mf">0.101949</span><span class="p">,</span> <span class="mf">0.074417</span><span class="p">,</span> <span class="mf">0.024805</span><span class="p">),</span>
+                    <span class="s2">"AB"</span><span class="p">:</span>  <span class="p">(</span><span class="mf">0.490622</span><span class="p">,</span> <span class="mf">0.307419</span><span class="p">,</span> <span class="mf">0.101949</span><span class="p">,</span> <span class="mf">0.074417</span><span class="p">,</span> <span class="mf">0.024805</span><span class="p">)</span>
+                <span class="p">}</span>
+            <span class="n">probabilities</span> <span class="o">=</span> <span class="n">res_probs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">building</span><span class="p">]</span>
 
-            <span class="c1"># loop over all flats of current single family houses</span>
-            <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span><span class="p">):</span>
-                <span class="n">random_nb</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="o">.</span><span class="n">random</span><span class="p">()</span>  <span class="c1"># picking random number in [0,1)</span>
-                <span class="n">j</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c1"># staring with one (additional) occupant</span>
-                <span class="c1"># the random number decides how many occupants are chosen (2-5)</span>
-                <span class="k">while</span> <span class="n">j</span> <span class="o">&lt;=</span> <span class="mi">4</span> <span class="p">:</span>
-                    <span class="k">if</span> <span class="n">random_nb</span> <span class="o">&lt;</span> <span class="n">j</span> <span class="o">/</span> <span class="mi">4</span> <span class="p">:</span>
-                        <span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">j</span><span class="p">)</span>  <span class="c1"># minimum is 2 occupants</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span><span class="p">):</span>
+                <span class="n">random_nb</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">random</span><span class="p">()</span> <span class="c1"># picking random number in [0,1)</span>
+                <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">6</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">random_nb</span> <span class="o">&lt;</span> <span class="nb">sum</span><span class="p">(</span><span class="n">probabilities</span><span class="p">[:</span><span class="n">j</span><span class="p">]):</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">j</span><span class="p">)</span>
                         <span class="k">break</span>
-                    <span class="n">j</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">&quot;TH&quot;</span><span class="p">:</span>
-            <span class="c1"># choose random number of occupants (2-5) for terraced houses  (assumption)</span>
+        <span class="c1"># --- Non-residential buildings ---</span>
+        <span class="k">else</span><span class="p">:</span>
 
-            <span class="c1"># loop over all flats of current terraced house</span>
-            <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span><span class="p">)</span> <span class="p">:</span>
-                <span class="n">random_nb</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="o">.</span><span class="n">random</span><span class="p">()</span>  <span class="c1"># picking random number in [0,1)</span>
-                <span class="n">j</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c1"># staring with one (additional) occupant</span>
-                <span class="c1"># the random number decides how many occupants are chosen (2-5)</span>
-                <span class="k">while</span> <span class="n">j</span> <span class="o">&lt;=</span> <span class="mi">4</span> <span class="p">:</span>
-                    <span class="k">if</span> <span class="n">random_nb</span> <span class="o">&lt;</span> <span class="n">j</span> <span class="o">/</span> <span class="mi">4</span> <span class="p">:</span>
-                        <span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">j</span><span class="p">)</span>  <span class="c1"># minimum is 2 occupants</span>
-                        <span class="k">break</span>
-                    <span class="n">j</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="c1"># Calculate the area per occupant from SIA2024 data</span>
+            <span class="c1"># The area per occupant [m²/person] is derived from:</span>
+            <span class="c1"># area_per_occupant = W_per_person [W/person] / dQ_persons_perA [W/m²],</span>
+            <span class="c1"># which represents the floor area associated with one person based on the</span>
+            <span class="c1"># sensible heat gain per person and the internal heat gain density per area.</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">&quot;MFH&quot;</span><span class="p">:</span>
-            <span class="c1"># choose random number of occupants (1-4) for each flat in the multi family house  (assumption)</span>
+            <span class="n">primary_main_zone</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nwg_config</span><span class="o">.</span><span class="n">get_main_zone_name</span><span class="p">()</span>
+            <span class="n">area_per_occupant</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">for</span> <span class="n">data</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">SIA2024</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'Zone_name_GER'</span><span class="p">)</span> <span class="o">==</span> <span class="n">primary_main_zone</span><span class="p">:</span>
+                    <span class="c1"># area_per_occ [m²/P] = W_per_person [W/P] / dQ_persons_perA [W/m²]</span>
+                    <span class="n">w_per_p</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'W_per_person'</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+                    <span class="n">dq_per_a</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'dQ_persons_perA'</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
 
-            <span class="c1"># loop over all flats of current multi family house</span>
-            <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span><span class="p">)</span> <span class="p">:</span>
-                <span class="n">random_nb</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="o">.</span><span class="n">random</span><span class="p">()</span>  <span class="c1"># picking random number in [0,1)</span>
-                <span class="n">k</span> <span class="o">=</span> <span class="mi">1</span>
-                <span class="c1"># the random number decides how many occupants are chosen (1-5)</span>
-                <span class="k">while</span> <span class="n">k</span> <span class="o">&lt;=</span> <span class="mi">4</span> <span class="p">:</span>
-                    <span class="k">if</span> <span class="n">random_nb</span> <span class="o">&lt;</span> <span class="n">k</span> <span class="o">/</span> <span class="mi">4</span> <span class="p">:</span>
-                        <span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
-                        <span class="k">break</span>
-                    <span class="n">k</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="k">if</span> <span class="n">w_per_p</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">dq_per_a</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Missing 'W_per_person' or 'dQ_persons_perA' data for main zone '</span><span class="si">{</span><span class="n">primary_main_zone</span><span class="si">}</span><span class="s2">' in SIA2024 data. Cannot calculate area per occupant."</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">w_per_p</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">dq_per_a</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"'W_per_person' and 'dQ_persons_perA' must be positive values for main zone '</span><span class="si">{</span><span class="n">primary_main_zone</span><span class="si">}</span><span class="s2">' in SIA2024 data. Cannot calculate area per occupant."</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">dq_per_a</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">area_per_occupant</span> <span class="o">=</span> <span class="n">w_per_p</span> <span class="o">/</span> <span class="n">dq_per_a</span>
+                    <span class="k">break</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">&quot;AB&quot;</span><span class="p">:</span>
-            <span class="c1"># choose random number of occupants (1-4) for each flat in the apartment block  (assumption)</span>
+            <span class="k">if</span> <span class="n">area_per_occupant</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Area per occupant could not be calculated for building type '</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">building</span><span class="si">}</span><span class="s2">'. Check SIA2024 data for primary main zone '</span><span class="si">{</span><span class="n">primary_main_zone</span><span class="si">}</span><span class="s2">'."</span><span class="p">)</span>
 
-            <span class="c1"># loop over all flats of current multi family house</span>
-            <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span><span class="p">):</span>
-                <span class="n">random_nb</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="o">.</span><span class="n">random</span><span class="p">()</span>  <span class="c1"># picking random number in [0,1)</span>
-                <span class="n">k</span> <span class="o">=</span> <span class="mi">1</span>
-                <span class="c1"># the random number decides how many occupants are chosen (1-5)</span>
-                <span class="k">while</span> <span class="n">k</span> <span class="o">&lt;=</span> <span class="mi">4</span> <span class="p">:</span>
-                    <span class="k">if</span> <span class="n">random_nb</span> <span class="o">&lt;</span> <span class="n">k</span> <span class="o">/</span> <span class="mi">4</span> <span class="p">:</span>
-                        <span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
-                        <span class="k">break</span>
-                    <span class="n">k</span> <span class="o">+=</span> <span class="mi">1</span></div>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_main_rooms</span><span class="p">):</span>
+                <span class="n">mean_occ</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">total_main_area</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">nb_main_rooms</span> <span class="o">/</span> <span class="n">area_per_occupant</span> <span class="c1"># Estimated number of occupants</span>
+                <span class="n">std_occ</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">total_main_area</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">nb_main_rooms</span> <span class="o">/</span> <span class="n">area_per_occupant</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.15</span> <span class="c1"># Assumption</span>
+
+                <span class="c1"># Random number based on Gaussian distribution</span>
+                <span class="n">occ</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="n">rd</span><span class="o">.</span><span class="n">gauss</span><span class="p">(</span><span class="n">mean_occ</span><span class="p">,</span> <span class="n">std_occ</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">occ</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>  <span class="c1"># Ensure minimum is 0</span></div>
 
 
-<div class="viewcode-block" id="Users.generate_annual_el_consumption">
-<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.generate_annual_el_consumption">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">generate_annual_el_consumption</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Generate annual elictricity consumption in dependency of the building type and the number of occupants</span>
+
+<div class="viewcode-block" id="Users.generate_annual_el_consumption_residential">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.generate_annual_el_consumption_residential">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_annual_el_consumption_residential</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        Generate annual electricity consumption</span>
+<span class="sd">        in dependency of the building type and the number of occupants.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">            - standard_consumption : standard annual consumption in kWh (assumption)</span>
+<span class="sd">        consumption_range : range of the annual consumption of electricity in kWh, not including electricity used for heating, dhw and cooling</span>
 
 <span class="sd">        Returns</span>
-<span class="sd">        ----------</span>
-<span class="sd">            - annual_el_demand (array): annual elictricity consumption in Wh for each flat of the current building</span>
-
-<span class="sd">        &quot;&quot;&quot;</span>
-
-        <span class="c1"># source: https://www.stromspiegel.de/stromverbrauch-verstehen/stromverbrauch-im-haushalt/#c120951</span>
+<span class="sd">        -------</span>
+<span class="sd">        None.</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_residential</span><span class="p">:</span>
+        <span class="c1"># source: https://www.stromspiegel.de/fileadmin/ssi/stromspiegel/Downloads/StromspiegelFlyer_2023_Web.pdf</span>
         <span class="c1"># method: https://www.stromspiegel.de/ueber-uns-partner/methodik-des-stromspiegels/</span>
-        <span class="c1">#     The electricity consumption is modeled using a Gaussian distribution to introduce</span>
-        <span class="c1">#     a variation. The mean consumption value is taken from the standard data,</span>
-        <span class="c1">#     while the standard deviation is assumed to be 10% of the mean value.</span>
+        <span class="c1"># Depending on the number of occupants in the household, there is a range of annual electricity demand with the corresponding probabilities</span>
+            <span class="n">consumption_range</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"SFH"</span> <span class="p">:</span> <span class="p">{</span><span class="mi">1</span> <span class="p">:</span> <span class="p">[</span><span class="mi">1100</span><span class="p">,</span><span class="mi">1400</span><span class="p">,</span><span class="mi">1800</span><span class="p">,</span><span class="mi">2200</span><span class="p">,</span><span class="mi">2600</span><span class="p">,</span><span class="mi">3400</span><span class="p">,</span><span class="mi">4500</span><span class="p">,</span><span class="mi">4800</span><span class="p">],</span>
+                                             <span class="mi">2</span> <span class="p">:</span> <span class="p">[</span><span class="mi">1700</span><span class="p">,</span><span class="mi">2000</span><span class="p">,</span><span class="mi">2500</span><span class="p">,</span><span class="mi">2800</span><span class="p">,</span><span class="mi">3100</span><span class="p">,</span><span class="mi">3500</span><span class="p">,</span><span class="mi">4300</span><span class="p">,</span><span class="mi">4600</span><span class="p">],</span>
+                                             <span class="mi">3</span> <span class="p">:</span> <span class="p">[</span><span class="mi">2200</span><span class="p">,</span><span class="mi">2500</span><span class="p">,</span><span class="mi">3000</span><span class="p">,</span><span class="mi">3500</span><span class="p">,</span><span class="mi">3900</span><span class="p">,</span><span class="mi">4400</span><span class="p">,</span><span class="mi">5200</span><span class="p">,</span><span class="mi">5500</span><span class="p">],</span>
+                                             <span class="mi">4</span> <span class="p">:</span> <span class="p">[</span><span class="mi">2500</span><span class="p">,</span><span class="mi">2800</span><span class="p">,</span><span class="mi">3500</span><span class="p">,</span><span class="mi">3900</span><span class="p">,</span><span class="mi">4300</span><span class="p">,</span><span class="mi">5000</span><span class="p">,</span><span class="mi">6000</span><span class="p">,</span><span class="mi">6300</span><span class="p">],</span>
+                                             <span class="mi">5</span> <span class="p">:</span> <span class="p">[</span><span class="mi">2900</span><span class="p">,</span><span class="mi">3200</span><span class="p">,</span><span class="mi">4000</span><span class="p">,</span><span class="mi">4500</span><span class="p">,</span><span class="mi">5200</span><span class="p">,</span><span class="mi">6000</span><span class="p">,</span><span class="mi">7600</span><span class="p">,</span><span class="mi">7900</span><span class="p">]},</span>
+                                    <span class="s2">"MFH"</span> <span class="p">:</span> <span class="p">{</span><span class="mi">1</span> <span class="p">:</span> <span class="p">[</span><span class="mi">600</span><span class="p">,</span><span class="mi">800</span><span class="p">,</span><span class="mi">1000</span><span class="p">,</span><span class="mi">1300</span><span class="p">,</span><span class="mi">1500</span><span class="p">,</span><span class="mi">1700</span><span class="p">,</span><span class="mi">2100</span><span class="p">,</span><span class="mi">2300</span><span class="p">],</span>
+                                             <span class="mi">2</span> <span class="p">:</span> <span class="p">[</span><span class="mi">1200</span><span class="p">,</span><span class="mi">1400</span><span class="p">,</span><span class="mi">1700</span><span class="p">,</span><span class="mi">2000</span><span class="p">,</span><span class="mi">2300</span><span class="p">,</span><span class="mi">2500</span><span class="p">,</span><span class="mi">3000</span><span class="p">,</span><span class="mi">3200</span><span class="p">],</span>
+                                             <span class="mi">3</span> <span class="p">:</span> <span class="p">[</span><span class="mi">1500</span><span class="p">,</span><span class="mi">1700</span><span class="p">,</span><span class="mi">2100</span><span class="p">,</span><span class="mi">2500</span><span class="p">,</span><span class="mi">2900</span><span class="p">,</span><span class="mi">3300</span><span class="p">,</span><span class="mi">3800</span><span class="p">,</span><span class="mi">4000</span><span class="p">],</span>
+                                             <span class="mi">4</span> <span class="p">:</span> <span class="p">[</span><span class="mi">1600</span><span class="p">,</span><span class="mi">1800</span><span class="p">,</span><span class="mi">2300</span><span class="p">,</span><span class="mi">2600</span><span class="p">,</span><span class="mi">3000</span><span class="p">,</span><span class="mi">3600</span><span class="p">,</span><span class="mi">4400</span><span class="p">,</span><span class="mi">4600</span><span class="p">],</span>
+                                             <span class="mi">5</span> <span class="p">:</span> <span class="p">[</span><span class="mi">1300</span><span class="p">,</span><span class="mi">1500</span><span class="p">,</span><span class="mi">2100</span><span class="p">,</span><span class="mi">2700</span><span class="p">,</span><span class="mi">3400</span><span class="p">,</span><span class="mi">4100</span><span class="p">,</span><span class="mi">5500</span><span class="p">,</span><span class="mi">5700</span><span class="p">]}}</span>
 
-        <span class="n">standard_consumption</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;SFH&quot;</span> <span class="p">:</span> <span class="p">{</span><span class="mi">1</span> <span class="p">:</span> <span class="mi">2300</span><span class="p">,</span>
-                                         <span class="mi">2</span> <span class="p">:</span> <span class="mi">3000</span><span class="p">,</span>
-                                         <span class="mi">3</span> <span class="p">:</span> <span class="mi">3500</span><span class="p">,</span>
-                                         <span class="mi">4</span> <span class="p">:</span> <span class="mi">4000</span><span class="p">,</span>
-                                         <span class="mi">5</span> <span class="p">:</span> <span class="mi">5000</span><span class="p">},</span>
-                                <span class="s2">&quot;MFH&quot;</span> <span class="p">:</span> <span class="p">{</span><span class="mi">1</span> <span class="p">:</span> <span class="mi">1300</span><span class="p">,</span>
-                                         <span class="mi">2</span> <span class="p">:</span> <span class="mi">2000</span><span class="p">,</span>
-                                         <span class="mi">3</span> <span class="p">:</span> <span class="mi">2500</span><span class="p">,</span>
-                                         <span class="mi">4</span> <span class="p">:</span> <span class="mi">2600</span><span class="p">,</span>
-                                         <span class="mi">5</span> <span class="p">:</span> <span class="mi">3000</span><span class="p">}}</span>
+            <span class="n">probabilities</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.143</span><span class="p">,</span> <span class="mf">0.143</span><span class="p">,</span> <span class="mf">0.143</span><span class="p">,</span> <span class="mf">0.142</span><span class="p">,</span> <span class="mf">0.143</span><span class="p">,</span> <span class="mf">0.143</span><span class="p">,</span> <span class="mf">0.143</span><span class="p">]</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span><span class="p">):</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">&quot;SFH&quot;</span><span class="p">:</span>
-                <span class="n">annual_el_demand_temp</span> <span class="o">=</span> <span class="n">standard_consumption</span><span class="p">[</span><span class="s2">&quot;SFH&quot;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="p">[</span><span class="n">j</span><span class="p">]]</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="o">.</span><span class="n">gauss</span><span class="p">(</span><span class="n">annual_el_demand_temp</span><span class="p">,</span>
-                                                         <span class="n">annual_el_demand_temp</span> <span class="o">*</span> <span class="mf">0.10</span><span class="p">)</span>  <span class="c1"># assumption: standard deviation 10% of mean value</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">&quot;TH&quot;</span><span class="p">:</span>
-                <span class="n">annual_el_demand_temp</span> <span class="o">=</span> <span class="n">standard_consumption</span><span class="p">[</span><span class="s2">&quot;SFH&quot;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="p">[</span><span class="n">j</span><span class="p">]]</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="o">.</span><span class="n">gauss</span><span class="p">(</span><span class="n">annual_el_demand_temp</span><span class="p">,</span>
-                                                         <span class="n">annual_el_demand_temp</span> <span class="o">*</span> <span class="mf">0.10</span><span class="p">)</span>  <span class="c1"># assumption: standard deviation 10% of mean value</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">&quot;MFH&quot;</span><span class="p">:</span>
-                <span class="n">annual_el_demand_temp</span> <span class="o">=</span> <span class="n">standard_consumption</span><span class="p">[</span><span class="s2">&quot;MFH&quot;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="p">[</span><span class="n">j</span><span class="p">]]</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="o">.</span><span class="n">gauss</span><span class="p">(</span><span class="n">annual_el_demand_temp</span><span class="p">,</span>
-                                                 <span class="n">annual_el_demand_temp</span> <span class="o">*</span> <span class="mf">0.10</span><span class="p">)</span>  <span class="c1"># assumption: standard deviation 10% of mean value</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">&quot;AB&quot;</span><span class="p">:</span>
-                <span class="n">annual_el_demand_temp</span> <span class="o">=</span> <span class="n">standard_consumption</span><span class="p">[</span><span class="s2">&quot;MFH&quot;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="p">[</span><span class="n">j</span><span class="p">]]</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="o">.</span><span class="n">gauss</span><span class="p">(</span><span class="n">annual_el_demand_temp</span><span class="p">,</span>
-                                                 <span class="n">annual_el_demand_temp</span> <span class="o">*</span> <span class="mf">0.10</span><span class="p">)</span>  <span class="c1"># assumption: standard deviation 10% of mean value</span></div>
+            <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand_per_flat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span><span class="p">):</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">"SFH"</span><span class="p">:</span>
+                    <span class="n">random_nb</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">random</span><span class="p">()</span>  <span class="c1"># picking random number in [0,1) to decide between which 2 values of consumption_range the annual electricity consumption lies</span>
+                    <span class="n">i</span> <span class="o">=</span> <span class="mi">1</span>
+                    <span class="k">while</span> <span class="n">i</span> <span class="o">&lt;=</span> <span class="mi">7</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">random_nb</span> <span class="o">&lt;</span> <span class="nb">sum</span><span class="p">(</span><span class="n">probabilities</span><span class="p">[:</span><span class="n">i</span><span class="p">]):</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand_per_flat</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="n">consumption_range</span><span class="p">[</span><span class="s2">"SFH"</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="p">[</span><span class="n">j</span><span class="p">]][</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">],</span> <span class="n">consumption_range</span><span class="p">[</span><span class="s2">"SFH"</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="p">[</span><span class="n">j</span><span class="p">]][</span><span class="n">i</span><span class="p">])</span>
+                            <span class="c1"># A random integer is selected as the current demand, which must lie between the two values determined by the first random number</span>
+                            <span class="k">break</span>
+                        <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">"TH"</span><span class="p">:</span>
+                    <span class="n">random_nb</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">random</span><span class="p">()</span>  <span class="c1"># picking random number in [0,1) to decide between which 2 values of consumption_range the annual electricity consumption lies</span>
+                    <span class="n">i</span> <span class="o">=</span> <span class="mi">1</span>
+                    <span class="k">while</span> <span class="n">i</span> <span class="o">&lt;=</span> <span class="mi">7</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">random_nb</span> <span class="o">&lt;</span> <span class="nb">sum</span><span class="p">(</span><span class="n">probabilities</span><span class="p">[:</span><span class="n">i</span><span class="p">]):</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand_per_flat</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="n">consumption_range</span><span class="p">[</span><span class="s2">"SFH"</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="p">[</span><span class="n">j</span><span class="p">]][</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">],</span> <span class="n">consumption_range</span><span class="p">[</span><span class="s2">"SFH"</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="p">[</span><span class="n">j</span><span class="p">]][</span><span class="n">i</span><span class="p">])</span>
+                            <span class="c1"># A random integer is selected as the current demand, which must lie between the two values determined by the first random number</span>
+                            <span class="k">break</span>
+                        <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">"MFH"</span><span class="p">:</span>
+                    <span class="n">random_nb</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">random</span><span class="p">()</span>  <span class="c1"># picking random number in [0,1) to decide between which 2 values of consumption_range the annual electricity consumption lies</span>
+                    <span class="n">i</span> <span class="o">=</span> <span class="mi">1</span>
+                    <span class="k">while</span> <span class="n">i</span> <span class="o">&lt;=</span> <span class="mi">7</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">random_nb</span> <span class="o">&lt;</span> <span class="nb">sum</span><span class="p">(</span><span class="n">probabilities</span><span class="p">[:</span><span class="n">i</span><span class="p">]):</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand_per_flat</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="n">consumption_range</span><span class="p">[</span><span class="s2">"MFH"</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="p">[</span><span class="n">j</span><span class="p">]][</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">],</span> <span class="n">consumption_range</span><span class="p">[</span><span class="s2">"MFH"</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="p">[</span><span class="n">j</span><span class="p">]][</span><span class="n">i</span><span class="p">])</span>
+                            <span class="c1"># A random integer is selected as the current demand, which must lie between the two values determined by the first random number</span>
+                            <span class="k">break</span>
+                        <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">"AB"</span><span class="p">:</span>
+                    <span class="n">random_nb</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">random</span><span class="p">()</span>  <span class="c1"># picking random number in [0,1) to decide between which 2 values of consumption_range the annual electricity consumption lies</span>
+                    <span class="n">i</span> <span class="o">=</span> <span class="mi">1</span>
+                    <span class="k">while</span> <span class="n">i</span> <span class="o">&lt;=</span> <span class="mi">7</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">random_nb</span> <span class="o">&lt;</span> <span class="nb">sum</span><span class="p">(</span><span class="n">probabilities</span><span class="p">[:</span><span class="n">i</span><span class="p">]):</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand_per_flat</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="n">consumption_range</span><span class="p">[</span><span class="s2">"MFH"</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="p">[</span><span class="n">j</span><span class="p">]][</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">],</span> <span class="n">consumption_range</span><span class="p">[</span><span class="s2">"MFH"</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="p">[</span><span class="n">j</span><span class="p">]][</span><span class="n">i</span><span class="p">])</span>
+                            <span class="c1"># A random integer is selected as the current demand, which must lie between the two values determined by the first random number</span>
+                            <span class="k">break</span>
+                        <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand_per_flat</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"This method is only applicable for residential buildings. Use 'generate_annual_app_el_consumption_non_residential' for non-residential buildings."</span><span class="p">)</span></div>
 
+
+<div class="viewcode-block" id="Users.generate_annual_app_el_consumption_non_residential">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.generate_annual_app_el_consumption_non_residential">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_annual_app_el_consumption_non_residential</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">area</span><span class="p">,</span> <span class="n">year_of_construction</span><span class="p">,</span> <span class="n">retrofit</span><span class="p">):</span>             <span class="c1"># Annual electricity consumption of all devices including the electricity required for ventilation and excluding the electricity required for lighting</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_residential</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"This method is only applicable for non-residential buildings. Use 'generate_annual_el_consumption_residential' for residential buildings."</span><span class="p">)</span>
+
+        <span class="n">vent_factor</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nwg_config</span><span class="o">.</span><span class="n">get_ventilation</span><span class="p">())</span>
+
+        <span class="c1"># SIA 2024 energy performance levels:</span>
+        <span class="c1"># - Standard: Standard values for new buildings</span>
+        <span class="c1"># - Goal: Ambitious targets for highly efficient buildings</span>
+        <span class="c1"># - Existing: Typical values for older, unrenovated buildings (older than 1980)</span>
+        <span class="c1"># Decide mode based on the year of construction and retrofit status of the building</span>
+
+        <span class="c1"># Determine building standard (existing, standard, goal) based on construction year and retrofit level of the building. Based on the SIA2024 categorization.</span>
+        <span class="k">if</span> <span class="n">year_of_construction</span> <span class="o">&lt;</span> <span class="mi">1980</span> <span class="ow">and</span> <span class="n">retrofit</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">mode</span> <span class="o">=</span> <span class="s1">'existing'</span>
+        <span class="k">elif</span> <span class="n">retrofit</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">mode</span> <span class="o">=</span> <span class="s1">'goal'</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">mode</span> <span class="o">=</span> <span class="s1">'standard'</span>
+
+        <span class="c1"># Generate a single random factor for the entire building.</span>
+        <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">()</span>
+        <span class="n">std_dev</span> <span class="o">=</span> <span class="mf">0.10</span> <span class="c1"># 10%</span>
+        <span class="n">random_factor</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="n">std_dev</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">number</span><span class="p">,</span> <span class="n">data</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">SIA2024</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">zone_name</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'Zone_name_GER'</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">zone_name</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+            <span class="n">proportion</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">building_zones</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">zone_name</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">proportion</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand_zones</span><span class="p">[</span><span class="n">zone_name</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="k">continue</span>
+
+
+            <span class="n">yearly_demands</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">'standard'</span><span class="p">:</span> <span class="n">data</span><span class="p">[</span><span class="s1">'E_devices_year_kwh'</span><span class="p">][</span><span class="s1">'standard'</span><span class="p">]</span> <span class="o">+</span> <span class="n">data</span><span class="p">[</span><span class="s1">'E_vent_year_kwh'</span><span class="p">][</span><span class="s1">'standard'</span><span class="p">]</span> <span class="o">*</span> <span class="n">vent_factor</span><span class="p">,</span>
+                <span class="s1">'goal'</span><span class="p">:</span> <span class="n">data</span><span class="p">[</span><span class="s1">'E_devices_year_kwh'</span><span class="p">][</span><span class="s1">'goal'</span><span class="p">]</span> <span class="o">+</span> <span class="n">data</span><span class="p">[</span><span class="s1">'E_vent_year_kwh'</span><span class="p">][</span><span class="s1">'goal'</span><span class="p">]</span> <span class="o">*</span> <span class="n">vent_factor</span><span class="p">,</span>
+                <span class="s1">'existing'</span><span class="p">:</span> <span class="n">data</span><span class="p">[</span><span class="s1">'E_devices_year_kwh'</span><span class="p">][</span><span class="s1">'existing'</span><span class="p">]</span> <span class="o">+</span> <span class="n">data</span><span class="p">[</span><span class="s1">'E_vent_year_kwh'</span><span class="p">][</span><span class="s1">'existing'</span><span class="p">]</span> <span class="o">*</span> <span class="n">vent_factor</span>
+            <span class="p">}</span>
+
+            <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">'existing'</span><span class="p">:</span>
+                <span class="n">demand_randomized</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">yearly_demands</span><span class="p">[</span><span class="n">mode</span><span class="p">]</span> <span class="o">*</span> <span class="n">random_factor</span><span class="p">,</span> <span class="n">yearly_demands</span><span class="p">[</span><span class="s1">'standard'</span><span class="p">])</span>  <span class="c1"># Ensure not better state than 'standard'</span>
+            <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">'standard'</span><span class="p">:</span>
+                <span class="n">demand_randomized</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">yearly_demands</span><span class="p">[</span><span class="n">mode</span><span class="p">]</span> <span class="o">*</span> <span class="n">random_factor</span><span class="p">,</span> <span class="n">yearly_demands</span><span class="p">[</span><span class="s1">'goal'</span><span class="p">])</span>  <span class="c1"># Ensure not better state than 'goal'</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">demand_randomized</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">yearly_demands</span><span class="p">[</span><span class="n">mode</span><span class="p">]</span> <span class="o">*</span> <span class="n">random_factor</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>  <span class="c1"># For 'goal' mode, only negative values are prevented. Maybe find a better lower bound</span>
+
+            <span class="n">annual_el_demand_zone</span> <span class="o">=</span> <span class="n">area</span> <span class="o">*</span> <span class="n">proportion</span> <span class="o">*</span> <span class="n">demand_randomized</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand_zones</span><span class="p">[</span><span class="n">zone_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">annual_el_demand_zone</span></div>
 
 
 <div class="viewcode-block" id="Users.generate_lighting_index">
 <a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.generate_lighting_index">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">generate_lighting_index</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Choose a random lighting index between 0 and 99.</span>
-<span class="sd">        This index defines the lighting configuration of the houshold.</span>
-<span class="sd">        There are 100 predifined ligthing configurations.</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_lighting_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">area</span><span class="p">,</span> <span class="n">year_of_construction</span><span class="p">,</span> <span class="n">retrofit</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        Choose a random lighting index between 0 and 99 for the residential buildings.</span>
+<span class="sd">        This index defines the lighting configuration of the household.</span>
+<span class="sd">        There are 100 predefined lighting configurations.</span>
 
-<span class="sd">        Assumption: All lighting configurations are equally likely. No distinction between building types.</span>
+<span class="sd">        Assumptions: - All lighting configurations have the same probability.</span>
+<span class="sd">                     - No differences between SFH, TH, MFH and AB.</span>
+
+<span class="sd">        Select a list of bulbs for the non-residential buildings, depending on the needed</span>
+<span class="sd">        room illuminance</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">            - random_nb (float): random number in [0,1)</span>
+<span class="sd">        area : float</span>
+<span class="sd">            Floor area of the building in square meters.</span>
+<span class="sd">        year_of_construction : int</span>
+<span class="sd">            Year the building was constructed.</span>
+<span class="sd">        retrofit : int</span>
+<span class="sd">            Indicates if the building is retrofitted (0 = no, otherwise yes).</span>
 
 <span class="sd">        Returns</span>
-<span class="sd">        ----------</span>
-<span class="sd">            - lighting_index (int): This index defines the lighting configuration of the houshold.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
+<span class="sd">        -------</span>
+<span class="sd">        None.</span>
+<span class="sd">        """</span>
 
-        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span><span class="p">):</span>
-            <span class="n">random_nb</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="o">.</span><span class="n">random</span><span class="p">()</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">lighting_index</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">random_nb</span> <span class="o">*</span> <span class="mi">100</span><span class="p">))</span></div>
+        <span class="c1"># --- Residential buildings ---</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_residential</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">lighting_index</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">rd</span><span class="o">.</span><span class="n">random</span><span class="p">()</span> <span class="o">*</span> <span class="mi">100</span><span class="p">))</span>
 
+        <span class="c1"># --- Non-residential buildings ---</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">file_name</span> <span class="o">=</span> <span class="s2">"LightBulbs_nonresidential.json"</span>
+            <span class="c1"># Source: https://www.umweltbundesamt.de/system/files/medien/1410/publikationen/2017-11-06_climate-change_26-2017_klimaneutraler-gebaeudebestand-ii.pdf</span>
+            <span class="c1"># If the building was constructed before the year 2000 and has not been retrofitted</span>
+            <span class="c1"># (indicated by `retrofit == 0`), select "combi_1" as the bulb configuration.</span>
+            <span class="k">if</span> <span class="n">year_of_construction</span> <span class="o">&lt;</span> <span class="mi">2000</span> <span class="ow">and</span> <span class="n">retrofit</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">bulbs_combination</span> <span class="o">=</span>  <span class="s2">"combi_1"</span>
+            <span class="c1"># For buildings constructed in or after the year 2000, or for buildings that have been retrofitted</span>
+            <span class="c1"># (indicated by any value other than 0 for `retrofit`), select "combi_2" as the bulb configuration.</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">bulbs_combination</span> <span class="o">=</span> <span class="s2">"combi_2"</span>
+
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))),</span> <span class="s1">'data'</span><span class="p">,</span> <span class="s1">'non_residential'</span><span class="p">,</span>
+                            <span class="n">file_name</span><span class="p">))</span> <span class="k">as</span> <span class="n">json_file</span><span class="p">:</span>
+                    <span class="n">jsonData</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">json_file</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Error: File '</span><span class="si">{</span><span class="n">file_name</span><span class="si">}</span><span class="s2">' not found."</span><span class="p">)</span>
+                <span class="k">return</span>
+
+            <span class="c1"># Process data for different building types</span>
+            <span class="n">selected_combination</span> <span class="o">=</span> <span class="n">jsonData</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">bulbs_combination</span><span class="p">,</span> <span class="p">[])</span>
+
+            <span class="c1"># Fetch dynamic illuminance range from config</span>
+            <span class="n">min_lux</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nwg_config</span><span class="o">.</span><span class="n">get_min_illuminance</span><span class="p">()</span>
+            <span class="n">max_lux</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nwg_config</span><span class="o">.</span><span class="n">get_max_illuminance</span><span class="p">()</span>
+
+            <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_rooms</span><span class="p">):</span>
+                <span class="n">room_illuminance</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="n">min_lux</span><span class="p">,</span> <span class="n">max_lux</span><span class="p">)</span>
+                <span class="n">room_area</span> <span class="o">=</span> <span class="n">area</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">nb_rooms</span>
+                <span class="n">lm_needed</span> <span class="o">=</span> <span class="n">room_illuminance</span> <span class="o">*</span> <span class="n">room_area</span>
+                <span class="n">total_lm</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="c1"># selected_lamps = []</span>
+
+                <span class="c1"># Install random bulbs as long as the required luminous flux has not yet been reached.</span>
+                <span class="k">while</span> <span class="n">total_lm</span> <span class="o">&lt;</span> <span class="n">lm_needed</span><span class="p">:</span>
+                    <span class="n">lamp</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">selected_combination</span><span class="p">)</span>
+                    <span class="c1"># selected_lamps.append(lamp)</span>
+                    <span class="n">total_lm</span> <span class="o">+=</span> <span class="n">lamp</span><span class="p">[</span><span class="s2">"luminous_flux"</span><span class="p">]</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">bulbs_power</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">lamp</span><span class="p">[</span><span class="s2">"power"</span><span class="p">])</span></div>
 
 
 <div class="viewcode-block" id="Users.create_el_wrapper">
 <a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.create_el_wrapper">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">create_el_wrapper</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Creat a wrapper-object holding information about the lighting and appliance configuration.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">           -  annual_demand (int): Annual elictricity demand in kWh.</span>
-<span class="sd">            - light_config (int): This index defines the lighting configuration of the houshold.</span>
-<span class="sd">            There are 100 predifined ligthing configurations.</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_el_wrapper</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        Create a wrapper-object</span>
+<span class="sd">        holding information about the lighting and appliance configuration.</span>
 
 <span class="sd">        Returns</span>
-<span class="sd">        ----------</span>
-<span class="sd">            - el_wrapper (object): This objects holdes information about the lighting and appliance configuration</span>
+<span class="sd">        -------</span>
+<span class="sd">        None.</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_residential</span><span class="p">:</span>
+            <span class="n">src_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">richardsonpy</span><span class="o">.</span><span class="vm">__file__</span><span class="p">)</span>
+            <span class="n">path_app</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">src_path</span><span class="p">,</span> <span class="s1">'inputs'</span><span class="p">,</span> <span class="s1">'Appliances.csv'</span><span class="p">)</span>
+            <span class="n">path_light</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">src_path</span><span class="p">,</span> <span class="s1">'inputs'</span><span class="p">,</span> <span class="s1">'LightBulbs.csv'</span><span class="p">)</span>
 
-<span class="sd">        &quot;&quot;&quot;</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span><span class="p">):</span>
 
-        <span class="n">src_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">richardsonpy</span><span class="o">.</span><span class="vm">__file__</span><span class="p">)</span>
-        <span class="n">path_app</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">src_path</span><span class="p">,</span><span class="s1">&#39;inputs&#39;</span><span class="p">,</span><span class="s1">&#39;Appliances.csv&#39;</span><span class="p">)</span>
-        <span class="n">path_light</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">src_path</span><span class="p">,</span><span class="s1">&#39;inputs&#39;</span><span class="p">,</span><span class="s1">&#39;LightBulbs.csv&#39;</span><span class="p">)</span>
+                <span class="c1"># annual demand of the electric appliances (annual demand minus lighting)</span>
+                <span class="c1"># source: https://www.umweltbundesamt.de/daten/private-haushalte-konsum/wohnen/energieverbrauch-privater-haushalte#stromverbrauch-mit-einem-anteil-von-rund-einem-funftel</span>
+                <span class="c1"># share of the electricity demand for lighting of the total electricity demand without heating, dhw and cooling for 2022: 7.9 / 81.8 = 9.6%</span>
+                <span class="n">appliancesDemand</span> <span class="o">=</span> <span class="mf">0.904</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand_per_flat</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
 
+                <span class="c1"># Create and save appliances object</span>
+                <span class="n">appliances</span> <span class="o">=</span> \
+                    <span class="n">app_model</span><span class="o">.</span><span class="n">Appliances</span><span class="p">(</span><span class="n">path_app</span><span class="p">,</span>
+                                         <span class="n">annual_consumption</span><span class="o">=</span><span class="n">appliancesDemand</span><span class="p">,</span>
+                                         <span class="n">randomize_appliances</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                                         <span class="n">max_iter</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span>
+                                         <span class="n">prev_heat_dev</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
-        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span><span class="p">):</span>
+                <span class="c1"># Create and save light configuration object</span>
+                <span class="n">lights</span> <span class="o">=</span> <span class="n">light_model</span><span class="o">.</span><span class="n">load_lighting_profile</span><span class="p">(</span><span class="n">filename</span><span class="o">=</span><span class="n">path_light</span><span class="p">,</span>
+                                                           <span class="n">index</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">lighting_index</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
 
-            <span class="c1"># annual demand of the elictric appliances (annual demand minus lighting)</span>
-            <span class="c1"># source: https://www.umweltbundesamt.de/daten/private-haushalte-konsum/wohnen/energieverbrauch-privater-haushalte#stromverbrauch-mit-einem-anteil-von-rund-einem-funftel</span>
-            <span class="c1"># values from diagram for 2018 without heating, dhw and cooling: 8,1 / 81,1 = 10,0%</span>
-            <span class="n">appliancesDemand</span> <span class="o">=</span> <span class="mf">0.9</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
+                <span class="c1">#  Create wrapper object</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">el_wrapper</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">wrap</span><span class="o">.</span><span class="n">ElectricityProfile</span><span class="p">(</span><span class="n">appliances</span><span class="p">,</span> <span class="n">lights</span><span class="p">))</span>
 
-            <span class="c1">#  Create and save appliances object</span>
-            <span class="n">appliances</span> <span class="o">=</span> \
-                <span class="n">app_model</span><span class="o">.</span><span class="n">Appliances</span><span class="p">(</span><span class="n">path_app</span><span class="p">,</span>
-                                 <span class="n">annual_consumption</span><span class="o">=</span><span class="n">appliancesDemand</span><span class="p">,</span>
-                                 <span class="n">randomize_appliances</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-                                 <span class="n">max_iter</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span>
-                                 <span class="n">prev_heat_dev</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
 
-            <span class="c1"># Create and save light configuration object</span>
-            <span class="n">lights</span> <span class="o">=</span> <span class="n">light_model</span><span class="o">.</span><span class="n">load_lighting_profile</span><span class="p">(</span><span class="n">filename</span><span class="o">=</span><span class="n">path_light</span><span class="p">,</span>
-                                                   <span class="n">index</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">lighting_index</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
+            <span class="c1"># Save light configuration object</span>
+            <span class="n">lights</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bulbs_power</span>
 
-            <span class="c1">#  Create wrapper object</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">el_wrapper</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">wrap</span><span class="o">.</span><span class="n">ElectricityProfile</span><span class="p">(</span><span class="n">appliances</span><span class="p">,</span><span class="n">lights</span><span class="p">))</span></div>
-
+            <span class="c1">#  Create wrapper object only for lighting</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">el_wrapper</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">wrap_light</span><span class="o">.</span><span class="n">ElectricityProfile</span><span class="p">(</span><span class="n">lights</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span><span class="p">))</span></div>
 
 
 <div class="viewcode-block" id="Users.calcProfiles">
 <a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.calcProfiles">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">calcProfiles</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">site</span><span class="p">,</span> <span class="n">time_resolution</span><span class="p">,</span> <span class="n">time_horizon</span><span class="p">,</span> <span class="n">initital_day</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Calclulate profiles for every flat and summarize them for the whole building</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">calcProfiles</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">site</span><span class="p">,</span> <span class="n">holidays</span><span class="p">,</span> <span class="n">time_resolution</span><span class="p">,</span> <span class="n">time_horizon</span><span class="p">,</span> <span class="n">building</span><span class="p">,</span> <span class="n">building_devices_data</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">initial_day</span><span class="p">,</span> <span class="n">gen_cars</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        Calculate profiles for every flat and summarize them for the whole building</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">            - site (dict): site data, e.g. weather</span>
-<span class="sd">            - time_horizon (int): Time horizon for which a stochastic profile is generated.</span>
-<span class="sd">            - time_resolution (int): resolution of time steps of output array in seconds.</span>
+<span class="sd">        site: dict</span>
+<span class="sd">            Site data, e.g. weather.</span>
+<span class="sd">        time_resolution : integer</span>
+<span class="sd">            Resolution of time steps of output array in seconds.</span>
+<span class="sd">        time_horizon : integer</span>
+<span class="sd">            Time horizon for which a stochastic profile is generated.</span>
+<span class="sd">        initial_day : integer, optional</span>
+<span class="sd">            Day of the week with which the generation starts.</span>
+<span class="sd">            1-7 for monday-sunday. The default is 1.</span>
+<span class="sd">        gen_cars : bool, optional if turned to false no car profiles are generated to improve perfomance if cars are not needed. The default is True.</span>
+<span class="sd">            Be aware that setting it to false causes the simulation to not possess cars even if the scenario says so.</span>
 
 <span class="sd">        Returns</span>
-<span class="sd">        ----------</span>
-<span class="sd">            - occ (array): occupancy profile for each building.</span>
-<span class="sd">            - dhw (array): drinking hot water profile for each building.</span>
-<span class="sd">            - elec (array): electrical demand for each building.</span>
-<span class="sd">            - gains (array): internal gains for each building.</span>
+<span class="sd">        -------</span>
+<span class="sd">        None.</span>
+<span class="sd">        """</span>
 
-<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'create_el_wrapper'</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">create_el_wrapper</span><span class="p">()</span>
 
-        <span class="n">irradiation</span> <span class="o">=</span> <span class="n">site</span><span class="p">[</span><span class="s2">&quot;SunTotal&quot;</span><span class="p">]</span>
+        <span class="n">irradiation</span> <span class="o">=</span> <span class="n">site</span><span class="p">[</span><span class="s2">"SunTotal"</span><span class="p">]</span>
+        <span class="n">T_e</span> <span class="o">=</span> <span class="n">site</span><span class="p">[</span><span class="s2">"T_e"</span><span class="p">]</span>
 
-        <span class="n">time_day</span> <span class="o">=</span> <span class="mi">24</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">60</span> <span class="c1"># seconds in a day</span>
+        <span class="n">time_day</span> <span class="o">=</span> <span class="mi">24</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">60</span>
         <span class="n">nb_days</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">time_horizon</span><span class="o">/</span><span class="n">time_day</span><span class="p">)</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">occ</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">time_horizon</span><span class="o">/</span><span class="n">time_resolution</span><span class="p">))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">dhw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">time_horizon</span><span class="o">/</span><span class="n">time_resolution</span><span class="p">))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">elec</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">time_horizon</span><span class="o">/</span><span class="n">time_resolution</span><span class="p">))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">gains</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">time_horizon</span><span class="o">/</span><span class="n">time_resolution</span><span class="p">))</span>
-        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span><span class="p">):</span>
-            <span class="n">temp_obj</span> <span class="o">=</span> <span class="n">Profiles</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="p">[</span><span class="n">j</span><span class="p">],</span><span class="n">initital_day</span><span class="p">,</span><span class="n">nb_days</span><span class="p">,</span><span class="n">time_resolution</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">occ</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">occ</span> <span class="o">+</span> <span class="n">temp_obj</span><span class="o">.</span><span class="n">generate_occupancy_profiles</span><span class="p">()</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">dhw</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dhw</span> <span class="o">+</span> <span class="n">temp_obj</span><span class="o">.</span><span class="n">generate_dhw_profile</span><span class="p">()</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">elec</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">elec</span> <span class="o">+</span> <span class="n">temp_obj</span><span class="o">.</span><span class="n">generate_el_profile</span><span class="p">(</span><span class="n">irradiance</span><span class="o">=</span><span class="n">irradiation</span><span class="p">,</span>
-                                                                 <span class="n">el_wrapper</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">el_wrapper</span><span class="p">[</span><span class="n">j</span><span class="p">],</span>
-                                                                 <span class="n">annual_demand</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">gains</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gains</span> <span class="o">+</span> <span class="n">temp_obj</span><span class="o">.</span><span class="n">generate_gain_profile</span><span class="p">()</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">occ</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">time_horizon</span> <span class="o">/</span> <span class="n">time_resolution</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dhw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">time_horizon</span> <span class="o">/</span> <span class="n">time_resolution</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dhw_minutely</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">time_horizon</span> <span class="o">/</span> <span class="mi">60</span><span class="p">))</span>  <span class="c1"># minute resolution</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">elec</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">time_horizon</span> <span class="o">/</span> <span class="n">time_resolution</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gains</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">time_horizon</span> <span class="o">/</span> <span class="n">time_resolution</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">EV_carprofile</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">time_horizon</span> <span class="o">/</span> <span class="n">time_resolution</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">EV_carcharging_ondemand</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">time_horizon</span> <span class="o">/</span> <span class="n">time_resolution</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ev_capacity</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ice_carprofile</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">time_horizon</span> <span class="o">/</span> <span class="n">time_resolution</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">individual_car_profiles</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1"># Residential buildings</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_residential</span><span class="p">:</span>
+
+            <span class="n">current_index</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c1"># To keep track of the starting index for car profiles Id in each flat</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span><span class="p">):</span>
+                <span class="n">temp_obj</span> <span class="o">=</span> <span class="n">Profiles</span><span class="p">(</span><span class="n">number_occupants</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="p">[</span><span class="n">j</span><span class="p">],</span> <span class="n">number_occupants_building</span><span class="o">=</span><span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="p">),</span>
+                                    <span class="n">initial_day</span><span class="o">=</span><span class="n">initial_day</span><span class="p">,</span> <span class="n">nb_days</span><span class="o">=</span><span class="n">nb_days</span><span class="p">,</span> <span class="n">time_resolution</span><span class="o">=</span><span class="n">time_resolution</span><span class="p">,</span>
+                                    <span class="n">building</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">building</span><span class="p">)</span>
+                
+                <span class="n">dhw_dict</span> <span class="o">=</span> <span class="n">temp_obj</span><span class="o">.</span><span class="n">generate_dhw_profile</span><span class="p">(</span><span class="n">building</span><span class="o">=</span><span class="n">building</span><span class="p">,</span> <span class="n">holidays</span><span class="o">=</span><span class="n">holidays</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dhw</span> <span class="o">+=</span> <span class="n">dhw_dict</span><span class="p">[</span><span class="s2">"dhw_power_timeseries_W"</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dhw_minutely</span> <span class="o">+=</span> <span class="n">dhw_dict</span><span class="p">[</span><span class="s2">"dhw_power_timeseries_W_minutely"</span><span class="p">]</span>
+
+                <span class="c1"># Occupancy profile in a flat</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">occ</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">occ</span> <span class="o">+</span> <span class="n">temp_obj</span><span class="o">.</span><span class="n">generate_occupancy_profiles_residential</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">elec</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">elec</span> <span class="o">+</span> <span class="n">temp_obj</span><span class="o">.</span><span class="n">generate_el_profile_residential</span><span class="p">(</span><span class="n">holidays</span><span class="o">=</span><span class="n">holidays</span><span class="p">,</span>
+                                                                                 <span class="n">irradiance</span><span class="o">=</span><span class="n">irradiation</span><span class="p">,</span>
+                                                                                 <span class="n">el_wrapper</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">el_wrapper</span><span class="p">[</span><span class="n">j</span><span class="p">],</span>
+                                                                                 <span class="n">annual_demand</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand_per_flat</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
+
+                <span class="bp">self</span><span class="o">.</span><span class="n">gains</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gains</span> <span class="o">+</span> <span class="n">temp_obj</span><span class="o">.</span><span class="n">generate_gain_profile_residential</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">gen_cars</span><span class="p">:</span>
+                    <span class="p">(</span><span class="n">EV_carprofile</span><span class="p">,</span> <span class="n">EV_on_demand_charging</span><span class="p">,</span> <span class="n">ev_capacity</span><span class="p">,</span>
+                     <span class="n">ice_carprofile</span><span class="p">,</span> <span class="n">individual_car_profiles</span><span class="p">)</span> <span class="o">=</span> <span class="n">temp_obj</span><span class="o">.</span><span class="n">generate_car_profile</span><span class="p">(</span>
+                         <span class="n">building</span><span class="o">=</span><span class="n">building</span><span class="p">,</span>
+                         <span class="n">building_devices_data</span><span class="o">=</span><span class="n">building_devices_data</span><span class="p">,</span>
+                         <span class="n">holidays</span><span class="o">=</span><span class="n">holidays</span><span class="p">,</span>
+                         <span class="n">start_index_car</span><span class="o">=</span><span class="n">current_index</span><span class="p">)</span>
+
+                    <span class="bp">self</span><span class="o">.</span><span class="n">EV_carprofile</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">EV_carprofile</span> <span class="o">+</span> <span class="n">EV_carprofile</span>  <span class="c1"># Sum car profiles over all flats in the building</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">EV_carcharging_ondemand</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">EV_carcharging_ondemand</span> <span class="o">+</span> <span class="n">EV_on_demand_charging</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">ev_capacity</span> <span class="o">+=</span> <span class="n">ev_capacity</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">ice_carprofile</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ice_carprofile</span> <span class="o">+</span> <span class="n">ice_carprofile</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">individual_car_profiles</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">individual_car_profiles</span><span class="p">)</span>
+                    <span class="n">current_index</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">individual_car_profiles</span><span class="p">)</span>  <span class="c1"># Update the starting index for the next flat of the building</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Non-residential buildings</span>
+            <span class="n">school_holiday_days</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">nwg_config</span><span class="o">.</span><span class="n">is_affected_by_school_holidays</span><span class="p">():</span>
+                <span class="c1"># Define average school holiday day ranges (Julian days)</span>
+                <span class="n">SCHOOL_HOLIDAYS</span> <span class="o">=</span> <span class="p">[</span>
+                    <span class="nb">range</span><span class="p">(</span><span class="mi">94</span><span class="p">,</span> <span class="mi">107</span><span class="p">),</span>  <span class="c1"># Osterferien</span>
+                    <span class="nb">range</span><span class="p">(</span><span class="mi">189</span><span class="p">,</span> <span class="mi">233</span><span class="p">),</span>  <span class="c1"># Sommerferien</span>
+                    <span class="nb">range</span><span class="p">(</span><span class="mi">285</span><span class="p">,</span> <span class="mi">298</span><span class="p">),</span>  <span class="c1"># Herbstferien</span>
+                    <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">357</span><span class="p">,</span> <span class="mi">366</span><span class="p">))</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">7</span><span class="p">)),</span>  <span class="c1"># Weihnachtsferien</span>
+                <span class="p">]</span>
+
+                <span class="c1"># Set for the school holiday days for later use in the profile generation</span>
+                <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">SCHOOL_HOLIDAYS</span><span class="p">:</span>
+                    <span class="n">school_holiday_days</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+
+            <span class="n">holidays</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">holidays</span> <span class="ow">or</span> <span class="p">[])</span>
+            <span class="n">holidays</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">school_holiday_days</span><span class="p">)</span>
+            <span class="n">holidays</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">holidays</span><span class="p">))</span>  <span class="c1"># keep format consistent</span>
+
+            <span class="n">temp_obj</span> <span class="o">=</span> <span class="n">Profiles</span><span class="p">(</span><span class="n">number_occupants</span><span class="o">=</span><span class="nb">round</span><span class="p">(</span><span class="n">statistics</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="p">)),</span> <span class="n">number_occupants_building</span><span class="o">=</span><span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="p">),</span><span class="n">initial_day</span><span class="o">=</span><span class="n">initial_day</span><span class="p">,</span> <span class="n">nb_days</span><span class="o">=</span><span class="n">nb_days</span><span class="p">,</span> <span class="n">time_resolution</span><span class="o">=</span><span class="n">time_resolution</span><span class="p">,</span><span class="n">building</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">building</span><span class="p">,</span><span class="n">SIA2024</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">SIA2024</span><span class="p">)</span>
+            <span class="c1"># Occupancy profile in the building</span>
+            <span class="n">_</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">occ</span><span class="p">,</span><span class="n">_</span> <span class="o">=</span> <span class="n">temp_obj</span><span class="o">.</span><span class="n">generate_profiles_non_residential</span><span class="p">(</span><span class="n">holidays</span> <span class="o">=</span> <span class="n">holidays</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">elec</span> <span class="o">=</span> <span class="n">temp_obj</span><span class="o">.</span><span class="n">generate_el_profile_non_residential</span><span class="p">(</span><span class="n">irradiance</span><span class="o">=</span><span class="n">irradiation</span><span class="p">,</span><span class="n">el_wrapper</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">el_wrapper</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">annual_demand_app</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand_zones</span><span class="p">)</span>
+
+            <span class="n">gains_persons</span><span class="p">,</span> <span class="n">gains_others</span> <span class="o">=</span> <span class="n">temp_obj</span><span class="o">.</span><span class="n">generate_gain_profile_non_residential</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">gains</span> <span class="o">=</span> <span class="n">gains_persons</span> <span class="o">+</span> <span class="n">gains_others</span>
+
+            <span class="n">dhw_dict</span> <span class="o">=</span> <span class="n">temp_obj</span><span class="o">.</span><span class="n">generate_dhw_profile</span><span class="p">(</span><span class="n">building</span><span class="o">=</span><span class="n">building</span><span class="p">,</span> <span class="n">holidays</span><span class="o">=</span><span class="n">holidays</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">dhw</span> <span class="o">=</span> <span class="n">dhw_dict</span><span class="p">[</span><span class="s2">"dhw_power_timeseries_W"</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dhw_minutely</span> <span class="o">=</span> <span class="n">dhw_dict</span><span class="p">[</span><span class="s2">"dhw_power_timeseries_W_minutely"</span><span class="p">]</span>
+
+            <span class="c1"># Calculate car profiles for non-residential buildings if gen_cars is True.</span>
+            <span class="k">if</span> <span class="n">gen_cars</span><span class="p">:</span>
+                <span class="c1"># Car calculation for every non-residential building</span>
+                <span class="p">(</span><span class="n">EV_carprofile</span><span class="p">,</span> <span class="n">EV_on_demand_charging</span><span class="p">,</span> <span class="n">ev_capacity</span><span class="p">,</span>
+                <span class="n">ice_carprofile</span><span class="p">,</span> <span class="n">individual_car_profiles</span><span class="p">)</span> <span class="o">=</span> <span class="n">temp_obj</span><span class="o">.</span><span class="n">generate_car_profile</span><span class="p">(</span>
+                    <span class="n">building</span><span class="o">=</span><span class="n">building</span><span class="p">,</span>
+                    <span class="n">building_devices_data</span><span class="o">=</span><span class="n">building_devices_data</span><span class="p">,</span>
+                    <span class="n">holidays</span><span class="o">=</span><span class="n">holidays</span>
+                <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">EV_carprofile</span> <span class="o">+=</span> <span class="n">EV_carprofile</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">EV_carcharging_ondemand</span> <span class="o">+=</span> <span class="n">EV_on_demand_charging</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ev_capacity</span> <span class="o">+=</span> <span class="n">ev_capacity</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ice_carprofile</span> <span class="o">+=</span> <span class="n">ice_carprofile</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">individual_car_profiles</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">individual_car_profiles</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="Users.calcHeatingProfile">
 <a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.calcHeatingProfile">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">calcHeatingProfile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">site</span><span class="p">,</span><span class="n">envelope</span><span class="p">,</span><span class="n">time_resolution</span><span class="p">)</span> <span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Calclulate heat demand for each building</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">calcHeatingProfile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">site</span><span class="p">,</span> <span class="n">envelope</span><span class="p">,</span> <span class="n">thermal_model</span><span class="p">,</span> <span class="n">night_setback</span><span class="p">,</span> <span class="n">is_cooled</span><span class="p">,</span> <span class="n">calendar</span><span class="p">,</span> <span class="n">time_resolution</span><span class="p">,</span> <span class="n">initial_day</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        Calculate heat demand for each building.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">            - site (dict): site data, e.g. weather</span>
-<span class="sd">            - envelope (object): containing all physical data of the envelope</span>
-<span class="sd">            - time_resolution (int): resolution of time steps of output array in seconds.</span>
+<span class="sd">        site: dict</span>
+<span class="sd">            Site data, e.g. weather.</span>
+<span class="sd">        envelope: object</span>
+<span class="sd">            Containing all physical data of the envelope.</span>
+<span class="sd">        night_setback : integer</span>
+<span class="sd">            1 if night setback is activated, 0 if not.</span>
+<span class="sd">        is_cooled : integer</span>
+<span class="sd">            1 if the building is actively cooled, 0 if not.</span>
+<span class="sd">        calendar : dict</span>
+<span class="sd">            Information about TRY (holidays, heating period, etc.).</span>
+<span class="sd">        time_resolution : integer</span>
+<span class="sd">            Resolution of time steps of output array in seconds.</span>
+
+<span class="sd">        Outputs</span>
+<span class="sd">        -------</span>
+<span class="sd">        Q_H : float</span>
+<span class="sd">            Heating load for the current time step in Watt.</span>
+<span class="sd">        Q_C : float</span>
+<span class="sd">            Cooling load for the current time step in Watt.</span>
 
 <span class="sd">        Returns</span>
-<span class="sd">        ----------</span>
-<span class="sd">            - Q_HC (float): Heating (positive) or cooling (negative) load for the current time step in Watt.</span>
+<span class="sd">        -------</span>
+<span class="sd">        None.</span>
+<span class="sd">        """</span>
 
-<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">dt</span> <span class="o">=</span> <span class="n">time_resolution</span> <span class="o">/</span> <span class="p">(</span><span class="mi">60</span> <span class="o">*</span> <span class="mi">60</span><span class="p">)</span>
 
+        <span class="n">local_calendar</span> <span class="o">=</span> <span class="n">calendar</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">local_holidays</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">calendar</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"holidays"</span><span class="p">,</span> <span class="p">[])</span> <span class="ow">or</span> <span class="p">[])</span>
 
-        <span class="n">dt</span> <span class="o">=</span> <span class="n">time_resolution</span><span class="o">/</span><span class="p">(</span><span class="mi">60</span><span class="o">*</span><span class="mi">60</span><span class="p">)</span>
+        <span class="c1"># Extend holidays for schools</span>
+        <span class="n">school_holiday_days</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_residential</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">nwg_config</span><span class="o">.</span><span class="n">is_affected_by_school_holidays</span><span class="p">():</span>
+                <span class="c1"># Define average school holiday day ranges (Julian days)</span>
+                <span class="n">SCHOOL_HOLIDAYS</span> <span class="o">=</span> <span class="p">[</span>
+                    <span class="nb">range</span><span class="p">(</span><span class="mi">94</span><span class="p">,</span> <span class="mi">107</span><span class="p">),</span>  <span class="c1"># Osterferien</span>
+                    <span class="nb">range</span><span class="p">(</span><span class="mi">189</span><span class="p">,</span> <span class="mi">233</span><span class="p">),</span>  <span class="c1"># Sommerferien</span>
+                    <span class="nb">range</span><span class="p">(</span><span class="mi">285</span><span class="p">,</span> <span class="mi">298</span><span class="p">),</span>  <span class="c1"># Herbstferien</span>
+                    <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">357</span><span class="p">,</span> <span class="mi">366</span><span class="p">))</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">7</span><span class="p">)),</span>  <span class="c1"># Weihnachtsferien</span>
+                <span class="p">]</span>
+
+                <span class="c1"># Set for the school holiday days for later use in the profile generation</span>
+                <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">SCHOOL_HOLIDAYS</span><span class="p">:</span>
+                    <span class="n">local_holidays</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+
+        <span class="n">local_calendar</span><span class="p">[</span><span class="s2">"holidays"</span><span class="p">]</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">local_holidays</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">thermal_model</span> <span class="o">==</span> <span class="s2">"5R1C"</span><span class="p">:</span>
+            <span class="n">heating</span> <span class="o">=</span> <span class="n">heating_5R1C</span>
+        <span class="k">elif</span> <span class="n">thermal_model</span> <span class="o">==</span> <span class="s2">"7R2C"</span><span class="p">:</span>
+            <span class="n">heating</span> <span class="o">=</span> <span class="n">heating_7R2C</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Unknown thermal_model_type: </span><span class="si">{</span><span class="n">thermal_model</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
         <span class="c1"># calculate the temperatures (Q_HC, T_op, T_m, T_air, T_s)</span>
-        <span class="p">(</span><span class="n">Q_HC</span><span class="p">,</span> <span class="n">T_i</span><span class="p">,</span> <span class="n">T_s</span><span class="p">,</span> <span class="n">T_m</span><span class="p">,</span> <span class="n">T_op</span><span class="p">)</span> <span class="o">=</span> <span class="n">heating</span><span class="o">.</span><span class="n">calculate</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;T_e&quot;</span><span class="p">],</span><span class="n">dt</span><span class="p">)</span>
-        <span class="c1"># heating  load for the current time step in Watt</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">heat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">Q_HC</span><span class="p">))</span>
-        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">Q_HC</span><span class="p">)):</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">heat</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">Q_HC</span><span class="p">[</span><span class="n">t</span><span class="p">])</span></div>
+        <span class="k">if</span> <span class="n">night_setback</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="p">(</span><span class="n">Q_H</span><span class="p">,</span> <span class="n">Q_C</span><span class="p">,</span> <span class="n">T_op</span><span class="p">,</span> <span class="n">T_m</span><span class="p">,</span> <span class="n">T_i</span><span class="p">,</span> <span class="n">T_s</span><span class="p">)</span> <span class="o">=</span> <span class="n">heating</span><span class="o">.</span><span class="n">calc_night_setback</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="n">site</span><span class="p">[</span><span class="s2">"T_e"</span><span class="p">],</span> <span class="n">local_calendar</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">initial_day</span><span class="p">,</span>
+                                                                         <span class="bp">self</span><span class="o">.</span><span class="n">building</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">night_setback</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="p">(</span><span class="n">Q_H</span><span class="p">,</span> <span class="n">Q_C</span><span class="p">,</span> <span class="n">T_op</span><span class="p">,</span> <span class="n">T_m</span><span class="p">,</span> <span class="n">T_i</span><span class="p">,</span> <span class="n">T_s</span><span class="p">)</span> <span class="o">=</span> <span class="n">heating</span><span class="o">.</span><span class="n">calc</span><span class="p">(</span><span class="n">envelope</span><span class="p">,</span> <span class="n">site</span><span class="p">[</span><span class="s2">"T_e"</span><span class="p">],</span> <span class="n">local_calendar</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">initial_day</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span><span class="p">)</span>
 
+        <span class="c1"># Force cooling to zero if building is not actively cooled</span>
+        <span class="k">if</span> <span class="n">is_cooled</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">Q_C</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">Q_C</span><span class="p">)</span>
 
-<div class="viewcode-block" id="Users.saveProfiles">
-<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.saveProfiles">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">saveProfiles</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">unique_name</span><span class="p">,</span><span class="n">path</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Save profiles to csv</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">            - unique_name (str):unique building name</span>
-<span class="sd">            - path (str): results path</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        ----------</span>
-<span class="sd">            - csv files with profiles</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-
-        <span class="n">np</span><span class="o">.</span><span class="n">savetxt</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/elec_&#39;</span> <span class="o">+</span> <span class="n">unique_name</span> <span class="o">+</span> <span class="s1">&#39;.csv&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">elec</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%1.2f</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
-        <span class="n">np</span><span class="o">.</span><span class="n">savetxt</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/dhw_&#39;</span> <span class="o">+</span> <span class="n">unique_name</span> <span class="o">+</span> <span class="s1">&#39;.csv&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dhw</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%1.2f</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
-        <span class="n">np</span><span class="o">.</span><span class="n">savetxt</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/occ_&#39;</span> <span class="o">+</span> <span class="n">unique_name</span> <span class="o">+</span> <span class="s1">&#39;.csv&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">occ</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%1.2f</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
-        <span class="n">np</span><span class="o">.</span><span class="n">savetxt</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/gains_&#39;</span> <span class="o">+</span> <span class="n">unique_name</span> <span class="o">+</span> <span class="s1">&#39;.csv&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">gains</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%1.2f</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span></div>
-
-
-
-<div class="viewcode-block" id="Users.saveHeatingProfile">
-<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.saveHeatingProfile">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">saveHeatingProfile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">unique_name</span><span class="p">,</span><span class="n">path</span><span class="p">)</span> <span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Save heat demand to csv</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">            - unique_name (str): unique building name</span>
-<span class="sd">            - path (str): results path</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        ----------</span>
-<span class="sd">            - csv files with heat demand</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-
-        <span class="n">np</span><span class="o">.</span><span class="n">savetxt</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/heat_&#39;</span> <span class="o">+</span> <span class="n">unique_name</span> <span class="o">+</span> <span class="s1">&#39;.csv&#39;</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">heat</span><span class="p">,</span><span class="n">fmt</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%1.2f</span><span class="s1">&#39;</span><span class="p">,</span><span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span></div>
-
-
-<div class="viewcode-block" id="Users.loadProfiles">
-<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.loadProfiles">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">loadProfiles</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">unique_name</span><span class="p">,</span><span class="n">path</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Load profiles from csv</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">            - unique_name (str): unique building name</span>
-<span class="sd">            - path (str): results path</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        ----------</span>
-<span class="sd">            - profiles assigned to the object</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">elec</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/elec_&#39;</span> <span class="o">+</span> <span class="n">unique_name</span> <span class="o">+</span> <span class="s1">&#39;.csv&#39;</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">dhw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/dhw_&#39;</span> <span class="o">+</span> <span class="n">unique_name</span> <span class="o">+</span> <span class="s1">&#39;.csv&#39;</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">occ</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/occ_&#39;</span> <span class="o">+</span> <span class="n">unique_name</span> <span class="o">+</span> <span class="s1">&#39;.csv&#39;</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">gains</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/gains_&#39;</span> <span class="o">+</span> <span class="n">unique_name</span> <span class="o">+</span> <span class="s1">&#39;.csv&#39;</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span></div>
+        <span class="c1"># heating and cooling loads for the current time step in Watt</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">heat</span> <span class="o">=</span> <span class="n">Q_H</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cooling</span> <span class="o">=</span> <span class="n">Q_C</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">annual_heat_demand</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">Q_H</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">annual_cooling_demand</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">Q_C</span><span class="p">)</span></div>
 </div>
 
 
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
 
-<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
-
-    <span class="n">test</span> <span class="o">=</span> <span class="n">Users</span><span class="p">(</span><span class="n">building</span><span class="o">=</span><span class="s2">&quot;SFH&quot;</span><span class="p">,</span>
-                <span class="n">area</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
+    <span class="n">test</span> <span class="o">=</span> <span class="n">Users</span><span class="p">(</span><span class="n">building</span><span class="o">=</span><span class="s2">"SFH"</span><span class="p">,</span>
+                 <span class="n">area</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
 
     <span class="n">test</span><span class="o">.</span><span class="n">calcProfiles</span><span class="p">()</span>
 </pre></div>

@@ -6,16 +6,16 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Internal functions &mdash; DistrictGenerator 0.1.0 documentation</title>
+  <title>Internal functions &mdash; DistrictGenerator 0.1.2 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
-      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=01f34227"></script>
-      <script src="_static/doctools.js?v=9bcbadda"></script>
-      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/documentation_options.js?v=92734c54"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -48,19 +48,22 @@
 <li class="toctree-l1 current"><a class="reference internal" href="modules.html">Classes and internal functions</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="districtgenerator.classes.html">Classes</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Internal functions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#module-districtgenerator.functions._5R1C">districtgenerator.functions._5R1C</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#districtgenerator.functions._5R1C.calc"><code class="docutils literal notranslate"><span class="pre">calc()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#districtgenerator.functions._5R1C.calc_night_setback"><code class="docutils literal notranslate"><span class="pre">calc_night_setback()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#module-districtgenerator.functions._7R2C">districtgenerator.functions._7R2C</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#notes">Notes</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#districtgenerator.functions._7R2C.build_params_from_envelope"><code class="docutils literal notranslate"><span class="pre">build_params_from_envelope()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#districtgenerator.functions._7R2C.calc"><code class="docutils literal notranslate"><span class="pre">calc()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#districtgenerator.functions._7R2C.calc_night_setback"><code class="docutils literal notranslate"><span class="pre">calc_night_setback()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#districtgenerator.functions._7R2C.prepare_gains_from_envelope"><code class="docutils literal notranslate"><span class="pre">prepare_gains_from_envelope()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#districtgenerator.functions._7R2C.simulate_7r2c"><code class="docutils literal notranslate"><span class="pre">simulate_7r2c()</span></code></a></li>
+</ul>
+</li>
 <li class="toctree-l3"><a class="reference internal" href="#module-districtgenerator.functions.change_resolution">districtgenerator.functions.change_resolution</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#districtgenerator.functions.change_resolution.changeResolution"><code class="docutils literal notranslate"><span class="pre">changeResolution()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="#module-districtgenerator.functions.dhw_stochastical">districtgenerator.functions.dhw_stochastical</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#districtgenerator.functions.dhw_stochastical.compute_daily_demand"><code class="docutils literal notranslate"><span class="pre">compute_daily_demand()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#districtgenerator.functions.dhw_stochastical.full_year_computation"><code class="docutils literal notranslate"><span class="pre">full_year_computation()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#districtgenerator.functions.dhw_stochastical.load_profiles"><code class="docutils literal notranslate"><span class="pre">load_profiles()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="#module-districtgenerator.functions.heating_profile_5R1C">districtgenerator.functions.heating_profile_5R1C</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#districtgenerator.functions.heating_profile_5R1C.calc"><code class="docutils literal notranslate"><span class="pre">calc()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#districtgenerator.functions.heating_profile_5R1C.calculate"><code class="docutils literal notranslate"><span class="pre">calculate()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -98,6 +101,311 @@
              
   <section id="internal-functions">
 <h1>Internal functions<a class="headerlink" href="#internal-functions" title="Link to this heading"></a></h1>
+<section id="module-districtgenerator.functions._5R1C">
+<span id="districtgenerator-functions-5r1c"></span><h2>districtgenerator.functions._5R1C<a class="headerlink" href="#module-districtgenerator.functions._5R1C" title="Link to this heading"></a></h2>
+<p>Script to generate heating and cooling demands according to DIN EN ISO 13790.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="districtgenerator.functions._5R1C.calc">
+<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions._5R1C.</span></span><span class="sig-name descname"><span class="pre">calc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">zoneParameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T_e</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">calendar</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initial_day</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">building_type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/_5R1C.html#calc"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions._5R1C.calc" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="districtgenerator.functions._5R1C.calc_night_setback">
+<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions._5R1C.</span></span><span class="sig-name descname"><span class="pre">calc_night_setback</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">zoneParameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T_e</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">calendar</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initial_day</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">building_type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/_5R1C.html#calc_night_setback"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions._5R1C.calc_night_setback" title="Link to this definition"></a></dt>
+<dd><p>Calculate heating and cooling demand with night setback for residential buildings
+and night set up for non-residential buildings.</p>
+<section id="parameters">
+<h3>Parameters<a class="headerlink" href="#parameters" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt>zoneParameters<span class="classifier">ZoneParameters</span></dt><dd><p>Resistances and capacity</p>
+</dd>
+<dt>T_e<span class="classifier">ndarray</span></dt><dd><p>External Temperature for each time step in degree Celsius.</p>
+</dd>
+<dt>calendar<span class="classifier">dict</span></dt><dd><p>Dictionary containing information about heating period and holidays</p>
+</dd>
+<dt>dt<span class="classifier">float</span></dt><dd><p>Time step in hours</p>
+</dd>
+<dt>building_type<span class="classifier">str</span></dt><dd><p>Type of the building, e.g. “SFH”, “TH”, “MFH</p>
+</dd>
+</dl>
+</section>
+<section id="returns">
+<h3>Returns<a class="headerlink" href="#returns" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt>Q_H<span class="classifier">ndarray</span></dt><dd><p>Heating load for each time step in Watt.</p>
+</dd>
+<dt>Q_C<span class="classifier">ndarray</span></dt><dd><p>Cooling load for each time step in Watt.</p>
+</dd>
+<dt>T_op<span class="classifier">ndarray</span></dt><dd><p>Operative temperature for each time step in degree Celsius.</p>
+</dd>
+<dt>T_m<span class="classifier">ndarray</span></dt><dd><p>Temperature of the thermal mass for each time step in degree Celsius.</p>
+</dd>
+<dt>T_i<span class="classifier">ndarray</span></dt><dd><p>Air temperature for each time step in degree Celsius.</p>
+</dd>
+<dt>T_s<span class="classifier">ndarray</span></dt><dd><p>Surface temperature for each time step in degree Celsius.</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+</section>
+<section id="module-districtgenerator.functions._7R2C">
+<span id="districtgenerator-functions-7r2c"></span><h2>districtgenerator.functions._7R2C<a class="headerlink" href="#module-districtgenerator.functions._7R2C" title="Link to this heading"></a></h2>
+<p>Dynamic 7R2C thermal-zone solver based on VDI 6007.</p>
+<p>The model represents the thermal zone using five temperature nodes:</p>
+<ul class="simple">
+<li><p>indoor air,</p></li>
+<li><p>internal-wall surface,</p></li>
+<li><p>internal-wall thermal mass,</p></li>
+<li><p>external-wall surface, and</p></li>
+<li><p>external-wall thermal mass.</p></li>
+</ul>
+<p>The thermal network is solved using a backward-Euler time integration
+scheme.</p>
+<section id="notes">
+<h3>Notes<a class="headerlink" href="#notes" title="Link to this heading"></a></h3>
+<p>The solver requires an initialized envelope for which the VDI 6007
+thermal parameters and equivalent outdoor temperatures have already
+been calculated.</p>
+<p>Solar radiation and internal gains are not passed directly to the
+solver. Their effects are represented through quantities previously
+calculated and stored in the envelope object.</p>
+<p>The current implementation assumes infiltration-based ventilation.
+Heating and cooling can be distributed between the indoor-air and
+surface nodes, and temperature control is based on operative
+temperature.</p>
+</section>
+<dl class="py function">
+<dt class="sig sig-object py" id="districtgenerator.functions._7R2C.build_params_from_envelope">
+<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions._7R2C.</span></span><span class="sig-name descname"><span class="pre">build_params_from_envelope</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">envelope</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_s</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/districtgenerator/functions/_7R2C.html#build_params_from_envelope"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions._7R2C.build_params_from_envelope" title="Link to this definition"></a></dt>
+<dd><p>Build the numerical 7R2C parameter dictionary from an envelope.</p>
+<section id="id1">
+<h3>Parameters<a class="headerlink" href="#id1" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt>envelope<span class="classifier">object</span></dt><dd><p>Parameterized Envelope-like object. It must provide the VDI 6007 thermal
+parameters <code class="docutils literal notranslate"><span class="pre">R1AW</span></code>, <code class="docutils literal notranslate"><span class="pre">R1IW</span></code>, <code class="docutils literal notranslate"><span class="pre">C1AW</span></code>, <code class="docutils literal notranslate"><span class="pre">C1IW</span></code>, <code class="docutils literal notranslate"><span class="pre">RrestAW</span></code>,
+<code class="docutils literal notranslate"><span class="pre">RalphaStarAW</span></code>, <code class="docutils literal notranslate"><span class="pre">RalphaStarIW</span></code>, <code class="docutils literal notranslate"><span class="pre">UA_tot</span></code>, <code class="docutils literal notranslate"><span class="pre">Aaw_tot</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">Araum_tot</span></code>. It must also provide <code class="docutils literal notranslate"><span class="pre">rho_air</span></code>, <code class="docutils literal notranslate"><span class="pre">c_p_air</span></code>, <code class="docutils literal notranslate"><span class="pre">V_dot</span></code>,
+<code class="docutils literal notranslate"><span class="pre">V_dot_infiltration</span></code>, <code class="docutils literal notranslate"><span class="pre">eta_temp_vent</span></code>, and <code class="docutils literal notranslate"><span class="pre">V</span></code> for the air and
+ventilation terms.</p>
+</dd>
+<dt>dt_s<span class="classifier">float</span></dt><dd><p>Simulation time step in seconds.</p>
+</dd>
+</dl>
+</section>
+<section id="id2">
+<h3>Returns<a class="headerlink" href="#id2" title="Link to this heading"></a></h3>
+<dl>
+<dt>dict of str to float</dt><dd><p>Solver parameters with the following entries:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">C1IW</span></code>, <code class="docutils literal notranslate"><span class="pre">C1AW</span></code>, <code class="docutils literal notranslate"><span class="pre">C_air</span></code></dt><dd><p>Thermal capacitances in J/K.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">RalphaStarIW</span></code>, <code class="docutils literal notranslate"><span class="pre">RalphaStarAW</span></code>, <code class="docutils literal notranslate"><span class="pre">R1IW</span></code>, <code class="docutils literal notranslate"><span class="pre">R1AW</span></code>, <code class="docutils literal notranslate"><span class="pre">RrestAW</span></code></dt><dd><p>Thermal resistances in K/W.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">H_ve</span></code>, <code class="docutils literal notranslate"><span class="pre">UA_tot</span></code></dt><dd><p>Heat-transfer coefficients in W/K.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">Aaw_tot</span></code>, <code class="docutils literal notranslate"><span class="pre">Araum_tot</span></code></dt><dd><p>Areas in m².</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">dt</span></code></dt><dd><p>Time step in seconds.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="districtgenerator.functions._7R2C.calc">
+<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions._7R2C.</span></span><span class="sig-name descname"><span class="pre">calc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">envelope</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T_e</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">calendar</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initial_day</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">building_type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/_7R2C.html#calc"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions._7R2C.calc" title="Link to this definition"></a></dt>
+<dd><p>Calculate heating/cooling demand using the legacy 7R2C wrapper interface.</p>
+<section id="id3">
+<h3>Parameters<a class="headerlink" href="#id3" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt>envelope<span class="classifier">object</span></dt><dd><p>Prepared Envelope-like object required by <a class="reference internal" href="#districtgenerator.functions._7R2C.simulate_7r2c" title="districtgenerator.functions._7R2C.simulate_7r2c"><code class="xref py py-func docutils literal notranslate"><span class="pre">simulate_7r2c()</span></code></a>. It must
+additionally provide <code class="docutils literal notranslate"><span class="pre">theta_eq_tot</span></code>.</p>
+</dd>
+<dt>T_e<span class="classifier">array_like</span></dt><dd><p>Outdoor air temperature time series in °C.</p>
+</dd>
+<dt>calendar<span class="classifier">dict</span></dt><dd><p>Calendar definition passed to <a class="reference internal" href="#districtgenerator.functions._7R2C.simulate_7r2c" title="districtgenerator.functions._7R2C.simulate_7r2c"><code class="xref py py-func docutils literal notranslate"><span class="pre">simulate_7r2c()</span></code></a>. The key <code class="docutils literal notranslate"><span class="pre">holidays</span></code>
+must contain zero-based simulation-day indices. Heating and cooling period
+keys required by <a class="reference internal" href="#districtgenerator.functions._7R2C.simulate_7r2c" title="districtgenerator.functions._7R2C.simulate_7r2c"><code class="xref py py-func docutils literal notranslate"><span class="pre">simulate_7r2c()</span></code></a> must also be present.</p>
+</dd>
+<dt>dt<span class="classifier">float</span></dt><dd><p>Simulation time step in hours.</p>
+</dd>
+<dt>initial_day<span class="classifier">int</span></dt><dd><p>Weekday index of the first simulation day, with Monday = 0 and Sunday = 6.</p>
+</dd>
+<dt>building_type<span class="classifier">str</span></dt><dd><p>Building-type identifier used to construct residential or
+non-residential setpoint schedules.</p>
+</dd>
+</dl>
+</section>
+<section id="id4">
+<h3>Returns<a class="headerlink" href="#id4" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt>Q_H<span class="classifier">numpy.ndarray</span></dt><dd><p>Non-negative heating demand in W.</p>
+</dd>
+<dt>Q_C<span class="classifier">numpy.ndarray</span></dt><dd><p>Non-negative cooling demand in W.</p>
+</dd>
+<dt>T_op<span class="classifier">numpy.ndarray</span></dt><dd><p>Operative temperature in °C.</p>
+</dd>
+<dt>T_m<span class="classifier">numpy.ndarray</span></dt><dd><p>Legacy aggregated mass temperature in °C.</p>
+</dd>
+<dt>T_i<span class="classifier">numpy.ndarray</span></dt><dd><p>Legacy indoor-air temperature in °C.</p>
+</dd>
+<dt>T_s<span class="classifier">numpy.ndarray</span></dt><dd><p>Legacy aggregated surface temperature in °C.</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="districtgenerator.functions._7R2C.calc_night_setback">
+<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions._7R2C.</span></span><span class="sig-name descname"><span class="pre">calc_night_setback</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">envelope</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T_e</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">calendar</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initial_day</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">building_type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/_7R2C.html#calc_night_setback"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions._7R2C.calc_night_setback" title="Link to this definition"></a></dt>
+<dd><p>Calculate demand with night-setback-aware setpoint schedules.</p>
+<section id="id5">
+<h3>Parameters<a class="headerlink" href="#id5" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt>envelope<span class="classifier">object</span></dt><dd><p>Prepared Envelope-like object required by <a class="reference internal" href="#districtgenerator.functions._7R2C.simulate_7r2c" title="districtgenerator.functions._7R2C.simulate_7r2c"><code class="xref py py-func docutils literal notranslate"><span class="pre">simulate_7r2c()</span></code></a>.</p>
+</dd>
+<dt>T_e<span class="classifier">array_like</span></dt><dd><p>Outdoor air temperature time series in °C.</p>
+</dd>
+<dt>calendar<span class="classifier">dict</span></dt><dd><p>Calendar definition passed to <a class="reference internal" href="#districtgenerator.functions._7R2C.simulate_7r2c" title="districtgenerator.functions._7R2C.simulate_7r2c"><code class="xref py py-func docutils literal notranslate"><span class="pre">simulate_7r2c()</span></code></a>. The key <code class="docutils literal notranslate"><span class="pre">holidays</span></code>
+must contain zero-based simulation-day indices. Heating and cooling period
+keys required by <a class="reference internal" href="#districtgenerator.functions._7R2C.simulate_7r2c" title="districtgenerator.functions._7R2C.simulate_7r2c"><code class="xref py py-func docutils literal notranslate"><span class="pre">simulate_7r2c()</span></code></a> must also be present.</p>
+</dd>
+<dt>dt<span class="classifier">float</span></dt><dd><p>Simulation time step in hours.</p>
+</dd>
+<dt>initial_day<span class="classifier">int</span></dt><dd><p>Weekday index of the first simulation day, with Monday = 0 and Sunday = 6.</p>
+</dd>
+<dt>building_type<span class="classifier">str</span></dt><dd><p>Building-type identifier used to construct residential or
+non-residential setpoint schedules.</p>
+</dd>
+</dl>
+</section>
+<section id="id6">
+<h3>Returns<a class="headerlink" href="#id6" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt>Q_H<span class="classifier">numpy.ndarray</span></dt><dd><p>Non-negative heating demand in W.</p>
+</dd>
+<dt>Q_C<span class="classifier">numpy.ndarray</span></dt><dd><p>Non-negative cooling demand in W.</p>
+</dd>
+<dt>T_op<span class="classifier">numpy.ndarray</span></dt><dd><p>Operative temperature in °C.</p>
+</dd>
+<dt>T_m<span class="classifier">numpy.ndarray</span></dt><dd><p>Legacy aggregated mass temperature in °C.</p>
+</dd>
+<dt>T_i<span class="classifier">numpy.ndarray</span></dt><dd><p>Legacy indoor-air temperature in °C.</p>
+</dd>
+<dt>T_s<span class="classifier">numpy.ndarray</span></dt><dd><p>Legacy aggregated surface temperature in °C.</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="districtgenerator.functions._7R2C.prepare_gains_from_envelope">
+<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions._7R2C.</span></span><span class="sig-name descname"><span class="pre">prepare_gains_from_envelope</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">envelope</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rad_frac</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.6</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/districtgenerator/functions/_7R2C.html#prepare_gains_from_envelope"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions._7R2C.prepare_gains_from_envelope" title="Link to this definition"></a></dt>
+<dd><p>Prepare convective and radiative gain time series for the 7R2C solver.</p>
+<section id="id7">
+<h3>Parameters<a class="headerlink" href="#id7" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt>envelope<span class="classifier">object</span></dt><dd><p>Envelope-like object containing solar gain series <code class="docutils literal notranslate"><span class="pre">Q_il_kon</span></code> and
+<code class="docutils literal notranslate"><span class="pre">Q_il_str</span></code> generated by the equivalent-temperature calculation, and an
+<code class="docutils literal notranslate"><span class="pre">internal_gains</span></code> time series for non-solar internal gains. If the solar
+gain attributes are absent, zero-valued solar gains are created using the
+length of <code class="docutils literal notranslate"><span class="pre">theta_eq_tot</span></code> when available.</p>
+</dd>
+<dt>rad_frac<span class="classifier">float, default 0.60</span></dt><dd><p>Fraction of <code class="docutils literal notranslate"><span class="pre">envelope.internal_gains</span></code> treated as radiative. The
+remaining fraction is assigned directly to the zone-air node as a
+convective gain. Values are not clipped to [0, 1].</p>
+</dd>
+</dl>
+</section>
+<section id="id8">
+<h3>Returns<a class="headerlink" href="#id8" title="Link to this heading"></a></h3>
+<dl>
+<dt>dict of str to numpy.ndarray</dt><dd><p>Dictionary containing equally sized power time series in watts:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">Q_il_kon_I</span></code></dt><dd><p>Total convective gains applied to the zone-air node.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">Q_il_str_iw</span></code></dt><dd><p>Total radiant gains assigned to internal-wall surfaces.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">Q_il_str_aw</span></code></dt><dd><p>Total radiant gains assigned to external-envelope surfaces.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="districtgenerator.functions._7R2C.simulate_7r2c">
+<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions._7R2C.</span></span><span class="sig-name descname"><span class="pre">simulate_7r2c</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">envelope</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T_ext</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_s</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">theta_eq</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T_set_heat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T_set_cool</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cooling_season_days</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">(145,</span> <span class="pre">255)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">w_op</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">night_setback</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">calendar</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/_7R2C.html#simulate_7r2c"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions._7R2C.simulate_7r2c" title="Link to this definition"></a></dt>
+<dd><p>Simulate the VDI 6007-inspired five-node thermal model.</p>
+<section id="id9">
+<h3>Parameters<a class="headerlink" href="#id9" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt>envelope<span class="classifier">object</span></dt><dd><p>Fully prepared Envelope-like object containing the VDI 6007 parameters,
+gain time series, temperature setpoints, and <code class="docutils literal notranslate"><span class="pre">heatload</span></code>. If available,
+<code class="docutils literal notranslate"><span class="pre">coolingload</span></code> is used as the cooling-power limit.</p>
+</dd>
+<dt>T_ext<span class="classifier">numpy.ndarray</span></dt><dd><p>Outdoor dry-bulb temperature time series in °C. Its length defines the
+number of simulation steps.</p>
+</dd>
+<dt>dt_s<span class="classifier">float</span></dt><dd><p>Simulation time step in seconds.</p>
+</dd>
+<dt>theta_eq<span class="classifier">numpy.ndarray, optional</span></dt><dd><p>Equivalent external-envelope temperature in °C. If <code class="docutils literal notranslate"><span class="pre">None</span></code>, <code class="docutils literal notranslate"><span class="pre">T_ext</span></code> is
+used. The array must provide at least as many values as <code class="docutils literal notranslate"><span class="pre">T_ext</span></code>.</p>
+</dd>
+<dt>T_set_heat<span class="classifier">array_like, optional</span></dt><dd><p>Operative heating setpoint in °C for each time step. If <code class="docutils literal notranslate"><span class="pre">None</span></code>, a
+constant series based on <code class="docutils literal notranslate"><span class="pre">envelope.T_set_min</span></code> is used.</p>
+</dd>
+<dt>T_set_cool<span class="classifier">array_like, optional</span></dt><dd><p>Operative cooling setpoint in °C for each time step. If <code class="docutils literal notranslate"><span class="pre">None</span></code>, a
+constant series based on <code class="docutils literal notranslate"><span class="pre">envelope.T_set_max</span></code> is used.</p>
+</dd>
+<dt>cooling_season_days<span class="classifier">tuple of int, default (145, 255)</span></dt><dd><p>Inclusive 1-based day-of-year interval in which cooling is enabled when
+<code class="docutils literal notranslate"><span class="pre">calendar</span></code> is <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p>
+</dd>
+<dt>w_op<span class="classifier">float, default 0.5</span></dt><dd><p>Weight of zone-air temperature in the operative-temperature calculation.
+The remaining weight is assigned to the area-weighted room-side surface
+temperature. Values are not clipped to [0, 1].</p>
+</dd>
+<dt>night_setback<span class="classifier">bool, default False</span></dt><dd><p>If <code class="docutils literal notranslate"><span class="pre">True</span></code>, replace heating and cooling setpoints from 22:00 to 05:59 by
+<code class="docutils literal notranslate"><span class="pre">T_set_min_night</span></code> and <code class="docutils literal notranslate"><span class="pre">T_set_max_night</span></code> respectively, with fallback
+offsets of -3 K and +1 K.</p>
+</dd>
+<dt>calendar<span class="classifier">dict, optional</span></dt><dd><p>Calendar-based season definition. Required keys are
+<code class="docutils literal notranslate"><span class="pre">heating_period_start</span></code>, <code class="docutils literal notranslate"><span class="pre">heating_period_end</span></code>,
+<code class="docutils literal notranslate"><span class="pre">cooling_period_start</span></code>, and <code class="docutils literal notranslate"><span class="pre">cooling_period_end</span></code>. Optional Boolean keys
+<code class="docutils literal notranslate"><span class="pre">consider_heating_period</span></code> and <code class="docutils literal notranslate"><span class="pre">consider_cooling_period</span></code> default to
+<code class="docutils literal notranslate"><span class="pre">True</span></code>. Calendar day indices are zero-based and interval end values are
+exclusive.</p>
+</dd>
+</dl>
+</section>
+<section id="id10">
+<h3>Returns<a class="headerlink" href="#id10" title="Link to this heading"></a></h3>
+<dl>
+<dt>dict of str to numpy.ndarray</dt><dd><p>Time series with the same length as <code class="docutils literal notranslate"><span class="pre">T_ext</span></code>:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">Q_H</span></code></dt><dd><p>Heating demand in W, reported as non-negative values.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">Q_C</span></code></dt><dd><p>Cooling demand in W, reported as non-negative values.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">T_op</span></code></dt><dd><p>Operative zone temperature in °C.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">T_air</span></code></dt><dd><p>Zone-air temperature in °C.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">T_s_iw</span></code>, <code class="docutils literal notranslate"><span class="pre">T_m_iw</span></code></dt><dd><p>Internal-wall surface and mass temperatures in °C.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">T_s_aw</span></code>, <code class="docutils literal notranslate"><span class="pre">T_m_aw</span></code></dt><dd><p>External-envelope surface and mass temperatures in °C.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+</section>
 <section id="module-districtgenerator.functions.change_resolution">
 <span id="districtgenerator-functions-change-resolution"></span><h2>districtgenerator.functions.change_resolution<a class="headerlink" href="#module-districtgenerator.functions.change_resolution" title="Link to this heading"></a></h2>
 <p>Script to change resolution of timeseries values with constant
@@ -106,171 +414,27 @@ sampling rate.</p>
 <dt class="sig sig-object py" id="districtgenerator.functions.change_resolution.changeResolution">
 <span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.change_resolution.</span></span><span class="sig-name descname"><span class="pre">changeResolution</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">values</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">oldResolution</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">newResolution</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mean'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/change_resolution.html#changeResolution"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.change_resolution.changeResolution" title="Link to this definition"></a></dt>
 <dd><p>Changes the temporal resolution of a time series with constant sampling intervals.</p>
-<hr class="docutils" />
-<section id="parameters">
-<h3>Parameters<a class="headerlink" href="#parameters" title="Link to this heading"></a></h3>
-<ul class="simple">
-<li><p>values: Array-like, the original time series data to be resampled.</p></li>
-<li><p>oldResolution: Integer, original time step in seconds (e.g. 3600 for hourly data).</p></li>
-<li><p>newResolution: Integer, desired time step in seconds after resampling.</p></li>
-<li><dl class="simple">
-<dt>method: {“mean”, “sum”}, optional. Determines how resampling is handled:</dt><dd><ul>
-<li><p>“mean”: Averages values when increasing time step (e.g. for power).</p></li>
-<li><p>“sum”: Sums values when increasing time step (e.g. for energy). Default is “mean”.</p></li>
-</ul>
+<section id="id11">
+<h3>Parameters<a class="headerlink" href="#id11" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt>values<span class="classifier">array_like</span></dt><dd><p>Original time-series values.</p>
+</dd>
+<dt>oldResolution<span class="classifier">int</span></dt><dd><p>Original temporal resolution in seconds.</p>
+</dd>
+<dt>newResolution<span class="classifier">int</span></dt><dd><p>Target temporal resolution in seconds.</p>
+</dd>
+<dt>method<span class="classifier">{“mean”, “sum”}, optional</span></dt><dd><p>Aggregation method. <code class="docutils literal notranslate"><span class="pre">&quot;mean&quot;</span></code> is appropriate for quantities
+such as power, whereas <code class="docutils literal notranslate"><span class="pre">&quot;sum&quot;</span></code> is appropriate for quantities
+such as energy. The default is <code class="docutils literal notranslate"><span class="pre">&quot;mean&quot;</span></code>.</p>
 </dd>
 </dl>
-</li>
-</ul>
 </section>
-<section id="returns">
-<h3>Returns<a class="headerlink" href="#returns" title="Link to this heading"></a></h3>
-<ul class="simple">
-<li><p>valuesResampled: Array of resampled values at the new resolution.</p></li>
-</ul>
-</section>
-</dd></dl>
-
-</section>
-<section id="module-districtgenerator.functions.dhw_stochastical">
-<span id="districtgenerator-functions-dhw-stochastical"></span><h2>districtgenerator.functions.dhw_stochastical<a class="headerlink" href="#module-districtgenerator.functions.dhw_stochastical" title="Link to this heading"></a></h2>
-<p>Script to generate domestic hot water demands.
-This script is a copy of dhw_stochastical.py from pyCity.
-<a class="reference external" href="https://github.com/RWTH-EBC/pyCity">https://github.com/RWTH-EBC/pyCity</a></p>
-<dl class="py function">
-<dt class="sig sig-object py" id="districtgenerator.functions.dhw_stochastical.compute_daily_demand">
-<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.dhw_stochastical.</span></span><span class="sig-name descname"><span class="pre">compute_daily_demand</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">probability_profiles</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">average_profile</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">occupancy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">current_day</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temperature_difference</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">35</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/dhw_stochastical.html#compute_daily_demand"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.dhw_stochastical.compute_daily_demand" title="Link to this definition"></a></dt>
-<dd><p>Computes the daily domestic hot water (DHW) usage and corresponding heat demand
-based on occupancy and stochastic probability profiles.</p>
-<hr class="docutils" />
-<section id="id1">
-<h3>Parameters<a class="headerlink" href="#id1" title="Link to this heading"></a></h3>
-<ul class="simple">
-<li><p>probability_profiles: Dictionary of minute-wise sampled probability distributions
-for different occupancy levels.</p></li>
-<li><p>average_profile: Array of average tap water demand (liters/hour) per minute of the day.</p></li>
-<li><p>occupancy: Array of 10-minute sampled occupancy values for the building/apartment.</p></li>
-<li><p>current_day: Integer representing the current day of the year (0 = Jan 1).</p></li>
-<li><p>temperature_difference: Float or array indicating the temperature rise required [°C]
-(default is 35°C).</p></li>
-</ul>
-</section>
-<section id="id2">
-<h3>Returns<a class="headerlink" href="#id2" title="Link to this heading"></a></h3>
-<ul class="simple">
-<li><p>water: Array of minute-wise tap water volume flow in liters/hour.</p></li>
-<li><p>heat: Array of minute-wise heat demand in Watts based on water usage.</p></li>
-</ul>
-</section>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="districtgenerator.functions.dhw_stochastical.full_year_computation">
-<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.dhw_stochastical.</span></span><span class="sig-name descname"><span class="pre">full_year_computation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">occupancy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">profiles</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_dis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3600</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initial_day</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temperature_difference</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">35</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/dhw_stochastical.html#full_year_computation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.dhw_stochastical.full_year_computation" title="Link to this definition"></a></dt>
-<dd><p>Computes a full year of domestic hot water (DHW) usage and heat demand based on occupancy and stochastic profiles.</p>
-<hr class="docutils" />
-<section id="id3">
-<h3>Parameters<a class="headerlink" href="#id3" title="Link to this heading"></a></h3>
-<ul class="simple">
-<li><p>occupancy: Array-like, 10-minute sampled occupancy values for the entire year.</p></li>
-<li><p>profiles: Dictionary containing probability and average demand profiles for weekdays (<cite>wd</cite>) and weekends (<cite>we</cite>) by occupancy level.</p></li>
-<li><p>time_dis: Integer, time discretization of the output data in seconds (default is 3600 seconds).</p></li>
-<li><p>initial_day: Integer representing the first day of the year (0 = Monday, 6 = Sunday).</p></li>
-<li><p>temperature_difference: Float or array indicating the temperature rise required [°C] (default is 35°C).</p></li>
-</ul>
-</section>
-<section id="id4">
-<h3>Returns<a class="headerlink" href="#id4" title="Link to this heading"></a></h3>
-<ul class="simple">
-<li><p>water: Array of tap water flow in liters/hour, resampled to the specified time resolution.</p></li>
-<li><p>heat: Array of heat demand in Watts, resampled to the specified time resolution.</p></li>
-</ul>
-</section>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="districtgenerator.functions.dhw_stochastical.load_profiles">
-<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.dhw_stochastical.</span></span><span class="sig-name descname"><span class="pre">load_profiles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/dhw_stochastical.html#load_profiles"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.dhw_stochastical.load_profiles" title="Link to this definition"></a></dt>
-<dd><p>Loads domestic hot water (DHW) usage profiles from an Excel file and structures them by day type and occupancy level.</p>
-<hr class="docutils" />
-<section id="id5">
-<h3>Parameters<a class="headerlink" href="#id5" title="Link to this heading"></a></h3>
-<ul class="simple">
-<li><p>filename: Path to the Excel file containing water demand profiles.
-The file must include sheets named for weekday (<cite>wd</cite>) and weekend (<cite>we</cite>) profiles, both average and probability-based.</p></li>
-</ul>
-</section>
-<section id="id6">
-<h3>Returns<a class="headerlink" href="#id6" title="Link to this heading"></a></h3>
-<ul>
-<li><p>profiles: Dictionary containing structured demand profiles.
-Includes:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>‘wd’: Weekday probability profiles by occupancy count.</p></li>
-<li><p>‘we’: Weekend probability profiles by occupancy count.</p></li>
-<li><p>‘wd_mw’ and ‘we_mw’: Average minute-wise water usage profiles for weekdays and weekends.</p></li>
-</ul>
-</div></blockquote>
-</li>
-</ul>
-</section>
-</dd></dl>
-
-</section>
-<section id="module-districtgenerator.functions.heating_profile_5R1C">
-<span id="districtgenerator-functions-heating-profile-5r1c"></span><h2>districtgenerator.functions.heating_profile_5R1C<a class="headerlink" href="#module-districtgenerator.functions.heating_profile_5R1C" title="Link to this heading"></a></h2>
-<p>Script to generate heating and cooling demands sccording to DIN EN ISO 13790.</p>
-<dl class="py function">
-<dt class="sig sig-object py" id="districtgenerator.functions.heating_profile_5R1C.calc">
-<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.heating_profile_5R1C.</span></span><span class="sig-name descname"><span class="pre">calc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">zoneParameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">zoneInputs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T_m_init</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">TCoolingSet</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">THeatingSet</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/heating_profile_5R1C.html#calc"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.heating_profile_5R1C.calc" title="Link to this definition"></a></dt>
-<dd><p>Calculates heating and cooling demand over time based on indoor comfort targets and thermal zone properties.</p>
-<hr class="docutils" />
-<section id="id7">
-<h3>Parameters<a class="headerlink" href="#id7" title="Link to this heading"></a></h3>
-<ul class="simple">
-<li><p>zoneParameters: Object containing thermal zone parameters (resistances, capacities, etc.).</p></li>
-<li><p>zoneInputs: Object containing environmental and internal gains (solar radiation, internal heat, etc.).</p></li>
-<li><p>T_m_init: Initial temperature of the thermal mass [°C].</p></li>
-<li><p>TCoolingSet: Array of cooling setpoint temperatures [°C] for each timestep.</p></li>
-<li><p>THeatingSet: Array of heating setpoint temperatures [°C] for each timestep.</p></li>
-</ul>
-</section>
-<section id="id8">
-<h3>Returns<a class="headerlink" href="#id8" title="Link to this heading"></a></h3>
-<ul class="simple">
-<li><p>Q_H: Array of heating demand per timestep [W].</p></li>
-<li><p>Q_C: Array of cooling demand per timestep [W].</p></li>
-<li><p>T_op: Array of operative temperatures [°C].</p></li>
-<li><p>T_m: Array of thermal mass temperatures [°C].</p></li>
-<li><p>T_i: Array of air temperatures [°C].</p></li>
-<li><p>T_s: Array of surface temperatures [°C].</p></li>
-</ul>
-</section>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="districtgenerator.functions.heating_profile_5R1C.calculate">
-<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.heating_profile_5R1C.</span></span><span class="sig-name descname"><span class="pre">calculate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">zoneParameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T_e</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/heating_profile_5R1C.html#calculate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.heating_profile_5R1C.calculate" title="Link to this definition"></a></dt>
-<dd><p>Calculates heating or cooling demand based on simplified 5R1C thermal model using DIN EN ISO 13790.</p>
-<hr class="docutils" />
-<section id="id9">
-<h3>Parameters<a class="headerlink" href="#id9" title="Link to this heading"></a></h3>
-<ul class="simple">
-<li><p>zoneParameters: Object containing thermal zone characteristics such as resistances, capacities, and gains.</p></li>
-<li><p>T_e: Array of external temperatures [°C] for each timestep.</p></li>
-<li><p>dt: Time step duration in hours.</p></li>
-</ul>
-</section>
-<section id="id10">
-<h3>Returns<a class="headerlink" href="#id10" title="Link to this heading"></a></h3>
-<ul class="simple">
-<li><p>Q_HC: Array of heating or cooling power required [W] at each timestep.</p></li>
-<li><p>T_i: Array of air temperatures [°C].</p></li>
-<li><p>T_s: Array of surface temperatures [°C].</p></li>
-<li><p>T_m: Array of thermal mass temperatures [°C].</p></li>
-<li><p>T_op: Array of operative temperatures [°C].</p></li>
-</ul>
+<section id="id12">
+<h3>Returns<a class="headerlink" href="#id12" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt>numpy.ndarray</dt><dd><p>Resampled time series.</p>
+</dd>
+</dl>
 </section>
 </dd></dl>
 

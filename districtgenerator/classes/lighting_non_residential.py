@@ -9,31 +9,65 @@ from __future__ import division
 
 import random
 import math
-import csv
-
+from districtgenerator.classes.non_residential import GenericNonResidential
 
 class LightingModelConfiguration():
+    """
+    Store building-specific parameters for the lighting model.
 
-    def __init__(self, building,
-                 external_irradiance_threshold=[60, 30]):
+    Parameters
+    ----------
+    building : str
+        Non-residential building-use identifier understood by
+        :class:`~districtgenerator.classes.non_residential.GenericNonResidential`.
+    external_irradiance_threshold : sequence of float, optional
+        Fallback mean and standard deviation of the external global
+        irradiance threshold in W/m². The default is ``[60, 30]``.
+
+    Attributes
+    ----------
+    nwg_config : GenericNonResidential
+        Behavior configuration for the selected non-residential
+        building type.
+    ext_irr_threshold_mean : float
+        Mean global-irradiance threshold in W/m² below which artificial
+        lighting is likely to be switched on.
+    ext_irr_threshold_std_dev : float
+        Standard deviation of the irradiance threshold in W/m².
+    """
+
+    def __init__(self, building, external_irradiance_threshold=[60, 30]):
         """
-        Constructor of lighting class object instance
+        Initialize the non-residential lighting configuration.
 
         Parameters
         ----------
-        external_irradiance_threshold : list, optional
-            List holding building external global irradiance threshold values
-            in W/m2 [index 0: mean value; index 1: standard deviation value]
-            (default: [60, 30])
+        building : str
+            Non-residential building-use identifier used to load the
+            corresponding behavior configuration.
+        external_irradiance_threshold : sequence of float, optional
+            Two-element fallback sequence ``[mean, standard_deviation]`` in
+            W/m². The default is ``[60, 30]``.
         """
+        self.nwg_config = GenericNonResidential(building)
 
         # External global irradiance threshold
-        if building == "SC":
-            self.ext_irr_threshold_mean = 0
-            self.ext_irr_threshold_std_dev = 0
-        else:
-            self.ext_irr_threshold_mean = external_irradiance_threshold[0]
-            self.ext_irr_threshold_std_dev = external_irradiance_threshold[1]
+        self.ext_irr_threshold_mean, self.ext_irr_threshold_std_dev = self.nwg_config.get_lighting_irradiance_threshold()
+
+        if self.ext_irr_threshold_mean is None or self.ext_irr_threshold_std_dev is None:
+            # Give warning if one of the two threshold values is specified but not the other one
+            if self.ext_irr_threshold_mean is None and self.ext_irr_threshold_std_dev is not None:
+                print(f"Warning: Mean value of the external irradiance threshold for lighting is not specified. Using default value of {external_irradiance_threshold[0]} W/m2.")
+                self.ext_irr_threshold_mean = external_irradiance_threshold[0]
+
+            elif self.ext_irr_threshold_mean is not None and self.ext_irr_threshold_std_dev is None:
+                print(f"Warning: Standard deviation of the external irradiance threshold for lighting is not specified. Using default value of {external_irradiance_threshold[1]} W/m2.")
+                self.ext_irr_threshold_std_dev = external_irradiance_threshold[1]
+
+            # If neither of the two threshold values is specified, use the default values
+            else:
+                self.ext_irr_threshold_mean = external_irradiance_threshold[0]
+                self.ext_irr_threshold_std_dev = external_irradiance_threshold[1]
 
     def relative_bulb_use_weighting(self):
         """
@@ -44,7 +78,7 @@ class LightingModelConfiguration():
 
         Returns
         -------
-        -math.log(random.random())
+        - math.log(random.random())
         """
         return -math.log(random.random())
 

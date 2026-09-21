@@ -16,11 +16,9 @@ def clustering_processing(time, site, district, heat_grid_data, centralDevices, 
     """
 
     # calculate cluster time horizon
-    initialArrayLenght = (time["clusterLength"] / time["timeResolution"])
-    lengthArray = initialArrayLenght
-    while lengthArray <= len(site["T_e"]):
-        lengthArray += initialArrayLenght
-    lengthArray = int(lengthArray - initialArrayLenght)
+    initialArrayLenght = int(time["clusterLength"] / time["timeResolution"])
+    num_clusters = len(site["T_e"]) // initialArrayLenght
+    lengthArray = num_clusters * initialArrayLenght
 
     # adjust profiles with calculated array length
     adjProfiles = {}

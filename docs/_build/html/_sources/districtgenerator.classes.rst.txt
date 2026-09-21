@@ -9,18 +9,26 @@ districtgenerator.classes.datahandler
    :undoc-members:
    :show-inheritance:
 
-districtgenerator.classes.envelope
+districtgenerator.classes.envelope_5R1C
 -----------------------------------------
 
-.. automodule:: districtgenerator.classes.envelope
+.. automodule:: districtgenerator.classes.envelope_5R1C
    :members:
    :undoc-members:
    :show-inheritance:
 
-districtgenerator.classes.profils
+districtgenerator.classes.envelope_7R2C
+-----------------------------------------
+
+.. automodule:: districtgenerator.classes.envelope_7R2C
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+districtgenerator.classes.profiles
 ----------------------------------------
 
-.. automodule:: districtgenerator.classes.profils
+.. automodule:: districtgenerator.classes.profiles
    :members:
    :undoc-members:
    :show-inheritance:
