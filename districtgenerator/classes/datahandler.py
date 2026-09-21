@@ -218,8 +218,7 @@ class Datahandler:
         for attr, value in global_config.heatgrid.__dict__.items():
             self.heat_grid_data[attr] = value
 
-        #self.scenario_name = scenario_name or global_config.scenario.scenario_name or "example_decentral"
-        self.scenario_name = global_config.scenario.scenario_name
+        self.scenario_name = scenario_name or global_config.scenario.scenario_name or "example_decentral"
         self.parallelization =  global_config.scenario.parallelization
 
         # --- 2. Load scenario data ---
