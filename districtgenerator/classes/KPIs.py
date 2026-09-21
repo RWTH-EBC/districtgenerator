@@ -313,37 +313,21 @@ class KPIs:
             self.dcf_year[year] = 0
             self.scf_year[year] = 0
 
-            min_val = np.zeros([len(self.inputData["clusters"]), len(data.district[0]["user"].elec_cluster[0])])
-            nenner_sup = np.zeros([len(self.inputData["clusters"]), len(data.district[0]["user"].elec_cluster[0])])
-            nenner_dem = np.zeros([len(self.inputData["clusters"]), len(data.district[0]["user"].elec_cluster[0])])
-
             for c in range(len(self.inputData["clusters"])):
-                for t in range(len(data.district[0]["user"].elec_cluster[0])):
-                    a = 0
-                    b = 0
-                    # sum of all buildings for each timestep
-                    for bldg_id in data.scenario["id"]:
-                        idx = data.building_dict[int(bldg_id)]
-                        a += self.inputData["resultsOptimization"][year][c][idx]["res_load"][t]
-                        b += self.inputData["resultsOptimization"][year][c][idx]["res_inj"][t]
+                # Sum of all buildings for each timestep, reusing prepareData()'s precomputed per-cluster
+                # sums (self.sum_res_load/self.sum_res_inj), plus the energy hub's own res_load/res_inj.
+                eh_res = self.inputData["resultsOptimization"][year][c]["energy_hub"]
+                a = self.sum_res_load[year][c, :] + np.array(eh_res["res_load"])
+                b = self.sum_res_inj[year][c, :] + np.array(eh_res["res_inj"])
 
-                    # Energy Hub
-                    a += self.inputData["resultsOptimization"][year][c]["energy_hub"]["res_load"][t]
-                    b += self.inputData["resultsOptimization"][year][c]["energy_hub"]["res_inj"][t]
+                # At the same time step t, either res_load or res_inj should be 0.
+                # However, a and b could both be greater than 0 at the same time step t,
+                # since they represent the sums of all the buildings.
+                # If both a and b are greater than 0, it means electricity is being transported from one building to another.
+                min_val = np.minimum(a, b)
 
-                    # At the same time step t, either res_load or res_inj should be 0.
-                    # However, a and b could both be greater than 0 at the same time step t,
-                    # since they represent the sums of all the buildings.
-                    # If both a and b are greater than 0, it means electricity is being transported from one building to another.
-                    # sum of all timesteps
-                    nenner_dem[c, t] += a
-                    nenner_sup[c, t] += b
-                    min_val[c, t] = np.min([a, b])
-
-                self.demandCoverFactor[year][c] = np.sum(min_val[c, :]) / np.sum(nenner_dem[c, :]) if np.sum(
-                    nenner_dem[c, :]) else 0
-                self.supplyCoverFactor[year][c] = np.sum(min_val[c, :]) / np.sum(nenner_sup[c, :]) if np.sum(
-                    nenner_sup[c, :]) else 0
+                self.demandCoverFactor[year][c] = np.sum(min_val) / np.sum(a) if np.sum(a) else 0
+                self.supplyCoverFactor[year][c] = np.sum(min_val) / np.sum(b) if np.sum(b) else 0
 
                 # Calculate weighted average over all years
                 weight = self.inputData["clusterWeights"][self.inputData["clusters"][c]] / sum_ClusterWeights
@@ -1092,6 +1076,16 @@ class KPIs:
         self.calculate_per_building_kpis(data)
         self.saveKPIs(scenario_name=data.scenario_name, result_path=data.resultPath, buildings=data.district, file_format=data.report_config["kpi_save_type"])
 
+    @staticmethod
+    def _append_metric_columns(row_data, avg_metrics, yearly_metrics_by_year):
+        """Append 'Avg. X (kWh/a)' and 'Year N X (kWh/a)' columns to a device row_data dict, from an
+        avg-metrics dict and a {year: yearly_metrics_dict} mapping (caller resolves any building_id lookup)."""
+        for metric_name, val in avg_metrics.items():
+            row_data[f"Avg. {metric_name} (kWh/a)"] = round(val, 2)
+        for year, yearly_metrics in yearly_metrics_by_year.items():
+            for metric_name, val in yearly_metrics.items():
+                row_data[f"Year {year} {metric_name} (kWh/a)"] = round(val, 2)
+
     def _yearly_series(self, source, key=None, years=None):
         """Build a {year: value} dict for the yearly KPI table, pulling from a
         {year: value} dict (key=None) or a {year: {key: value}} dict (key given)."""
@@ -1247,13 +1241,11 @@ class KPIs:
                 }
 
                 avg_metrics = self.decentral_device_energy_avg.get(building_id, {}).get(device_name, {})
-                for metric_name, val in avg_metrics.items():
-                    row_data[f"Avg. {metric_name} (kWh/a)"] = round(val, 2)
-
-                for year in years:
-                    yearly_metrics = self.decentral_device_energy_year.get(year, {}).get(building_id, {}).get(device_name, {})
-                    for metric_name, val in yearly_metrics.items():
-                        row_data[f"Year {year} {metric_name} (kWh/a)"] = round(val, 2)
+                yearly_metrics_by_year = {
+                    year: self.decentral_device_energy_year.get(year, {}).get(building_id, {}).get(device_name, {})
+                    for year in years
+                }
+                self._append_metric_columns(row_data, avg_metrics, yearly_metrics_by_year)
 
                 dec_device_data_list.append(row_data)
 
@@ -1271,13 +1263,10 @@ class KPIs:
             }
 
             avg_metrics = self.central_device_energy_avg.get(device_name, {})
-            for metric_name, val in avg_metrics.items():
-                row_data[f"Avg. {metric_name} (kWh/a)"] = round(val, 2)
-
-            for year in years:
-                yearly_metrics = self.central_device_energy_year.get(year, {}).get(device_name, {})
-                for metric_name, val in yearly_metrics.items():
-                    row_data[f"Year {year} {metric_name} (kWh/a)"] = round(val, 2)
+            yearly_metrics_by_year = {
+                year: self.central_device_energy_year.get(year, {}).get(device_name, {}) for year in years
+            }
+            self._append_metric_columns(row_data, avg_metrics, yearly_metrics_by_year)
             cent_device_data_list.append(row_data)
 
         # Create list of per-building KPIs (one row per building per simulated year)
