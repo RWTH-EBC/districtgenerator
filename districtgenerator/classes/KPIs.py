@@ -482,6 +482,12 @@ class KPIs:
 
             if hasattr(data, 'centralDevices') and 'capacities' in data.centralDevices:
                 for dev_name, dev_spec in data.centralDevices["capacities"].items():
+                    # TODO: 'from_grid'/'to_grid' are grid-connection-limit entries added
+                    # unconditionally by opti_dimensioning_central_devices.py (not real central devices),
+                    # with cap=inf when enable_cap_limit_el is off. This filter only excludes cap<=0, so
+                    # they pass through with cap=inf into central_individual_devices_annualized_cost -
+                    # this is what caused the inf crash in saveKPIs' rounding. Also surfaces even in
+                    # decentral scenarios (e.g. e7) that pass designEnergyhub=True.
                     if not isinstance(dev_spec, dict) or dev_spec.get("cap", 0) <= 0:
                         continue
                     total_subsidized = dev_spec.get("ann_inv_cost", 0) + dev_spec.get("om_cost", 0)
@@ -1115,6 +1121,17 @@ class KPIs:
         self.saveKPIs(scenario_name=data.scenario_name, result_path=data.resultPath, buildings=data.district, file_format=data.report_config["kpi_save_type"])
 
     @staticmethod
+    def _round_sig(x):
+        """Round a numeric value to a whole number if |x| >= 1, else to 2 decimal places, so exported
+        tables don't carry more precision than is meaningful. Non-numeric values (labels, units, '-'
+        placeholders), NaN, 0 and +/-inf pass through unchanged."""
+        if not isinstance(x, (int, float, np.integer, np.floating)) or isinstance(x, bool):
+            return x
+        if pd.isna(x) or x == 0 or np.isinf(x):
+            return x
+        return int(round(x)) if abs(x) >= 1 else round(x, 2)
+
+    @staticmethod
     def _append_metric_columns(row_data, avg_metrics, yearly_metrics_by_year):
         """Append 'Avg. X (kWh/a)' and 'Year N X (kWh/a)' columns to a device row_data dict, from an
         avg-metrics dict and a {year: yearly_metrics_dict} mapping (caller resolves any building_id lookup)."""
@@ -1385,6 +1402,10 @@ class KPIs:
         static_cols_cent = ['Device', 'Capacity', 'Unit', 'Annualized Cost Subsidized (€/a)', 'Annualized Cost Unsubsidized (€/a)']
         kpi_df_cent_devices = sort_device_columns(df=kpi_df_cent_devices, static_cols = static_cols_cent, years=years)
 
+        # Round all numeric values for export: whole numbers for |x| >= 1, 2 decimals below that.
+        for df in (kpi_df_yearly, kpi_df_static, kpi_df_dec_devices, kpi_df_cent_devices, kpi_df_buildings):
+            if not df.empty:
+                df[df.columns] = df[df.columns].map(self._round_sig)
 
         if result_path is None:
             src_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
