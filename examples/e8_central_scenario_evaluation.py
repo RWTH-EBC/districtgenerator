@@ -36,7 +36,6 @@ def example8_central_scenario_evaluation():
     data.calculateKPIs()
     # Create a certificate (PDF) which summarizes the district parameters and calculated KPIs
     data.KPIs.create_certificate(data=data, result_path=data.resultPath)
-    data.KPIs.KPIs_to_csv(scenario_name=data.scenario_name, output_dir=data.resultPath)
 
     print("Congratulations! You calculated an optimized device operation for the selected neighborhood!")
     return data

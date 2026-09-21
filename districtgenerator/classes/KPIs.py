@@ -62,6 +62,7 @@ class KPIs:
 
         self.totalarea_residential = None
         self.totalarea_non_residential = None
+        self.total_area_mixed = None
         self.totalheatload = None
         self.totalcoolingload = None
         self.totalnumberflats = None
@@ -307,12 +308,7 @@ class KPIs:
             nenner_sup = np.zeros([len(self.inputData["clusters"]), len(data.district[0]["user"].elec_cluster[0])])
             nenner_dem = np.zeros([len(self.inputData["clusters"]), len(data.district[0]["user"].elec_cluster[0])])
 
-            total_weighted_shared = 0.0
-            total_weighted_demand = 0.0
-            total_weighted_supply = 0.0
-
             for c in range(len(self.inputData["clusters"])):
-                cluster_weight = self.inputData["clusterWeights"][self.inputData["clusters"][c]]
                 for t in range(len(data.district[0]["user"].elec_cluster[0])):
                     a = 0
                     b = 0
@@ -344,32 +340,6 @@ class KPIs:
                 weight = self.inputData["clusterWeights"][self.inputData["clusters"][c]] / sum_ClusterWeights
                 self.dcf_year[year] += self.demandCoverFactor[year][c] * weight
                 self.scf_year[year] += self.supplyCoverFactor[year][c] * weight
-                self.demandCoverFactor[year][c] = np.divide(
-                sum_min, sum_dem,
-                out=np.ones_like(sum_min), where=(sum_dem != 0)
-                )
-                self.supplyCoverFactor[year][c] = np.divide(
-                sum_min, sum_sup,
-                out=np.zeros_like(sum_min), where=(sum_sup != 0)
-                )
-
-                # Weighted Energy Exchange within the neighborhood accumulated across all clusters for each year
-                weight_norm = cluster_weight / sum_ClusterWeights
-                total_weighted_shared += sum_min * weight_norm
-                total_weighted_demand += sum_dem * weight_norm
-                total_weighted_supply += sum_sup * weight_norm
-
-
-            # Calculate the weighted average of the cover factors across clusters for each year
-            self.dcf_year[year] = (
-                total_weighted_shared / total_weighted_demand
-                if total_weighted_demand != 0 else 1.0
-            )
-
-            self.scf_year[year] = (
-                total_weighted_shared / total_weighted_supply
-                if total_weighted_supply != 0 else 0.0
-            )
 
         return None
 
@@ -388,39 +358,6 @@ class KPIs:
 
         # Filter only investable devices based on the dictionary
         investable_devices_list = [dev for dev, properties in decentral_device_data.items() if 'inv_var' in properties]
-        #TODO: Remove the comment if not needed anymore
-        # # Count occurrences in the 'heater' column
-        # counts = scenario['heater'].value_counts()
-
-        # # Sum the values in the 'TES', 'PV', 'STC', 'EV', and 'BAT' columns
-        # counts["TES"] = scenario.apply(lambda row: 1 if (row['f_TES'] > 0 and row['heater'] != 'heat_grid') else 0,axis=1).sum()
-        # counts["PV"] = scenario.apply(lambda row: 1 if (row['f_PV1'] > 0 or row['f_PV2'] > 0) else 0, axis=1).sum()
-        # counts["STC"] = scenario['f_STC'].apply(lambda x: 1 if x > 0 else 0).sum()
-        # counts["EV"] = sum((lambda ev: len(ev) if any(x > 0 for x in ev) else 0)(d["user"].ev_capacity)for d in district)
-        # counts["BAT"] = scenario['f_BAT'].apply(lambda x: 1 if x > 0 else 0).sum()
-
-        capacities = {}
-        for n in range(len(district)):
-            capacities[n] = {}
-            capacities[n]["BOI"] = district[n]["capacities"]["BOI"] / 1000
-            capacities[n]["BBOI"] = district[n]["capacities"]["BBOI"] / 1000
-            capacities[n]["H2BOI"] = district[n]["capacities"]["H2BOI"] / 1000
-            capacities[n]["OBOI"] = district[n]["capacities"]["OBOI"] / 1000
-            capacities[n]["HP"] = district[n]["capacities"]["HP"] / 1000
-            capacities[n]["EH"] = district[n]["capacities"]["EH"] / 1000
-            capacities[n]["EH_DHW"] = district[n]["capacities"]["EH_DHW"] / 1000
-            capacities[n]["CC"] = district[n]["capacities"]["CC"] / 1000
-            capacities[n]["CHP"] = district[n]["capacities"]["CHP"] / 1000
-            capacities[n]["FC"] = district[n]["capacities"]["FC"] / 1000
-            capacities[n]["DH"] = district[n]["capacities"]["DH"]/ decentral_device_data["DH"]["eta_th"] / 1000 # Price is payed for the power of the connection not for the actual thermal power delivered
-            capacities[n]["PV"] = district[n]["capacities"]["PV"]["area"]
-            capacities[n]["STC"] = district[n]["capacities"]["STC"]["area"]
-            capacities[n]["EV"] =  district[n]["capacities"]["EV"] / 1000
-            capacities[n]["BAT"] = district[n]["capacities"]["BAT"] / 1000
-            capacities[n]["TES"] = (district[n]["capacities"]["TES"] / physics["rho_water"] / physics["c_p_water"] /
-                                    decentral_device_data["TES"]["T_diff_max"] * 3600)
-            capacities[n]["TES_DHW"] = (district[n]["capacities"]["TES_DHW"] / physics["rho_water"] / physics["c_p_water"] /
-                                        decentral_device_data["TES_DHW"]["T_diff_max"] * 3600)
 
         calc_annual_investment = {}
         calc_annual_investment_unsubsidized = {}
@@ -429,12 +366,9 @@ class KPIs:
         self.annual_fixed_costs_decentral_unsubsidized = 0
         self.decentral_individual_devices_annualized_cost = {}
 
-        # Iteration over all buildings
-        for n, building_id in enumerate(scenario["id"]):
-        devices = ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "EH_DHW", "CC", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES", "TES_DHW"]
-
         # Iteration over all buildings and then over all devices
         for n in range(len(district)):
+            building_id = scenario["id"][n]
             self.decentral_individual_devices_annualized_cost[n] = {}
             if 'costs' not in self.kpis_per_building[building_id]:
                 self.kpis_per_building[building_id]['costs'] = {}
@@ -449,6 +383,8 @@ class KPIs:
                 "OBOI": district[n]["capacities"].get("OBOI", 0) / 1000,
                 "HP": district[n]["capacities"].get("HP", 0) / 1000,
                 "EH": district[n]["capacities"].get("EH", 0) / 1000,
+                "EH_DHW": district[n]["capacities"].get("EH_DHW", 0) / 1000,
+                "CC": district[n]["capacities"].get("CC", 0) / 1000,
                 "CHP": district[n]["capacities"].get("CHP", 0) / 1000,
                 "FC": district[n]["capacities"].get("FC", 0) / 1000,
                 "DH": district[n]["capacities"].get("DH", 0) / decentral_device_data.get("DH", {}).get("eta_th",
@@ -459,7 +395,10 @@ class KPIs:
                 "BAT": district[n]["capacities"].get("BAT", 0) / 1000,
                 "TES": (district[n]["capacities"].get("TES", 0) / physics["rho_water"] / physics[
                     "c_p_water"] / decentral_device_data.get("TES", {}).get("T_diff_max",
-                                                                            1) * 3600) if "TES" in decentral_device_data else 0
+                                                                            1) * 3600) if "TES" in decentral_device_data else 0,
+                "TES_DHW": (district[n]["capacities"].get("TES_DHW", 0) / physics["rho_water"] / physics[
+                    "c_p_water"] / decentral_device_data.get("TES_DHW", {}).get("T_diff_max",
+                                                                            1) * 3600) if "TES_DHW" in decentral_device_data else 0
             }
 
             # HP temperature measures
@@ -853,7 +792,7 @@ class KPIs:
         -------
         None.
         """
-        total_area_residential, total_area_non_residential = 0, 0
+        total_area_residential, total_area_non_residential, total_area_mixed = 0, 0, 0
         total_number_flats, total_number_occ = 0, 0
         total_heat_load, total_cooling_load = 0, 0
         total_heating_demand, total_cooling_demand = 0, 0
@@ -879,7 +818,14 @@ class KPIs:
                         active_technologies[tech_name] = tech_details
             b_kpis['active_technologies'] = active_technologies
 
-            if building["buildingFeatures"]["building"] in {"SFH", "MFH", "TH", "AB"}:
+            b_type = building["buildingFeatures"]["building"]
+            if data.is_mixed_building(b_type):
+                total_area_mixed += building["buildingFeatures"]["area"]
+                total_number_flats += building["user"].nb_flats
+                total_number_occ += sum(building["user"].nb_occ)
+                b_kpis['area_m2'] = building["buildingFeatures"]["area"]
+                b_kpis['building_type'] = "mixed"
+            elif b_type in {"SFH", "MFH", "TH", "AB"}:
                 total_area_residential += building["buildingFeatures"]["area"]
                 total_number_flats += building["user"].nb_flats
                 total_number_occ += sum(building["user"].nb_occ)
@@ -1058,14 +1004,6 @@ class KPIs:
                                                           annual_hydrogen * curr_co2_hydrogen)
                 })
 
-    def calculateGasolineCosts(self, data):
-        """Compute annual gasoline costs (€) for each simulated year."""
-        self.gasoline_costs = {}
-        for year in self.inputData["simulated_years"]:
-            price_per_liter = data.all_sim_ecoData[year]["price_gasoline_liter"] # €/liter
-            self.gasoline_costs[year] = float(self.total_ICE_fuel_liters) * float(price_per_liter)
-
-
     def calc_total_consumption_and_emissions(self, data):
         """
         Calculates:
@@ -1154,178 +1092,6 @@ class KPIs:
         self.calculateDetailedCostsPerYear(data)
         self.calculate_per_building_kpis(data)
         self.saveKPIs(scenario_name=data.scenario_name, result_path=data.resultPath, buildings=data.district, file_format=data.report_config["kpi_save_type"])
-
-    def KPIs_to_csv(self, scenario_name, output_dir):
-        """
-        Exports relational, flattened CSVs to the given output directory.
-        """
-        if output_dir is None:
-            output_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        else:
-            os.makedirs(output_dir, exist_ok=True)
-
-        total_district_area = self.totalarea_residential + self.totalarea_non_residential
-        building_data = []
-        district_data = []
-
-        # collect all dynamically used technology names across all buildings and years to create consistent columns in the output table
-        all_techs = set()
-        for b_id, b_kpis in self.kpis_per_building.items():
-            if "active_technologies" in b_kpis:
-                all_techs.update(b_kpis["active_technologies"].keys())
-            if "costs" in b_kpis:
-                for k in b_kpis["costs"].keys():
-                    if k.startswith("annual_cost_") and k.endswith("_eur"):
-                        all_techs.add(k.replace("annual_cost_", "").replace("_eur", ""))
-        all_techs = sorted(list(all_techs))
-
-        # loop over all simulated years
-        for year in self.inputData["simulated_years"]:
-
-            sum_bldg_co2_kg = 0
-            sum_bldg_gross_gen = 0
-            sum_bldg_gross_dem = 0
-
-            # -----------------------------------------------------------------
-            # Buildings
-            # -----------------------------------------------------------------
-            for b_id, b_kpis in self.kpis_per_building.items():
-
-                tech_data = b_kpis.get(year, {}).get("tech", {})
-                eco_data = b_kpis.get(year, {}).get("eco", {})
-                costs_data = b_kpis.get("costs", {})
-                b_area = b_kpis.get("area_m2", 0)
-
-                # Basis-Daten
-                row = {
-                    "Building_ID": b_id,
-                    "Year": year,
-                    "Building_Type": b_kpis.get("building_type", "N/A"),
-                    "Area_m2": b_area,
-                    "Heating_System": b_kpis.get("heating_system", "N/A"),
-                    "Total_Heat_Load_kW": b_kpis.get("total_heat_load_kW", 0),
-                    "Annual_Heating_Demand_kWh": b_kpis.get("annual_heating_demand_kWh", 0),
-                    "Annual_El_Demand_kWh": b_kpis.get("annual_electricity_demand_kWh", 0),
-                    "Peak_Demand_kW": tech_data.get("peak_demand_kW", 0),
-                    "Peak_Injection_kW": tech_data.get("peak_injection_kW", 0)
-                }
-
-                # central costs allocation based on area (if available)
-                central_costs = self.annual_fixed_costs_central.get(year,
-                                                                    self.annual_fixed_costs_central) if isinstance(
-                    self.annual_fixed_costs_central, dict) else self.annual_fixed_costs_central
-                row["Allocated_Central_Costs_by_area_EUR"] = (
-                                                                 b_area / total_district_area) * central_costs if total_district_area > 0 and central_costs else 0
-
-                # put capacities and costs in columns next to each other (better readability)
-                for tech in all_techs:
-                    cap_val = list(b_kpis.get("active_technologies", {}).get(tech, {f"cap": 0}).values())[
-                        0] if tech in b_kpis.get("active_technologies", {}) else 0
-                    cost_val = costs_data.get(f"annual_cost_{tech}_eur", 0)
-
-                    row[f"Cap_{tech}"] = cap_val
-                    row[f"Cost_{tech}_EUR"] = cost_val
-
-                row["Annual_Fixed_Costs_Decentral_EUR"] = costs_data.get("annual_fixed_costs_eur", 0)
-
-                # Grid exchange & gross flows
-                row["Grid_Demand_kWh"] = tech_data.get("grid_demand_kWh", 0)
-                row["Grid_Injection_kWh"] = tech_data.get("grid_injection_kWh", 0)
-                row["Gross_Demand_kWh"] = tech_data.get("gross_demand_kWh", 0)
-                row["Gross_Generation_kWh"] = tech_data.get("gross_generation_kWh", 0)
-
-                # Consumption of energy carriers
-                row["Gas_Consumption_kWh"] = tech_data.get("gas_consumption_kwh", 0)
-                row["Biomass_Consumption_kWh"] = tech_data.get("biomass_consumption_kwh", 0)
-                row["Oil_Consumption_kWh"] = tech_data.get("oil_consumption_kwh", 0)
-                row["Hydrogen_Consumption_kWh"] = tech_data.get("hydrogen_consumption_kwh", 0)
-
-                # KPIs (in percent)
-                row["supply_cover_factor_pct"] = tech_data.get("self_sufficiency_rate", 0) * 100
-                row["self_consumption_rate_pct"] = tech_data.get("self_consumption_rate", 0) * 100
-                row["autonomy_timestep_rate_pct"] = tech_data.get("autonomy_timestep_rate", 0) * 100
-
-                # total costs & emissions
-                row["Total_Operational_Costs_EUR"] = eco_data.get("total_energy_cost_eur", 0)
-                row["Total_CO2_Emissions_kg"] = eco_data.get("total_co2_emissions_kg", 0)
-
-                building_data.append(row)
-
-                # Add for district comparison
-                sum_bldg_co2_kg += eco_data.get("total_co2_emissions_kg", 0)
-                sum_bldg_gross_gen += tech_data.get("gross_generation_kWh", 0)
-                sum_bldg_gross_dem += tech_data.get("gross_demand_kWh", 0)
-
-            # -----------------------------------------------------------------
-            # District
-            # -----------------------------------------------------------------
-            co2_dict = self.co2emissions.get(year, {})
-            # Information: the district calculations are in t/a, so we divide by 1000 to get kg/a like the buildings
-
-            district_row = {
-                "Year": year,
-                "Total_Area_Res_m2": self.totalarea_residential,
-                "Total_Area_NonRes_m2": self.totalarea_non_residential,
-
-                "Total_Heating_Demand_kWh": self.total_heating_demand / 1000 if self.total_heating_demand else 0,
-                "Total_El_Demand_kWh": self.total_electricity_demand / 1000 if self.total_electricity_demand else 0,
-                "Peak_Demand_kW": self.peakDemand.get(year, 0) if isinstance(self.peakDemand,
-                                                                             dict) else self.peakDemand,
-                "Peak_Injection_kW": self.peakInjection.get(year, 0) if isinstance(self.peakInjection,
-                                                                                   dict) else self.peakInjection,
-
-                "Operation_Costs_EUR": self.operationCosts.get(year, 0) if isinstance(self.operationCosts,
-                                                                                      dict) else self.operationCosts,
-                "Fixed_Costs_Decentral_EUR": self.annual_fixed_costs_decentral,
-                "Fixed_Costs_Central_EUR": self.annual_fixed_costs_central,
-
-                # CO2 Metriken
-                "Total_CO2_Emissions_t": co2_dict.get("total_co2", 0),
-                "CO2_Difference_to_Buildings_Sum_t": co2_dict.get("total_co2", 0) - (sum_bldg_co2_kg / 1000),
-                # Saved CO2 Emissions from Grid Electricity
-                "CO2_Grid_El_t": co2_dict.get("co2_dem_grid", 0),
-                "CO2_Gas_t": co2_dict.get("co2_gas", 0),
-                "CO2_Biomass_t": co2_dict.get("co2_biom", 0),
-                "CO2_Waste_t": co2_dict.get("co2_waste", 0),
-                "CO2_Hydrogen_t": co2_dict.get("co2_hydrogen", 0),
-                "CO2_Oil_t": co2_dict.get("co2_oil", 0),
-                "CO2_District_Heat_t": co2_dict.get("co2_district_heat", 0),
-
-                # KPIs (in percent)
-                "supply_cover_factor_pct": self.scf_year.get(year, 0) * 100 if isinstance(self.scf_year, dict) else (
-                    self.scf_year * 100 if self.scf_year else 0),
-                "demand_cover_factor_pct": self.dcf_year.get(year, 0) * 100 if isinstance(self.dcf_year, dict) else (
-                    self.dcf_year * 100 if self.dcf_year else 0),
-                "energy_autonomy_factor_pct": self.energy_autonomy_year.get(year, 0) * 100 if isinstance(self.energy_autonomy_year,
-                                                                                      dict) else (
-                    self.energy_autonomy_year * 100 if self.energy_autonomy_year else 0),
-
-                # gid exchange & Gross Flows
-                "Grid_Demand_kWh": self.W_dem_GCP_year.get(year, 0),
-                "Grid_Injection_kWh": self.W_inj_GCP_year.get(year, 0),
-                "Gross_Generation_kWh": sum_bldg_gross_gen,
-                "Gross_Demand_kWh": sum_bldg_gross_dem
-            }
-            district_data.append(district_row)
-
-        def round_sig(x):
-            """
-            rounds dynamic based on the magnitude of the number
-            """
-            if pd.isna(x) or x == 0: return x
-            abs_x = abs(x)
-            if abs_x >= 1: return int(round(x))
-            else: return round(x, 2)
-
-        df_buildings = pd.DataFrame(building_data)
-        df_district = pd.DataFrame(district_data)
-
-        for x in [df_buildings, df_district]:
-            float_cols = x.select_dtypes(include=['float']).columns
-            x[float_cols] = x[float_cols].map(round_sig)
-
-        df_buildings.to_csv(os.path.join(output_dir, f"kpis_buildings_{scenario_name}.csv"), index=False)
-        df_district.to_csv(os.path.join(output_dir, f"kpis_district_{scenario_name}.csv"), index=False)
 
     def saveKPIs(self, scenario_name, result_path, buildings, file_format):
         """
@@ -1508,6 +1274,44 @@ class KPIs:
                     row_data[f"Year {year} {metric_name} (kWh/a)"] = round(val, 2)
             cent_device_data_list.append(row_data)
 
+        # Create list of per-building KPIs (one row per building per simulated year)
+        building_data_list = []
+        for building_id, b_kpis in self.kpis_per_building.items():
+            for year in years:
+                tech_data = b_kpis.get(year, {}).get('tech', {})
+                eco_data = b_kpis.get(year, {}).get('eco', {})
+                costs_data = b_kpis.get('costs', {})
+                building_data_list.append({
+                    'Building ID': building_id,
+                    'Year': year,
+                    'Building Type': b_kpis.get('building_type', 'N/A'),
+                    'Heating System': b_kpis.get('heating_system', 'N/A'),
+                    'Area (m²)': b_kpis.get('area_m2', 0),
+                    'Total Heat Load (kW)': b_kpis.get('total_heat_load_kW', 0),
+                    'Annual Heating Demand (kWh/a)': b_kpis.get('annual_heating_demand_kWh', 0),
+                    'Annual Electricity Demand (kWh/a)': b_kpis.get('annual_electricity_demand_kWh', 0),
+                    'Annual DHW Demand (kWh/a)': b_kpis.get('annual_dhw_demand_kWh', 0),
+                    'Annual Cooling Demand (kWh/a)': b_kpis.get('annual_cooling_demand_kWh', 0),
+                    'Annual EV Demand (kWh/a)': b_kpis.get('annual_ev_demand_kWh', 0),
+                    'Peak Demand (kW)': tech_data.get('peak_demand_kW', 0),
+                    'Peak Injection (kW)': tech_data.get('peak_injection_kW', 0),
+                    'Grid Demand (kWh/a)': tech_data.get('grid_demand_kWh', 0),
+                    'Grid Injection (kWh/a)': tech_data.get('grid_injection_kWh', 0),
+                    'Gross Generation (kWh/a)': tech_data.get('gross_generation_kWh', 0),
+                    'Gross Demand (kWh/a)': tech_data.get('gross_demand_kWh', 0),
+                    'Gas Consumption (kWh/a)': tech_data.get('gas_consumption_kwh', 0),
+                    'Biomass Consumption (kWh/a)': tech_data.get('biomass_consumption_kwh', 0),
+                    'Oil Consumption (kWh/a)': tech_data.get('oil_consumption_kwh', 0),
+                    'Hydrogen Consumption (kWh/a)': tech_data.get('hydrogen_consumption_kwh', 0),
+                    'Self-Sufficiency Rate (%)': tech_data.get('self_sufficiency_rate', 0) * 100,
+                    'Self-Consumption Rate (%)': tech_data.get('self_consumption_rate', 0) * 100,
+                    'Autonomy Timestep Rate (%)': tech_data.get('autonomy_timestep_rate', 0) * 100,
+                    'Total Energy Cost (€/a)': eco_data.get('total_energy_cost_eur', 0),
+                    'Total CO2 Emissions (kg/a)': eco_data.get('total_co2_emissions_kg', 0),
+                    'Annual Fixed Costs Decentral (€/a)': costs_data.get('annual_fixed_costs_eur', 0),
+                })
+        kpi_df_buildings = pd.DataFrame(building_data_list)
+
         # Create DataFrame for year-dependent KPIs
         kpi_df_yearly = pd.DataFrame.from_dict(kpi_data_yearly, orient='index')
         kpi_df_yearly.columns = [f"Year {year}" for year in years]
@@ -1565,6 +1369,7 @@ class KPIs:
                 kpi_df_dec_devices.to_excel(writer, sheet_name='Decentral Devices', index=False)
                 if not kpi_df_cent_devices.empty:
                     kpi_df_cent_devices.to_excel(writer, sheet_name='Central Devices', index=False)
+                kpi_df_buildings.to_excel(writer, sheet_name='Building KPIs', index=False)
 
             print(f"KPIs saved to: {filename}")
 
@@ -1574,6 +1379,7 @@ class KPIs:
             kpi_df_dec_devices.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_decentral_devices.csv"), index=False, sep=';', decimal=',')
             if not kpi_df_cent_devices.empty:
                 kpi_df_cent_devices.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_central_devices.csv"), index=False, sep=';', decimal=',')
+            kpi_df_buildings.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_buildings.csv"), index=False, sep=';', decimal=',')
 
             print(f"KPIs saved to: {result_path} as CSV files: KPIs_{scenario_name}_*.csv")
 
