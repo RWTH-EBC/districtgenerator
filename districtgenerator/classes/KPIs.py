@@ -7,6 +7,17 @@ from itertools import zip_longest
 from districtgenerator.classes.certificate_generator import CertificateBuilder
 import pandas as pd
 
+# Unit lookup for device capacities in the KPI export tables (saveKPIs); default is "kW" for anything not listed.
+DECENTRAL_DEVICE_UNIT_MAP = {"TES": "Liter", "TES_DHW": "Liter", "BAT": "kWh", "EV": "kWh", "PV": "m²", "STC": "m²"}
+CENTRAL_DEVICE_UNIT_MAP = {"Heat_Grid": "-", "TES": "kWh", "CTES": "kWh", "BAT": "kWh", "GS": "kWh", "H2S": "kWh",
+                           "PV": "kWp", "STC": "kWp", "WT": "kWp"}
+
+
+def _get_yearly_val(val_list, idx):
+    """Resolve a possibly year-indexed economic parameter (a list, one entry per simulated year) to its
+    value for the given year index; a scalar parameter is returned as-is."""
+    return val_list[idx] if isinstance(val_list, list) else val_list
+
 
 class KPIs:
 
@@ -159,9 +170,8 @@ class KPIs:
         for year in self.inputData["simulated_years"]:
             res = np.zeros([len(self.inputData["clusters"]), len(data.district[0]["user"].elec_cluster[0])])
             for c in range(len(self.inputData["clusters"])):
-                for t in range(len(data.district[0]["user"].elec_cluster[0])):
-                    res[c, t] = self.inputData["resultsOptimization"][year][c]["P_dem_gcp"][t] - \
-                                self.inputData["resultsOptimization"][year][c]["P_inj_gcp"][t]
+                opt_res = self.inputData["resultsOptimization"][year][c]
+                res[c, :] = np.array(opt_res["P_dem_gcp"]) - np.array(opt_res["P_inj_gcp"])
             self.residualLoad[year] = res / 1000
 
     def calculatePeakLoad(self):
@@ -295,8 +305,7 @@ class KPIs:
         self.dcf_year = {}
         self.scf_year = {}
 
-        sum_ClusterWeights = sum(self.inputData["clusterWeights"][self.inputData["clusters"][c]] for c in
-                                 range(len(self.inputData["clusters"])))
+        sum_ClusterWeights = self.inputData["nbIntervals"]
 
         for year in self.inputData["simulated_years"]:
             self.supplyCoverFactor[year] = np.zeros(len(self.inputData["clusters"]))
@@ -364,7 +373,6 @@ class KPIs:
         self.decentral_individual_devices_annualized_cost = {} # Dictionary to store annualized cost per device and building
         self.annual_fixed_costs_decentral = 0
         self.annual_fixed_costs_decentral_unsubsidized = 0
-        self.decentral_individual_devices_annualized_cost = {}
 
         # Iteration over all buildings and then over all devices
         for n in range(len(district)):
@@ -759,9 +767,7 @@ class KPIs:
         """
         self.energy_autonomy = {}
         self.energy_autonomy_year = {}
-        # Clalculate cluster weights sum once
-        sum_ClusterWeights = sum(self.inputData["clusterWeights"][self.inputData["clusters"][c]] for c in
-                                 range(len(self.inputData["clusters"])))
+        sum_ClusterWeights = self.inputData["nbIntervals"]
 
         # Loop over each simulated year
         for year in self.inputData["simulated_years"]:
@@ -907,21 +913,17 @@ class KPIs:
                 b_kpis[year]['tech'] = {}
                 b_kpis[year]['eco'] = {}
 
-                # Helpers to resolve dynamic prices
-                def get_yearly_val(val_list, idx):
-                    return val_list[idx] if isinstance(val_list, list) else val_list
-
-                curr_price_gas = get_yearly_val(eco["price_supply_gas"], year_idx)
-                curr_price_el = get_yearly_val(eco["price_supply_el"], year_idx)
-                curr_price_biom = get_yearly_val(eco.get("price_biomass", 0), year_idx)
-                curr_rev_feed_el = get_yearly_val(eco["revenue_feed_in_el"], year_idx)
-                curr_co2_gas = get_yearly_val(eco["co2_gas"], year_idx)
-                curr_co2_el = get_yearly_val(eco["co2_el_grid"], year_idx)
-                curr_co2_biom = get_yearly_val(eco.get("co2_biom", 0), year_idx)
-                curr_price_oil = get_yearly_val(eco.get("price_oil", 0), year_idx)
-                curr_co2_oil = get_yearly_val(eco.get("co2_oil", 0), year_idx)
-                curr_price_hydrogen = get_yearly_val(eco.get("price_hydrogen", 0), year_idx)
-                curr_co2_hydrogen = get_yearly_val(eco.get("co2_hydrogen", 0), year_idx)
+                curr_price_gas = _get_yearly_val(eco["price_supply_gas"], year_idx)
+                curr_price_el = _get_yearly_val(eco["price_supply_el"], year_idx)
+                curr_price_biom = _get_yearly_val(eco.get("price_biomass", 0), year_idx)
+                curr_rev_feed_el = _get_yearly_val(eco["revenue_feed_in_el"], year_idx)
+                curr_co2_gas = _get_yearly_val(eco["co2_gas"], year_idx)
+                curr_co2_el = _get_yearly_val(eco["co2_el_grid"], year_idx)
+                curr_co2_biom = _get_yearly_val(eco.get("co2_biom", 0), year_idx)
+                curr_price_oil = _get_yearly_val(eco.get("price_oil", 0), year_idx)
+                curr_co2_oil = _get_yearly_val(eco.get("co2_oil", 0), year_idx)
+                curr_price_hydrogen = _get_yearly_val(eco.get("price_hydrogen", 0), year_idx)
+                curr_co2_hydrogen = _get_yearly_val(eco.get("co2_hydrogen", 0), year_idx)
 
                 annual_demand_from_grid, annual_injection_to_grid = 0, 0
                 annual_gross_generation, annual_gross_demand = 0, 0
@@ -943,8 +945,8 @@ class KPIs:
                     if max_in_cluster_inj > building_peak_inj_kw:
                         building_peak_inj_kw = max_in_cluster_inj
 
-                    res_load_kwh = np.sum(res["res_load"]) / 1000 * time_res_h
-                    res_inj_kwh = np.sum(res["res_inj"]) / 1000 * time_res_h
+                    res_load_kwh = np.sum(res_load_kw) * time_res_h
+                    res_inj_kwh = np.sum(res_inj_kw) * time_res_h
 
                     annual_demand_from_grid += res_load_kwh * cluster_weight
                     annual_injection_to_grid += res_inj_kwh * cluster_weight
@@ -1019,9 +1021,6 @@ class KPIs:
         """
         sorted_years = sorted(self.inputData["simulated_years"])
         observation_time = data.ecoData["observation_time"]
-        year_weights = {
-            year: (sorted_years[idx + 1] - year) if idx < len(sorted_years) - 1 else (observation_time - year) for
-            idx, year in enumerate(sorted_years)}
         year_weights = self.inputData["year_weights"]
 
         # Calculate total consumption over all years (weighted by interval length)
@@ -1093,6 +1092,14 @@ class KPIs:
         self.calculate_per_building_kpis(data)
         self.saveKPIs(scenario_name=data.scenario_name, result_path=data.resultPath, buildings=data.district, file_format=data.report_config["kpi_save_type"])
 
+    def _yearly_series(self, source, key=None, years=None):
+        """Build a {year: value} dict for the yearly KPI table, pulling from a
+        {year: value} dict (key=None) or a {year: {key: value}} dict (key given)."""
+        years = years if years is not None else sorted(self.inputData["simulated_years"])
+        if key is None:
+            return {year: source.get(year, None) for year in years}
+        return {year: source.get(year, {}).get(key, None) for year in years}
+
     def saveKPIs(self, scenario_name, result_path, buildings, file_format):
         """
         Save all calculated KPIs in a file. Ensure that calculateAllKPIs() has been called before. Saves as the specified file format (csv/excel)
@@ -1109,42 +1116,45 @@ class KPIs:
 
         # Create dictionary for year-dependent KPIs
         kpi_data_yearly = {}
-        kpi_data_yearly["Peak Demand district (kW)"] = {year: self.peakDemand.get(year, None) for year in years}
-        kpi_data_yearly["Peak Injection district (kW)"] = {year: self.peakInjection.get(year, None) for year in years}
-        kpi_data_yearly["Peak to Valley (kW)"] = {year: self.peakToValley.get(year, None) for year in years}
-        kpi_data_yearly["Electricity Injection to Grid (kWh/a)"] = {year: self.W_inj_GCP_year.get(year, None) for year in years}
-        kpi_data_yearly["Electricity Demand from Grid (kWh/a)"] = {year: self.W_dem_GCP_year.get(year, None) for year in years}
-        kpi_data_yearly["Gas Consumption (kWh/a)"] = {year: self.gas_year.get(year, None) for year in years}
-        kpi_data_yearly["Biomass Consumption (kWh/a)"] = {year: self.biomass_year.get(year, None) for year in years}
-        kpi_data_yearly["Waste Consumption (kWh/a)"] = {year: self.waste_year.get(year, None) for year in years}
-        kpi_data_yearly["Hydrogen Consumption (kWh/a)"] = {year: self.hydrogen_year.get(year, None) for year in years}
-        kpi_data_yearly["Oil Consumption (kWh/a)"] = {year: self.oil_year.get(year, None) for year in years}
-        kpi_data_yearly["District Heat Consumption (kWh/a)"] = {year: self.districtHeat_year.get(year, None) for year in years}
-        kpi_data_yearly["Electricity Injection within District (kWh/a)"] = {year: self.W_inj_buildings_year.get(year, None) for year in years}
-        kpi_data_yearly["Electricity Demand within District (kWh/a)"] = {year: self.W_dem_buildings_year.get(year, None) for year in years}
-        kpi_data_yearly["Demand Cover Factor (-)"] = {year: self.dcf_year.get(year, None) for year in years}
-        kpi_data_yearly["Supply Cover Factor (-)"] = {year: self.scf_year.get(year, None) for year in years}
-        kpi_data_yearly["Operation Costs (€/a)"] = {year: self.operationCosts.get(year, None) for year in years}
-        kpi_data_yearly["CO2 Emissions (t/a)"] = {year: self.co2emissions.get(year, {}).get("total_co2", None) for year in years}
-        kpi_data_yearly["CO2 Emissions Grid Electricity (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_dem_grid", None) for year in years}
-        kpi_data_yearly["CO2 Emissions Gas (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_gas", None) for year in years}
-        kpi_data_yearly["CO2 Emissions Biomass (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_biom", None) for year in years}
-        kpi_data_yearly["CO2 Emissions Waste (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_waste", None) for year in years}
-        kpi_data_yearly["CO2 Emissions Hydrogen (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_hydrogen", None) for year in years}
-        kpi_data_yearly["CO2 Emissions Oil (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_oil", None) for year in years}
-        kpi_data_yearly["CO2 Emissions District Heat (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_district_heat", None) for year in years}
-        kpi_data_yearly["Electricity Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("electricity", None) for year in years}
-        kpi_data_yearly["Gas Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("gas", None) for year in years}
-        kpi_data_yearly["Oil Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("oil", None) for year in years}
-        kpi_data_yearly["Waste Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("waste", None) for year in years}
-        kpi_data_yearly["Biomass Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("biomass", None) for year in years}
-        kpi_data_yearly["District Heat Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("district_heat", None) for year in years}
-        kpi_data_yearly["Hydrogen Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("hydrogen", None) for year in years}
-        kpi_data_yearly["Revenue from Electricity Feed-in (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("revenue_feed_in_el", None) for year in years}
-
-
-        kpi_data_yearly["Autonomy (Time Fraction)"] = {year: self.energy_autonomy_year.get(year, None) for year in years}
-        kpi_data_yearly["Gasoline Costs (€/a)"] = {year: self.gasoline_costs.get(year, None) for year in years}
+        kpi_data_yearly["Peak Demand district (kW)"] = self._yearly_series(self.peakDemand)
+        kpi_data_yearly["Peak Injection district (kW)"] = self._yearly_series(self.peakInjection)
+        kpi_data_yearly["Peak to Valley (kW)"] = self._yearly_series(self.peakToValley)
+        kpi_data_yearly["Electricity Injection to Grid (kWh/a)"] = self._yearly_series(self.W_inj_GCP_year)
+        kpi_data_yearly["Electricity Demand from Grid (kWh/a)"] = self._yearly_series(self.W_dem_GCP_year)
+        kpi_data_yearly["Gas Consumption (kWh/a)"] = self._yearly_series(self.gas_year)
+        kpi_data_yearly["Biomass Consumption (kWh/a)"] = self._yearly_series(self.biomass_year)
+        kpi_data_yearly["Waste Consumption (kWh/a)"] = self._yearly_series(self.waste_year)
+        kpi_data_yearly["Hydrogen Consumption (kWh/a)"] = self._yearly_series(self.hydrogen_year)
+        kpi_data_yearly["Oil Consumption (kWh/a)"] = self._yearly_series(self.oil_year)
+        kpi_data_yearly["District Heat Consumption (kWh/a)"] = self._yearly_series(self.districtHeat_year)
+        # Note: "within District" here means residual electricity exchanged between buildings inside the
+        # district (from prepareData()/calculateEnergyExchangeWithinDistrict), not exchange with the public
+        # grid at the GCP (that's "...to/from Grid" above). The per-building "Grid Demand/Injection (kWh/a)"
+        # columns in the Building KPIs sheet below reconcile to this district total, not to the GCP figures.
+        # TODO: consider renaming those per-building columns (e.g. "Residual Demand/Injection") to avoid confusion.
+        kpi_data_yearly["Electricity Injection within District (kWh/a)"] = self._yearly_series(self.W_inj_buildings_year)
+        kpi_data_yearly["Electricity Demand within District (kWh/a)"] = self._yearly_series(self.W_dem_buildings_year)
+        kpi_data_yearly["Demand Cover Factor (-)"] = self._yearly_series(self.dcf_year)
+        kpi_data_yearly["Supply Cover Factor (-)"] = self._yearly_series(self.scf_year)
+        kpi_data_yearly["Operation Costs (€/a)"] = self._yearly_series(self.operationCosts)
+        kpi_data_yearly["CO2 Emissions (t/a)"] = self._yearly_series(self.co2emissions, "total_co2")
+        kpi_data_yearly["CO2 Emissions Grid Electricity (t/a)"] = self._yearly_series(self.co2emissions, "co2_dem_grid")
+        kpi_data_yearly["CO2 Emissions Gas (t/a)"] = self._yearly_series(self.co2emissions, "co2_gas")
+        kpi_data_yearly["CO2 Emissions Biomass (t/a)"] = self._yearly_series(self.co2emissions, "co2_biom")
+        kpi_data_yearly["CO2 Emissions Waste (t/a)"] = self._yearly_series(self.co2emissions, "co2_waste")
+        kpi_data_yearly["CO2 Emissions Hydrogen (t/a)"] = self._yearly_series(self.co2emissions, "co2_hydrogen")
+        kpi_data_yearly["CO2 Emissions Oil (t/a)"] = self._yearly_series(self.co2emissions, "co2_oil")
+        kpi_data_yearly["CO2 Emissions District Heat (t/a)"] = self._yearly_series(self.co2emissions, "co2_district_heat")
+        kpi_data_yearly["Electricity Costs (€/a)"] = self._yearly_series(self.detailed_costs_year, "electricity")
+        kpi_data_yearly["Gas Costs (€/a)"] = self._yearly_series(self.detailed_costs_year, "gas")
+        kpi_data_yearly["Oil Costs (€/a)"] = self._yearly_series(self.detailed_costs_year, "oil")
+        kpi_data_yearly["Waste Costs (€/a)"] = self._yearly_series(self.detailed_costs_year, "waste")
+        kpi_data_yearly["Biomass Costs (€/a)"] = self._yearly_series(self.detailed_costs_year, "biomass")
+        kpi_data_yearly["District Heat Costs (€/a)"] = self._yearly_series(self.detailed_costs_year, "district_heat")
+        kpi_data_yearly["Hydrogen Costs (€/a)"] = self._yearly_series(self.detailed_costs_year, "hydrogen")
+        kpi_data_yearly["Revenue from Electricity Feed-in (€/a)"] = self._yearly_series(self.detailed_costs_year, "revenue_feed_in_el")
+        kpi_data_yearly["Autonomy (Time Fraction)"] = self._yearly_series(self.energy_autonomy_year)
+        kpi_data_yearly["Gasoline Costs (€/a)"] = self._yearly_series(self.gasoline_costs)
         # kpi_data_yearly["CO2 Emissions Gasoline"] = #* Should this be considered, as emissions from EV are considered through electricity consumption? This makes it look EVs are worse for emissions.
 
         # Create dictionary for year-independent KPIs (same value for all years)
@@ -1211,17 +1221,21 @@ class KPIs:
             building = buildings[building_id]
             for device_name, device_info in devices.items():
                 if device_name == "T_reduction_measures":
-                    continue # TODO: Skip this for now and decide later how to handle it.
+                    # HP "geringinvestive Massnahmen" (config: HP__enable_measures / HP__measures_inv_fix,
+                    # computed in calc_annual_cost_total): low-investment retrofit measures that lower the
+                    # heating system's supply/return temperature to improve heat-pump efficiency. This cost
+                    # IS included in the building's aggregate cost (kpis_per_building[...]['costs']
+                    # ['annual_fixed_costs_eur'], and therefore in the Building KPIs sheet's "Annual Fixed
+                    # Costs Decentral" total), but is deliberately left out of this per-device table since it
+                    # isn't a "device" in the same sense as the others. Pre-existing decision (predates the
+                    # 2026-09 KPIs.py merge cleanup, introduced together with saveKPIs itself, commit
+                    # 727de13) - not yet resolved whether to show it as its own row here or elsewhere.
+                    # TODO: decide how/where to surface this cost per-device; until then, per-building sums
+                    # in this sheet will not exactly reconcile to the Building KPIs sheet for HP buildings
+                    # that have this measure applied.
+                    continue
 
-                # Determine unit based on device type
-                if device_name in ["TES", "TES_DHW"]:
-                    unit = "Liter"
-                elif device_name in ["BAT", "EV"]:
-                    unit = "kWh"
-                elif device_name in ["PV", "STC"]:
-                    unit = "m²"
-                else:
-                    unit = "kW"
+                unit = DECENTRAL_DEVICE_UNIT_MAP.get(device_name, "kW")
 
                 row_data = {
                     'Building ID': building["unique_name"],
@@ -1246,15 +1260,7 @@ class KPIs:
         # Central Devices capacities and subsidized and unsubsidized annualized costs
         cent_device_data_list = []
         for device_name, device_info in self.central_individual_devices_annualized_cost.items():
-            # Determine unit based on device type
-            if device_name == "Heat_Grid":
-                unit = "-"
-            elif device_name in ["TES", "CTES", "BAT", "GS", "H2S"]:
-                unit = "kWh"
-            elif device_name in ["PV", "STC", "WT"]:
-                unit = "kWp"
-            else:
-                unit = "kW"
+            unit = CENTRAL_DEVICE_UNIT_MAP.get(device_name, "kW")
 
             row_data = {
                 'Device': device_name,
