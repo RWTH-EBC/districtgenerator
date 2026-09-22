@@ -311,6 +311,33 @@ class Profiles:
         weekend_weekday_factor = 1.2 if self.is_residential else 1
         mean_drawoff_vol_per_day = building["buildingFeatures"]["mean_drawoff_dhw"]
 
+        # Use the district generator's own stochastic occupancy profile (instead of a
+        # generic OpenDHW pattern) to shape the timing of the DHW draw-offs, so that
+        # DHW usage is consistent with the building's simulated occupancy.
+        base_occ_profile = self.occ_profile if self.is_residential else self.occ_profile_building
+        occupancy_profile = None
+
+        if base_occ_profile is not None and len(base_occ_profile) > 0:
+            average_occupants = np.mean(base_occ_profile)
+
+            if average_occupants == 0:
+                # Building is unoccupied for the whole horizon: OpenDHW can't normalize
+                # an all-zero occupancy profile, so return zero DHW demand directly.
+                return {
+                    "dhw_power_timeseries_W_minutely": np.zeros(int(self.nb_days * 24 * 3600 / 60)),
+                    "dhw_power_timeseries_W": np.zeros(int(self.nb_days * 24 * 3600 / self.time_resolution))}
+
+            occupancy = average_occupants
+
+            # Change resolution to s_step (used by OpenDHW) and tile to the 365 days OpenDHW expects
+            occ_profile_s_step = chres.changeResolution(base_occ_profile, self.time_resolution, s_step, "mean")
+            expected_len = int(365 * 24 * 3600 / s_step)
+            if len(occ_profile_s_step) < expected_len:
+                repetitions = math.ceil(expected_len / len(occ_profile_s_step))
+                occupancy_profile = np.tile(occ_profile_s_step, repetitions)[:expected_len]
+            else:
+                occupancy_profile = occ_profile_s_step[:expected_len]
+
         try:
             dhw_profile = OpenDHW.generate_dhw_profile(
                 s_step=s_step,
@@ -321,10 +348,11 @@ class Profiles:
                 holidays=holidays,
                 mean_drawoff_vol_per_day=mean_drawoff_vol_per_day,
                 initial_day=self.initial_day,
+                occupancy_profile=occupancy_profile,
             )
 
         except Exception as e:
-            raise Exception(f"DHW Simulation failed for the following parameters: s_step: {s_step}, categories: {categories}, occupancy: {occupancy}, building_type: {building_type}, weekend_weekday_factor: {weekend_weekday_factor}, holidays: {holidays}, mean_drawoff_vol_per_day: {mean_drawoff_vol_per_day}, initial_day: {self.initial_day}.\n Please check if the required OpenDHW version is installed. Otherwise check if all requried modules are installed: pip install -e .  ")
+            raise Exception(f"DHW Simulation failed for the following parameters: s_step: {s_step}, categories: {categories}, occupancy: {occupancy}, building_type: {building_type}, weekend_weekday_factor: {weekend_weekday_factor}, holidays: {holidays}, mean_drawoff_vol_per_day: {mean_drawoff_vol_per_day}, initial_day: {self.initial_day}, occupancy_profile: {'set' if occupancy_profile is not None else None}.\n Please check if the required OpenDHW version is installed. Otherwise check if all requried modules are installed: pip install -e .  ")
 
         # 3. Convert water demand → heat demand (minute resolution)
 
