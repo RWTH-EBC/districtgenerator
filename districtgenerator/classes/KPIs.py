@@ -1269,20 +1269,6 @@ class KPIs:
         for building_id, devices in self.decentral_individual_devices_annualized_cost.items():
             building = buildings[building_id]
             for device_name, device_info in devices.items():
-                if device_name == "T_reduction_measures":
-                    # HP "geringinvestive Massnahmen" (config: HP__enable_measures / HP__measures_inv_fix,
-                    # computed in calc_annual_cost_total): low-investment retrofit measures that lower the
-                    # heating system's supply/return temperature to improve heat-pump efficiency. This cost
-                    # IS included in the building's aggregate cost (kpis_per_building[...]['costs']
-                    # ['annual_fixed_costs_eur'], and therefore in the Building KPIs sheet's "Annual Fixed
-                    # Costs Decentral" total), but is deliberately left out of this per-device table since it
-                    # isn't a "device" in the same sense as the others. Pre-existing decision (predates the
-                    # 2026-09 KPIs.py merge cleanup, introduced together with saveKPIs itself, commit
-                    # 727de13) - not yet resolved whether to show it as its own row here or elsewhere.
-                    # TODO: decide how/where to surface this cost per-device; until then, per-building sums
-                    # in this sheet will not exactly reconcile to the Building KPIs sheet for HP buildings
-                    # that have this measure applied.
-                    continue
 
                 unit = DECENTRAL_DEVICE_UNIT_MAP.get(device_name, "kW")
 
