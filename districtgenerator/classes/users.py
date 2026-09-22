@@ -610,12 +610,14 @@ class Users:
                                     initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,
                                     building=self.building)
                 
+                # Occupancy profile in a flat (needed before DHW generation, which uses it as OpenDHW input)
+                occ_profile_residential = temp_obj.generate_occupancy_profiles_residential()
+
                 dhw_dict = temp_obj.generate_dhw_profile(building=building, holidays=holidays)
                 self.dhw += dhw_dict["dhw_power_timeseries_W"]
                 self.dhw_minutely += dhw_dict["dhw_power_timeseries_W_minutely"]
 
-                # Occupancy profile in a flat
-                self.occ = self.occ + temp_obj.generate_occupancy_profiles_residential()
+                self.occ = self.occ + occ_profile_residential
                 self.elec = self.elec + temp_obj.generate_el_profile_residential(holidays=holidays,
                                                                                  irradiance=irradiation,
                                                                                  el_wrapper=self.el_wrapper[j],
