@@ -23,6 +23,8 @@ errorfile.txt
 *.p
 *.pkl
 __pycache__/
+.codex_tmp/aachen_deps/
+examples/results/aachen_osm_pilot/http_cache/
 .idea/
 
 *.egg-info/
