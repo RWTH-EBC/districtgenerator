@@ -12,8 +12,9 @@ def compute_inner_rectangle(district_type, num_buildings, building_density, widt
     Since the area calculated from building density represents the total area of the district,
     road layout requires the enclosed area formed by the outermost roads,
     a function is needed to estimate the enclosed road area from the total district area.
-    For Type E districts, roads are assumed to have buildings on both sides (left and right).
-    For Type F districts, the enclosed road area is assumed to be equal to the total district area.
+    For the street-row layout used by Type E and one Type F variant, roads are
+    assumed to have buildings on both sides (left and right). The block-row Type
+    F variant uses the total district area directly and does not call this helper.
     For all other district types, roads are assumed to be present on all four sides (top, bottom, left, and right).
 
     Parameters
@@ -489,7 +490,13 @@ def delete_edges(graph, edges, delete_ratio):
             if deleted_num >= target_deleted_num:
                 break
 
-def run_typdistrict_layout(district_type, num_buildings, building_density, delete_ratio, switch_g=0):
+def run_typdistrict_layout(
+        district_type,
+        num_buildings,
+        building_density,
+        delete_ratio,
+        switch_g=0,
+        f_layout_variant=None):
     """
     generate the district layout
 
@@ -502,6 +509,11 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
     switch_g=0
         When the number of generated buildings is not sufficient after 30 attempts,
         switch_g turns 1 and the layout of type G is fixed.
+    f_layout_variant: string or None
+        Spatial arrangement used for type F. ``street_rows`` places rows along
+        streets; ``block_rows`` uses the rows-within-road-blocks arrangement.
+        When omitted for type F, one of the two variants is selected with equal
+        probability.
 
     Returns
     -------
@@ -516,6 +528,19 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
     get_bigger_density: bool
         True: If there are too many empty space, then get bigger density for the district and rerun the model.
     """
+    if district_type == "F":
+        if f_layout_variant is None:
+            f_layout_variant = choice(("street_rows", "block_rows"))
+        if f_layout_variant not in {"street_rows", "block_rows"}:
+            raise ValueError("f_layout_variant must be 'street_rows' or 'block_rows' for type F.")
+    else:
+        f_layout_variant = None
+
+    uses_street_row_layout = (
+        district_type == "E"
+        or (district_type == "F" and f_layout_variant == "street_rows")
+    )
+
     # %% STEP ONE: get the parameters
     # Sample inside the GRZ range only as an initial footprint sizing guide.
     # The final generated GRZ is calculated from the generated geometry and
@@ -542,8 +567,9 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
     get_bigger_density = False
 
     # Define the area
-    if district_type in ['A', 'B', 'C', 'D', 'E', 'G', 'H']:
-        area_density = compute_inner_rectangle(district_type, num_buildings, building_density, width_length_ratio, building_width, house_connection)
+    if district_type in ['A', 'B', 'C', 'D', 'E', 'G', 'H'] or uses_street_row_layout:
+        geometry_type = "E" if uses_street_row_layout else district_type
+        area_density = compute_inner_rectangle(geometry_type, num_buildings, building_density, width_length_ratio, building_width, house_connection)
     else:           # district F and I
         area_density = num_buildings / building_density * 10000  # square meters
 
@@ -568,7 +594,7 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
         block_ratio = 1.5
     elif district_type == "D":
         block_ratio = 1
-    elif district_type == "E":
+    elif uses_street_row_layout:
         block_ratio = 1.8
     elif district_type == "F":
         block_ratio = 1.2
@@ -583,7 +609,7 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
         max_line_length = max_line_length / 1.8
 
     # Randomly obtain the length(spacing_y) and width(spacing_y) of blocks for each area type.
-    if district_type == 'E':
+    if uses_street_row_layout:
         spacing_x = (house_connection + building_width) * 2 + 20  # meters
         spacing_y = spacing_x * block_ratio  # meters
     elif district_type == 'F':
@@ -859,9 +885,11 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
 
         buildings = select_random_buildings(placed_buildings, num_buildings)
 
-    elif district_type == "E":
+    elif uses_street_row_layout:
         """
-        In the Reihenhausbebauung (row housing) type, the vertical roads serve as the main streets, and buildings are only placed along their sides. 
+        In the street-row layout used by type E and one type-F variant, the
+        vertical roads serve as the main streets and buildings are placed only
+        along their sides.
         The total number of buildings in the district is divided by the number of vertical roads to determine how many buildings should be placed along each road.
         This number is then checked against the maximum possible number of buildings that can be accommodated on each road. 
 
@@ -958,7 +986,7 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
         # If the number of generated buildings exceeds the target, randomly remove extras.
         buildings = select_random_buildings(placed_buildings, num_buildings)
 
-    elif district_type == "F":
+    elif district_type == "F" and f_layout_variant == "block_rows":
         """
         In the Zeilenbebauung (row development) type, several buildings are placed seamlessly to form a row, positioned perpendicularly between two vertical main roads. 
         First, the average number of buildings to be placed in each block is calculated. 
@@ -1249,7 +1277,7 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
 
     # %% STEP FIVE: Save the parameters for this run
     # calculate the actual total area and building density
-    if district_type != "F":
+    if district_type != "F" or f_layout_variant == "street_rows":
         cleanup_house_connection = (
             house_connection_max
             if district_type == "A"
@@ -1287,6 +1315,7 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
 
     run_results = {
         "district_type": district_type,
+        "f_layout_variant": f_layout_variant,
         "num_buildings": num_buildings,
         "width": area_width,
         "length": area_length,

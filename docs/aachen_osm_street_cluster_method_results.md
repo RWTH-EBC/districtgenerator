@@ -1690,169 +1690,131 @@ classification.
 
 ## 10. Candidate-generation results
 
-The run identified 4,552 non-overlapping candidates.
+These results were generated automatically from the completed `full_staedteregion_aachen` run created on 2026-09-30 at 17:00 UTC. The source directory is `D:/PycharmProjects/districtgenerator/examples/results/aachen_osm_building_sections_compact_v7`.
+
+The run identified 4,271 non-overlapping candidates.
 
 | Membership-selection procedure | Candidates |
 |---|---:|
-| Road-block cluster, including morphology splits | 2,017 |
-| Two-sided street cluster, including morphology splits | 2,535 |
-| **Total** | **4,552** |
+| Road-block clusters, including morphology splits | 2,135 |
+| Two-sided street clusters, including morphology splits | 2,120 |
+| Additional scattered-A candidates | 16 |
+| **Total** | **4,271** |
 
-These candidates contain 130,318 unique building footprints, corresponding to
-57.594% of the 226,270 eligible footprints remaining after industrial-site
-exclusion. The street graph contains 70,108 building-defined sections, of
-which 64,224 contain at least one associated building. Rural building-influence
-boundaries are applied to 1,691 candidates, or 37.149% of all candidates.
+The candidates contain 115,353 unique building footprints, corresponding to 58.718% of the 196,452 eligible footprints.
 
 | Indicator | 25th percentile | Median | 75th percentile |
 |---|---:|---:|---:|
-| Buildings per candidate | 16 | 25 | 40 |
-| District area (ha) | 0.512 | 1.173 | 2.745 |
-| BCR | 0.112 | 0.252 | 0.338 |
-| Building density (buildings/ha) | 10.539 | 26.308 | 44.102 |
-| FAR, where available | 0.470 | 0.843 | 1.618 |
-| Active building spacing (m) | 4.316 | 6.374 | 8.780 |
-| Attached buildings (%) | 62.892 | 80.000 | 92.308 |
-| General row structure (%) | 0.000 | 35.355 | 61.765 |
-| Total range score $D_t$ | 0.044 | 0.214 | 2.984 |
-| Total midpoint score $C_t$ | 0.503 | 1.132 | 6.557 |
+| Buildings per candidate | 15 | 22 | 36 |
+| District area (ha) | 0.580 | 1.128 | 2.052 |
+| BCR | 0.163 | 0.243 | 0.323 |
+| Building density (buildings/ha) | 14.201 | 23.550 | 35.331 |
+| FAR, where available | 0.448 | 0.773 | 1.551 |
+| Active building spacing (m) | 4.757 | 7.009 | 9.498 |
+| Attached buildings (%) | 61.538 | 79.104 | 91.667 |
+| General row structure (%) | 0.000 | 51.667 | 70.833 |
+| Total range score $D_t$ | 0.031 | 0.167 | 0.991 |
+| Total midpoint score $C_t$ | 0.418 | 0.928 | 3.128 |
 
-Only 135 candidates meet the 66% storey-data coverage requirement for FAR
-estimation. Same-road-side spacing is available for 3,430 candidates; the
-nearest-neighbour fallback is used for 1,122. The block-frontage requirement is
-met by 971 candidates. The row indicator reaches at least 40%
-for 2,128 candidates, corresponding to 46.749% of all candidates.
+FAR is available for 166 candidates. The block-frontage requirement is met by 1,022 candidates. Rural influence boundaries are applied to 1,877 candidates.
 
-Candidate areas in this run range from 0.058 to 338.889 ha.
-
-
-
+Candidate areas range from 0.093 to 35.586 ha.
 
 ## 11. Settlement-type assignment results
 
-| Assigned type | Candidates | Buildings | Unique compatible | Midpoint tie-break | Nearest outside ranges | Morphology-row rule | Unknown use (%) |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| A | 14 | 175 | 0 | 0 | 14 | 0 | 66.3 |
-| B | 183 | 4,003 | 5 | 0 | 178 | 0 | 75.2 |
-| C | 879 | 25,334 | 48 | 0 | 831 | 0 | 82.8 |
-| D | 236 | 6,305 | 12 | 0 | 224 | 0 | 65.3 |
-| E | 2,869 | 82,272 | 103 | 0 | 2,766 | 0 | 82.6 |
-| F | 116 | 3,145 | 0 | 0 | 8 | 108 | 82.7 |
-| G | 29 | 537 | 3 | 2 | 24 | 0 | 45.6 |
-| H | 23 | 608 | 0 | 0 | 23 | 0 | 38.8 |
-| I | 203 | 7,939 | 33 | 0 | 170 | 0 | 60.5 |
-| **Total** | **4,552** | **130,318** | **204** | **2** | **4,238** | **108** | **79.8** |
+| Type | Candidates | Buildings | Exact | Approximate | Unique compatible | Midpoint tie-break | Nearest outside ranges | Unknown use |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| A | 23 | 318 | 2 | 21 | 2 | 0 | 21 | 73.3% |
+| B | 253 | 6,724 | 6 | 247 | 6 | 0 | 247 | 68.6% |
+| C | 308 | 6,788 | 34 | 274 | 34 | 0 | 274 | 83.6% |
+| D | 379 | 9,675 | 9 | 370 | 9 | 0 | 370 | 71.9% |
+| E | 1,951 | 57,425 | 57 | 1,894 | 57 | 0 | 1,894 | 79.8% |
+| F | 5 | 142 | 0 | 5 | 0 | 0 | 5 | 75.4% |
+| G | 94 | 2,282 | 6 | 88 | 6 | 0 | 88 | 65.8% |
+| H | 59 | 2,097 | 0 | 59 | 0 | 0 | 59 | 43.3% |
+| I | 135 | 5,442 | 0 | 135 | 0 | 0 | 135 | 56.5% |
+| UNCLASSIFIED | 1,064 | 24,460 | 0 | 0 | 0 | 0 | 0 | 78.6% |
 
-Of the 4,552
-assignments, 204 were unique compatible matches, two used the midpoint tie-break,
-4,238 selected the nearest eligible type outside all prescribed ranges, and 108
-used the explicit morphology-row rule for F. The current method retains such a
-proposal only when $D_t\leq1$ and labels poorer proposals `UNCLASSIFIED`.
+Classification quality is exact for 114, approximate for 3,093 and unclassified for 1,064 candidates. 3,207 candidates enter type-specific results.
 
-The final context classes contain 3,650 rural/non-urban and 902 urban
-candidates. The direct context restriction changes 208 assignments, or 4.569%,
-relative to unrestricted scoring. The assigned set contains 14 A candidates
-and 183 B candidates; these counts do not validate the resulting labels.
-
-
+The final context classes contain URBAN=656, RURAL=3,615. Context changes 224 assignments relative to unrestricted scoring.
 
 ## 12. Overall main building-use results
 
-| Main-use category | Buildings | Percentage of all buildings | Percentage of known-use buildings |
+| Main-use category | Buildings | Percentage of all | Percentage of known use |
 |---|---:|---:|---:|
-| Residential | 22,386 | 17.178% | 85.222% |
-| Mixed-use | 934 | 0.717% | 3.556% |
-| Non-residential | 2,948 | 2.262% | 11.223% |
-| Unknown | 104,050 | 79.843% | — |
-| **Total** | **130,318** | **100.000%** | — |
+| Residential | 18,726 | 20.602% | 85.215% |
+| Mixed-use | 560 | 0.616% | 2.548% |
+| Non-residential | 2,689 | 2.958% | 12.237% |
+| Unknown | 68,918 | 75.823% | — |
+| **Total** | **90,893** | **100.000%** | — |
 
-Only 26,268 buildings, or 20.157% of the candidate building population, have a
-known main use. The unknown-use share must therefore accompany every use-share
-interpretation.
+The known-use population contains 21,975 buildings; 75.823% have unknown main use.
 
 ## 13. Main-use results by assigned type
 
-Percentages in the first four result columns use all buildings. The final three
-columns are conditional on known-use buildings. The known-use count shows the
-denominator supporting those conditional percentages.
-
-| Type | Residential, all | Mixed, all | Non-residential, all | Unknown | Known-use buildings | Residential, known | Mixed, known | Non-residential, known |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| A | 17.7% | 0.0% | 16.0% | 66.3% | 59 | 52.5% | 0.0% | 47.5% |
-| B | 20.3% | 0.2% | 4.3% | 75.2% | 993 | 81.8% | 0.9% | 17.3% |
-| C | 15.6% | 0.1% | 1.6% | 82.8% | 4,365 | 90.4% | 0.6% | 9.0% |
-| D | 25.9% | 0.5% | 8.3% | 65.3% | 2,188 | 74.6% | 1.3% | 24.0% |
-| E | 15.4% | 0.5% | 1.5% | 82.6% | 14,317 | 88.3% | 3.1% | 8.6% |
-| F | 16.1% | 0.1% | 1.0% | 82.7% | 543 | 93.4% | 0.7% | 5.9% |
-| G | 27.9% | 2.4% | 24.0% | 45.6% | 292 | 51.4% | 4.5% | 44.2% |
-| H | 41.3% | 3.8% | 16.1% | 38.8% | 372 | 67.5% | 6.2% | 26.3% |
-| I | 30.4% | 4.8% | 4.3% | 60.5% | 3,139 | 76.9% | 12.2% | 10.9% |
-
-The known-use building count states the denominator supporting each row.
+| Type | Buildings | Residential, all | Mixed, all | Non-residential, all | Unknown | Known-use buildings | Residential, known | Mixed, known | Non-residential, known |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| A | 318 | 13.2% | 0.0% | 13.5% | 73.3% | 85 | 49.4% | 0.0% | 50.6% |
+| B | 6,724 | 27.6% | 0.3% | 3.5% | 68.6% | 2,112 | 88.0% | 0.9% | 11.0% |
+| C | 6,788 | 12.0% | 0.2% | 4.3% | 83.6% | 1,116 | 73.0% | 1.1% | 25.9% |
+| D | 9,675 | 21.6% | 0.3% | 6.2% | 71.9% | 2,717 | 76.8% | 1.1% | 22.1% |
+| E | 57,425 | 18.7% | 0.1% | 1.3% | 79.8% | 11,573 | 93.0% | 0.6% | 6.5% |
+| F | 142 | 19.0% | 0.0% | 5.6% | 75.4% | 35 | 77.1% | 0.0% | 22.9% |
+| G | 2,282 | 22.9% | 0.9% | 10.4% | 65.8% | 780 | 66.9% | 2.7% | 30.4% |
+| H | 2,097 | 40.9% | 4.5% | 11.3% | 43.3% | 1,188 | 72.1% | 7.9% | 19.9% |
+| I | 5,442 | 32.3% | 5.8% | 5.4% | 56.5% | 2,369 | 74.2% | 13.4% | 12.4% |
 
 ## 14. Overall non-residential subtype results
 
-A total of 3,600 buildings receive a specific non-residential subtype. Of these,
-1,604 are classified from direct building-level non-residential tags and 1,996
-from POIs assigned to a containing building. A further 493 classified POIs do not
-have a containing eligible building and are excluded from building ratios.
+A total of 3,249 buildings receive a subtype: 1,974 from direct building evidence and 1,275 from contained POIs. 407 classified POIs have no containing eligible building.
 
-| NRB subtype | Buildings | Percentage of classified NRB buildings | Percentage of all buildings |
+| NRB subtype | Buildings | Percentage of classified NRB | Percentage of all buildings |
 |---|---:|---:|---:|
-| Office building (OB) | 329 | 9.139% | 0.252% |
-| School (SC) | 339 | 9.417% | 0.260% |
-| Restaurant (RE) | 551 | 15.306% | 0.423% |
-| Grocery store (GS) | 224 | 6.222% | 0.172% |
-| University (UNI) | 140 | 3.889% | 0.107% |
-| Hospital/medical (HOSPITAL) | 296 | 8.222% | 0.227% |
-| Cultural facility (CULTURE) | 77 | 2.139% | 0.059% |
-| Sports facility (SPORT) | 105 | 2.917% | 0.081% |
-| Other retail (RETAIL) | 1,077 | 29.917% | 0.826% |
-| Workshop/industrial (WORKSHOP) | 462 | 12.833% | 0.355% |
-| **Total** | **3,600** | **100.000%** | **2.762%** |
+| Office (OB) | 254 | 7.818% | 0.279% |
+| School (SC) | 338 | 10.403% | 0.372% |
+| Restaurant (RE) | 350 | 10.773% | 0.385% |
+| Grocery (GS) | 166 | 5.109% | 0.183% |
+| University (UNI) | 93 | 2.862% | 0.102% |
+| Hospital/medical (HOSPITAL) | 151 | 4.648% | 0.166% |
+| Culture (CULTURE) | 64 | 1.970% | 0.070% |
+| Sport (SPORT) | 108 | 3.324% | 0.119% |
+| Other retail (RETAIL) | 679 | 20.899% | 0.747% |
+| Workshop/industrial (WORKSHOP) | 364 | 11.203% | 0.400% |
+| Other identified NRB (OTHER_NRB) | 682 | 20.991% | 0.750% |
+| **Total** | **3,249** | **100.000%** | **3.575%** |
 
 ## 15. Non-residential subtype results by assigned type
 
-The percentages below are conditional on subtype-classified NRB buildings
-within each assigned type. Small denominators, particularly for A, B, F and G,
-do not support stable type-specific inference.
+Percentages are conditional on subtype-classified NRB buildings within each assigned type.
 
-| Type | NRB buildings | OB | SC | RE | GS | UNI | Hospital | Culture | Sport | Retail | Workshop |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| A | 27 | 14.8% | 3.7% | 7.4% | 0.0% | 37.0% | 0.0% | 0.0% | 18.5% | 7.4% | 11.1% |
-| B | 149 | 10.1% | 6.7% | 11.4% | 0.7% | 18.1% | 3.4% | 0.7% | 5.4% | 14.1% | 29.5% |
-| C | 337 | 7.1% | 18.7% | 14.2% | 4.2% | 3.0% | 6.2% | 5.0% | 4.2% | 19.0% | 18.4% |
-| D | 487 | 11.7% | 15.2% | 4.5% | 7.0% | 0.4% | 5.5% | 1.6% | 3.9% | 24.2% | 25.9% |
-| E | 1,612 | 6.9% | 8.4% | 19.1% | 7.3% | 0.7% | 8.8% | 1.9% | 2.4% | 34.7% | 9.7% |
-| F | 32 | 12.5% | 6.2% | 9.4% | 3.1% | 0.0% | 6.2% | 3.1% | 3.1% | 31.2% | 25.0% |
-| G | 126 | 9.5% | 10.3% | 6.3% | 3.2% | 39.7% | 1.6% | 1.6% | 5.6% | 11.1% | 11.1% |
-| H | 110 | 16.4% | 10.0% | 3.6% | 4.5% | 16.4% | 11.8% | 2.7% | 1.8% | 24.5% | 8.2% |
-| I | 720 | 11.5% | 4.2% | 19.3% | 6.5% | 1.7% | 11.7% | 1.9% | 1.4% | 36.4% | 5.4% |
-
-Small subtype denominators require correspondingly cautious interpretation.
+| Type | NRB buildings | OB | SC | RE | GS | UNI | HOSPITAL | CULTURE | SPORT | RETAIL | WORKSHOP | OTHER_NRB |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| A | 43 | 20.9% | 0.0% | 7.0% | 2.3% | 0.0% | 0.0% | 7.0% | 16.3% | 7.0% | 4.7% | 34.9% |
+| B | 253 | 6.3% | 4.7% | 5.9% | 4.0% | 0.0% | 0.8% | 1.6% | 5.1% | 10.3% | 11.5% | 49.8% |
+| C | 301 | 5.0% | 10.3% | 4.3% | 3.7% | 0.7% | 2.7% | 2.3% | 4.3% | 13.0% | 15.3% | 38.5% |
+| D | 631 | 7.8% | 12.0% | 7.4% | 4.4% | 5.2% | 3.3% | 2.2% | 4.1% | 18.4% | 17.7% | 17.3% |
+| E | 813 | 4.6% | 13.9% | 14.4% | 6.3% | 0.0% | 6.0% | 1.8% | 1.8% | 19.7% | 9.7% | 21.8% |
+| F | 8 | 0.0% | 0.0% | 12.5% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 25.0% | 37.5% | 25.0% |
+| G | 258 | 8.5% | 15.9% | 5.8% | 2.3% | 10.1% | 4.3% | 1.9% | 5.4% | 10.1% | 16.7% | 19.0% |
+| H | 331 | 14.5% | 13.3% | 8.2% | 4.5% | 6.6% | 9.1% | 1.5% | 3.9% | 22.4% | 6.3% | 9.7% |
+| I | 611 | 9.5% | 3.4% | 18.3% | 7.2% | 1.6% | 4.9% | 1.8% | 1.1% | 38.1% | 4.7% | 9.2% |
 
 ## 16. Result files
 
-The documented outputs are stored in the run directory recorded above:
+The documented outputs are stored in `D:/PycharmProjects/districtgenerator/examples/results/aachen_osm_building_sections_compact_v7`:
 
 - `candidate_districts.geojson`: candidate geometries and indicators;
-- `candidate_metrics.csv`: district-level morphology and matching results;
+- `candidate_metrics.csv`: morphology and matching results;
 - `building_membership.csv`: traceable OSM building membership;
-- `osm_use_counts_by_district.csv`: district-level counts and shares;
+- `osm_use_counts_by_district.csv`: district-level use results;
 - `osm_building_split_percentages_by_type.csv`: pooled main-use shares;
 - `osm_nrb_building_percentages_by_type.csv`: pooled NRB subtype shares;
 - `osm_use_summary_by_type.csv`: extended type summary;
-- `review_map.html`: interactive candidate map with exact assigned footprints,
-  nearby unassigned footprints and clustering-road layers;
-- `manifest.json`: hashes, parameters, package versions and provenance.
+- `review_map.html`: interactive review map;
+- `industrial_exclusion_sites.geojson`: excluded industrial areas; and
+- `manifest.json`: hashes, settings, versions and provenance.
 
-`industrial_exclusion_sites.geojson` contains the excluded industrial areas.
-The manifest and report record their total area and excluded building count,
-the binary context thresholds, and the number of rural influence boundaries.
-
-The review map is approximately 127.6 MB because it embeds the exact assigned
-building geometries. Its background map provides context only; visual
-membership review must use the blue assigned-footprint layer and the optional
-grey nearby-unassigned layer.
+The review map is approximately 126.1 MB.
 
 OSM data attribution: © OpenStreetMap contributors, ODbL.

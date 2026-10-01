@@ -1,6 +1,6 @@
 """Discover and analyse ~40-building OSM districts in StaedteRegion Aachen.
 
-Requires osmnx, geopandas, shapely, scipy, pyproj, openpyxl. Download once with
+Requires osmnx, geopandas, shapely, scipy, pyproj, openpyxl and folium. Download once with
 --download; cached GeoParquet/GeoJSON are reused for offline runs. The input
 workbook is opened read-only and verified by SHA-256 before/after each run.
 """
@@ -32,6 +32,13 @@ import numpy as np
 import openpyxl
 import pandas as pd
 import shapely
+try:
+    import folium
+except ModuleNotFoundError as exc:
+    raise RuntimeError(
+        "The Aachen review map requires Folium. Install it in the selected "
+        "Python environment with: python -m pip install folium"
+    ) from exc
 from shapely.geometry import LineString, Point
 from shapely.ops import polygonize, split, substring, unary_union
 

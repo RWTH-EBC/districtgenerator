@@ -6,13 +6,8 @@ import json
 import numpy as np
 from math import ceil
 import shapely
-from matplotlib.backends.backend_pdf import PdfPages
 from districtgenerator.functions.typdistrict_preprocess import params, district_type, reseed_params
-from districtgenerator.functions.typdistrict import (
-    run_typdistrict_layout,
-    place_adaptive_rectangle,
-    select_random_buildings,
-)
+from districtgenerator.functions.typdistrict import (run_typdistrict_layout, place_adaptive_rectangle, select_random_buildings,)
 
 '''
 use function scenario_generation to generate the district layout
@@ -66,24 +61,30 @@ def fill_missing_f_buildings_on_existing_roads(
         road_lines_scaled,
         num_buildings,
         building_width,
-        house_connection):
+        building_ground_area,
+        house_connection,
+        f_layout_variant):
     """
-    Add missing type-F row buildings along existing horizontal roads only.
-
-    This keeps the Zeilenbebauung morphology intact and avoids the generic
-    fallback that extends short new road branches.
+    Add missing type-F buildings without changing the selected morphology.
     """
     if len(placed_buildings) >= num_buildings:
         return
 
-    horizontal_roads = [
+    candidate_roads = [
         road for road in road_lines_scaled
-        if road.coords[0][1] == road.coords[1][1] and road.coords[0][1] != 0
+        if (
+            f_layout_variant == "street_rows"
+            and road.coords[0][0] == road.coords[1][0]
+        ) or (
+            f_layout_variant == "block_rows"
+            and road.coords[0][1] == road.coords[1][1]
+            and road.coords[0][1] != 0
+        )
     ]
-    pyrandom.shuffle(horizontal_roads)
+    pyrandom.shuffle(candidate_roads)
     buffered_roads = [line.buffer(house_connection - 0.1) for line in road_lines_scaled]
 
-    for road in horizontal_roads:
+    for road in candidate_roads:
         if len(placed_buildings) >= num_buildings:
             break
         for side in ["left", "right"]:
@@ -107,12 +108,25 @@ def fill_missing_f_buildings_on_existing_roads(
                 if len(placed_buildings) >= num_buildings:
                     break
                 point = road_parallel.interpolate(distance)
-                new_building = shapely.box(
-                    point.x - building_width / 2,
-                    point.y - building_width / 2,
-                    point.x + building_width / 2,
-                    point.y + building_width / 2,
-                )
+                if f_layout_variant == "street_rows":
+                    new_building = place_adaptive_rectangle(
+                        point,
+                        road,
+                        building_ground_area,
+                        placed_buildings,
+                        road_lines_scaled,
+                        house_connection,
+                        0.0,
+                    )
+                    if new_building is None:
+                        continue
+                else:
+                    new_building = shapely.box(
+                        point.x - building_width / 2,
+                        point.y - building_width / 2,
+                        point.x + building_width / 2,
+                        point.y + building_width / 2,
+                    )
                 if any(new_building.intersects(building) for building in placed_buildings):
                     continue
                 if any(new_building.intersects(road_buffer) for road_buffer in buffered_roads):
@@ -170,6 +184,13 @@ def scenario_generation(
     seed = int(params["random_seed"])
     pyrandom.seed(seed)
     np.random.seed(seed)
+    # Select one type-F morphology per scenario and keep it unchanged during
+    # density/GRZ retries. The seeded choice makes the variant reproducible.
+    f_layout_variant = (
+        pyrandom.choice(("street_rows", "block_rows"))
+        if district_type == "F"
+        else None
+    )
     # %% STEP ONE: set parameters for the model
     if num_buildings_override is None:
         num_buildings = int(input("\nEnter the number of buildings: "))
@@ -202,32 +223,12 @@ def scenario_generation(
     elif district_type == "I":
         delete_ratio = 0.4 if type_i_soft_delete_retry else 0.6
 
-    def retry_seed_after_layout_error(error):
-        if retry_depth >= max_seed_retries:
-            raise RuntimeError(
-                f"Could not generate a valid district after {max_seed_retries + 1} seed attempts. "
-                f"Last attempted seed: {params['random_seed']}."
-            ) from error
-
-        failed_seed = int(params["random_seed"])
-        next_seed = failed_seed + 1
-        print(f"Seed {failed_seed} rejected: {error}")
-        print(f"Trying next seed: {next_seed}")
-        reseed_params(next_seed)
-        return scenario_generation(
-            num_buildings_override=num_buildings,
-            retry_depth=retry_depth + 1,
-            max_seed_retries=max_seed_retries,
-            type_i_soft_delete_retry=False,
-        )
-
     # %% STEP TWO: Repeat running the model until getting a conforming district layout
     # run the model for the first time
-    try:
-        road_lines_scaled, placed_buildings, transformer_pos, run_results, get_bigger_density = (
-            run_typdistrict_layout(district_type, num_buildings, building_density, delete_ratio))
-    except ValueError as error:
-        return retry_seed_after_layout_error(error)
+    road_lines_scaled, placed_buildings, transformer_pos, run_results, get_bigger_density = (
+        run_typdistrict_layout(
+            district_type, num_buildings, building_density, delete_ratio,
+            f_layout_variant=f_layout_variant))
 
     # Limit the maximum number of attempts to avoid model dead loops.
     max_attempts = 30
@@ -243,7 +244,9 @@ def scenario_generation(
         building_density = min(building_density, building_density_max)
         attempts += 1
         road_lines_scaled, placed_buildings, transformer_pos, run_results, get_bigger_density = (
-            run_typdistrict_layout(district_type, num_buildings, building_density, delete_ratio))
+            run_typdistrict_layout(
+                district_type, num_buildings, building_density, delete_ratio,
+                f_layout_variant=f_layout_variant))
 
     # If the number of buildings generated is less than the required number,
     # adjust the road deletion_ratio and building_density, and rerun the model code.
@@ -254,12 +257,13 @@ def scenario_generation(
         building_density = max(building_density_min, building_density)
         attempts += 1
         road_lines_scaled, placed_buildings, transformer_pos, run_results, get_bigger_density = (
-            run_typdistrict_layout(district_type, num_buildings, building_density, delete_ratio))
+            run_typdistrict_layout(
+                district_type, num_buildings, building_density, delete_ratio,
+                f_layout_variant=f_layout_variant))
 
     # Validate the generated ground space index (GRZ). If the generated
     # morphology is outside the typdistrict GRZ range, adjust the density and
-    # rerun. This keeps GRZ as a validation-guided target instead of forcing it
-    # directly into the geometry.
+    # rerun
     grz_attempts = 0
     max_grz_attempts = 30
     while (len(placed_buildings) >= num_buildings and grz_status(run_results) != "valid"
@@ -282,12 +286,16 @@ def scenario_generation(
         attempts += 1
         grz_attempts += 1
         road_lines_scaled, placed_buildings, transformer_pos, run_results, get_bigger_density = (
-            run_typdistrict_layout(district_type, num_buildings, building_density, delete_ratio))
+            run_typdistrict_layout(
+                district_type, num_buildings, building_density, delete_ratio,
+                f_layout_variant=f_layout_variant))
 
     # parameter switch_g turns to 1 for district type G
     if len(placed_buildings) < num_buildings and district_type == 'G':
         road_lines_scaled, placed_buildings, transformer_pos, run_results, _ = (
-            run_typdistrict_layout(district_type, num_buildings, building_density, delete_ratio, switch_g=1))
+            run_typdistrict_layout(
+                district_type, num_buildings, building_density, delete_ratio,
+                switch_g=1, f_layout_variant=f_layout_variant))
 
     # The final check to ensure that the number of buildings meets the requirements.
     if len(placed_buildings) < num_buildings and district_type == "F":
@@ -296,7 +304,9 @@ def scenario_generation(
             road_lines_scaled=road_lines_scaled,
             num_buildings=num_buildings,
             building_width=run_results["building_width"],
+            building_ground_area=run_results["building_ground_area"],
             house_connection=house_connection,
+            f_layout_variant=f_layout_variant,
         )
 
     if len(placed_buildings) < num_buildings and district_type != "F":
@@ -449,8 +459,6 @@ def scenario_generation(
         }
 
     # Draw the main use of each building from the OSM-based probabilities.
-    # Over many seeds, the average follows the OSM shares. Individual 30-building
-    # districts remain varied instead of being forced into identical rounded counts.
     use_categories = list(use_shares.keys())
     use_weights = list(use_shares.values())
     building_use_categories = pyrandom.choices(
@@ -487,7 +495,7 @@ def scenario_generation(
             if not allow_education and building_type_option in ["SC", "UNI", "HOSPITAL", "SPORT"]:
                 continue
 
-            # Hospital and university should each occur at most once in the whole district.
+            # Hospital should occur at most once in the whole district.
             if building_type_option == "HOSPITAL" and hospital_added:
                 continue
 
@@ -573,10 +581,6 @@ def scenario_generation(
     def touches_other_building(current_building, all_buildings, tolerance=0.5):
         """
         Return True if a building footprint touches or nearly touches another footprint.
-
-        A small visual/geometric tolerance is used because generated footprints
-        can have tiny construction gaps even when the intended urban form is a
-        wall-to-wall attached building.
         """
         current_polygon = current_building["polygon"]
         for other_building in all_buildings:
@@ -689,9 +693,6 @@ def scenario_generation(
         """
         Assign plausible floors by typology and adjust floors until the
         generated GFZ lies inside the typdistrict GFZ range.
-
-        The adjustment is distributed within typology groups so one MFH or
-        non-residential building cannot absorb nearly the whole GFZ correction.
         """
         max_efh_gfa = 216.0
         floor_spread_limit = 2.0
@@ -929,18 +930,17 @@ def scenario_generation(
             building_entry["edge_color"] = type_color[non_residential_type]
             building_entry["line_width"] = 2.5
 
-
         else:  # NonResidential
             non_residential_type = select_non_residential_type_stochastically(
                 current_building=building_entry,
                 already_assigned_buildings=already_assigned_buildings,
                 allow_education=True
             )
-
             plot_color_type = non_residential_type
 
         building_entry["non_residential_type"] = non_residential_type
         building_entry["color"] = type_color[plot_color_type]
+
         buildings_info[i] = building_entry
 
     # 2 Assign Retrofitting Levels
@@ -1116,86 +1116,14 @@ def scenario_generation(
         })
 
     # %% STEP FOUR: Plot Buildings and Infrastructure
-    current_dir = os.path.dirname(__file__)
-    save_dir = os.path.join(current_dir, '..', 'data', 'scenarios')
-    plt.ion()  # enable interactive plotting
-    pdf_path = os.path.join(
-        save_dir,
-        f"district_layout_steps_{district_type}_seed_{seed}_buildings_{num_buildings}.pdf"
-    )
-    pdf = PdfPages(pdf_path)
-
     fig, ax = plt.subplots(figsize=(12, 8))
-    ax.axis('off')
-    ax.set_aspect('equal')
 
-    # determine full bounds first (prevents rescaling later) ----
+    # 1 plot the roads
     for line in road_lines_scaled:
         x, y = line.xy
-        ax.plot(x, y, alpha=0)
+        ax.plot(x, y, color='blue', linewidth=1)
 
-    for bld in buildings_info:
-        poly = bld['polygon']
-        x, y = poly.exterior.xy
-        ax.fill(x, y, alpha=0)
-
-    ax.relim()
-    ax.autoscale_view()
-
-    xlim = ax.get_xlim()
-    ylim = ax.get_ylim()
-
-    # clear the invisible objects
-    ax.clear()
-    ax.axis('off')
-    ax.set_aspect('equal')
-
-    # remove outer margins
-    ax.margins(0)
-    fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
-
-    step = 0
-
-    # STEP 1 — roads
-    for line in road_lines_scaled:
-        x, y = line.xy
-
-        # road asphalt
-        ax.plot(
-            x, y,
-            color='black',
-            linewidth=7,
-            solid_capstyle='round',
-            zorder=1
-        )
-
-        # dashed center line
-        ax.plot(
-            x, y,
-            color='white',
-            linewidth=1,
-            linestyle=(0, (6, 6)),  # dashed pattern
-            solid_capstyle='round',
-            zorder=2
-        )
-
-    ax.set_xlim(xlim)
-    ax.set_ylim(ylim)
-    pdf.savefig(fig, bbox_inches='tight', pad_inches=0)
-    step += 1
-
-    # STEP 2 — building placement (black boxes)
-    for bld in buildings_info:
-        poly = bld['polygon']
-        x, y = poly.exterior.xy
-        ax.fill(x, y, facecolor='white', edgecolor='black', linewidth=1)
-
-    ax.set_xlim(xlim)
-    ax.set_ylim(ylim)
-    pdf.savefig(fig, bbox_inches='tight', pad_inches=0)
-    step += 1
-
-    # STEP 3 — final buildings
+    # 2 plot the buildings
     for bld in buildings_info:
         poly = bld['polygon']
         color = bld['color']
@@ -1212,38 +1140,30 @@ def scenario_generation(
             linewidth=line_width,
             hatch=hatch
         )
-
         centroid = poly.centroid
         ax.text(
             centroid.x,
             centroid.y,
             str(bld['construction_year']),
-            fontsize=14,
+            fontsize=7,
             fontweight='bold',
             color='black',
             ha='center',
             va='center'
         )
 
-    ax.set_xlim(xlim)
-    ax.set_ylim(ylim)
-    pdf.savefig(fig, bbox_inches='tight', pad_inches=0)
-    step += 1
-
-    # STEP 4 — transformer
+    # 3 plot the transformer
     if transformer_pos is not None:
         ax.plot(transformer_pos[0], transformer_pos[1], 'ro', markersize=8)
+        ax.text(transformer_pos[0], transformer_pos[1] + 1, '', color='red', fontsize=10, ha='center')
 
-    ax.set_xlim(xlim)
-    ax.set_ylim(ylim)
-    pdf.savefig(fig, bbox_inches='tight', pad_inches=0)
-    step += 1
+    # 4 Create Custom Legend
+    # 4.1 Infrastructure(Transformer) legend.
+    transformer_handle = plt.Line2D([], [], marker='o', color='red', linestyle='None',
+                                    markersize=10, label='Energy Hub')
+    infra_handles = [transformer_handle]
 
-    # STEP 5 — legend
-    transformer_handle = plt.Line2D([], [], marker='o', color='red',
-                                    linestyle='None', markersize=10,
-                                    label='Energy Hub')
-
+    # 4.2 Building type legend.
     building_types = {}
     for bld in buildings_info:
         legend_type = bld["legend_type"]
@@ -1254,25 +1174,9 @@ def scenario_generation(
                 "linewidth": bld["line_width"],
             }
 
-    def legend_sort_key(legend_type):
-        if legend_type == "Residential_MFH":
-            return (0, legend_type)
-
-        if legend_type == "Residential_SFH":
-            return (1, legend_type)
-
-        if legend_type.startswith("Mixed_"):
-            return (2, legend_type)
-
-        return (3, legend_type)
-
-    ordered_legend_types = sorted(building_types.keys(), key=legend_sort_key)
-
     type_handles = []
 
-    for typ in ordered_legend_types:
-        style = building_types[typ]
-
+    for typ, style in building_types.items():
         type_handles.append(
             patches.Patch(
                 facecolor=style["facecolor"],
@@ -1282,26 +1186,24 @@ def scenario_generation(
             )
         )
 
-    retrofit_handles = [
-        patches.Patch(facecolor="white", edgecolor="black",
-                      hatch=hatch_patterns[level], label=level)
-        for level in hatch_patterns
-    ]
+    # 4.3 Retrofit level legend (using hatch patterns).
+    retrofit_handles = [patches.Patch(facecolor="white", edgecolor="black", hatch=hatch_patterns[level], label=level) for level in hatch_patterns]
 
-    all_handles = [transformer_handle] + type_handles + retrofit_handles
+    all_handles = infra_handles + type_handles + retrofit_handles
+    ax.legend(handles=all_handles, loc="upper left", bbox_to_anchor=(1.05, 1), fontsize=17)
 
-    ax.legend(handles=all_handles,
-              loc="upper left",
-              bbox_to_anchor=(1.02, 1),
-              fontsize=21)
-
-    ax.set_xlim(xlim)
-    ax.set_ylim(ylim)
-    pdf.savefig(fig, bbox_inches='tight', pad_inches=0)
-    step += 1
+    # 5 Adjust image coordinates and format
+    ax.set_xlabel("Width (meters)", fontsize=20)
+    ax.set_ylabel("Length (meters)", fontsize=20)
+    ax.tick_params(axis='both', which='major', labelsize=20)
+    ax.set_aspect('equal', adjustable='box')
+    ax.set_title("District layout "+district_type, fontsize=20)
+    ax.grid(True, linestyle='--', linewidth=0.3)
+    plt.tight_layout()
 
     # 6 Save the plot and json-file
-
+    current_dir = os.path.dirname(__file__)
+    save_dir = os.path.join(current_dir, '..', 'data', 'scenarios')
     # create the folder if it doesn't exist
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
@@ -1315,9 +1217,8 @@ def scenario_generation(
         f"district_layout_{district_type}_seed_{seed}_buildings_{len(buildings)}.svg"
     )
 
-    plt.savefig(plot_filename_png, dpi=300, bbox_inches='tight', pad_inches=0)
-    plt.savefig(plot_filename_svg, format="svg", bbox_inches='tight', pad_inches=0)
-    pdf.close()
+    plt.savefig(plot_filename_png, dpi=300)
+    plt.savefig(plot_filename_svg, format="svg")
 
     plt.show()
     print(f"The number of generated buildings is {len(buildings)}.")
@@ -1349,7 +1250,8 @@ def scenario_generation(
             "metadata": {
                 "settlement_type": district_type,
                 "random_seed": seed,
-                "target_number_of_buildings": num_buildings
+                "target_number_of_buildings": num_buildings,
+                "f_layout_variant": f_layout_variant,
             },
             "parameters": run_results,
             "values": {
@@ -1411,6 +1313,7 @@ def scenario_generation(
         "seed": seed,
         "num_buildings": len(buildings),
         "target_num_buildings": num_buildings,
+        "f_layout_variant": f_layout_variant,
         "csv_filename": csv_filename,
         "json_filename": params_filename,
     }

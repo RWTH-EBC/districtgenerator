@@ -35,15 +35,22 @@ districtgenerator/data/typdistrict_parameters.xlsx
 import subprocess
 import sys
 import re
+import os
+from datetime import datetime
 
 
-def generate_one_district():
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+
+def generate_one_district(output_subdirectory=None):
     """
     Generate one district interactively.
 
     The inputs are requested by the imported generation functions:
     - typdistrict_preprocess.py requests the random seed and settlement type.
-    - typdistrict_postprocess_paper2.py requests the number of buildings.
+    - typdistrict_postprocess.py requests the number of buildings.
 
     The generated output files are saved in:
     districtgenerator/data/scenarios
@@ -67,13 +74,14 @@ def generate_one_district():
     stochastic realizations and to allow reproducible regeneration of the same district.
     """
 
-    from districtgenerator.functions.typdistrict_postprocess_paper2 import scenario_generation
+    from districtgenerator.functions.typdistrict_postprocess import scenario_generation
 
-    result = scenario_generation()
+    result = scenario_generation(output_subdirectory=output_subdirectory)
     if result:
         print(
             f"Generated valid district: type {result['district_type']}, "
-            f"seed {result['seed']}, buildings {result['num_buildings']}"
+            f"seed {result['seed']}, buildings {result['num_buildings']}, "
+            f"layout {result.get('f_layout_variant') or 'standard'}"
         )
 
 
@@ -86,7 +94,8 @@ def generate_batch():
     - Generates the requested number of valid districts.
     - If a seed cannot generate the requested number of buildings, the
       generation function automatically tries the next seed.
-    - Existing files with the same successful seed are overwritten.
+    - Writes every batch to a new timestamped subfolder, so
+      previously generated districts are never overwritten.
 
     Example:
     If 20 valid districts are requested and seed 2 fails, the outputs may use
@@ -106,6 +115,15 @@ def generate_batch():
     )
     number_of_buildings = int(
         input("\nEnter number of buildings per district: ").strip()
+    )
+    type_label = "".join(settlement_types)
+    batch_subdirectory = (
+        f"validation_{type_label}_"
+        f"{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    )
+    print(
+        "\nThis batch will be saved separately in: "
+        f"districtgenerator/data/scenarios/{batch_subdirectory}"
     )
     max_seed_to_try = 500
 
@@ -131,7 +149,13 @@ def generate_batch():
             user_inputs = f"{seed}\n{district_type}\n{number_of_buildings}\n"
 
             process = subprocess.Popen(
-                [sys.executable, "-u", __file__, "--single"],
+                [
+                    sys.executable,
+                    "-u",
+                    __file__,
+                    "--single",
+                    f"--output-subdirectory={batch_subdirectory}",
+                ],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
@@ -188,7 +212,12 @@ def main():
     # Internal mode used by generate_batch().
     # It prevents the menu from appearing for every automatically generated district.
     if len(sys.argv) > 1 and sys.argv[1] == "--single":
-        generate_one_district()
+        output_subdirectory = None
+        for argument in sys.argv[2:]:
+            if argument.startswith("--output-subdirectory="):
+                output_subdirectory = argument.split("=", 1)[1]
+                break
+        generate_one_district(output_subdirectory=output_subdirectory)
         return
 
     print("\nSelect generation mode:")
