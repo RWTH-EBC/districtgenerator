@@ -36,6 +36,8 @@ MODEL_SPECS = [
 VALIDATION_REPEATS = 100
 VALIDATION_TEST_FRACTION = 0.20
 VALIDATION_RANDOM_SEED = 42
+DEFAULT_SEEDS_PER_DISTRICT = 10
+DEFAULT_INTEREST_RATE = 0.05
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RESULTS_DIR = PROJECT_ROOT / "districtgenerator" / "results" / "results_paper_2"
 DEFAULT_OUTPUT_PREFIX = DEFAULT_RESULTS_DIR / "central_lcoh_vs_heat_density"
@@ -167,12 +169,13 @@ def read_config_values(config_path):
         if not line.strip() or line.lstrip().startswith("#") or "=" not in line:
             continue
         key, raw_value = line.split("=", 1)
-        key = key.strip()
+        key = key.strip().upper()
         if key in {
             "PRICE_SUPPLY_EL",
             "PRICE_SUPPLY_EL_EH",
             "REVENUE_FEED_IN_EL",
             "REVENUE_FEED_IN_EL_EH",
+            "INTEREST_RATE",
         }:
             values[key] = parse_config_value(raw_value)
     return values
@@ -183,6 +186,18 @@ def value_for_year(config_values, key, index):
     if isinstance(value, list):
         return value[index]
     return value
+
+
+def discounted_equivalent_annual_cost(annual_costs, interest_rate):
+    """Levelize year-end operating costs; already annualized capital stays separate."""
+    costs = np.asarray(annual_costs, dtype=float)
+    if costs.ndim != 1 or not len(costs) or not np.all(np.isfinite(costs)):
+        raise ValueError("Annual operating costs must be a nonempty finite series.")
+    if not np.isfinite(interest_rate) or interest_rate < 0:
+        raise ValueError("The interest rate must be finite and nonnegative.")
+    years = np.arange(1, len(costs) + 1, dtype=float)
+    discount_factors = (1.0 + interest_rate) ** (-years)
+    return float(np.dot(costs, discount_factors) / discount_factors.sum())
 
 
 def sum_column(ws, column_name):
@@ -242,13 +257,17 @@ def central_heat_net_annual_cost(kpi_path, config_values):
         annual_heat_operation_costs.append(
             energy_hub_electricity_cost + energy_hub_feed_in_revenue + central_fuel_costs
         )
-    mean_heat_operation_cost = sum(annual_heat_operation_costs) / len(annual_heat_operation_costs)
+    interest_rate = config_values.get("INTEREST_RATE", DEFAULT_INTEREST_RATE)
+    equivalent_heat_operation_cost = discounted_equivalent_annual_cost(
+        annual_heat_operation_costs, interest_rate
+    )
 
     central_costs = 0.0
     if "Central Devices Costs" in wb.sheetnames:
         central_costs = sum_column(wb["Central Devices Costs"], "Annualized Cost Subsidized")
 
-    return mean_heat_operation_cost + central_costs
+    wb.close()
+    return equivalent_heat_operation_cost + central_costs
 
 
 def scalar_json_value(data, key):
@@ -363,6 +382,38 @@ def make_ranges(results_dir, config_values, require_complete_decentral=False):
         )
 
     return pd.DataFrame(ranges), pd.DataFrame(cases)
+
+
+def select_first_complete_seeds(ranges, cases, seeds_per_district):
+    """Keep the lowest complete seed numbers for every district type."""
+    if seeds_per_district <= 0:
+        raise ValueError("seeds_per_district must be greater than zero.")
+
+    counts = ranges.groupby("district")["seed"].nunique()
+    incomplete = counts[counts < seeds_per_district]
+    if not incomplete.empty:
+        details = ", ".join(
+            f"{district}: {count}"
+            for district, count in incomplete.sort_index().items()
+        )
+        raise ValueError(
+            f"Fewer than {seeds_per_district} complete central seeds are available "
+            f"for these district types: {details}."
+        )
+
+    selected_ranges = (
+        ranges.sort_values(["district", "seed"])
+        .groupby("district", sort=True, group_keys=False)
+        .head(seeds_per_district)
+        .reset_index(drop=True)
+    )
+    selected_pairs = selected_ranges[["district", "seed"]].drop_duplicates()
+    selected_cases = (
+        cases.merge(selected_pairs, on=["district", "seed"], how="inner", validate="many_to_one")
+        .sort_values(["district", "seed", "cost_case"])
+        .reset_index(drop=True)
+    )
+    return selected_ranges, selected_cases
 
 
 def add_lhd_tertiles(df):
@@ -528,7 +579,17 @@ def regression_design_matrix(
             )
             x_parts.append(interaction_terms)
     if include_district:
-        x_parts.append(pd.get_dummies(model_df["district"], prefix="district", drop_first=True, dtype=float))
+        if columns is None:
+            district_dummies = pd.get_dummies(
+                model_df["district"], prefix="district", drop_first=True, dtype=float
+            )
+        else:
+            # Reuse the training encoding: drop_first on a test subset can
+            # drop its only type or choose a different reference category.
+            district_columns = [column for column in columns if column.startswith("district_")]
+            district_dummies = district_dummies_for_columns(model_df["district"], district_columns)
+            district_dummies.index = model_df.index
+        x_parts.append(district_dummies)
     x = pd.concat(x_parts, axis=1).astype(float)
     if columns is not None:
         x = x.reindex(columns=columns, fill_value=0.0)
@@ -1944,6 +2005,15 @@ def main():
     parser.add_argument("--output-prefix", type=Path, default=DEFAULT_OUTPUT_PREFIX)
     parser.add_argument("--config-path", type=Path, default=DEFAULT_CONFIG_PATH)
     parser.add_argument(
+        "--seeds-per-district",
+        type=int,
+        default=DEFAULT_SEEDS_PER_DISTRICT,
+        help=(
+            "Use the lowest complete seed numbers for each district type "
+            f"(default: {DEFAULT_SEEDS_PER_DISTRICT})."
+        ),
+    )
+    parser.add_argument(
         "--require-complete-decentral-pair",
         action="store_true",
         help="Restrict LCOH analysis to seeds that also have complete decentral results.",
@@ -1957,6 +2027,8 @@ def main():
 
     args.output_prefix.parent.mkdir(parents=True, exist_ok=True)
     config_values = read_config_values(args.config_path)
+    interest_rate = config_values.get("INTEREST_RATE", DEFAULT_INTEREST_RATE)
+    print(f"LCOH: discounted equivalent annual operating costs, interest rate {interest_rate:.1%}")
     ranges, cases = make_ranges(
         args.results_dir,
         config_values,
@@ -1964,7 +2036,28 @@ def main():
     )
     if ranges.empty:
         raise ValueError("No complete central scenarios found.")
+    ranges, cases = select_first_complete_seeds(
+        ranges,
+        cases,
+        seeds_per_district=args.seeds_per_district,
+    )
     ranges = add_lhd_tertiles(ranges)
+
+    metadata = {
+        "lcoh_method": "annualized_capital_and_maintenance_plus_discounted_equivalent_annual_operation",
+        "interest_rate": interest_rate,
+        "operating_cost_timing": "end_of_year; assessment years 1 through T",
+        "heat_delivery": "constant annual useful heat; distribution losses excluded from denominator",
+        "units": "ct/kWh",
+        "results_dir": str(args.results_dir.resolve()),
+        "config_path": str(args.config_path.resolve()),
+        "district_realizations": len(ranges),
+        "central_cost_cases": len(cases),
+        "seeds_per_district": args.seeds_per_district,
+    }
+    Path(f"{args.output_prefix}_analysis_metadata.json").write_text(
+        json.dumps(metadata, indent=2) + "\n", encoding="utf-8"
+    )
 
     regression_summary, regression_coefficients, beta_by_model, statsmodels_summaries = regression_comparison(ranges)
     validation_raw, validation_summary = repeated_train_test_validation(ranges)
