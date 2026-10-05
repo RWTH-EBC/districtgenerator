@@ -651,7 +651,8 @@ class Datahandler:
                                      year_of_construction=building["buildingFeatures"]["year"],
                                      retrofit=building["buildingFeatures"]["retrofit"],
                                      SIA2024=self.SIA2024,
-                                     path=os.path.join(self.resultPath, 'demands'))
+                                     path=os.path.join(self.resultPath, 'demands'),
+                                     building_id=building["buildingFeatures"]["id"])
 
             night_setback = building["buildingFeatures"]["night_setback"]
             # %% calculate design heat loads
@@ -708,6 +709,7 @@ class Datahandler:
             building["user"].dhw = result["dhw"]
             building["user"].cooling = result["cooling"]
             building["user"].heat = result["heating"]
+            building["user"].T_i = result["T_i"]
 
             # IMPORTANT: remove the trailing comma (your current code makes this a 1-tuple)
             building["user"].occ = result["occ"]
@@ -827,6 +829,7 @@ class Datahandler:
         return {
             "unique_name": building["unique_name"],
             "elec": building["user"].elec,
+            "T_i": building["user"].T_i,
             "dhw": building["user"].dhw,
             "cooling": building["user"].cooling,
             "heating": building["user"].heat,

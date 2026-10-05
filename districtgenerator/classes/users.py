@@ -81,7 +81,7 @@ class Users:
         else:
             self.nb_main_rooms = int(value)
 
-    def __init__(self, building, area, year_of_construction, retrofit, SIA2024=None, path = None):
+    def __init__(self, building, area, year_of_construction, retrofit,building_id, SIA2024=None, path = None):
         """
         Constructor of Users class.
 
@@ -91,6 +91,7 @@ class Users:
         """
 
         self.building = building
+        self.building_id = building_id
         self.nb_flats = None
         self.annual_el_demand_per_flat = None
         self.nb_rooms = None
@@ -123,7 +124,7 @@ class Users:
         self.SIA2024 = SIA2024
         if self.building in {"OB", "SC", "GS", "RE"}:
             self.building_zones = self.SIA2024[self.building]
-        save_path = os.path.join(path,f"{building}_{area}_{year_of_construction}_0.pkl")
+        save_path = os.path.join(path,f"{self.building_id}_{building}_{area}_{year_of_construction}_0.pkl")
         if retrofit == 0:
             self.generate_number_flats_and_rooms(area)
             self.generate_number_occupants(area)
@@ -859,6 +860,8 @@ class Users:
         None.
         """
 
+        night_setback=int(night_setback)
+
         dt = time_resolution / (60 * 60)
 
         # Extend holidays for schools
@@ -895,7 +898,7 @@ class Users:
             (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], calendar, dt, initial_day, self.building)
 
         # Force cooling to zero if building is not actively cooled
-        if is_cooled == 0:
+        if int(is_cooled) == 0:
             Q_C = np.zeros_like(Q_C)
 
         # heating and cooling loads for the current time step in Watt
