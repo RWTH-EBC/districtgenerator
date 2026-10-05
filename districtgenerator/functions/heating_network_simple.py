@@ -262,6 +262,10 @@ def calculate_thermal_losses(data):
     a_dist = np.log(4 * Z_c / (data.heat_grid_data["Da_heating_dist"]/1000))
     beta_dist =  k_soil / k_is * np.log((data.heat_grid_data["Da_heating_dist"]) / data.heat_grid_data["da_heating_dist"])
 
+    # TODO: (a_dist + beta_dist +/- b) can hit exactly 0 for certain pipe-diameter/soil-parameter
+    # combinations, which makes **-1 silently return inf (no exception) instead of raising - this has
+    # caused a downstream crash when KPIs.py tries to round/export the resulting inf value. Needs a
+    # domain decision (e.g. clamp, alternate formula, or treat as zero-loss) rather than a blind fix.
     ks_heating_network_dist = (a_dist + beta_dist + b)**-1
     ka_heating_network_dist = (a_dist + beta_dist - b)**-1
 
@@ -277,6 +281,7 @@ def calculate_thermal_losses(data):
     a_serv = np.log(4 * Z_c / (data.heat_grid_data["Da_heating_serv"]/1000))
     beta_serv =  k_soil / k_is * np.log((data.heat_grid_data["Da_heating_serv"]) / data.heat_grid_data["da_heating_serv"])
 
+    # TODO: same zero-denominator/inf risk as ks_heating_network_dist/ka_heating_network_dist above.
     ks_heating_network_serv = (a_serv + beta_serv + b)**-1
     ka_heating_network_serv = (a_serv + beta_serv - b)**-1
 
