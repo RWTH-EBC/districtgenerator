@@ -530,10 +530,6 @@ class Datahandler:
             # Store features of the observed building
             building["buildingFeatures"] = row.to_dict()  # Convert row to dictionary
 
-            ## ADDITION AIX HEAT for replacing values with default
-            ## ggf den unique_name hier mit übergeben
-            self.check_values(building["buildingFeatures"])
-
             # Validate that the sum of PV and STC roof area fractions does not exceed 1
             f_pv = building["buildingFeatures"].get("f_PV", 0) or 0
             f_stc = building["buildingFeatures"].get("f_STC", 0) or 0
@@ -576,63 +572,6 @@ class Datahandler:
         duration += datetime.timedelta(seconds=3 * num_sfh + 12 * num_mfh)
         print(f"This calculation will take about {duration}.")
 
-    def check_values(self, buildingFeatures):
-        """
-        Check if necessary values are present.
-        Parameters
-        ----
-        buildingFeatures: pandas.DataFrame
-        DataFrame containing building features.
-
-        Returns
-        ---
-        building_features: pandas.DataFrame
-        DataFrame containing building features (updated if necessary).
-
-        """
-        # gmlId nur für AIX HEAT!
-        necessary_values = ["area", "building", "year", "gmlId"]
-        optional_values = ["number_of_floors",  "nb_occ", "nb_flats", "thermalTransmittanceRoof",
-                           "thermalTransmittanceFacade", "thermalTransmittanceFloor", "thermalTransmittanceWindow", "height"]
-        specific_values = ["f_TES", "f_BAT", "heater", "f_PV", "f_STC", "night_setback", "retrofit", "EV", "cooling"]
-
-        default_values = {
-            #optional values
-            "number_of_floors": "random",
-            "nb_occ": "random",
-            "nb_flats": "random",
-            "thermalTransmittanceRoof": "TEASER",
-            "thermalTransmittanceFacade": "TEASER",
-            "thermalTransmittanceFloor": "TEASER",
-            "thermalTransmittanceWindow": "TEASER",
-            "height": "calculate height_of_floors instead",
-            # specific values
-            "night_setback": 0,
-            "retrofit": 0,
-            "EV": 0,
-            "f_TES": 35,
-            "f_BAT": 1,
-            "heater": "BOI",
-            "f_PV": 0.4,
-            "f_STC": 0.4,
-            "cooling": 0
-        }
-        for val in necessary_values:
-            if val not in buildingFeatures or pd.isna(buildingFeatures.get(val)):
-                raise ValueError(f"{val} is a necessary value.")
-        for val in optional_values:
-            if val not in buildingFeatures or pd.isna(buildingFeatures.get(val)):
-                print(f"{buildingFeatures['gmlId']}: --- {val} is not provided, districtgenerator will default to {default_values[val]}. ---")
-                try:
-                    del buildingFeatures[val]
-                except KeyError:
-                    pass
-        for val in specific_values:
-            if val not in buildingFeatures or pd.isna(buildingFeatures.get(val)):
-                print(f"{buildingFeatures['gmlId']}: --- {val} set to {default_values[val]}. ---")
-                buildingFeatures[val] = default_values[val]
-
-        return buildingFeatures
 
 
     def generateBuildings(self):

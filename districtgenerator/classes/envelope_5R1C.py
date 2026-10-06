@@ -416,45 +416,6 @@ class Envelope:
                                                     / self.Lambda["window"])
                                                 + self.R_se["window"])))
 
-            # Base row info
-            u_row = {
-                "ID": self.id,
-            }
-
-            # Add calculated U-values
-            # for comparison with given U-values
-            u_row.update({
-                "wall_calc": self.U["opaque"]["wall"],
-                "roof_calc": self.U["opaque"]["roof"],
-                "floor_calc": self.U["opaque"]["floor"],
-                "window_calc": self.U["window"],
-                "age": extra[0],
-                "retrofit": extra[1],
-                "id": extra[2],
-                "type": extra[3]
-            })
-
-            # if given u-values (e.g. from platform in example.csv) are provided, update U-values accordingly
-            # Mapping: (Index in u_values, Ziel-Dict, Ziel-Key)
-            mapping = [
-                (0, self.U["opaque"], 'wall'),
-                (1, self.U["opaque"], 'roof'),
-                (2, self.U["opaque"], 'floor'),
-                (3, self.U, 'window')  # Achtung: Hier direkt in self.U
-            ]
-
-            for idx, target_dict, key in mapping:
-                # Schutz vor IndexError, falls u_values zu kurz ist
-                if idx < len(u_values):
-                    val = u_values[idx]
-                    if val != 0 and not pd.isna(val):
-                        target_dict[key] = val
-
-            if calcThick:
-                self.thick_req = self.compute_insulation_thickness(self.U['opaque'])
-            else:
-                self.thick_req = None
-
 
 
             # Adjust the heating set temperature to account for the occupant behavior
