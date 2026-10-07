@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 
 import json
+import logging
+import copy
+from .envelope_profiles import initialize_context, calculate_profiles
 import csv
 import pickle
 import os
@@ -91,6 +94,7 @@ class Datahandler:
         filePath = os.path.join(srcPath, 'data')
 
         self.srcPath = srcPath
+        self._envelope_profiles_env_path = os.path.abspath(env_path) if env_path else None
         self.filePath = filePath
 
         self.initial_day = None
@@ -135,7 +139,7 @@ class Datahandler:
         else:
             self.resultPath = os.path.join(self.srcPath, 'results')
 
-        self.load_all_data(env_path=env_path, scenario_name=scenario_name)
+        self.load_all_data(env_path=env_path, scenario_name=scenario_name, global_config=global_config)
 
         if run_name is not None:
             # Create the path to demands and generation
@@ -175,7 +179,7 @@ class Datahandler:
             except Exception as e:
                 print(f"Couldn't save calculation progress: {e}")
 
-    def load_all_data(self, env_path, scenario_name):
+    def load_all_data(self, env_path, scenario_name, global_config=None):
         """
         Load all data needed for district generation from configuration files.
 
@@ -192,7 +196,8 @@ class Datahandler:
         """
         # --- 1. Load all Configs ---
 
-        global_config: GlobalConfig = load_global_config(env_file=env_path)
+        if global_config is None:
+            global_config = load_global_config(env_file=env_path)
 
         # %% load information about of the site under consideration (used in generateEnvironment)
         # important for weather conditions
@@ -627,44 +632,55 @@ class Datahandler:
                 # The actual external envelope constructions are assigned component-specifically afterwards.
                 construction_data = "tabula_de_standard"
 
-                # Determine the number of floors based on the building type.
-                # The original random TABULA-based calculation remains unchanged.
-                if building_type == "single_family_house":
-                    one_floor_area = rd.randint(62, 115)  # Source: TABULA German Building Typology
-                    number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
+                # Reuse a complete geometry pair already resolved by QG.
+                saved_floors = pd.to_numeric(building["buildingFeatures"].get("number_of_floors"), errors="coerce")
+                saved_height = pd.to_numeric(building["buildingFeatures"].get("height_of_floors"), errors="coerce")
+                resolved_geometry = (pd.notna(saved_floors) and pd.notna(saved_height)
+                                     and np.isfinite([saved_floors, saved_height]).all()
+                                     and float(saved_floors).is_integer()
+                                     and float(saved_floors) > 0 and float(saved_height) > 0)
+                if resolved_geometry:
+                    number_of_floors = int(saved_floors)
+                    height_of_floors = float(saved_height)
+                else:
+                    # Determine the number of floors based on the building type.
+                    # The original random TABULA-based calculation remains unchanged.
+                    if building_type == "single_family_house":
+                        one_floor_area = rd.randint(62, 115)  # Source: TABULA German Building Typology
+                        number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
 
-                elif building_type == "terraced_house":
-                    one_floor_area = rd.randint(50, 73)  # Source: TABULA German Building Typology
-                    number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
+                    elif building_type == "terraced_house":
+                        one_floor_area = rd.randint(50, 73)  # Source: TABULA German Building Typology
+                        number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
 
-                elif building_type == "multi_family_house":
-                    one_floor_area = rd.randint(102, 971)  # Source: TABULA German Building Typology
-                    number_of_floors = max(2, round(building["buildingFeatures"]["area"] / one_floor_area))
+                    elif building_type == "multi_family_house":
+                        one_floor_area = rd.randint(102, 971)  # Source: TABULA German Building Typology
+                        number_of_floors = max(2, round(building["buildingFeatures"]["area"] / one_floor_area))
 
-                    # Limit multi-family houses to a maximum of eight floors.
-                    if number_of_floors > 8:
-                        number_of_floors = 8
+                        # Limit multi-family houses to a maximum of eight floors.
+                        if number_of_floors > 8:
+                            number_of_floors = 8
 
-                elif building_type == "apartment_block":
-                    one_floor_area = rd.randint(350, 540)  # Source: TABULA German Building Typology
-                    number_of_floors = max(3, round(building["buildingFeatures"]["area"] / one_floor_area))
+                    elif building_type == "apartment_block":
+                        one_floor_area = rd.randint(350, 540)  # Source: TABULA German Building Typology
+                        number_of_floors = max(3, round(building["buildingFeatures"]["area"] / one_floor_area))
 
-                # The number of floors is a count and must therefore be an integer.
-                number_of_floors = int(number_of_floors)
+                    # The number of floors is a count and must therefore be an integer.
+                    number_of_floors = int(number_of_floors)
 
-                # Read the total building height from the scenario.
-                # Invalid or missing values are converted to NaN and therefore trigger the fallback below.
-                height = pd.to_numeric(building["buildingFeatures"].get("height", 0), errors="coerce")
+                    # Read the total building height from the scenario.
+                    # Invalid or missing values are converted to NaN and therefore trigger the fallback below.
+                    height = pd.to_numeric(building["buildingFeatures"].get("height", 0), errors="coerce")
 
-                # Calculate the floor height from total building height and number of floors.
-                height_of_floors = round(height/number_of_floors, 2)
+                    # Calculate the floor height from total building height and number of floors.
+                    height_of_floors = round(height / number_of_floors, 2)
 
-                # Use a construction-year-dependent fallback if the calculated value is outside 2.5 – 4.0 m.
-                if not 2.5 <= height_of_floors <= 4.0:
-                    if building["buildingFeatures"]["year"] < 1960:
-                        height_of_floors = 3.3  # Typical floor height for older buildings [m]
-                    else:
-                        height_of_floors = 2.5  # Typical floor height for newer buildings [m]
+                    # Use a construction-year-dependent fallback if the calculated value is outside 2.5 – 4.0 m.
+                    if not 2.5 <= height_of_floors <= 4.0:
+                        if building["buildingFeatures"]["year"] < 1960:
+                            height_of_floors = 3.3  # Typical floor height for older buildings [m]
+                        else:
+                            height_of_floors = 2.5  # Typical floor height for newer buildings [m]
 
                 # Add the residential building to the TEASER project.
                 prj.add_residential(name="ResidentialBuildingTabula",
@@ -950,6 +966,7 @@ class Datahandler:
         self.buildings_completed = 0
         self.save_progress()
         self.global_occ_lock = threading.Lock()  # 1x vor dem ThreadPool erstellen
+        self._envelope_profiles_context = initialize_context(self)
 
         results = []
 
@@ -1080,46 +1097,50 @@ class Datahandler:
             # building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
             print("Load demands of building " + building["unique_name"])
 
-        if building.get("thermal_model") == "5R1C":
-            building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
-        elif building.get("thermal_model") == "7R2C":
-            # Compute VDI6007 params
-            building["envelope"]._VDI6007_params(self.site["SunRad"])
-            # Compute equivalent temperature
-            building["envelope"].calc_theta_eq(self.site, building["user"].gains)
-        else:
-            raise ValueError(f"Unknown thermal_model_type: {self.design_building_data['thermal_model_type']}")
+        residential_5r1c = (building.get("thermal_model") == "5R1C"
+                            and building["buildingFeatures"]["building"] in {"SFH", "TH", "MFH", "AB"})
+        if residential_5r1c:
+            # Calculate all envelope variants from one initialized QG context.
+            try:
+                calculate_profiles(self, building)
+            except Exception as exc:
+                logging.getLogger("app.qg-envelope-profiles").error("%s, Building %s: Envelope profiles could not be loaded or calculated: %s: %s",
+                                                                    self.scenario_name,
+                                                                    building["buildingFeatures"].get("id", building["unique_name"],),
+                                                                    type(exc).__name__,
+                                                                    exc,
+                                                                    exc_info=True,)
+                raise
 
-        night_setback = building["buildingFeatures"]["night_setback"]
-
-        is_cooled = building["buildingFeatures"]["cooling"] # Indicates whether the building is actively cooled
-
-        # calculate or load heating profiles
-        if calcUserProfiles and not skip_calculation:
-            building["user"].calcHeatingProfile(site=self.site,
-                                                envelope=building["envelope"],
-                                                thermal_model=building["thermal_model"],
-                                                night_setback=night_setback,
-                                                is_cooled=is_cooled,
-                                                calendar=self.calendar,
-                                                time_resolution=self.time["timeResolution"],
-                                                initial_day=self.initial_day)
-
-            if saveUserProfiles:
-                # idArray = []
-                build_id = building["buildingFeatures"]["gmlId"] if "gmlId" in building["buildingFeatures"] else building["buildingFeatures"]["id"]
+            if (calcUserProfiles and not skip_calculation and saveUserProfiles) or (
+                    not calcUserProfiles or skip_calculation):
+                build_id = building["buildingFeatures"].get("gmlId", building["buildingFeatures"]["id"])
                 self.saveHeatingProfile(heat=building["user"].heat,
                                         cooling=building["user"].cooling,
-                                        name=building["unique_name"],
-                                        gmlId=build_id,
-                                        path=os.path.join(self.demands_path))
-                #building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+                                        name=building["unique_name"], gmlId=build_id,
+                                        path=self.demands_path)
+        else:
+            # Existing non-residential / 7R2C path.
+            if building.get("thermal_model") == "5R1C":
+                building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
+            elif building.get("thermal_model") == "7R2C":
+                building["envelope"]._VDI6007_params(self.site["SunRad"])
+                building["envelope"].calc_theta_eq(self.site, building["user"].gains)
             else:
-                if not skip_calculation:
-                    heat, cooling, id = self.loadHeatingProfiles(name=building["unique_name"], path=(self.demands_path))
-                    building["user"].heat = heat
-                    building["user"].cooling = cooling
-                    building["gmlId"] = id
+                raise ValueError(f"Unknown thermal_model_type: {self.design_building_data['thermal_model_type']}")
+            if calcUserProfiles and not skip_calculation:
+                building["user"].calcHeatingProfile(site=self.site,
+                                                    envelope=building["envelope"],
+                                                    thermal_model=building["thermal_model"],
+                                                    night_setback=building["buildingFeatures"]["night_setback"],
+                                                    is_cooled=building["buildingFeatures"]["cooling"],
+                                                    calendar=copy.deepcopy(self.calendar),
+                                                    time_resolution=self.time["timeResolution"],
+                                                    initial_day=self.initial_day)
+                if saveUserProfiles:
+                    build_id = building["buildingFeatures"].get("gmlId", building["buildingFeatures"]["id"])
+                    self.saveHeatingProfile(heat=building["user"].heat, cooling=building["user"].cooling,
+                                            name=building["unique_name"], gmlId=build_id, path=self.demands_path)
 
         print("Finished generating demands!")
 
@@ -1345,13 +1366,13 @@ class Datahandler:
         """
         ts_path = os.path.join(path, f"{name}_timeseries.csv")
         if os.path.exists(ts_path):
-            df_ts = pd.read_csv(ts_path, sep=';')
+            df_ts = pd.read_csv(ts_path, sep=';', float_precision='round_trip')
         else:
             df_ts = pd.DataFrame()
 
         df_ts['heating'] = heat
         df_ts['cooling'] = cooling
-        df_ts.to_csv(ts_path, index=False, float_format='%.3f', sep=';')
+        df_ts.to_csv(ts_path, index=False, sep=';')
 
         static_path = os.path.join(path, f"{name}_static.csv")
         if os.path.exists(static_path):
@@ -1382,7 +1403,7 @@ class Datahandler:
         ts_path = os.path.join(path, f"{name}_timeseries.csv")
         static_path = os.path.join(path, f"{name}_static.csv")
 
-        df_ts = pd.read_csv(ts_path, sep=";")
+        df_ts = pd.read_csv(ts_path, sep=";", float_precision="round_trip")
         df_static = pd.read_csv(static_path, sep=";")
 
         elec = df_ts['elec'].to_numpy()

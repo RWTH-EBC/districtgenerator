@@ -664,8 +664,7 @@ class Users:
         None.
         """
 
-        if hasattr(self, 'create_el_wrapper'):
-            self.create_el_wrapper()
+        # The constructor already initializes the appliance and lighting wrappers.
 
         irradiation = site["SunTotal"]
         T_e = site["T_e"]
