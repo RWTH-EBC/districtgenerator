@@ -1631,6 +1631,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
         return renewable_heat >= target_share * total_heat
 
     model.from_grid_total_gas_constraint = pyo.Constraint(rule=from_grid_total_gas_rule, doc="from_grid_total_gas")
+    model.from_grid_total_gas_eh = pyo.Expression(expr=dt * sum(model.eh_gas_from_grid[t] for t in model.t) / 1000)
+    model.from_grid_total_gas_buildings = pyo.Expression(expr=dt * sum(model.gas_dom[dev, n, t] - model.biomethane_dom[dev, n, t]for dev in model.ecs_gas for n in model.n for t in model.t) / 1000)
     model.total_biomethane_used_constraint = pyo.Constraint(rule=total_biomethane_used_rule, doc="total_biomethane_used")
     model.from_grid_total_el_constraint = pyo.Constraint(rule=from_grid_total_el_rule, doc="from_grid_total_el")
     model.to_grid_total_el_constraint = pyo.Constraint(rule=to_grid_total_el_rule, doc="to_grid_total_el")
@@ -1716,7 +1718,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
                 + model.from_grid_total_el_eh * ecoData["price_supply_el_eh"]
                 - model.to_grid_total_el_eh * ecoData["revenue_feed_in_el_eh"]
                 + decentral_5g_hp_el_costs
-                + model.from_grid_total_gas * ecoData["price_supply_gas"]
+                + model.from_grid_total_gas_buildings * ecoData["price_supply_gas"]
+                + model.from_grid_total_gas_eh * ecoData["price_supply_gas_eh"]
                 + model.total_biomethane_used * ecoData.get("price_biomethane")
                 + model.from_grid_total_hydrogen * ecoData["price_hydrogen"]
                 + model.total_biomass_used * ecoData["price_biomass"]
@@ -1787,6 +1790,8 @@ def solve_model_and_extract_results(model, data, year, cluster, sim_ecoData):
     results_dict["from_grid_total_el"] = pyo.value(model.from_grid_total_el)
     results_dict["to_grid_total_el"] = pyo.value(model.to_grid_total_el)
     results_dict["from_grid_total_gas"] = pyo.value(model.from_grid_total_gas)
+    results_dict["from_grid_total_gas_eh"] = pyo.value(model.from_grid_total_gas_eh)
+    results_dict["from_grid_total_gas_buildings"] = pyo.value(model.from_grid_total_gas_buildings)
     results_dict["total_biomethane_used"] = pyo.value(model.total_biomethane_used)
     results_dict["from_grid_total_hydrogen"] = pyo.value(model.from_grid_total_hydrogen)
     results_dict["total_biomass_used"] = pyo.value(model.total_biomass_used)

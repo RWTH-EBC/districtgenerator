@@ -1084,9 +1084,9 @@ class CentralDeviceConfig(BaseSettings):
     # - Bestehende Wärmenetze ab 2030: mind. 30% EE / unvermeidbare Abwärme
     # - Bestehende Wärmenetze ab 2040: mind. 80% EE / unvermeidbare Abwärme
     # - Alle Wärmenetze ab 2045: 100% EE / unvermeidbare Abwärme
-    renewable_heat_share_enabled: bool = False  # Enforce a minimum renewable share for central heat supplied by the Energy Hub.
-    renewable_heat_share_targets: str | list[float] = Field(default_factory=list)  # Minimum renewable central heat share schedule from 0 to 1.
-    renewable_heat_share_years: str | list[int] = Field(default_factory=list)  # Simulated years for the renewable central heat share schedule.
+    renewable_heat_share_enabled: bool = False  # Enforce minimum renewable heat shares for central supply and decentral buildings.
+    renewable_heat_share_targets: str | list[float] = Field(default_factory=list)  # Minimum renewable heat shares, from 0 to 1, corresponding to the scheduled years.
+    renewable_heat_share_years: str | list[int] = Field(default_factory=list)  # Assessment-year indices at which the corresponding renewable heat targets take effect.
 
     # PV parameters (Photovoltaic System)
     PV__feasible: bool = False  # Should this be considered for the central optimization.

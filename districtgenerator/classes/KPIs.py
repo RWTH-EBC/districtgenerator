@@ -37,6 +37,8 @@ class KPIs:
         self.W_inj_GCP_year = None
         self.W_dem_GCP_year = None
         self.gas_year = None
+        self.gas_dem_eh = None
+        self.gas_dem_buildings = None
         self.biomethane_year = None
         self.biomass_year = None
         self.waste_year = None
@@ -224,6 +226,8 @@ class KPIs:
         self.W_inj_GCP_year = {}
         self.W_dem_GCP_year = {}
         self.gas_year = {}
+        self.gas_dem_eh = {}
+        self.gas_dem_buildings = {}
         self.biomethane_year = {}
         self.biomass_year = {}
         self.waste_year = {}
@@ -242,6 +246,8 @@ class KPIs:
             self.W_inj_GCP_year[year] = 0
             self.W_dem_GCP_year[year] = 0
             self.gas_year[year] = 0
+            self.gas_dem_eh[year] = 0
+            self.gas_dem_buildings[year] = 0
             self.biomethane_year[year] = 0
             self.biomass_year[year] = 0
             self.waste_year[year] = 0
@@ -263,6 +269,10 @@ class KPIs:
                 self.W_dem_GCP_year[year] += opt_res["from_grid_total_el"] * weight
                 self.W_inj_GCP_year[year] += opt_res["to_grid_total_el"] * weight
                 self.gas_year[year] += opt_res["from_grid_total_gas"] * weight
+                gas_eh = opt_res["from_grid_total_gas_eh"]
+                gas_buildings = opt_res["from_grid_total_gas_buildings"]
+                self.gas_dem_eh[year] += gas_eh * weight
+                self.gas_dem_buildings[year] += gas_buildings * weight
                 self.biomethane_year[year] += opt_res.get("total_biomethane_used", 0) * weight
                 self.biomass_year[year] += opt_res["total_biomass_used"] * weight
                 self.waste_year[year] += opt_res["total_waste_used"] * weight
@@ -556,7 +566,7 @@ class KPIs:
                 "eh_fixed": self.annual_fixed_costs_central,
                 "decentral_fixed": self.annual_fixed_costs_decentral,
                 "electricity": (self.el_dem_buildings[year] * ecoData["price_supply_el"] + self.el_dem_eh[year] * ecoData["price_supply_el_eh"] + self.cost_decentral_HP_5G_el_year.get(year, 0.0)),
-                "gas": self.gas_year[year] * ecoData["price_supply_gas"],
+                "gas": (self.gas_dem_buildings[year] * ecoData["price_supply_gas"] + self.gas_dem_eh[year] * ecoData["price_supply_gas_eh"]),
                 "biomethane": self.biomethane_year[year] * ecoData.get("price_biomethane"),
                 "oil": self.oil_year[year] * ecoData["price_oil"],
                 "waste": self.waste_year[year] * ecoData["price_waste"],
