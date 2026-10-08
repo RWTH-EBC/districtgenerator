@@ -11,7 +11,7 @@ jobs:
       PYPI_PASSWORD: ${{ secrets.PYPI_TOKEN }}
     with:
       PYTHON_VERSION: "3.12"
-      PYTHON_TEST_MATRIX: '["3.11", "3.12", "3.13", "3.14"]'
+      PYTHON_TEST_MATRIX: '["3.12", "3.13", "3.14"]'
       PYTHON_PACKAGE_NAME: 'districtgenerator'
       USE_PYLINT: true
       USE_RUFF: true
