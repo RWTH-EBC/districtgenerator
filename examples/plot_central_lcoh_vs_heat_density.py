@@ -38,6 +38,14 @@ VALIDATION_TEST_FRACTION = 0.20
 VALIDATION_RANDOM_SEED = 42
 DEFAULT_SEEDS_PER_DISTRICT = 10
 DEFAULT_INTEREST_RATE = 0.05
+DEFAULT_BOOTSTRAP_REPETITIONS = 5000
+DEFAULT_BOOTSTRAP_SEED = 20261006
+SPLINE_SENSITIVITY_SPECS = (
+    ("bs4", "Cubic B-spline: 4 basis functions", "bs", 4),
+    ("bs5", "Cubic B-spline: 5 basis functions", "bs", 5),
+    ("bs6", "Cubic B-spline: 6 basis functions", "bs", 6),
+    ("natural5", "Natural cubic spline: 5 centred basis functions", "natural", 5),
+)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RESULTS_DIR = PROJECT_ROOT / "districtgenerator" / "results" / "results_paper_2"
 DEFAULT_OUTPUT_PREFIX = DEFAULT_RESULTS_DIR / "central_lcoh_vs_heat_density"
@@ -788,6 +796,50 @@ def fit_candidate_curve_with_district_offsets(train, x, y, base_function, initia
     return model_with_offsets(x, *params), predict, len(params)
 
 
+def fit_spline_model(train, response_column, family, basis_df, include_district, density_bounds):
+    """Fit unpenalized OLS; learn internal knots from training predictors only."""
+    if family == "bs":
+        formula = (
+            f"bs(x, df={basis_df}, degree=3, include_intercept=False, "
+            "lower_bound=lower_bound, upper_bound=upper_bound)"
+        )
+    elif family == "natural":
+        formula = (
+            f"cr(x, df={basis_df}, constraints='center', "
+            "lower_bound=lower_bound, upper_bound=upper_bound)"
+        )
+    else:
+        raise ValueError(f"Unknown spline family: {family}")
+    train_design = dmatrix(
+        formula,
+        {"x": candidate_density(train), "lower_bound": density_bounds[0], "upper_bound": density_bounds[1]},
+        return_type="dataframe",
+    )
+    spline_design_info = train_design.design_info
+    if include_district:
+        district_dummies = pd.get_dummies(train["district"], prefix="district", drop_first=True, dtype=float)
+        train_design = pd.concat([train_design.reset_index(drop=True), district_dummies.reset_index(drop=True)], axis=1)
+    result = sm.OLS(train[response_column].astype(float).to_numpy(), train_design.astype(float)).fit()
+    columns = train_design.columns
+
+    def predict(test):
+        test_design = build_design_matrices(
+            [spline_design_info],
+            {"x": candidate_density(test), "lower_bound": density_bounds[0], "upper_bound": density_bounds[1]},
+            return_type="dataframe",
+        )[0]
+        if include_district:
+            district_columns = [column for column in columns if column.startswith("district_")]
+            test_design = pd.concat(
+                [test_design.reset_index(drop=True), district_dummies_for_columns(test["district"], district_columns)],
+                axis=1,
+            )
+        test_design = test_design.reindex(columns=columns, fill_value=0.0)
+        return result.predict(test_design.astype(float))
+
+    return result.fittedvalues, predict, int(result.df_model + 1)
+
+
 def fit_candidate_model(train, response_column, model_name, density_bounds=None):
     x = candidate_density(train)
     y = train[response_column].astype(float).to_numpy()
@@ -916,36 +968,10 @@ def fit_candidate_model(train, response_column, model_name, density_bounds=None)
         )
 
     if model_name in {"candidate_gam_lhd", "candidate_gam_lhd_district"}:
-        train_design = dmatrix(
-            "bs(x, df=5, degree=3, include_intercept=False, lower_bound=lower_bound, upper_bound=upper_bound)",
-            {"x": x, "lower_bound": density_bounds[0], "upper_bound": density_bounds[1]},
-            return_type="dataframe",
+        return fit_spline_model(
+            train, response_column, "bs", 5,
+            model_name == "candidate_gam_lhd_district", density_bounds,
         )
-        spline_design_info = train_design.design_info
-        if model_name == "candidate_gam_lhd_district":
-            district_dummies = pd.get_dummies(train["district"], prefix="district", drop_first=True, dtype=float)
-            train_design = pd.concat([train_design.reset_index(drop=True), district_dummies.reset_index(drop=True)], axis=1)
-        result = sm.OLS(y, train_design.astype(float)).fit()
-        columns = train_design.columns
-
-        def predict(test):
-            test_design = build_design_matrices(
-                [spline_design_info],
-                {
-                    "x": candidate_density(test),
-                    "lower_bound": density_bounds[0],
-                    "upper_bound": density_bounds[1],
-                },
-                return_type="dataframe",
-            )[0]
-            if model_name == "candidate_gam_lhd_district":
-                district_columns = [column for column in columns if column.startswith("district_")]
-                test_dummies = district_dummies_for_columns(test["district"], district_columns)
-                test_design = pd.concat([test_design.reset_index(drop=True), test_dummies.reset_index(drop=True)], axis=1)
-            test_design = test_design.reindex(columns=columns, fill_value=0.0)
-            return result.predict(test_design.astype(float))
-
-        return result.fittedvalues, predict, int(result.df_model + 1)
 
     if model_name == "candidate_random_forest":
         if RandomForestRegressor is None:
@@ -1066,6 +1092,112 @@ def candidate_model_comparison(df):
     return fit_summary, loo_raw, loo_summary
 
 
+def spline_sensitivity_analysis(df):
+    """Evaluate every specified pair on identical folds; fail rather than omit folds."""
+    density_bounds = (float(candidate_density(df).min()), float(candidate_density(df).max()))
+    fit_rows, loo_rows = [], []
+    for spec_id, label, family, basis_df in SPLINE_SENSITIVITY_SPECS:
+        print(f"Spline sensitivity: {label}", flush=True)
+        for response, response_column in REGRESSION_TARGETS.items():
+            actual_all = df[response_column].astype(float).to_numpy()
+            for include_district in (False, True):
+                fitted, _, n_parameters = fit_spline_model(
+                    df, response_column, family, basis_df, include_district, density_bounds
+                )
+                fit_rows.append({
+                    "specification": spec_id, "label": label, "family": family,
+                    "basis_functions": basis_df, "includes_district_type": include_district,
+                    "response": response, "n_observations": len(df), "n_parameters": n_parameters,
+                    "fit_rmse_ct_per_kwh": float(np.sqrt(np.mean((actual_all - np.asarray(fitted)) ** 2))),
+                })
+                for test_index in df.index:
+                    train, test = df.drop(index=test_index), df.loc[[test_index]]
+                    _, predictor, _ = fit_spline_model(
+                        train, response_column, family, basis_df, include_district, density_bounds
+                    )
+                    predicted = float(np.asarray(predictor(test))[0])
+                    actual = float(test[response_column].iloc[0])
+                    if not np.isfinite(predicted):
+                        raise ValueError(f"Nonfinite spline prediction: {spec_id}, {response}, {test_index}")
+                    error = actual - predicted
+                    loo_rows.append({
+                        "specification": spec_id, "label": label,
+                        "includes_district_type": include_district, "response": response,
+                        "test_case": f"{test['district'].iloc[0]}_seed_{int(test['seed'].iloc[0])}",
+                        "n_train": len(train), "actual": actual, "predicted": predicted,
+                        "absolute_error": abs(error), "squared_error": error ** 2,
+                    })
+    raw = pd.DataFrame(loo_rows)
+    summary = raw.groupby(
+        ["specification", "label", "includes_district_type", "response"], as_index=False
+    ).agg(
+        folds=("test_case", "nunique"),
+        mae_ct_per_kwh=("absolute_error", "mean"),
+        rmse_ct_per_kwh=("squared_error", lambda values: float(np.sqrt(np.mean(values)))),
+    )
+    if not (summary["folds"] == len(df)).all():
+        raise ValueError("Spline sensitivity requires every district to be predicted in every specification.")
+    comparison_rows = []
+    for spec_id, label, _, _ in SPLINE_SENSITIVITY_SPECS:
+        for response in REGRESSION_TARGETS:
+            pair = summary[(summary["specification"] == spec_id) & (summary["response"] == response)]
+            density = pair[~pair["includes_district_type"]].iloc[0]
+            extended = pair[pair["includes_district_type"]].iloc[0]
+            row = {"specification": spec_id, "label": label, "response": response, "folds": len(df)}
+            for metric in ("mae", "rmse"):
+                baseline, with_type = density[f"{metric}_ct_per_kwh"], extended[f"{metric}_ct_per_kwh"]
+                row[f"density_only_{metric}_ct_per_kwh"] = baseline
+                row[f"with_type_{metric}_ct_per_kwh"] = with_type
+                row[f"{metric}_reduction_percent"] = 100.0 * (1.0 - with_type / baseline) if baseline else np.nan
+            comparison_rows.append(row)
+    return pd.DataFrame(fit_rows), raw, summary, pd.DataFrame(comparison_rows)
+
+
+def save_spline_sensitivity_report(summary, comparison, output_prefix):
+    """Compact supporting tables; report all specifications rather than a winner."""
+    with PdfPages(f"{output_prefix}_spline_sensitivity.pdf") as pdf:
+        fig, axes = plt.subplots(2, 1, figsize=(11.7, 8.3), constrained_layout=True)
+        for ax in axes:
+            ax.axis("off")
+        base_rows = []
+        for spec_id, _, _, _ in SPLINE_SENSITIVITY_SPECS:
+            pair = summary[(summary["specification"] == spec_id) & (summary["response"] == "mean")]
+            for include_type in (False, True):
+                row = pair[pair["includes_district_type"] == include_type].iloc[0]
+                base_rows.append([
+                    spec_id, "Density + type" if include_type else "Density only",
+                    int(row["folds"]), f"{row['mae_ct_per_kwh']:.3f}", f"{row['rmse_ct_per_kwh']:.3f}",
+                ])
+        axes[0].set_title("Spline sensitivity: base investment-cost case", fontsize=14)
+        table = axes[0].table(
+            cellText=base_rows, colLabels=["Specification", "Predictors", "Folds", "MAE (ct/kWh)", "RMSE (ct/kWh)"],
+            loc="center", cellLoc="center",
+        )
+        table.auto_set_font_size(False)
+        table.set_fontsize(10)
+        table.scale(1, 1.6)
+        gain_rows = []
+        for spec_id, _, _, _ in SPLINE_SENSITIVITY_SPECS:
+            subset = comparison[comparison["specification"] == spec_id].set_index("response")
+            gain_rows.append([spec_id] + [f"{subset.loc[response, 'rmse_reduction_percent']:.1f}%" for response in REGRESSION_TARGETS])
+        axes[1].set_title("RMSE reduction from adding settlement type", fontsize=14)
+        table = axes[1].table(
+            cellText=gain_rows, colLabels=["Specification", "Minimum costs", "Base costs", "Maximum costs"],
+            loc="center", cellLoc="center",
+        )
+        table.auto_set_font_size(False)
+        table.set_fontsize(10)
+        table.scale(1, 1.6)
+        fig.supxlabel(
+            "bs4 / bs5 / bs6: cubic B-splines with 4 / 5 / 6 basis functions plus an intercept.\n"
+            "natural5: natural cubic spline with 5 centred basis functions plus an intercept.\n"
+            "All are unpenalized OLS; identical leave-one-district-out folds. No specification selected as a winner.",
+            fontsize=9,
+        )
+        pdf.savefig(fig)
+        plt.close(fig)
+
+
 def candidate_model_comparison_figure(loo_summary, loo_raw, ylabel, title):
     mean_summary = loo_summary[loo_summary["response"] == "mean"].copy()
     order = list(CANDIDATE_MODEL_DISPLAY_NAMES)
@@ -1134,11 +1266,7 @@ def candidate_model_r2_label(candidate_fit_summary, model_name):
         "$R^2$ min/mean/max = "
         f"{candidate_model_r2(candidate_fit_summary, model_name, 'lower'):.3f} / "
         f"{candidate_model_r2(candidate_fit_summary, model_name, 'mean'):.3f} / "
-        f"{candidate_model_r2(candidate_fit_summary, model_name, 'upper'):.3f}\n"
-        "RMSE min/mean/max = "
-        f"{candidate_model_rmse(candidate_fit_summary, model_name, 'lower'):.2f} / "
-        f"{candidate_model_rmse(candidate_fit_summary, model_name, 'mean'):.2f} / "
-        f"{candidate_model_rmse(candidate_fit_summary, model_name, 'upper'):.2f} ct/kWh"
+        f"{candidate_model_r2(candidate_fit_summary, model_name, 'upper'):.3f}"
     )
 
 
@@ -1208,6 +1336,266 @@ def candidate_model_curve_figure(df, model_name, title, candidate_fit_summary):
     set_scientific_axes(ax)
     ax.legend(ncols=2, frameon=False, loc="best")
     return fig
+
+
+def paired_district_bootstrap(validation_raw, repetitions=DEFAULT_BOOTSTRAP_REPETITIONS,
+                              random_seed=DEFAULT_BOOTSTRAP_SEED):
+    """Resample paired, fixed out-of-sample errors within settlement types.
+
+    This is conditional on the existing cross-validation predictions: models
+    are not refitted, and overlapping fitting sets make these approximate
+    robustness ranges rather than full uncertainty intervals for validation.
+    The same district draws are reused for both curve families and all cost cases.
+    """
+    if repetitions < 2:
+        raise ValueError("Bootstrap repetitions must be at least two.")
+    families = (("Power law", "candidate_power_law"),
+                ("Cubic spline", "candidate_gam_lhd"))
+    selected = validation_raw[validation_raw["model"].isin(
+        [name + suffix for _, name in families for suffix in ("", "_district")]
+    )].copy()
+    if selected.empty or not selected["status"].eq("ok").all():
+        raise ValueError("Bootstrap requires successful predictions for every selected model.")
+    ids = sorted(selected["test_case"].unique())
+    types = [re.fullmatch(r"([A-Z])_seed_\d+", str(case)) for case in ids]
+    if not all(types):
+        raise ValueError("Each prediction must identify its settlement type and seed.")
+    types = np.array([match.group(1) for match in types])
+    rng = np.random.default_rng(random_seed)
+    groups = [np.flatnonzero(types == district) for district in sorted(set(types))]
+    if any(len(group) < 2 for group in groups):
+        raise ValueError("Each settlement type needs at least two district realizations.")
+    draws = np.concatenate([
+        rng.choice(group, size=(repetitions, len(group)), replace=True)
+        for group in groups
+    ], axis=1)
+    rows, samples = [], []
+    reference_actuals = {}
+    for family, model in families:
+        for response, case_label in (("lower", "Minimum"), ("mean", "Base"),
+                                     ("upper", "Maximum")):
+            errors = []
+            for suffix in ("", "_district"):
+                sub = selected[(selected["model"] == model + suffix)
+                               & (selected["response"] == response)]
+                if sub["test_case"].duplicated().any() or set(sub["test_case"]) != set(ids):
+                    raise ValueError("Model/cost-case predictions do not cover identical districts.")
+                sub = sub.set_index("test_case").loc[ids]
+                actual = sub["actual"].to_numpy(dtype=float)
+                predicted = sub["predicted"].to_numpy(dtype=float)
+                if not np.isfinite(actual).all() or not np.isfinite(predicted).all():
+                    raise ValueError("Bootstrap inputs must be finite.")
+                if response in reference_actuals and not np.allclose(
+                    actual, reference_actuals[response], rtol=0, atol=1e-10
+                ):
+                    raise ValueError("Paired models must use identical observed LCOH values.")
+                reference_actuals[response] = actual
+                errors.append(actual - predicted)
+            for metric in ("RMSE", "MAE"):
+                transform = (lambda e: e ** 2) if metric == "RMSE" else np.abs
+                values = [transform(error) for error in errors]
+                observed = [float(np.mean(value)) for value in values]
+                boot = [np.mean(value[draws], axis=1) for value in values]
+                if metric == "RMSE":
+                    observed = np.sqrt(observed)
+                    boot = [np.sqrt(value) for value in boot]
+                if observed[0] <= 0 or np.any(boot[0] <= 0):
+                    raise ValueError("Relative improvement requires a positive density-only error.")
+                absolute = boot[0] - boot[1]
+                relative = 100 * absolute / boot[0]
+                row = {
+                    "curve_family": family, "response": response, "cost_case": case_label,
+                    "metric": metric, "districts": len(ids), "settlement_types": len(groups),
+                    "repetitions": repetitions, "random_seed": random_seed,
+                    "density_only_ct_per_kwh": observed[0],
+                    "with_type_ct_per_kwh": observed[1],
+                    "absolute_reduction_ct_per_kwh": observed[0] - observed[1],
+                    "relative_reduction_pct": 100 * (observed[0] - observed[1]) / observed[0],
+                    "bootstrap_positive_reduction_fraction": np.mean(relative > 0),
+                }
+                for name, value in (("density_only", boot[0]), ("with_type", boot[1]),
+                                    ("absolute_reduction", absolute), ("relative_reduction", relative)):
+                    for percentile in (5, 50, 95):
+                        row[f"{name}_p{percentile}"] = np.percentile(value, percentile)
+                rows.append(row)
+                samples.append(pd.DataFrame({
+                    "replicate": np.arange(1, repetitions + 1), "curve_family": family,
+                    "response": response, "cost_case": case_label, "metric": metric,
+                    "density_only_ct_per_kwh": boot[0], "with_type_ct_per_kwh": boot[1],
+                    "absolute_reduction_ct_per_kwh": absolute, "relative_reduction_pct": relative,
+                }))
+    return pd.DataFrame(rows), pd.concat(samples, ignore_index=True)
+
+
+def bootstrap_result_figures(summary):
+    """Publication plot and numerical/method page for fixed-prediction bootstrap."""
+    fig, axes = plt.subplots(1, 2, figsize=(14, 8))
+    fig.subplots_adjust(left=0.08, right=0.98, top=0.86, bottom=0.24, wspace=0.26)
+    handles = []
+    for ax, metric in zip(axes, ("RMSE", "MAE")):
+        limits = [0.0]
+        for family, offset, color, marker in (
+            ("Power law", -0.10, "#0072B2", "o"),
+            ("Cubic spline", 0.10, "#E69F00", "s"),
+        ):
+            sub = summary[(summary["curve_family"] == family) & (summary["metric"] == metric)]
+            sub = sub.set_index("cost_case").loc[["Minimum", "Base", "Maximum"]]
+            x = np.arange(3) + offset
+            low = sub["relative_reduction_p5"].to_numpy()
+            high = sub["relative_reduction_p95"].to_numpy()
+            # Draw the percentile range independently of the point estimate.
+            # This also works if the original estimate lies outside that range.
+            ax.vlines(x, low, high, color=color, linewidth=2.3)
+            ax.hlines(low, x - 0.055, x + 0.055, color=color, linewidth=2.3)
+            ax.hlines(high, x - 0.055, x + 0.055, color=color, linewidth=2.3)
+            point, = ax.plot(x, sub["relative_reduction_pct"], marker, color=color,
+                             markersize=9, linestyle="none", label=family)
+            if metric == "RMSE":
+                handles.append(point)
+            limits.extend(low)
+            limits.extend(high)
+        span = max(limits) - min(limits)
+        ax.set_ylim(min(limits) - max(3, span * .12), max(limits) + max(3, span * .12))
+        ax.axhline(0, color="#555555", linestyle="--", linewidth=1)
+        ax.set_xticks(np.arange(3), ("Minimum", "Base", "Maximum"), fontsize=20)
+        ax.set_ylabel(f"{metric} reduction (%)", fontsize=23)
+        ax.set_xlabel("Investment-cost case", fontsize=21, labelpad=12)
+        ax.tick_params(axis="y", labelsize=20)
+        ax.set_xlim(-0.4, 2.4)
+        ax.grid(axis="y", color="#D0D0D0", alpha=.65)
+        ax.set_axisbelow(True)
+        for spine in ax.spines.values():
+            spine.set_visible(True)
+    fig.legend(handles, ("Power law", "Cubic spline"), loc="upper center",
+               ncols=2, frameon=False, fontsize=22)
+    fig.text(.5, .075, "Points: original cross-validation improvement. Bars: bootstrap 5th-95th percentiles.\n"
+             "Positive values indicate lower prediction error when settlement type is added.",
+             ha="center", fontsize=18)
+    table_fig = plt.figure(figsize=(14, 8.5))
+    table_fig.text(.06, .94, "Paired bootstrap of saved cross-validation predictions", fontsize=23, weight="bold")
+    counts = summary.iloc[0]
+    table_fig.text(.06, .865,
+                   f"{int(counts['repetitions']):,} repetitions; {int(counts['districts'])} districts; "
+                   f"sampling with replacement within {int(counts['settlement_types'])} settlement types.\n"
+                   "The same draws retain both models and all three cost cases of each selected district.",
+                   fontsize=17, linespacing=1.5)
+    ax = table_fig.add_axes([.04, .25, .92, .53])
+    ax.axis("off")
+    cells = [[r.curve_family, r.cost_case, r.metric,
+              f"{r.density_only_ct_per_kwh:.3f}", f"{r.with_type_ct_per_kwh:.3f}",
+              f"{r.relative_reduction_pct:.1f}",
+              f"{r.relative_reduction_p5:.1f} to {r.relative_reduction_p95:.1f}"]
+             for r in summary.itertuples()]
+    table = ax.table(cellText=cells,
+                     colLabels=["Curve family", "Cost case", "Metric", "Density only", "+ type", "Reduction (%)", "P5-P95 (%)"],
+                     cellLoc="center", colWidths=[.17, .13, .09, .14, .11, .15, .21], bbox=[0, 0, 1, 1])
+    table.auto_set_font_size(False)
+    table.set_fontsize(15)
+    for (row, col), cell in table.get_celld().items():
+        cell.set_edgecolor("#CCCCCC")
+        if row == 0:
+            cell.set_facecolor("#E8F1FA")
+            cell.set_text_props(weight="bold")
+    table_fig.text(.06, .185, "Prediction errors are in ct/kWh. Reduction = 100 x (density-only error - error with type) / density-only error.", fontsize=14)
+    table_fig.text(.06, .09,
+                   "The percentile range covers the central 90% of bootstrap results. Models are not refitted.\n"
+                   "These are approximate robustness ranges conditional on the saved predictions; overlapping\n"
+                   "cross-validation fitting sets are not accounted for. They do not quantify real-world cost uncertainty.",
+                   fontsize=15, linespacing=1.4)
+    return fig, table_fig
+
+
+def save_bootstrap_results(validation_raw, output_prefix, repetitions=DEFAULT_BOOTSTRAP_REPETITIONS,
+                           random_seed=DEFAULT_BOOTSTRAP_SEED):
+    summary, samples = paired_district_bootstrap(validation_raw, repetitions, random_seed)
+    summary.to_csv(f"{output_prefix}_bootstrap_summary.csv", index=False)
+    samples.to_csv(f"{output_prefix}_bootstrap_samples.csv", index=False)
+    Path(f"{output_prefix}_bootstrap_metadata.json").write_text(json.dumps({
+        "method": "paired stratified district bootstrap of fixed cross-validation predictions",
+        "sampling_unit": "settlement type and seed; all model/cost-case results kept together",
+        "repetitions": repetitions, "random_seed": random_seed,
+        "percentiles": [5, 95], "central_bootstrap_range": 0.90,
+        "model_refitting": False,
+        "interpretation": "approximate robustness conditional on saved predictions; fitting-set dependence not modelled",
+    }, indent=2) + "\n", encoding="utf-8")
+    with PdfPages(f"{output_prefix}_bootstrap.pdf") as pdf:
+        for figure in bootstrap_result_figures(summary):
+            pdf.savefig(figure)
+            plt.close(figure)
+    return summary
+
+
+def save_publication_prediction_errors(summary, output_prefix):
+    """Compare the precomputed validation errors across investment-cost cases."""
+    cases = (("lower", "Minimum"), ("mean", "Base"), ("upper", "Maximum"))
+    families = ("candidate_power_law", "candidate_gam_lhd")
+    fig, axes = plt.subplots(2, 3, figsize=(15, 9), sharey="row")
+    fig.subplots_adjust(left=0.09, right=0.99, bottom=0.10, top=0.88,
+                        hspace=0.22, wspace=0.12)
+    x = np.arange(2)
+    width = 0.32
+    legend_handles = []
+    for row, (metric, label, ymax) in enumerate((
+        ("mae_ct_per_kwh", "MAE", 0.50),
+        ("rmse_ct_per_kwh", "RMSE", 0.80),
+    )):
+        for col, (response, case_label) in enumerate(cases):
+            ax = axes[row, col]
+            for index, (suffix, color, legend_label) in enumerate((
+                ("", "#0072B2", "Linear heat density"),
+                ("_district", "#E69F00", "Linear heat density + settlement type"),
+            )):
+                values = []
+                for family in families:
+                    selected = summary[(summary["model"] == family + suffix)
+                                       & (summary["response"] == response)]
+                    if len(selected) != 1 or int(selected.iloc[0]["folds"]) != 80:
+                        raise ValueError("Expected one complete 80-district validation result.")
+                    values.append(float(selected.iloc[0][metric]))
+                bars = ax.bar(x + (index - 0.5) * width, values, width,
+                              color=color, edgecolor="#222222", linewidth=0.7)
+                if row == 0 and col == 0:
+                    legend_handles.append(bars)
+            ax.set_xticks(x, ("Power law", "Cubic spline"), fontsize=16)
+            ax.tick_params(axis="y", labelsize=16)
+            ax.set_ylim(0, ymax)
+            ax.set_xlim(-0.65, 1.65)
+            ax.grid(axis="y", color="#D0D0D0", linewidth=0.8, alpha=0.75)
+            ax.set_axisbelow(True)
+            for spine in ax.spines.values():
+                spine.set_visible(True)
+            if row == 0:
+                ax.text(0.5, 1.035, f"{case_label} investment costs",
+                        transform=ax.transAxes, ha="center", fontsize=17)
+            if col == 0:
+                ax.set_ylabel(label + r" (ct kWh$^{-1}$)", fontsize=19.5)
+    fig.legend(legend_handles, ("Linear heat density",
+                               "Linear heat density + settlement type"),
+               loc="upper center", ncols=2, frameon=False, fontsize=17)
+    for text in fig.findobj(match=Text):
+        text.set_fontsize(text.get_fontsize() * 1.20)
+    fig.savefig(f"{output_prefix}_prediction_errors_boxed_large_text.pdf")
+    plt.close(fig)
+
+
+def save_publication_power_law_plots(df, candidate_fit_summary, output_prefix):
+    """Export the manuscript's power-law pair without rerunning validation."""
+    for model_name, suffix in (
+        ("candidate_power_law", "power_law_density_only"),
+        ("candidate_power_law_district", "power_law_with_settlement_type"),
+    ):
+        fig = candidate_model_curve_figure(df, model_name, "", candidate_fit_summary)
+        for ax in fig.axes:
+            ax.spines["top"].set_visible(True)
+            ax.spines["right"].set_visible(True)
+            handles, labels = ax.get_legend_handles_labels()
+            unique_entries = dict(zip(labels, handles))
+            ax.legend(unique_entries.values(), unique_entries.keys(),
+                      ncols=2, frameon=False, loc="upper right")
+        for text in fig.findobj(match=Text):
+            text.set_fontsize(text.get_fontsize() * 1.30)
+        fig.savefig(f"{output_prefix}_{suffix}_boxed_large_text.pdf")
+        plt.close(fig)
 
 
 def plot_candidate_model_comparison(loo_summary, loo_raw, output_prefix):
@@ -1381,8 +1769,12 @@ def plot_ranges(df, output_prefix):
     fig, ax = plt.subplots(figsize=FIGURE_SIZE, constrained_layout=True)
     plot_observations_by_district(ax, df, color_by_district)
     set_scientific_axes(ax)
-    ax.set_title("Central LCOH versus annual linear heat density")
+    # The manuscript caption provides the title; frame the complete plotting area.
+    ax.spines["top"].set_visible(True)
+    ax.spines["right"].set_visible(True)
     ax.legend(ncols=2, frameon=False, loc="best")
+    for text in fig.findobj(match=Text):
+        text.set_fontsize(text.get_fontsize() * 1.30)
     fig.savefig(f"{output_prefix}.pdf")
     plt.close(fig)
 
@@ -1844,6 +2236,13 @@ def save_regression_model_report(
         )
         figures.append(("15_model_comparison", fig))
 
+    bootstrap_path = Path(f"{output_prefix}_bootstrap_summary.csv")
+    if bootstrap_path.exists():
+        bootstrap_summary = pd.read_csv(bootstrap_path)
+        for name, fig in zip(("16_bootstrap_improvement", "17_bootstrap_details"),
+                             bootstrap_result_figures(bootstrap_summary)):
+            figures.append((name, fig))
+
     with PdfPages(pdf_path) as pdf:
         for name, fig in figures:
             pdf.savefig(fig)
@@ -2005,6 +2404,12 @@ def main():
     parser.add_argument("--output-prefix", type=Path, default=DEFAULT_OUTPUT_PREFIX)
     parser.add_argument("--config-path", type=Path, default=DEFAULT_CONFIG_PATH)
     parser.add_argument(
+        "--bootstrap-only", action="store_true",
+        help="Use saved candidate cross-validation predictions to create bootstrap results only.",
+    )
+    parser.add_argument("--bootstrap-repetitions", type=int, default=DEFAULT_BOOTSTRAP_REPETITIONS)
+    parser.add_argument("--bootstrap-seed", type=int, default=DEFAULT_BOOTSTRAP_SEED)
+    parser.add_argument(
         "--seeds-per-district",
         type=int,
         default=DEFAULT_SEEDS_PER_DISTRICT,
@@ -2019,6 +2424,19 @@ def main():
         help="Restrict LCOH analysis to seeds that also have complete decentral results.",
     )
     args = parser.parse_args()
+
+    if args.bootstrap_only:
+        raw_path = Path(f"{args.output_prefix}_candidate_model_leave_one_seed_out_raw.csv")
+        if not raw_path.exists():
+            raise FileNotFoundError(f"Saved cross-validation predictions not found: {raw_path}")
+        summary = save_bootstrap_results(
+            pd.read_csv(raw_path), args.output_prefix,
+            args.bootstrap_repetitions, args.bootstrap_seed,
+        )
+        print(summary[["curve_family", "cost_case", "metric", "relative_reduction_pct",
+                       "relative_reduction_p5", "relative_reduction_p95"]].to_string(index=False))
+        print(f"Wrote {args.output_prefix}_bootstrap.pdf")
+        return
 
     if not args.results_dir.exists():
         raise FileNotFoundError(f"Results directory does not exist: {args.results_dir}")
@@ -2054,6 +2472,14 @@ def main():
         "district_realizations": len(ranges),
         "central_cost_cases": len(cases),
         "seeds_per_district": args.seeds_per_district,
+        "spline_sensitivity": {
+            "specifications": [spec[0] for spec in SPLINE_SENSITIVITY_SPECS],
+            "fitting": "unpenalized ordinary least squares; separate intercept",
+            "internal_knots": "equally spaced quantiles of training predictors; reused for test predictions",
+            "boundary_knots": "common observed predictor minimum and maximum; no held-out LCOH used",
+            "natural_spline": "centred df=5 plus intercept, matching bs5 total parameter count",
+            "purpose": "report all specified sensitivity pairs, not select the largest improvement",
+        },
     }
     Path(f"{args.output_prefix}_analysis_metadata.json").write_text(
         json.dumps(metadata, indent=2) + "\n", encoding="utf-8"
@@ -2063,6 +2489,14 @@ def main():
     validation_raw, validation_summary = repeated_train_test_validation(ranges)
     loo_raw, loo_summary = leave_one_seed_out_validation(ranges)
     candidate_fit_summary, candidate_loo_raw, candidate_loo_summary = candidate_model_comparison(ranges)
+    save_bootstrap_results(candidate_loo_raw, args.output_prefix,
+                           args.bootstrap_repetitions, args.bootstrap_seed)
+    spline_fit, spline_raw, spline_summary, spline_comparison = spline_sensitivity_analysis(ranges)
+    spline_fit.to_csv(f"{args.output_prefix}_spline_sensitivity_fit_summary.csv", index=False)
+    spline_raw.to_csv(f"{args.output_prefix}_spline_sensitivity_validation_raw.csv", index=False)
+    spline_summary.to_csv(f"{args.output_prefix}_spline_sensitivity_validation_summary.csv", index=False)
+    spline_comparison.to_csv(f"{args.output_prefix}_spline_sensitivity_comparison.csv", index=False)
+    save_spline_sensitivity_report(spline_summary, spline_comparison, args.output_prefix)
     ranges.to_csv(f"{args.output_prefix}_ranges.csv", index=False)
     cases.to_csv(f"{args.output_prefix}_central_cases.csv", index=False)
     regression_summary.to_csv(f"{args.output_prefix}_regression_summary.csv", index=False)
@@ -2083,6 +2517,7 @@ def main():
             file.write("\n\n")
 
     plot_ranges(ranges, args.output_prefix)
+    save_publication_prediction_errors(candidate_loo_summary, args.output_prefix)
     plot_regression_comparison(ranges, args.output_prefix, beta_by_model, regression_summary)
     plot_train_test_validation(loo_summary, loo_raw, args.output_prefix)
     save_regression_model_report(
@@ -2115,6 +2550,8 @@ def main():
     print(f"Wrote {args.output_prefix}_statsmodels_summaries.txt")
     print(f"Wrote {args.output_prefix}_regression_models.pdf")
     print(f"Wrote {args.output_prefix}_regression_models_*.svg")
+    print(f"Wrote {args.output_prefix}_spline_sensitivity.pdf")
+    print(f"Wrote {args.output_prefix}_spline_sensitivity_*.csv")
 
 
 if __name__ == "__main__":
