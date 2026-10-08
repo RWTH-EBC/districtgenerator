@@ -40,11 +40,11 @@ class TestExamples(unittest.TestCase):
         data_e3 = e3.example3_initialize_buildings()
         self.assertIsNotNone(data_e3)  # Ensure that data is returned
         # Check functionality works as expected with exemplary output
-        self.assertIsInstance(data_e3.district[0]["buildingFeatures"]["id"], np.integer)
+        self.assertIsInstance(data_e3.district[0]["buildingFeatures"]["id"], (int, np.integer))
         self.assertIsInstance(data_e3.district[0]["buildingFeatures"]["building"], str)
-        self.assertIsInstance(data_e3.district[0]["buildingFeatures"]["year"], np.integer)
-        self.assertIsInstance(data_e3.district[0]["buildingFeatures"]["retrofit"], np.integer)
-        self.assertIsInstance(data_e3.district[0]["buildingFeatures"]["area"], np.integer)
+        self.assertIsInstance(data_e3.district[0]["buildingFeatures"]["year"], (int, np.integer))
+        self.assertIsInstance(data_e3.district[0]["buildingFeatures"]["retrofit"], (int, np.integer))
+        self.assertIsInstance(data_e3.district[0]["buildingFeatures"]["area"], (int, np.integer))
 
     def test_e4_generate_buildings(self):
         """Tests the executability of example 4"""
