@@ -187,7 +187,7 @@ def generate_demands_for_scenario(scenario_name, max_threads, force=False):
 
     data = Datahandler(
         scenario_name=scenario_name,
-        env_path=".env.CONFIG.PAPER_LCOH",
+        env_path=".env.CONFIG.PAPER",
     )
 
     data.generateEnvironment()

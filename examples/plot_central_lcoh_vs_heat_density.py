@@ -49,7 +49,7 @@ SPLINE_SENSITIVITY_SPECS = (
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RESULTS_DIR = PROJECT_ROOT / "districtgenerator" / "results" / "results_paper_2"
 DEFAULT_OUTPUT_PREFIX = DEFAULT_RESULTS_DIR / "central_lcoh_vs_heat_density"
-DEFAULT_CONFIG_PATH = PROJECT_ROOT / "districtgenerator" / "data" / ".env.CONFIG.PAPER_LCOH"
+DEFAULT_CONFIG_PATH = PROJECT_ROOT / "districtgenerator" / "data" / ".env.CONFIG.PAPER"
 
 DISTRICT_COLORS = {
     "A": "#0072B2",

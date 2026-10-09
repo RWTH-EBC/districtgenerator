@@ -15,7 +15,7 @@ import traceback
 import warnings
 
 
-ENV_PATH = ".env.CONFIG.PAPER_LCOH"
+ENV_PATH = ".env.CONFIG.PAPER"
 DISTRICTS = list("A")
 SEEDS = range(1, 6)
 BUILDINGS = 30
