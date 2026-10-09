@@ -8,6 +8,7 @@ districtgenerator/data/scenarios/*
 !districtgenerator/data/scenarios/example.csv
 
 .env.CONFIG.*
+!districtgenerator/data/.env.CONFIG.PAPER_LCOH
 !.env.CONFIG.EXAMPLE
 !.env.CONFIG.BERLIN
 
