@@ -597,11 +597,11 @@ class CalendarConfig(BaseSettings):
     consider_heating_period: bool = True    # Consider heating period in the clustering (True) or calculate whole year (False)
     consider_cooling_period: bool = True    # Consider cooling period in the clustering (True) or calculate whole year (False)
     # If heating period considered:
-    heating_period_start: int = 259  # Julian day number of the start of the heating period (default: 15th September)
-    heating_period_end: int = 135    # Julian day number of the end of the heating period (default: 15th May)
+    heating_period_start: int = 259  # September 16
+    heating_period_end: int = 135    # May 15 (excluded)
     # If cooling period considered:
-    cooling_period_start: int = 105  # Julian day number of the start of the cooling period (default: 15th April)
-    cooling_period_end: int = 273    # Julian day number of the end of the cooling period (default: 1st October)
+    cooling_period_start: int = 105  # April 15
+    cooling_period_end: int = 273    # September 30 (excluded)
 
 
     model_config = SettingsConfigDict(

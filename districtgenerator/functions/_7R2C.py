@@ -443,10 +443,12 @@ dict[str, np.ndarray]
 
     # Calendar-based seasons
     if calendar is not None:
-        heating_start = int(calendar["heating_period_start"])
-        heating_end = int(calendar["heating_period_end"])
-        cooling_start = int(calendar["cooling_period_start"])
-        cooling_end = int(calendar["cooling_period_end"])
+        # One-based configured dates -> zero-based simulation indices.
+        # Calendar seasons include their start and exclude their end.
+        heating_start = int(calendar["heating_period_start"]) - 1
+        heating_end = int(calendar["heating_period_end"]) - 1
+        cooling_start = int(calendar["cooling_period_start"]) - 1
+        cooling_end = int(calendar["cooling_period_end"]) - 1
 
         consider_cooling = bool(calendar.get("consider_cooling_period", True))
         consider_heating = bool(calendar.get("consider_heating_period", True))
@@ -518,7 +520,7 @@ dict[str, np.ndarray]
                 T_s_iw=T_s_iw, T_m_iw=T_m_iw,
                 T_s_aw=T_s_aw, T_m_aw=T_m_aw)
 
-def _build_setpoints_arrays(envelope, n, dt_h, building_type, night_setback, holidays, initial_day: int = 0):
+def _build_setpoints_arrays(envelope, n, dt_h, building_type, night_setback, holidays, initial_day: int = 0, working_days=None, affected_by_holidays=True):
     dt_s = dt_h * 3600.0
     steps_per_day = int(round(86400.0 / dt_s))
     T_heat = np.full(n, float(envelope.T_set_min), dtype=float)
@@ -533,15 +535,15 @@ def _build_setpoints_arrays(envelope, n, dt_h, building_type, night_setback, hol
                     T_heat[t] = float(getattr(envelope, "T_set_min_night", envelope.T_set_min - 3.0))
                     T_cool[t] = float(getattr(envelope, "T_set_max_night", envelope.T_set_max + 1.0))
     else:
-        # Non-residential: night 18:00–05:59, weekends/holidays = free day; disable cooling on free days
+        # Non-residential: night 18:00–05:59; configured closed days use free-day setpoints.
         holidays = set(holidays or [])
+        working_days = set(range(5) if working_days is None else working_days)
         for t in range(n):
             day = t // steps_per_day  # day index starting at 0
             hod = (t % steps_per_day) * dt_s / 3600.0
             weekday = (int(initial_day) + int(day)) % 7  # 0=Mon,...,6=Sun
-            is_weekend = (weekday in (5, 6))
-            is_holiday = (day in holidays)
-            working_day = (not is_weekend) and (not is_holiday)
+            is_holiday = affected_by_holidays and (day + 1 in holidays)
+            working_day = weekday in working_days and not is_holiday
 
             if hod >= 18 or hod < 6:  # night
                 T_heat[t] = float(getattr(envelope, "T_set_min_night", envelope.T_set_min - 3.0)) if working_day \
@@ -585,7 +587,9 @@ def calc(envelope, T_e, calendar, dt, initial_day, building_type):
     T_heat, T_cool = _build_setpoints_arrays(
         envelope=envelope, n=n, dt_h=dt,
         building_type=building_type, night_setback=False, holidays=holidays,
-        initial_day=initial_day
+        initial_day=initial_day,
+        working_days=calendar.get("working_days"),
+        affected_by_holidays=calendar.get("affected_by_holidays", True),
     )
     # Use theta_eq
     theta_eq = envelope.theta_eq_tot
@@ -627,7 +631,9 @@ def calc_night_setback(envelope, T_e, calendar, dt, initial_day, building_type):
     T_heat, T_cool = _build_setpoints_arrays(
         envelope=envelope, n=n, dt_h=dt,
         building_type=building_type, night_setback=True, holidays=holidays,
-        initial_day=initial_day
+        initial_day=initial_day,
+        working_days=calendar.get("working_days"),
+        affected_by_holidays=calendar.get("affected_by_holidays", True),
     )
     theta_eq = getattr(envelope, "theta_eq_tot", None)
     out = simulate_7r2c(

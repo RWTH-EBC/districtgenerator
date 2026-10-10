@@ -458,7 +458,7 @@ class Datahandler:
 
     def get_holidays(self, country_code: str, year: int, state: str = None):
         """
-        Get the Julian day (day of the year) for holidays in a specific country, year, and state.
+        Get one-based day-of-year numbers for holidays in a country, year, and state.
 
         Parameters
         ----------
@@ -472,7 +472,7 @@ class Datahandler:
         Returns
         -------
             julian_holidays : list
-                A list of tuples containing the Julian day of the holiday.
+                A list of integers: January 1 = 1, December 31 = 365 (366 in leap years).
         """
         try:
             # Initialize the holidays object for the given country, year, and state

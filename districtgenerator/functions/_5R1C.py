@@ -343,11 +343,15 @@ def calc_night_setback(zoneParameters, T_e, calendar, dt, initial_day, building_
     T_set_free_day = zoneParameters.T_set_min_free_day #THeatingSet during non-working days in a non-residential building
 
     # Extract dates from calendar
-    heating_start = calendar["heating_period_start"] # Day of year (0-364)
-    heating_end = calendar["heating_period_end"] # Day of year (0-364)
-    cooling_start = calendar["cooling_period_start"] # Day of year (0-364)
-    cooling_end = calendar["cooling_period_end"] # Day of year (0-364)
-    holidays = calendar["holidays"] # List of tuples for holidays
+    # Configured dates are one-based; simulation indices are zero-based.
+    # Seasons include their start date and exclude their end date.
+    heating_start = calendar["heating_period_start"] - 1
+    heating_end = calendar["heating_period_end"] - 1
+    cooling_start = calendar["cooling_period_start"] - 1
+    cooling_end = calendar["cooling_period_end"] - 1
+    holidays = set(calendar["holidays"] or [])  # Day-of-year numbers: 1=January 1.
+    working_days = set(calendar.get("working_days", range(5)))
+    affected_by_holidays = calendar.get("affected_by_holidays", True)
 
     numberTimesteps = len(T_e)
 
@@ -379,6 +383,7 @@ def calc_night_setback(zoneParameters, T_e, calendar, dt, initial_day, building_
         # Calculate current day
         day = int(t // timesteps_per_day)
         weekday = (initial_day + day) % 7  # 0=Monday, …, 6=Sunday
+        working_day = weekday in working_days and (not affected_by_holidays or day + 1 not in holidays)
 
         # Define if heating or cooling season
         cooling_season = (day in range(cooling_start, cooling_end)) and calendar["consider_cooling_period"]
@@ -423,13 +428,13 @@ def calc_night_setback(zoneParameters, T_e, calendar, dt, initial_day, building_
         else:
             # Check if the current hour is nighttime
             if hour_of_day in night_hours:
-                if (weekday not in (5, 6) and day not in holidays):
+                if working_day:
                     current_T_set = T_set_night
                 else:
                     current_T_set = T_set_free_day
                 current_T_set_ub = T_set_ub_night
             else:
-                if (weekday not in (5, 6) and day not in holidays):
+                if working_day:
                     current_T_set = T_set
                 else:
                     current_T_set = T_set_free_day
@@ -442,9 +447,7 @@ def calc_night_setback(zoneParameters, T_e, calendar, dt, initial_day, building_
                                                              t_m_previous,
                                                              dt,
                                                              timestep=t)
-            elif (t_op > current_T_set_ub and cooling_season and
-                (weekday not in (5, 6) and
-                 day not in holidays)):
+            elif t_op > current_T_set_ub and cooling_season and working_day:
                 # Compute cooling demand
                 (q_hc, t_op, t_m, t_i, t_s) = _calculateCooling(zoneParameters,
                                                              T_e,
@@ -487,11 +490,15 @@ def calc(zoneParameters, T_e, calendar, dt, initial_day, building_type):
     numberTimesteps = len(T_e)
 
     # Extract dates from calendar
-    heating_start = calendar["heating_period_start"]  # Day of year (0-364)
-    heating_end = calendar["heating_period_end"]  # Day of year (0-364)
-    cooling_start = calendar["cooling_period_start"]  # Day of year (0-364)
-    cooling_end = calendar["cooling_period_end"]  # Day of year (0-364)
-    holidays = calendar["holidays"]  # List of tuples for holidays
+    # Configured dates are one-based; simulation indices are zero-based.
+    # Seasons include their start date and exclude their end date.
+    heating_start = calendar["heating_period_start"] - 1
+    heating_end = calendar["heating_period_end"] - 1
+    cooling_start = calendar["cooling_period_start"] - 1
+    cooling_end = calendar["cooling_period_end"] - 1
+    holidays = set(calendar["holidays"] or [])  # Day-of-year numbers: 1=January 1.
+    working_days = set(calendar.get("working_days", range(5)))
+    affected_by_holidays = calendar.get("affected_by_holidays", True)
 
     # Initialize results
     T_i = np.zeros(numberTimesteps)
@@ -513,6 +520,7 @@ def calc(zoneParameters, T_e, calendar, dt, initial_day, building_type):
         # Calculate current day
         day = int(t // timesteps_per_day)
         weekday = (initial_day + day) % 7
+        working_day = weekday in working_days and (not affected_by_holidays or day + 1 not in holidays)
 
         # Define cooling season
         cooling_season = (day in range(cooling_start, cooling_end)) and calendar["consider_cooling_period"]
@@ -551,7 +559,7 @@ def calc(zoneParameters, T_e, calendar, dt, initial_day, building_type):
 
         else:
             # Non residential buildings
-            if (weekday not in (5, 6) and day not in holidays):
+            if working_day:
                 current_T_set = T_set
             else:
                 current_T_set = T_set_free_day
@@ -565,9 +573,7 @@ def calc(zoneParameters, T_e, calendar, dt, initial_day, building_type):
                                                              t_m_previous,
                                                              dt,
                                                              timestep=t)
-            elif (t_op > current_T_set_ub and cooling_season and
-                  (weekday not in (5, 6) and
-                   day not in holidays)):
+            elif t_op > current_T_set_ub and cooling_season and working_day:
                 # Compute cooling demand
                 (q_hc, t_op, t_m, t_i, t_s) = _calculateCooling(zoneParameters,
                                                              T_e,

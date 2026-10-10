@@ -96,7 +96,7 @@ class Profiles:
         """
 
         if self.is_residential:
-            activity = occ_residential.Occupancy(self.number_occupants, self.initial_day, self.nb_days)
+            activity = occ_residential.Occupancy(self.number_occupants, self.initial_day + 1, self.nb_days)
             self.activity_profile = activity.occupancy
 
     def generate_occupancy_profiles_residential(self):
@@ -241,6 +241,13 @@ class Profiles:
 
         return self.occ_profile, self.occ_profile_building, self.building_profiles
 
+    def _dhw_occupancy_profile(self):
+        """Expand interval occupancy to minutes by repeating each interval's value."""
+        resolution = self.time_resolution
+        base = self.occ_profile if self.is_residential else self.occ_profile_building
+        occupancy = np.asarray(base, dtype=float)
+        return np.repeat(occupancy, int(resolution) // 60)
+
     def generate_dhw_profile(self, building, holidays):
         """
         Generate a stochastic domestic hot water (DHW) profile with the tool DHWcalc.
@@ -248,8 +255,11 @@ class Profiles:
         https://github.com/RWTH-EBC/OpenDHW
 
         Steps:
-        1. Generate a stochastic water draw-off profile (OpenDHW)
+        1. Generate stochastic draw-offs weighted by the existing occupancy profile.
         2. Convert water demand to heat demand
+
+        Occupancy controls timing; the occupant count and per-person daily
+        volume determine annual water demand.
 
         Parameters
         ----------
@@ -268,6 +278,10 @@ class Profiles:
             DHW heat demand at the model time resolution (W), used later in
             the optimization.
         """
+
+        occupancy_profile = self._dhw_occupancy_profile()
+        occupancy = self.number_occupants if self.is_residential else self.number_occupants_building
+        mean_drawoff_vol_per_day = building["buildingFeatures"]["mean_drawoff_dhw"]
 
         # 1. Temperature model (seasonal variation)
         # Mixed water temperature (target tap temperature)
@@ -290,22 +304,14 @@ class Profiles:
         dT_day = T_mixed - T_cold
 
         # Expand to required time resolutions
-        dT_hourly = np.repeat(dT_day, 24)
         dT_minutely = np.repeat(dT_day, 24 * 60)
-
-        # Convert ΔT to the needed time resolution
-        dT = chres.changeResolution(
-            dT_hourly, 3600, self.time_resolution, "mean"
-        )
 
         # 2. Generate stochastic DHW draw-off profile (minute resolution)
 
         s_step = 60  # seconds
         categories = 1
-        occupancy = self.number_occupants if self.is_residential else self.number_occupants_building
         building_type = self.building
         weekend_weekday_factor = 1.2 if self.is_residential else 1
-        mean_drawoff_vol_per_day = building["buildingFeatures"]["mean_drawoff_dhw"]
 
         try:
             dhw_profile = OpenDHW.generate_dhw_profile(
@@ -317,10 +323,9 @@ class Profiles:
                 holidays=holidays,
                 mean_drawoff_vol_per_day=mean_drawoff_vol_per_day,
                 initial_day=self.initial_day,
-            )
-
+                occupancy_profile=occupancy_profile)
         except Exception as e:
-            raise Exception(f"DHW Simulation failed for the following parameters: s_step: {s_step}, categories: {categories}, occupancy: {occupancy}, building_type: {building_type}, weekend_weekday_factor: {weekend_weekday_factor}, holidays: {holidays}, mean_drawoff_vol_per_day: {mean_drawoff_vol_per_day}, initial_day: {self.initial_day}.\n Please check if the required OpenDHW version is installed. Otherwise check if all requried modules are installed: pip install -e .  ")
+            raise RuntimeError(f"DHW generation failed for {building_type}.") from e
 
         # 3. Convert water demand → heat demand (minute resolution)
 
@@ -331,19 +336,16 @@ class Profiles:
 
         # 4. Aggregation according to the needed time resolution
 
-        dhw_timeseries = OpenDHW.resample_water_series(
-            dhw_profile,
-            self.time_resolution)
-
-        dhw_heat = OpenDHW.compute_heat(
-            timeseries_df=dhw_timeseries,
-            temp_dT=dT)
+        # Average minute-level heat power, preserving energy exactly. In
+        # particular, do not multiply separately averaged flow and temperature.
+        minute_heat = dhw_heat_minutely["Heat_W"].to_numpy(dtype=float)
+        dhw_heat = minute_heat.reshape(-1, int(self.time_resolution) // 60).mean(axis=1)
 
         # OUTPUT
 
         return {
-            "dhw_power_timeseries_W_minutely": dhw_heat_minutely["Heat_W"].values,
-            "dhw_power_timeseries_W": dhw_heat["Heat_W"].values}
+            "dhw_power_timeseries_W_minutely": minute_heat,
+            "dhw_power_timeseries_W": dhw_heat}
 
     def generate_el_profile_residential(self, holidays, irradiance, el_wrapper, annual_demand, do_normalization=True):
         """

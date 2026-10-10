@@ -24,7 +24,7 @@ setuptools.setup(name='districtgenerator',
                      'pyproj~=3.7.0',
                      'openpyxl==3.1.5',
                      'seaborn==0.13.2',
-                     'OpenDHW>=0.2.8',
+                     'OpenDHW @ git+https://github.com/RWTH-EBC/OpenDHW.git@5eea7ee452df17a3049bc6d2cd4d8fda3f42f8aa',
                      'folium>=0.20.0'
                  ],
                  classifiers=("Programming Language :: Python :: 3", ),

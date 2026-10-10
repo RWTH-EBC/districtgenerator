@@ -574,7 +574,7 @@ class Users:
             Time horizon for which a stochastic profile is generated.
         initial_day : integer, optional
             Day of the week with which the generation starts.
-            1-7 for monday-sunday. The default is 1.
+            0-6 for Monday-Sunday.
         gen_cars : bool, optional if turned to false no car profiles are generated to improve perfomance if cars are not needed. The default is True.
             Be aware that setting it to false causes the simulation to not possess cars even if the scenario says so.
 
@@ -612,13 +612,15 @@ class Users:
                                     initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,
                                     building=self.building)
 
+                # DHW, electricity and internal gains use the same flat occupancy.
+                occ_profile_residential = temp_obj.generate_occupancy_profiles_residential()
                 dhw_dict = temp_obj.generate_dhw_profile(building=building, holidays=holidays)
 
                 self.dhw += dhw_dict["dhw_power_timeseries_W"]
                 self.dhw_minutely += dhw_dict["dhw_power_timeseries_W_minutely"]
 
                 # Occupancy profile in a flat
-                self.occ = self.occ + temp_obj.generate_occupancy_profiles_residential()
+                self.occ = self.occ + occ_profile_residential
                 self.elec = self.elec + temp_obj.generate_el_profile_residential(holidays=holidays,
                                                                                  irradiance=irradiation,
                                                                                  el_wrapper=self.el_wrapper[j],
@@ -726,9 +728,11 @@ class Users:
         local_calendar = calendar.copy()
         local_holidays = set(calendar.get("holidays", []) or [])
 
-        # Extend holidays for schools
         school_holiday_days = set()
         if not self.is_residential:
+            local_calendar["working_days"] = self.nwg_config.get_working_days()
+            local_calendar["affected_by_holidays"] = self.nwg_config.is_affected_by_holidays()
+            # Extend holidays for schools
             if self.nwg_config.is_affected_by_school_holidays():
                 # Define average school holiday day ranges (Julian days)
                 SCHOOL_HOLIDAYS = [

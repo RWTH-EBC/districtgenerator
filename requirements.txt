@@ -11,7 +11,7 @@ geopy~=2.4.1
 pyproj~=3.7.0
 openpyxl==3.1.5
 seaborn==0.13.2
-OpenDHW>=0.2.6
+OpenDHW @ git+https://github.com/RWTH-EBC/OpenDHW.git@5eea7ee452df17a3049bc6d2cd4d8fda3f42f8aa
 reportlab>=3.6.13
 pyomo==6.9.2
 highspy==1.11.0
