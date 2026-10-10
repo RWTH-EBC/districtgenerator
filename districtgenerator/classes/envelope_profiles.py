@@ -192,6 +192,7 @@ def calculate_profiles(qg, building):
 
     profiles, cooling, info = None, None, None
     existing_profiles_loaded = False
+    cache_issue = "No existing QG envelope profile cache was found"
 
     archive_exists = archive.is_file()
     manifest_exists = manifest.is_file()
@@ -228,23 +229,12 @@ def calculate_profiles(qg, building):
 
         except Exception as exc:
             profiles, cooling, info = None, None, None
-
-            logger.error("%s, Building %s: Existing envelope profiles cannot be loaded: %s: %s",
-                         qg.scenario_name, scenario["id"], type(exc).__name__, exc, exc_info=logger.isEnabledFor(logging.DEBUG),)
+            cache_issue = f"{type(exc).__name__}: {exc}"
 
     elif archive_exists or manifest_exists:
         missing_file = str(manifest if archive_exists else archive)
+        cache_issue = f"Incomplete QG envelope profile cache (missing file: {missing_file})"
 
-        logger.error("%s, Building %s: Envelope profile cache is incomplete. Missing file: %s",
-                     qg.scenario_name, scenario["id"], missing_file,)
-
-    if profiles is None:
-        if not archive_exists and not manifest_exists:
-            logger.warning("%s, Building %s: No existing envelope profiles found. Profiles will be calculated.",
-                           qg.scenario_name, scenario["id"],)
-        else:
-            logger.warning("%s, Building %s: Existing envelope profiles cannot be used. Profiles will be recalculated.",
-                           qg.scenario_name, scenario["id"],)
     if profiles is None:
         previous = getattr(user, "heat", None)
         bank = build_material_bank(base) if len(keys) > 1 else {}
@@ -329,10 +319,12 @@ def calculate_profiles(qg, building):
                                  "checks": validation_checks,},
                                 ensure_ascii=False,) + "\n")
 
+
     if existing_profiles_loaded:
-        logger.info("%s, Building %s: Existing envelope profiles are valid and were loaded (%d combinations).",
-                    qg.scenario_name, scenario["id"], len(keys),)
+        logger.info("%s, Building %s: Existing QG envelope profiles are still valid and were reused without recalculation (%d combinations).",
+                    qg.scenario_name, scenario["id"], len(keys))
     else:
-        logger.info("%s, Building %s: Envelope profiles were recalculated and saved (%d combinations).",
-                    qg.scenario_name, scenario["id"], len(keys),)
+        logger.warning("%s, Building %s: QG envelope profiles could not be reused (%s). %d combinations were recalculated and saved.",
+                       qg.scenario_name, scenario["id"], cache_issue, len(keys))
+
     return profiles, info
