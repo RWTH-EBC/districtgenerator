@@ -101,7 +101,9 @@ The minimal input data set was defined following the [TABULA archetype approach]
 - retrofit: retrofit state according to TABULA (0: existing state, 1: usual refurbishment, 2: advanced refurbishment)
 - area: reference floor area (given in square meters)
 - night_setback: night temperature setback (0 = no night setback, 1 = with night setback)
-- heater: selected heat generator type (HP = heat pump, CHP = combined heat and power, FC = fuel cell, BOI = boiler, heat_grid = district heating)
+- heater: selected heat generator type (HP = heat pump, CHP = combined heat and power, FC = fuel cell, BOI = boiler, heat_grid = district heating).
+  Use `opt` or a candidate list such as `opt:[HP,BOI]` to select the cheapest feasible
+  heating concept with existing sizing rules.
 - dhw_heater: selected domestic hot water generator type (0: no decentral domestic hot water generator, EH_DHW = electric heater)
 - cooling: calculation of cooling demand (0 = no cooling, 1 = with cooling)
 - cooler: cooling supply (`CC` = local compression chiller, `cooling_grid` = network cooling).
