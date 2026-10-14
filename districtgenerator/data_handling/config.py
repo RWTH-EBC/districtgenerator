@@ -603,6 +603,14 @@ class Scenario(BaseSettings):
     """
     scenario_name: str = 'base_scenario' # default value for scenario name
     parallelization: str = 'multiprocessing' # default value for parallelization type, options: 'multiprocessing', 'threading'
+    random_seed: Optional[int] = Field(default=None, ge=0)
+
+    @field_validator('random_seed', mode='before')
+    @classmethod
+    def parse_random_seed(cls, value):
+        if isinstance(value, str) and value.strip().lower() in ('', 'none', 'null'):
+            return None
+        return value
 
     model_config = SettingsConfigDict(
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
