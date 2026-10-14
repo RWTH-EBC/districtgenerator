@@ -239,6 +239,13 @@ class Datahandler:
             # Replace 1 values with "EH_DHW"
             self.scenario["dhw_heater"] = self.scenario["dhw_heater"].replace({1: "EH_DHW", "1": "EH_DHW", 1.0: "EH_DHW"})
 
+        # Validate optional cooling supply before generating buildings/demands.
+        for building_id, features in self.scenario.iterrows():
+            try:
+                BES.get_cooling_supply(features)
+            except ValueError as exc:
+                raise ValueError(f"Building {building_id}: {exc}") from exc
+
         # --- 4. Load pipe data based on the selected heat grid generation ---
 
         self.pipe_file_path = os.path.join(self.filePath, 'pipe')
@@ -1337,8 +1344,12 @@ class Datahandler:
         has_heat_grid = any(
             building["buildingFeatures"]["heater"] == "heat_grid"
             for building in self.district)
+        has_cooling_grid = any(
+            BES.get_cooling_supply(building["buildingFeatures"]) == "cooling_grid"
+            for building in self.district)
+        has_thermal_grid = has_heat_grid or has_cooling_grid
 
-        if has_heat_grid or designEnergyhub:
+        if has_thermal_grid or designEnergyhub:
             # Verify geometry data (district_parameters)
 
             # --- Check if building positions are available and valid ---
@@ -1349,12 +1360,12 @@ class Datahandler:
                 not isinstance(p, tuple) or len(p) != 2 or not all(isinstance(x, (int, float)) for x in p)
                 for p in self.scenario["position"]))
             
-            if has_heat_grid:
+            if has_thermal_grid:
                 if missing_positions:
-                    print("No district geometry found — running simple heating network design.")
+                    print("No district geometry found — running simple thermal network design.")
                     heating_network_simple.heating_network(self)
                 else:
-                    print("The districtgenerator currently does not support heating networks based on building positions — running simple heating network design.")
+                    print("The districtgenerator currently does not support thermal networks based on building positions — running simple thermal network design.")
                     heating_network_simple.heating_network(self)
 
                     # print("Generating and optimizing heating network...")
@@ -1373,7 +1384,7 @@ class Datahandler:
             self.designCentralDevices(saveGenerationProfiles=True)
             self.applyCentralDesignClusteringToOperationProfiles()
         else:
-            print("No central heat grid detected and no energy hub designed — skipping heating network design.")
+            print("No thermal network detected and no energy hub requested — skipping thermal network design.")
             self.centralDevices = {}
             self.prepareClusteringInputs()
 

@@ -20,6 +20,7 @@ import districtgenerator.functions.clustering_medoid as clustering
 import time
 import copy
 from districtgenerator.classes.solar import Sun
+from districtgenerator.classes.system import BES
 
 def get_params(data):
 
@@ -64,10 +65,11 @@ def get_params(data):
         # Only relevant if buildings are connected to the heat grid
         if data.district[b]["buildingFeatures"]["heater"] == "heat_grid":
             heating += data.district[b]["user"].heat / 1000 # kW
-            cooling += data.district[b]["user"].cooling / 1000 # kW
             if data.district[b]["buildingFeatures"]["dhw_heater"] == None: # If DHW is not generated decentralized then consider it during sizing of the energy central
                 dhw += data.district[b]["user"].dhw / 1000 # kW
             generationSTC += data.district[b]["user"].generationSTC / 1000 # kW
+        if BES.get_cooling_supply(data.district[b]["buildingFeatures"]) == "cooling_grid":
+            cooling += data.district[b]["user"].cooling / 1000 # kW
 
         # Electricity generated or used by the Energy Hub can be used or provided by all buildings
         electricityAppliances += data.district[b]["user"].elec / 1000 # kW
@@ -84,6 +86,8 @@ def get_params(data):
     if "pump_power" not in heat_grid_data:
         data.heat_grid_data["pump_power"] = np.zeros_like(cooling)
     pump_power = data.heat_grid_data["pump_power"]
+
+    # Local heating and cooling electricity is excluded from energy hub sizing.
     electricity_total = electricityAppliances + electricityEV - generationPV + pump_power
 
     dem_uncl["heat"] = heating_total

@@ -104,6 +104,9 @@ The minimal input data set was defined following the [TABULA archetype approach]
 - heater: selected heat generator type (HP = heat pump, CHP = combined heat and power, FC = fuel cell, BOI = boiler, heat_grid = district heating)
 - dhw_heater: selected domestic hot water generator type (0: no decentral domestic hot water generator, EH_DHW = electric heater)
 - cooling: calculation of cooling demand (0 = no cooling, 1 = with cooling)
+- cooler: cooling supply (`CC` = local compression chiller, `cooling_grid` = network cooling).
+  If omitted, `heater=heat_grid` uses network cooling; other heaters use local CC.
+  Only applies when `cooling=1`.
 - EV: electric vehicle share - fraction between 0 and 1 representing the proportion of electric vehicles in the building's total vehicle inventory
 - fTES: thermal energy storage size in liters per kW heating capacity of the heat generation system
 - fBAT: battery storage size in Wh per W of PV system power (Wh/W_PV)
