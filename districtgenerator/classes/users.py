@@ -82,7 +82,7 @@ class Users:
         else:
             self.nb_main_rooms = int(value)
 
-    def __init__(self, building, area, year_of_construction, retrofit, SIA2024=None):
+    def __init__(self, building, area, year_of_construction, retrofit, SIA2024=None, random_seed=None):
         """
         Constructor of Users class.
 
@@ -92,6 +92,7 @@ class Users:
         """
 
         self.building = building
+        self.random_seed = random_seed
         self.nb_flats = None
         self.annual_el_demand_per_flat = None
         self.nb_rooms = None
@@ -408,7 +409,7 @@ class Users:
             mode = 'standard'
 
         # Generate a single random factor for the entire building.
-        rng = np.random.default_rng()
+        rng = np.random.default_rng(self.random_seed)
         std_dev = 0.10 # 10%
         random_factor = rng.normal(loc=1.0, scale=std_dev)
 

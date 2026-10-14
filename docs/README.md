@@ -128,6 +128,9 @@ heating and cooling periods, building design conditions, thermal building model,
 emission factors, heating networks, central and decentralized technologies, optimization, solver settings, and
 report generation.
 
+Set `RANDOM_SEED=42` in `.env` for repeatable stochastic building and demand profiles;
+leave it empty for unrestricted randomness.
+
 ## Workflow of the DistrictGenerator
 
 The district generator integrates multiple open-source tools and databases. 
