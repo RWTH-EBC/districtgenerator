@@ -1,0 +1,294 @@
+PFA-Pipeline: Von Rohdaten zu 8760-h-Abwärmeprofilen
+=====================================================
+
+Ziel
+----
+Die Pipeline überführt die PFA-Rohdaten schrittweise in klassifizierte, geprüfte und gruppierte Abwärmedaten und erzeugt daraus realistische Standortprofile. Ein generierter Standort kann aus einer oder mehreren Abwärmequellen bestehen; für jede Quelle wird eine 8760-h-Zeitreihe erzeugt.
+
+Begriffe
+--------
+WZA = WZ-Code-Zuordnung / wirtschaftszweigbezogene Klassifikation.
+AWK = Abwärmeklasse; technische Einordnung eines Abwärmepotentials in Q1 bis Q7 bzw. QX.
+QX = nicht eindeutig bestimmbares Abwärmepotential.
+Profilgruppe = manuell festgelegte Zusammenfassung fachlich ähnlicher WZ-Codes für die spätere Profilbildung.
+
+
+Ablauf
+======
+
+1. Rohdaten
+------------
+Datei:
+    pfa_datentabelle_excel.xlsx
+
+Zweck:
+    Ausgangsdatensatz der Plattform für Abwärme (PFA).
+
+Manuell:
+    Keine inhaltliche Bearbeitung notwendig. Die Datei dient als unveränderte Rohdatenbasis.
+
+
+2. WZA vorbereiten
+------------------
+Python:
+    pfa_preprocessingWZA.py
+
+Zweck:
+    Bereitet die Rohdaten für die WZ-Klassifikation vor. Standorte werden als Klassifikationseinheiten aufbereitet und in Batches für die anschließende Klassifikation zerlegt. Die Zuordnung zu den ursprünglichen PFA-Zeilen bleibt erhalten.
+
+Danach manuell / extern:
+    Die erzeugten WZ-Batches werden klassifiziert. Ergebnis sind die klassifizierten Batch-Dateien (z. B. WZ2025_Batch_*_klassifiziert*.xlsx).
+
+
+3. WZA zusammenführen und Hauptprüfung vorbereiten
+--------------------------------------------------
+Python:
+    pfa_postprocessingWZA.py
+
+Zweck:
+    Führt die klassifizierten WZ-Batches zusammen, vergleicht sie mit dem vorhandenen Referenzdatensatz und erzeugt die zentrale Validierungs- und Arbeitsdatei:
+        WZ2025_Validierung_v4.xlsx
+
+    Zusätzlich werden mögliche physische Standortzusammenlegungen zur Prüfung vorgeschlagen.
+
+Manuell:
+    WZ2025_Validierung_v4.xlsx vollständig bearbeiten.
+
+    Dabei insbesondere:
+    - WZ-Zuordnungen bestätigen oder korrigieren,
+    - nur die sicher mögliche WZ-Ebene festlegen, falls keine feinere Zuordnung möglich ist,
+    - nicht sicher klassifizierbare Fälle kennzeichnen,
+    - vorgeschlagene Standortverbünde zusammenfassen oder getrennt lassen.
+
+    Die vollständig bearbeitete Datei wird anschließend von pfa_postprocessingWZA2.py verwendet.
+
+
+4. WZA-Zusatzprüfung
+--------------------
+Python:
+    pfa_postprocessingWZA2.py
+
+Zweck:
+    Liest die vollständig bearbeitete WZ2025_Validierung_v4.xlsx ein und erzeugt eine kleinere Folge-Prüfdatei:
+        WZ2025_Zusatzpruefung_v1.xlsx
+
+    Dabei bleiben auch feinere manuelle WZ-Codes vollständig erhalten.
+
+Manuell:
+    Die in WZ2025_Zusatzpruefung_v1.xlsx ausgegebenen Rest- bzw. Sonderfälle prüfen und abschließend bearbeiten.
+
+
+5. AWK vorbereiten
+------------------
+Python:
+    pfa_preprocessingAWK.py
+
+Zweck:
+    Überträgt die finalisierte WZ-/Standortstruktur zurück auf die einzelnen Abwärmepotentiale und bereitet diese für die zweite Klassifikationsstufe vor.
+
+Danach manuell / extern:
+    Die vorbereiteten Abwärmepotentiale in die Klassen Q1 bis Q7 bzw. QX einordnen.
+
+
+6. AWK nachverarbeiten
+----------------------
+Python:
+    pfa_postprocessingAWK.py
+
+Zweck:
+    Führt die Ergebnisse der Abwärmeklassen-Klassifikation zusammen, prüft bzw. vereinheitlicht die Klassifikation und erzeugt die zentrale Potentialtabelle mit Q1-Q7/QX-Zuordnung.
+
+Wichtige Ergebnisdatei:
+    Abwaermepotentiale_mit_Quellklassen.xlsx
+
+
+7. Branchen- und Plausibilitätsanalyse
+--------------------------------------
+Python:
+    pfa_analysis.py
+
+Zweck:
+    Analysiert die klassifizierten Potentiale auf Standort- und Branchenebene.
+
+    Hauptaufgaben:
+    - Berechnung des QX-Anteils anhand der Jahreswärmemenge,
+    - vorläufige Eignungsprüfung mit dem zentralen Grenzwert QX <= 20 %,
+    - Kennzeichnung auffälliger Wärmemengen, Leistungen und weiterer Zahlenwerte,
+    - keine automatische Korrektur auffälliger Werte.
+
+Wichtige Ergebnisdatei:
+    Branchenanalyse_Q1_Q7_v2.xlsx
+
+
+8. WZ-Codes zu Profilgruppen zusammenstellen
+--------------------------------------------
+Python:
+    pfa_WZ_Gruppierung.py
+
+Zweck:
+    Bereitet die Zusammenfassung einzelner WZ-Codes zu gemeinsamen Profil-/Experimentgruppen vor und erzeugt die dafür benötigten Übersichten.
+
+Manuell:
+    Die WZ-Gruppen fachlich prüfen und die endgültige Gruppenzusammensetzung festlegen.
+    Insbesondere die vorgesehenen Zusammenlegungsblätter bearbeiten (z. B. Zusammenlegung_gt2 und Zusammenlegung_bis2).
+
+Hinweis:
+    Die Profilgruppe ist später die statistische Einheit für die empirische Profilgenerierung. Wenn sich eine Gruppe als zu heterogen erweist, sollte die Gruppenzusammensetzung selbst angepasst werden.
+
+
+9. Profilgruppen in Einzeldateien zerlegen
+------------------------------------------
+Python:
+    pfa_gruppenzerlegung.py
+
+Zweck:
+    Verknüpft
+    - die manuell festgelegten WZ-Profilgruppen,
+    - die Standortanalyse und
+    - die vollständigen Q1-Q7/QX-Potentiale.
+
+    Exportiert für jede Profilgruppe eine eigene Datei:
+        Profilgruppe_Gxx.xlsx
+
+    Exportiert werden nur vorläufig geeignete Standorte mit maximal 20 % QX-Anteil an der Jahreswärmemenge. Zu diesen Standorten bleiben alle zugehörigen Potentiale einschließlich QX erhalten.
+
+
+10. Prüfdateien für auffällige Potentiale erzeugen
+--------------------------------------------------
+Python:
+    pfa_GruppenKorrigieren.py
+
+Zweck:
+    Erzeugt für Profilgruppen mit auffälligen Zahlenwerten eine kompakte manuelle Prüfdatei:
+        Pruefung_Gxx.xlsx
+
+    Die Prüfdatei enthält nur die auffälligen Potentiale, zeigt aber zusätzlich die übrigen Potentiale desselben Standorts als Kontext.
+
+Manuell:
+    Jede Pruefung_Gxx.xlsx vollständig bearbeiten.
+
+    Mögliche Entscheidungen:
+    - BESTAETIGT
+    - KORRIGIERT
+    - AUSSCHLIESSEN
+
+    Bei KORRIGIERT nur die tatsächlich zu ändernden Felder ausfüllen.
+    Ausschlüsse und Korrekturen begründen.
+
+    Anschließend als
+        Pruefung_Gxx_geprueft.xlsx
+    speichern.
+
+    Vor dem nächsten Schritt dürfen keine offenen Prüffälle mehr vorhanden sein.
+
+
+11. Empirische Generatorbasis erzeugen
+--------------------------------------
+Python:
+    pfa_empirisch.py
+
+Eingang je Gruppe:
+    Profilgruppe_Gxx.xlsx
+    Pruefung_Gxx_geprueft.xlsx
+
+Zweck:
+    Erzeugt aus der fertig geprüften Gruppe die empirische Datenbasis für die Profilgenerierung.
+
+    Hauptaufgaben:
+    - manuelle Bestätigungen, Korrekturen und Ausschlüsse anwenden,
+    - QX-/Eignungsprüfung nach den Korrekturen erneut durchführen,
+    - nur geeignete Standorte für die Generatorbasis übernehmen,
+    - technisch ähnliche Einzelpotentiale zu Quellenblöcken zusammenfassen,
+    - Betriebsprofile aus den PFA-Verfügbarkeitsangaben ableiten,
+    - monatliche Saisonalität aus den relativen Monatsprofilen ableiten,
+    - Quellenanteile innerhalb eines Standorts bestimmen,
+    - empirische Donor-Pools für fehlende Eigenschaften bereitstellen,
+    - automatische Preflight-/Plausibilitätsprüfungen durchführen.
+
+Für die eigentliche Profilgenerierung werden aus dem Gruppenordner im Wesentlichen benötigt:
+    sites.parquet
+    source_blocks.parquet
+    donor_pool.parquet
+
+Falls Parquet nicht verfügbar ist, können die entsprechenden CSV-Dateien verwendet werden.
+
+Die übrigen von pfa_empirisch.py erzeugten Dateien dienen überwiegend Diagnose, Qualitätssicherung und Rückverfolgbarkeit.
+
+
+12. Realistischen Standort und 8760-h-Profile erzeugen
+------------------------------------------------------
+Python:
+    pfa_profile_generieren.py
+
+Zweck:
+    Erzeugt aus einer fertigen Profilgruppe einen realistischen Standort.
+
+    Vorgehen:
+    - einen real beobachteten Standort als Strukturvorlage ziehen,
+    - Anzahl der Quellen übernehmen,
+    - Q1-Q7-Typen der Quellen übernehmen,
+    - relative Jahreswärmemengen der Quellen übernehmen,
+    - bei Bedarf fehlende zeitliche Eigenschaften über geeignete empirische Donoren ergänzen,
+    - für jede einzelne Standortquelle eine 8760-h-Zeitreihe erzeugen,
+    - alle Quellen zusätzlich zu einem 8760-h-Gesamtprofil des Standorts aufsummieren.
+
+Wichtige methodische Punkte:
+    - Die Jahreswärmemenge ist die Skalierungsgröße.
+    - Die gemeldete maximale thermische Leistung steuert das Profil nicht.
+    - Betriebsprofile und der vollständige 12-Monats-Saisonalitätsverlauf bestimmen die zeitliche Form.
+    - Jede Quellenzeitreihe enthält genau 8760 Stundenwerte.
+    - Zu jeder Zeitreihe wird der zugehörige Q-Typ zurückgegeben.
+
+Die konkrete Übergabe der Arrays an ein nachgelagertes Modell ist im aktuellen Code vorbereitet, aber noch auskommentiert.
+
+
+Kurzfassung der manuellen Arbeitsschritte
+=========================================
+1. WZ-Batches nach pfa_preprocessingWZA.py klassifizieren.
+2. WZ2025_Validierung_v4.xlsx vollständig prüfen und bearbeiten.
+3. WZ2025_Zusatzpruefung_v1.xlsx abschließend prüfen.
+4. Nach pfa_preprocessingAWK.py die Abwärmepotentiale in Q1-Q7/QX klassifizieren.
+5. Die von pfa_WZ_Gruppierung.py vorbereiteten WZ-Profilgruppen fachlich festlegen.
+6. Die mit pfa_GruppenKorrigieren.py erzeugten Pruefung_Gxx.xlsx bearbeiten und als Pruefung_Gxx_geprueft.xlsx speichern.
+7. Danach pfa_empirisch.py und pfa_profile_generieren.py ausführen.
+
+
+Gesamtkette
+===========
+pfa_datentabelle_excel.xlsx
+    ->
+pfa_preprocessingWZA.py
+    ->
+WZ-Klassifikation der Batches
+    ->
+pfa_postprocessingWZA.py
+    ->
+manuelle WZ-/Standortprüfung
+    ->
+pfa_postprocessingWZA2.py
+    ->
+manuelle Zusatzprüfung
+    ->
+pfa_preprocessingAWK.py
+    ->
+Q1-Q7/QX-Klassifikation
+    ->
+pfa_postprocessingAWK.py
+    ->
+pfa_analysis.py
+    ->
+pfa_WZ_Gruppierung.py
+    ->
+manuelle Festlegung der Profilgruppen
+    ->
+pfa_gruppenzerlegung.py
+    ->
+pfa_GruppenKorrigieren.py
+    ->
+manuelle Korrektur der auffälligen Potentiale
+    ->
+pfa_empirisch.py
+    ->
+pfa_profile_generieren.py
+    ->
+8760-h-Quellenprofile + 8760-h-Standortprofil
