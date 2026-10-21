@@ -102,6 +102,7 @@ class Datahandler:
         self.params_ehdo_technical = {}
         self.params_ehdo_model = {}
         self.central_device_data = {}
+        self.centralDevices = {}
         self.calendar = {}
         self.ecoData = {}
         self.all_sim_ecoData = {} # Later overwriten with the calculated economic data for the simulated years
@@ -223,6 +224,9 @@ class Datahandler:
         self.scenario_name = scenario_name or global_config.scenario.scenario_name or "example_decentral"
         self.parallelization =  global_config.scenario.parallelization
         self.random_seed = global_config.scenario.random_seed
+        self.flat_parallelization = global_config.scenario.flat_parallelization
+        self.flat_max_workers = global_config.scenario.flat_max_workers
+        self.design_energy_hub = global_config.scenario.design_energy_hub
 
         # --- 2. Load scenario data ---
 
@@ -240,6 +244,14 @@ class Datahandler:
 
             # Replace 1 values with "EH_DHW"
             self.scenario["dhw_heater"] = self.scenario["dhw_heater"].replace({1: "EH_DHW", "1": "EH_DHW", 1.0: "EH_DHW"})
+
+        # Validate supply selections before generating buildings/demands.
+        for building_id, features in self.scenario.iterrows():
+            try:
+                BES.get_heating_candidates(features["heater"])
+                BES.get_cooling_supply(features)
+            except ValueError as exc:
+                raise ValueError(f"Building {building_id}: {exc}") from exc
 
         # --- 4. Load pipe data based on the selected heat grid generation ---
 
@@ -1028,6 +1040,10 @@ class Datahandler:
                                                 design_building_data=self.design_building_data,
                                                 file_path=self.filePath,
                                                 SIA2024=self.SIA2024)
+                if hasattr(building["envelope"], "compute_heating_curve"):
+                    building["envelope"].compute_heating_curve(
+                        self.site, mode="unclustered"
+                    )
 
             else: # Non-residential buildings
 
@@ -1069,6 +1085,9 @@ class Datahandler:
                                                 design_building_data=self.design_building_data,
                                                 file_path=self.filePath,
                                                 SIA2024=self.SIA2024)
+                building["envelope"].compute_heating_curve(
+                    self.site, mode="unclustered"
+                )
 
             # %% create user object
             # containing number occupants, electricity demand,...
@@ -1133,6 +1152,8 @@ class Datahandler:
                        "resultPath": self.resultPath,
                        "initial_day": self.initial_day,
                        "random_seed": self.random_seed,
+                       "flat_parallelization": self.flat_parallelization,
+                       "flat_max_workers": self.flat_max_workers,
                        "design_building_data": self.design_building_data}
             # "spawn" is required on Windows and safest cross-platform
             mp_ctx = mp.get_context("spawn")
@@ -1218,7 +1239,9 @@ class Datahandler:
                                           building=building,
                                           path=os.path.join(self.resultPath, 'demands'),
                                           initial_day=self.initial_day,
-                                          gen_cars=gen_cars)
+                                          gen_cars=gen_cars,
+                                          parallelization=self.flat_parallelization,
+                                          max_workers=self.flat_max_workers)
 
             if saveUserProfiles:
                 self.saveProfiles(name=building["unique_name"],
@@ -1311,7 +1334,7 @@ class Datahandler:
             "night_setback": building["buildingFeatures"]["night_setback"],
         }
 
-    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, gen_cars=True, designEnergyhub=False):
+    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, gen_cars=True, designEnergyhub=None):
 
         """
         All in one solution for district and demand generation.
@@ -1330,13 +1353,19 @@ class Datahandler:
             The default is True.
         gen_cars: bool, optional
             True for generating car profiles, False to skip this step (Only taken into account if calcUserProfile is True).
-        designEnergyhub: bool, optional
-            Decision if energy hub will be designed. The default is False.
+        designEnergyhub: bool or None, optional
+            Request energy-hub design without a thermal network. None uses
+            DESIGN_ENERGY_HUB from the configuration (default False).
+            An explicit True or False overrides the configuration; a heat-grid
+            connection always triggers energy-hub design.
         
         Returns
         -------
         None.
         """
+        if designEnergyhub is None:
+            designEnergyhub = self.design_energy_hub
+
         self.generateEnvironment()
         self.initializeBuildings()
         self.generateBuildings()
@@ -1347,8 +1376,12 @@ class Datahandler:
         has_heat_grid = any(
             building["buildingFeatures"]["heater"] == "heat_grid"
             for building in self.district)
+        has_cooling_grid = any(
+            BES.get_cooling_supply(building["buildingFeatures"]) == "cooling_grid"
+            for building in self.district)
+        has_thermal_grid = has_heat_grid or has_cooling_grid
 
-        if has_heat_grid or designEnergyhub:
+        if has_thermal_grid or designEnergyhub:
             # Verify geometry data (district_parameters)
 
             # --- Check if building positions are available and valid ---
@@ -1359,12 +1392,12 @@ class Datahandler:
                 not isinstance(p, tuple) or len(p) != 2 or not all(isinstance(x, (int, float)) for x in p)
                 for p in self.scenario["position"]))
             
-            if has_heat_grid:
+            if has_thermal_grid:
                 if missing_positions:
-                    print("No district geometry found — running simple heating network design.")
+                    print("No district geometry found — running simple thermal network design.")
                     heating_network_simple.heating_network(self)
                 else:
-                    print("The districtgenerator currently does not support heating networks based on building positions — running simple heating network design.")
+                    print("The districtgenerator currently does not support thermal networks based on building positions — running simple thermal network design.")
                     heating_network_simple.heating_network(self)
 
                     # print("Generating and optimizing heating network...")
@@ -1383,7 +1416,7 @@ class Datahandler:
             self.designCentralDevices(saveGenerationProfiles=True)
             self.applyCentralDesignClusteringToOperationProfiles()
         else:
-            print("No central heat grid detected and no energy hub designed — skipping heating network design.")
+            print("No thermal network detected and no energy hub requested — skipping thermal network design.")
             self.centralDevices = {}
             self.prepareClusteringInputs()
 
@@ -1657,7 +1690,10 @@ class Datahandler:
         None.
         """
 
-        for building in self.district:
+        candidates = [BES.get_heating_candidates(building["buildingFeatures"]["heater"])
+                      for building in self.district]
+
+        for building, choices in zip(self.district, candidates):
 
             # %% create building energy system object
             # get capacities of all possible devices
@@ -1665,7 +1701,13 @@ class Datahandler:
                           decentral_device_data=self.decentral_device_data,
                           design_building_data=self.design_building_data,
                           file_path=self.filePath)
-            building["capacities"] = building["bes_obj"].designECS(building, self.site)
+            requested_heater = building["buildingFeatures"]["heater"]
+            try:
+                if choices:
+                    building["buildingFeatures"]["heater"] = choices[0]
+                building["capacities"] = building["bes_obj"].designECS(building, self.site)
+            finally:
+                building["buildingFeatures"]["heater"] = requested_heater
 
             # calculate PV and STC generation
             #building["generationPV"], building["generationSTC"] = \
@@ -1696,6 +1738,16 @@ class Datahandler:
                            building["user"].generationSTC,
                            delimiter=';',
                            fmt='%.2f')
+
+        if any(candidates):
+            from districtgenerator.functions.opti_dimensioning_decentral_devices import choose_heating_concept
+
+            self.clusterProfiles(centralEnergySupply=False)
+            for building, choices in zip(self.district, candidates):
+                if choices:
+                    choose_heating_concept(self, building, choices)
+                    self.scenario.loc[self.scenario["id"] == building["buildingFeatures"]["id"], "heater"] = (
+                        building["buildingFeatures"]["heater"])
 
     def designCentralDevices(self, saveGenerationProfiles):
         """
@@ -1841,6 +1893,11 @@ class Datahandler:
         self.site["T_e_cluster"] = self._select_profile_periods(
             self.site["T_e"], typedays, cluster_horizon, length_array)
 
+        for building in self.district:
+            envelope = building.get("envelope")
+            if envelope is not None and hasattr(envelope, "compute_heating_curve"):
+                envelope.compute_heating_curve(self.site, mode="clustered")
+
         # clusters / clusterAssignments / clusterWeights, keyed by original-period
         # index of each medoid (same convention as clustering_processing.clustering_processing)
         self.clusters = [int(medoid) for medoid in typedays]
@@ -1866,6 +1923,11 @@ class Datahandler:
          self.site, self.district, self.heat_grid_data) = (cp.clustering_processing(self.time, self.site, self.district,
                                                                                     self.heat_grid_data, self.centralDevices,
                                                                                     self.pyomo_config, centralEnergySupply))
+
+        for building in self.district:
+            envelope = building.get("envelope")
+            if envelope is not None and hasattr(envelope, "compute_heating_curve"):
+                envelope.compute_heating_curve(self.site, mode="clustered")
 
     def saveDistrict(self):
         """
@@ -2420,7 +2482,9 @@ def _run_demand_worker(context, building, calcUserProfiles, saveUserProfiles, ge
                                        building=building,
                                        path=demands_path,
                                        initial_day=initial_day,
-                                       gen_cars=gen_cars)
+                                       gen_cars=gen_cars,
+                                       parallelization=context.get("flat_parallelization", "none"),
+                                       max_workers=context.get("flat_max_workers", 4))
 
         if saveUserProfiles:
             _save_profiles_worker(name=building["unique_name"],

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-import districtgenerator.functions.opti_dimensioning_central_devices as opti_dimensioning_central_devices
-import districtgenerator.functions.get_params_central_devices as get_params_central_devices
 import numpy as np
+import math
+from numbers import Real
 
 class BES:
     """
@@ -12,6 +12,49 @@ class BES:
     file_path : string
         File path to the data directory of the districtgenerator.
     """
+
+    HEATING_CONCEPTS = ("HP", "GHP", "BHP", "H2HP", "OHP", "BOI", "BBOI", "OBOI", "H2BOI", "EH", "CHP", "FC")
+
+    @staticmethod
+    def get_heating_candidates(heater):
+        """Return candidate concepts for opt/list inputs, or None for a manual heater."""
+        specification = str(heater).strip()
+        if specification.lower() == "opt":
+            return BES.HEATING_CONCEPTS
+        is_list = ("," in specification or specification.startswith("[")
+                   or specification.lower().startswith("opt:"))
+        if not is_list:
+            return None
+        if specification.lower().startswith("opt:"):
+            specification = specification[4:].strip()
+        if specification.startswith("["):
+            if not specification.endswith("]"):
+                raise ValueError("Heating candidate list must end with ']'.")
+            specification = specification[1:-1]
+        candidates = tuple(dict.fromkeys(token.strip().upper() for token in specification.split(",")))
+        invalid = set(candidates) - set(BES.HEATING_CONCEPTS)
+        if invalid:
+            raise ValueError(f"Invalid heating candidates {sorted(invalid)}; choose from {BES.HEATING_CONCEPTS}.")
+        return candidates
+
+    @staticmethod
+    def get_cooling_supply(building_features):
+        """
+        Missing/empty cooler values preserve the default: network
+        cooling with heater='heat_grid', otherwise a local CC. Return None
+        when active cooling is disabled.
+        """
+        cooler = building_features.get("cooler")
+        if cooler is None or cooler == "" or (isinstance(cooler, Real) and math.isnan(cooler)):
+            cooler = "cooling_grid" if building_features["heater"] == "heat_grid" else "CC"
+        if cooler not in ("CC", "cooling_grid"):
+            raise ValueError(f"Invalid cooler {cooler!r}; choose 'CC' or 'cooling_grid'.")
+        return cooler if building_features["cooling"] else None
+
+    @staticmethod
+    def compression_chiller_cop(ambient_temperature, grade):
+        """Air-to-water CC model"""
+        return grade * (273.15 + 5) / np.maximum(np.asarray(ambient_temperature) - 5, 0.1)
 
     def __init__(self, physics, decentral_device_data, design_building_data, file_path):
         """
@@ -178,10 +221,9 @@ class BES:
                     BES["EH_DHW"] = 0
 
             # compression chiller (CC)
-            # A compression chiller is only designed if the building is actively cooled
-            # and not connected to a heat grid (since cooling would then be provided centrally).
+            # Cooling supply can be selected independently of network heating.
             if k == "CC":
-                BES["CC"] = self.design_load_cooling * buildingFeatures["cooling"] * (1 - BES["heat_grid"])
+                BES["CC"] = self.design_load_cooling if self.get_cooling_supply(buildingFeatures) == "CC" else 0
 
             # battery (BAT)
             if k == "BAT":
@@ -244,6 +286,10 @@ class CES:
         capacities_centralDevices : dictionary
             The capacities of the central devices.
         """
+
+        # Import here to avoid circular dependencies with BES.
+        import districtgenerator.functions.get_params_central_devices as get_params_central_devices
+        import districtgenerator.functions.opti_dimensioning_central_devices as opti_dimensioning_central_devices
 
         # Load parameters of the energy hub
         param, devs, dem, result_dict = get_params_central_devices.get_params(data)

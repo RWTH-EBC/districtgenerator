@@ -7,9 +7,11 @@ ORIGINAL GUROBI VERSION ADJUSTED FOR PYOMO USAGE
 """
 
 import pyomo.environ as pyo
+import numpy as np
 import os
 import time
 import districtgenerator.functions.solver_config as solver_config
+from districtgenerator.classes.system import BES
 
 # Sets of energy conversion systems in the buildings
 DOM_DEVS = ("HP", "EH", "CHP", "BOI", "BBOI", "OBOI", "H2BOI", "STC", "DH", "FC", "CC", "PV", "BAT", "TES", "TES_DHW")
@@ -115,49 +117,33 @@ def run_opti_central(data, year, cluster, sim_ecoData, resultPath) -> dict:
 
     return results_dict
 
-def compute_decentral_hp_sink_temperature(buildingData, param_dec_devs, design_building):
+def _hp_low_temp_measures_enabled(param_dec_devs):
+    hp = param_dec_devs.get("HP", {})
+    return bool(hp.get("enable_low_temp_measures", False))
 
-    temp_levels = design_building["hp_sink_temp_levels"]
-    Tsink_target = design_building["hp_sink_temp_measures_cap"]
-    use_hp_measures = param_dec_devs["HP"].get("enable_measures", False)
 
-    def _age_key(cy: int) -> str:
-        if 2010 <= cy:
-            return "2010-"
-        elif 1984 <= cy <= 2009:
-            return "1984-2009"
-        elif 1979 <= cy <= 1983:
-            return "1979-1983"
-        elif 1969 <= cy <= 1978:
-            return "1969-1978"
-        elif 1958 <= cy <= 1968:
-            return "1958-1968"
-        else:
-            return "-1957"
+def _decentral_hp_cop(sink_temperature, source_temperature, grade):
+    temperature_lift = max(sink_temperature - source_temperature, 0.1)
+    return min(grade * (273.15 + sink_temperature) / temperature_lift, 7.0)
 
-    T_sink = {}
-    hp_measures_applied = {}
 
-    for n in range(len(buildingData)):
-        cy = buildingData[n]["envelope"].construction_year
-        r = buildingData[n]["envelope"].retrofit  # 0/1/2
+def _clustered_heating_curve_value(building, curve_name, cluster, timestep,
+                                   cluster_horizon):
+    curve = np.asarray(
+        building["envelope"].heating_curve["clustered"][curve_name],
+        dtype=float,)
 
-        key = _age_key(cy)
-        Ts, Tr = temp_levels[key].get(r, temp_levels[key][0])
-        Tsink_original = 0.5 * (Ts + Tr)
+    if curve.ndim == 2:
+        return float(curve[cluster, timestep])
 
-        applied = False
-        Tsink = Tsink_original
-
-        if use_hp_measures and Tsink_original > Tsink_target:
-            Tsink = Tsink_target
-            applied = True
-
-        buildingData[n]["envelope"].hp_measures = applied
-        T_sink[n] = Tsink
-        hp_measures_applied[n] = applied
-
-    return T_sink, hp_measures_applied
+    flat_curve = curve.reshape(-1)
+    index = cluster * cluster_horizon + timestep
+    if index >= flat_curve.size:
+        raise IndexError(
+            f"Heating curve '{curve_name}' has {flat_curve.size} values, "
+            f"but cluster {cluster}, timestep {timestep} requires index {index}."
+        )
+    return float(flat_curve[index])
 
 def build_model(model, data, year, cluster, sim_ecoData):
     """
@@ -743,6 +729,11 @@ def build_model(model, data, year, cluster, sim_ecoData):
         else:
             return model.heat_dom["heat_grid", n, t] == 0 # if no local heat grid connection, no heat can be used
 
+    def cooling_grid_capacity_rule(model, n, t):
+        if BES.get_cooling_supply(buildingData[n]["buildingFeatures"]) == "cooling_grid":
+            return pyo.Constraint.Skip
+        return model.cool_dom["heat_grid", n, t] == 0
+
     # Aplication of the constraints for each device
 
     # Heat generating devices
@@ -769,6 +760,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.stc_cap = pyo.Constraint(model.n, model.t, rule=stc_capacity_rule, doc="Solar thermal collector heat generation limit")
     model.pv_capacity = pyo.Constraint(model.n, model.t, rule=pv_capacity_rule, doc="PV electrical generation limit")
     model.heat_grid_capacity = pyo.Constraint(model.n, model.t, rule=heat_grid_capacity_rule, doc="Local heat grid capacity constraint")
+    model.cooling_grid_capacity = pyo.Constraint(model.n, model.t, rule=cooling_grid_capacity_rule, doc="Network cooling only for buildings selecting network cooling")
 
     ################################################################################
     # Energy Conversion for Energyhub devices
@@ -870,20 +862,34 @@ def build_model(model, data, year, cluster, sim_ecoData):
     def hp_split_rule(model, n, t):
         return model.heat_dom["HP", n, t] == model.heat_dom_SH["HP", n, t] + model.heat_dom_DHW["HP", n, t]
 
-    # Heat pump conversion with sink temperature from age class + retrofit (mean supply/return)
-    model.T_sink, model.hp_measures_applied = compute_decentral_hp_sink_temperature(buildingData, param_dec_devs, data.design_building_data)
+    # Heat-pump sink temperature
+    use_low_temp_measures = _hp_low_temp_measures_enabled(param_dec_devs)
+    model.hp_measures_applied = {}
+    for n, building in enumerate(buildingData):
+        heating_curve = building["envelope"].heating_curve["clustered"]
+        applied = bool(
+            use_low_temp_measures
+            and heating_curve["low_temp_measures_binding"]
+        )
+        model.hp_measures_applied[n] = applied
+        building["envelope"].hp_measures = applied
+
     def hp_conversion_rule(model, n, t):
         if buildingData[n]["capacities"]["HP"] <= 0:
             return model.heat_dom["HP", n, t] == 0
 
-        Tsink_SH = model.T_sink[n]   # °C
+        curve_name = (
+            "Ts_curve_reduced"
+            if model.hp_measures_applied[n]
+            else "Ts_curve"
+        )
+        Tsink_SH = _clustered_heating_curve_value(
+            buildingData[n], curve_name, cluster, t, len(time_steps)
+        )
         Tsink_DHW = float(param_dec_devs["TES_DHW"]["T_DHW_needed"])
 
-        dT_SH = max(Tsink_SH - T_e[t], 0.1)
-        dT_DHW = max(Tsink_DHW - T_e[t], 0.1)
-
-        COP_SH = param_dec_devs["HP"]["grade"] * (273.15 + Tsink_SH) / dT_SH
-        COP_DHW = param_dec_devs["HP"]["grade"] * (273.15 + Tsink_DHW) / dT_DHW
+        COP_SH = _decentral_hp_cop(Tsink_SH, T_e[t], param_dec_devs["HP"]["grade"])
+        COP_DHW = _decentral_hp_cop(Tsink_DHW, T_e[t], param_dec_devs["HP"]["grade"])
 
         return model.power_dom["HP", n, t] == (
             model.heat_dom_SH["HP", n, t] / COP_SH +
@@ -933,8 +939,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     # Compression Chiller
     def cc_building_conversion_rule(model, n, t):
-        return model.cool_dom["CC", n, t] == model.power_dom["CC", n, t] * param_dec_devs["CC"]["grade"] * (
-                    273.15 + 5) / max(T_e[t] - 5, 0.1)
+        return model.cool_dom["CC", n, t] == model.power_dom["CC", n, t] * BES.compression_chiller_cop(T_e[t], param_dec_devs["CC"]["grade"])
     
     # Instantaneous electric water heater for DHW
     def eh_dhw_conversion_rule(model, n, t):
@@ -1235,7 +1240,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
         return (model.res_dom_power[n, t] + model.power_dom["PV", n, t] + model.power_dom["CHP", n, t] + model.power_dom["FC", n, t]
                 + model.dch_dom["BAT", n, t] + total_ev_discharge
                 == model.power_dom["Elec_dem", n, t] + total_ev_charge + model.power_dom["HP", n, t] +
-                model.power_dom["EH", n, t] + model.power_dom["EH_DHW", n, t] + model.ch_dom["BAT", n, t] + model.res_dom_feed[n, t])
+                model.power_dom["EH", n, t] + model.power_dom["EH_DHW", n, t] + model.power_dom["CC", n, t]
+                + model.ch_dom["BAT", n, t] + model.res_dom_feed[n, t])
                
     # Heating Balance
     def heating_balances_rule(block, n, t):
@@ -1780,9 +1786,15 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
 
         # HP Specifics (COP & Temperatures)
         if "HP" in results_dict[n]: 
-            Tsink_val = float(model.T_sink[n])
             results_dict[n]["HP"]["hp_measures_applied"] = bool(model.hp_measures_applied[n])
-            results_dict[n]["HP"]["ts_T_sink"] = [Tsink_val for _ in time_steps]
+            curve_name = (
+                "Ts_curve_reduced"
+                if model.hp_measures_applied[n]
+                else "Ts_curve")
+            results_dict[n]["HP"]["ts_T_sink"] = [
+                _clustered_heating_curve_value(
+                    data.district[n], curve_name, cluster, t, len(time_steps))
+                for t in time_steps]
             results_dict[n]["HP"]["ts_COP"] = []
             
             for t in time_steps:

@@ -3,6 +3,9 @@ import json
 import statistics
 import os
 import random as rd
+import warnings
+import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import numpy as np
 from .profiles import Profiles
 from . import power_simulation_non_residential as wrap_light
@@ -14,8 +17,57 @@ import districtgenerator.functions._5R1C as heating_5R1C
 import districtgenerator.functions._7R2C as heating_7R2C
 import districtgenerator.functions._FourElements as heating_FourElements
 from districtgenerator.classes.non_residential import GenericNonResidential
+from districtgenerator.functions.randomness import derive_seed, seeded_random_state
 
 RES_BUILDINGS = {"SFH", "TH", "MFH", "AB"}
+FLAT_PARALLELIZATION_OPTIONS = ("none", "threading", "multiprocessing")
+
+
+def _calc_flat_profiles(task):
+    """
+    Generate all user profiles of one residential flat.
+
+    Module-level so it can be pickled by a process pool. Each flat draws from
+    its own seed, so the result does not depend on how flats are scheduled.
+
+    Parameters
+    ----------
+    task : dict
+        Inputs of one flat, built in Users._run_flat_tasks.
+
+    Returns
+    -------
+    dict
+        Profiles of the flat. Car IDs start at 0 and are renumbered by the caller.
+    """
+    with seeded_random_state(task["seed"]):
+        profiles = Profiles(number_occupants=task["nb_occ"],
+                            number_occupants_building=task["nb_occ_building"],
+                            initial_day=task["initial_day"], nb_days=task["nb_days"],
+                            time_resolution=task["time_resolution"], building=task["building_type"])
+
+        # Occupancy profile in a flat (needed before DHW generation, which uses it as OpenDHW input)
+        occ = profiles.generate_occupancy_profiles_residential()
+        dhw_dict = profiles.generate_dhw_profile(building=task["building"], holidays=task["holidays"])
+        elec = profiles.generate_el_profile_residential(holidays=task["holidays"],
+                                                        irradiance=task["irradiance"],
+                                                        el_wrapper=task["el_wrapper"],
+                                                        annual_demand=task["annual_demand"])
+        gains = profiles.generate_gain_profile_residential()
+
+        cars = None
+        if task["gen_cars"]:
+            cars = profiles.generate_car_profile(building=task["building"],
+                                                 building_devices_data=task["building_devices_data"],
+                                                 holidays=task["holidays"],
+                                                 start_index_car=0)
+
+    return {"occ": occ,
+            "dhw": dhw_dict["dhw_power_timeseries_W"],
+            "dhw_minutely": dhw_dict["dhw_power_timeseries_W_minutely"],
+            "elec": elec,
+            "gains": gains,
+            "cars": cars}
 
 class Users:
     """
@@ -560,7 +612,8 @@ class Users:
             #  Create wrapper object only for lighting
             self.el_wrapper.append(wrap_light.ElectricityProfile(lights, self.building))
 
-    def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, building_devices_data, path, initial_day, gen_cars=True):
+    def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, building_devices_data, path, initial_day, gen_cars=True,
+                     parallelization="none", max_workers=4):
         """
         Calculate profiles for every flat and summarize them for the whole building
 
@@ -577,6 +630,11 @@ class Users:
             1-7 for monday-sunday. The default is 1.
         gen_cars : bool, optional if turned to false no car profiles are generated to improve perfomance if cars are not needed. The default is True.
             Be aware that setting it to false causes the simulation to not possess cars even if the scenario says so.
+        parallelization : str, optional
+            How the flats of a residential building are computed: "none", "threading" or "multiprocessing".
+            The default is "none". Non-residential buildings have a single profile and ignore it.
+        max_workers : int, optional
+            Maximum number of parallel workers for the flats. The default is 4.
 
         Returns
         -------
@@ -606,38 +664,31 @@ class Users:
         # Residential buildings
         if self.is_residential:
 
-            current_index = 0  # To keep track of the starting index for car profiles Id in each flat
-            for j in range(self.nb_flats):
-                temp_obj = Profiles(number_occupants=self.nb_occ[j], number_occupants_building=sum(self.nb_occ),
-                                    initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,
-                                    building=self.building)
-                
-                dhw_dict = temp_obj.generate_dhw_profile(building=building, holidays=holidays)
-                self.dhw += dhw_dict["dhw_power_timeseries_W"]
-                self.dhw_minutely += dhw_dict["dhw_power_timeseries_W_minutely"]
+            flat_results = self._run_flat_tasks(site=site, holidays=holidays, time_resolution=time_resolution,
+                                                nb_days=nb_days, initial_day=initial_day, building=building,
+                                                building_devices_data=building_devices_data, gen_cars=gen_cars,
+                                                parallelization=parallelization, max_workers=max_workers)
 
-                # Occupancy profile in a flat
-                self.occ = self.occ + temp_obj.generate_occupancy_profiles_residential()
-                self.elec = self.elec + temp_obj.generate_el_profile_residential(holidays=holidays,
-                                                                                 irradiance=irradiation,
-                                                                                 el_wrapper=self.el_wrapper[j],
-                                                                                 annual_demand=self.annual_el_demand_per_flat[j])
+            # Sum the flats in flat order, so the result matches a sequential run
+            for flat in flat_results:
+                self.occ = self.occ + flat["occ"]
+                self.dhw += flat["dhw"]
+                self.dhw_minutely += flat["dhw_minutely"]
+                self.elec = self.elec + flat["elec"]
+                self.gains = self.gains + flat["gains"]
 
-                self.gains = self.gains + temp_obj.generate_gain_profile_residential()
-                if gen_cars:
+                if flat["cars"] is not None:
                     (EV_carprofile, EV_on_demand_charging, ev_capacity,
-                     ice_carprofile, individual_car_profiles) = temp_obj.generate_car_profile(
-                         building=building,
-                         building_devices_data=building_devices_data,
-                         holidays=holidays,
-                         start_index_car=current_index)
+                     ice_carprofile, individual_car_profiles) = flat["cars"]
 
                     self.EV_carprofile = self.EV_carprofile + EV_carprofile  # Sum car profiles over all flats in the building
                     self.EV_carcharging_ondemand = self.EV_carcharging_ondemand + EV_on_demand_charging
                     self.ev_capacity += ev_capacity
                     self.ice_carprofile = self.ice_carprofile + ice_carprofile
-                    self.individual_car_profiles.extend(individual_car_profiles)
-                    current_index += len(individual_car_profiles)  # Update the starting index for the next flat of the building
+                    # Flats number their cars from 0; continue the building-wide numbering here
+                    for car in individual_car_profiles:
+                        car["car_id"] = f"Car_{len(self.individual_car_profiles)}"
+                        self.individual_car_profiles.append(car)
 
         else:
             # Non-residential buildings
@@ -686,6 +737,57 @@ class Users:
                 self.ev_capacity += ev_capacity
                 self.ice_carprofile += ice_carprofile
                 self.individual_car_profiles.extend(individual_car_profiles)
+
+    def _run_flat_tasks(self, site, holidays, time_resolution, nb_days, initial_day, building,
+                        building_devices_data, gen_cars, parallelization, max_workers):
+        """
+        Compute the profiles of all flats, sequentially or in parallel.
+
+        Returns
+        -------
+        list of dict
+            One result per flat, in flat order.
+        """
+        if parallelization not in FLAT_PARALLELIZATION_OPTIONS:
+            raise ValueError(f"Unknown flat parallelization '{parallelization}'. "
+                             f"Options: {FLAT_PARALLELIZATION_OPTIONS}")
+
+        base_seed = getattr(self, "random_seed", None)
+        # Profiles only reads buildingFeatures; a small dict keeps the worker payload light
+        flat_building = {"buildingFeatures": building["buildingFeatures"]}
+        tasks = [{"seed": derive_seed(base_seed, "profiles_flat", j),
+                  "nb_occ": self.nb_occ[j],
+                  "nb_occ_building": sum(self.nb_occ),
+                  "initial_day": initial_day,
+                  "nb_days": nb_days,
+                  "time_resolution": time_resolution,
+                  "building_type": self.building,
+                  "building": flat_building,
+                  "holidays": holidays,
+                  "irradiance": site["SunTotal"],
+                  "el_wrapper": self.el_wrapper[j],
+                  "annual_demand": self.annual_el_demand_per_flat[j],
+                  "building_devices_data": building_devices_data,
+                  "gen_cars": gen_cars} for j in range(self.nb_flats)]
+
+        if parallelization == "threading" and base_seed is not None:
+            # Seeded runs share the global random state behind one lock, so threads cannot overlap
+            warnings.warn("Flat threading is not possible with a random seed; computing flats sequentially. "
+                          "Use 'multiprocessing' for parallel seeded runs.", RuntimeWarning)
+            parallelization = "none"
+
+        workers = min(int(max_workers or 1), len(tasks))
+        if parallelization == "none" or workers <= 1:
+            return [_calc_flat_profiles(task) for task in tasks]
+
+        if parallelization == "multiprocessing":
+            # "spawn" is required on Windows and safest cross-platform
+            executor = ProcessPoolExecutor(max_workers=workers, mp_context=mp.get_context("spawn"))
+        else:
+            executor = ThreadPoolExecutor(max_workers=workers)
+        with executor as ex:
+            # map returns results in flat order
+            return list(ex.map(_calc_flat_profiles, tasks))
 
     def calcHeatingProfile(self, site, envelope, thermal_model, night_setback, is_cooled, calendar, time_resolution, initial_day):
         """

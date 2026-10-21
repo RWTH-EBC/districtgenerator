@@ -2,7 +2,7 @@ from dataclasses import field
 from pathlib import Path
 import os
 
-from typing import Dict, Optional, Set, Tuple, ClassVar
+from typing import Dict, Literal, Optional, Set, Tuple, ClassVar
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -123,7 +123,7 @@ class DesignBuildingConfig(BaseSettings):
     ventilation_rate: float = 0.5  # Room ventilation rate in 1/h (per hour)
     thermal_model_type: str = '7R2C'  # Thermal building model type. Possible entries are '5R1C' and '7R2C'
 
-    # --- Decentral HPs sink temperature (mean of supply & return) by age class and retrofit level ---
+    # --- Building heating-system design temperatures by age class and retrofit level ---
     # retrofit: 0=standard, 1=retrofit, 2=advanced retrofit
     # Source:
     # Wüllhorst et al. (2025), "Impact of hybrid heat pump shares and building envelope
@@ -142,13 +142,12 @@ class DesignBuildingConfig(BaseSettings):
         }
     )
 
-    # Optional "low-temperature measures" (geringinvasive Maßnahmen) are assumed to
-    # reduce the required sink temperature (e.g. hydraulic balancing, radiator
-    # optimization, control adjustments), improving HP efficiency without full
-    # building refurbishment. If enabled, the sink temperature is capped at 45 °C.
+    # Optional low-temperature measures replace the nominal supply and return
+    # temperatures used to construct the building heating curve.
     # Source:
     # KWW-Technikkatalog Wärmeplanung
-    hp_sink_temp_measures_cap: float = 45.0
+    low_temp_measures_supply_nom: float = 50.0  # °C
+    low_temp_measures_return_nom: float = 40.0  # °C
 
     # Currently not in .env.CONFIG as info is static:
     # Abbreviations of the selectable building types.
@@ -611,6 +610,11 @@ class Scenario(BaseSettings):
         if isinstance(value, str) and value.strip().lower() in ('', 'none', 'null'):
             return None
         return value
+    design_energy_hub: bool = False # Request energy-hub design without a thermal network.
+    # Parallelization of the flats inside one residential building (Users.calcProfiles).
+    # 'none' keeps flats sequential; worker counts multiply with the building-level workers.
+    flat_parallelization: Literal['none', 'threading', 'multiprocessing'] = 'none'
+    flat_max_workers: int = Field(default=4, ge=1)
 
     model_config = SettingsConfigDict(
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
@@ -821,8 +825,8 @@ class DecentralDeviceConfig(BaseSettings):
     HP__inv_base: float = 1660.0  # Unsubsidized investment in €/kWth.
     HP__cost_om: float = 0.02  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     HP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
-    HP__enable_measures: bool = False # "geringinvestive Maßnahmen": extra cost, can reduce supply/return temps to 50/40 °C (only if lower than the original system temperatures).
-    HP__measures_inv_fix: float = 226.0  # €/kW_th, additional investment if these measures are applied.
+    HP__enable_low_temp_measures: bool = False  # Reduce the design heating curve to 50/40 °C where binding.
+    HP__low_temp_measures_inv_fix: float = 226.0  # €/kW_th, additional investment if these measures are applied.
     HP: dict = {}
 
     # EH parameters (Electric Heater)

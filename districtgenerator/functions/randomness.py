@@ -23,6 +23,14 @@ def building_seed(seed, features, phase):
     return int.from_bytes(digest[:4], "little")
 
 
+def derive_seed(seed, *labels):
+    """Derive a stable child seed from a parent seed and labels; None stays None."""
+    if seed is None:
+        return None
+    digest = hashlib.sha256(json.dumps([int(seed), *labels]).encode("utf-8")).digest()
+    return int.from_bytes(digest[:4], "little")
+
+
 @contextmanager
 def seeded_random_state(seed):
     """Seed legacy Python/NumPy APIs temporarily; serialize seeded thread access."""
