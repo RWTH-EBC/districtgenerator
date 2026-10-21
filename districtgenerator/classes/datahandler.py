@@ -245,9 +245,6 @@ class Datahandler:
         for building_id, features in self.scenario.iterrows():
             try:
                 BES.get_heating_candidates(features["heater"])
-        # Validate optional cooling supply before generating buildings/demands.
-        for building_id, features in self.scenario.iterrows():
-            try:
                 BES.get_cooling_supply(features)
             except ValueError as exc:
                 raise ValueError(f"Building {building_id}: {exc}") from exc
