@@ -224,6 +224,8 @@ class Datahandler:
         self.scenario_name = scenario_name or global_config.scenario.scenario_name or "example_decentral"
         self.parallelization =  global_config.scenario.parallelization
         self.random_seed = global_config.scenario.random_seed
+        self.flat_parallelization = global_config.scenario.flat_parallelization
+        self.flat_max_workers = global_config.scenario.flat_max_workers
         self.design_energy_hub = global_config.scenario.design_energy_hub
 
         # --- 2. Load scenario data ---
@@ -1143,6 +1145,8 @@ class Datahandler:
                        "resultPath": self.resultPath,
                        "initial_day": self.initial_day,
                        "random_seed": self.random_seed,
+                       "flat_parallelization": self.flat_parallelization,
+                       "flat_max_workers": self.flat_max_workers,
                        "design_building_data": self.design_building_data}
             # "spawn" is required on Windows and safest cross-platform
             mp_ctx = mp.get_context("spawn")
@@ -1228,7 +1232,9 @@ class Datahandler:
                                           building=building,
                                           path=os.path.join(self.resultPath, 'demands'),
                                           initial_day=self.initial_day,
-                                          gen_cars=gen_cars)
+                                          gen_cars=gen_cars,
+                                          parallelization=self.flat_parallelization,
+                                          max_workers=self.flat_max_workers)
 
             if saveUserProfiles:
                 self.saveProfiles(name=building["unique_name"],
@@ -2459,7 +2465,9 @@ def _run_demand_worker(context, building, calcUserProfiles, saveUserProfiles, ge
                                        building=building,
                                        path=demands_path,
                                        initial_day=initial_day,
-                                       gen_cars=gen_cars)
+                                       gen_cars=gen_cars,
+                                       parallelization=context.get("flat_parallelization", "none"),
+                                       max_workers=context.get("flat_max_workers", 4))
 
         if saveUserProfiles:
             _save_profiles_worker(name=building["unique_name"],
