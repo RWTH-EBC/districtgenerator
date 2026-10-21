@@ -7,6 +7,11 @@ from typing import Dict, Optional, Set, Tuple, ClassVar
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+#############################
+# NOTE: After changing parameters, defaults or their comments in this file, regenerate the template:
+#   python -m districtgenerator.data_handling.generate_env_example
+#############################
+
 ### Helper functions ###
 def parse_float_list(value: any) -> list[float]:
     """

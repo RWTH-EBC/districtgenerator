@@ -122,11 +122,15 @@ The example_decentral.csv file can be used as [template](https://github.com/RWTH
 
 ### Additional configuration categories and input data
 
-In the [file](https://github.com/RWTH-EBC/districtgenerator/blob/develop/districtgenerator/data_handling/config.py) 
-further data can be found. Default values are already stored there. General modeling assumptions are managed through 
-Pydantic-based configuration classes and will be overwritten through an .env configuration file if the Datahandler 
-is initialized with it. This .env file can be found
-in the directory [data](https://github.com/RWTH-EBC/districtgenerator/tree/develop/districtgenerator/data).
+Default values for all parameters are defined in
+[config.py](districtgenerator/data_handling/config.py), which is the single source of truth.
+To override values, create your own file in `districtgenerator/data/` (e.g. `.env.CONFIG.MYPROJECT`) that
+contains **only the parameters you want to change**, and load it with
+`Datahandler(env_path=".env.CONFIG.MYPROJECT")`.
+[.env.CONFIG.EXAMPLE](districtgenerator/data/.env.CONFIG.EXAMPLE) lists all parameters with description, unit
+and default value. Copy the lines you need and remove the leading `# `. The EXAMPLE is generated from
+`config.py` and must not be edited by hand. A file named `.env.CONFIG` is ignored by git and can be used for
+local tests.
 
 The configuration includes assumptions and parameters related to location and weather, temporal resolution, 
 heating and cooling periods, building design conditions, thermal building model, economic parameters, energy prices, 

@@ -26,8 +26,7 @@ def example6_config_file_loading():
 
     # Changes are to be made in the '.env.CONFIG.FREIBURG' file. You can delete all other parameters that
     # are not relevant. Try searching the parameters in the file to find the ones you need to change.
-    # If you need a description of the parameters, refer to the documentation in the config.py,
-    # decentral_devices_config.py, or central_devices_config.py files.
+    # For a description of all parameters, see .env.CONFIG.EXAMPLE or config.py.
 
     # In this example we use the existing example-file freiburg.csv with four buildings.
 
@@ -50,7 +49,7 @@ def example6_config_file_loading():
     # That is equal to a time resolution of three hours.
 
     # Initialize District
-    data = Datahandler(scenario_name = "example_decentral", env_path=".env.CONFIG.Freiburg")
+    data = Datahandler(scenario_name = "example_decentral", env_path=".env.CONFIG.FREIBURG")
 
     # Alternative if you need an absolute path:
     # data = Datahandler(env_path="/path/to/your/.env.CONFIG.FREIBURG")
