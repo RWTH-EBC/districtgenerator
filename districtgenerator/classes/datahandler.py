@@ -101,6 +101,7 @@ class Datahandler:
         self.params_ehdo_technical = {}
         self.params_ehdo_model = {}
         self.central_device_data = {}
+        self.centralDevices = {}
         self.calendar = {}
         self.ecoData = {}
         self.all_sim_ecoData = {} # Later overwriten with the calculated economic data for the simulated years
@@ -240,6 +241,10 @@ class Datahandler:
             # Replace 1 values with "EH_DHW"
             self.scenario["dhw_heater"] = self.scenario["dhw_heater"].replace({1: "EH_DHW", "1": "EH_DHW", 1.0: "EH_DHW"})
 
+        # Validate supply selections before generating buildings/demands.
+        for building_id, features in self.scenario.iterrows():
+            try:
+                BES.get_heating_candidates(features["heater"])
         # Validate optional cooling supply before generating buildings/demands.
         for building_id, features in self.scenario.iterrows():
             try:
@@ -1665,7 +1670,10 @@ class Datahandler:
         None.
         """
 
-        for building in self.district:
+        candidates = [BES.get_heating_candidates(building["buildingFeatures"]["heater"])
+                      for building in self.district]
+
+        for building, choices in zip(self.district, candidates):
 
             # %% create building energy system object
             # get capacities of all possible devices
@@ -1673,7 +1681,13 @@ class Datahandler:
                           decentral_device_data=self.decentral_device_data,
                           design_building_data=self.design_building_data,
                           file_path=self.filePath)
-            building["capacities"] = building["bes_obj"].designECS(building, self.site)
+            requested_heater = building["buildingFeatures"]["heater"]
+            try:
+                if choices:
+                    building["buildingFeatures"]["heater"] = choices[0]
+                building["capacities"] = building["bes_obj"].designECS(building, self.site)
+            finally:
+                building["buildingFeatures"]["heater"] = requested_heater
 
             # calculate PV and STC generation
             #building["generationPV"], building["generationSTC"] = \
@@ -1704,6 +1718,16 @@ class Datahandler:
                            building["user"].generationSTC,
                            delimiter=';',
                            fmt='%.2f')
+
+        if any(candidates):
+            from districtgenerator.functions.opti_dimensioning_decentral_devices import choose_heating_concept
+
+            self.clusterProfiles(centralEnergySupply=False)
+            for building, choices in zip(self.district, candidates):
+                if choices:
+                    choose_heating_concept(self, building, choices)
+                    self.scenario.loc[self.scenario["id"] == building["buildingFeatures"]["id"], "heater"] = (
+                        building["buildingFeatures"]["heater"])
 
     def designCentralDevices(self, saveGenerationProfiles):
         """

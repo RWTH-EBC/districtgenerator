@@ -13,6 +13,30 @@ class BES:
         File path to the data directory of the districtgenerator.
     """
 
+    HEATING_CONCEPTS = ("HP", "GHP", "BHP", "H2HP", "OHP", "BOI", "BBOI", "OBOI", "H2BOI", "EH", "CHP", "FC")
+
+    @staticmethod
+    def get_heating_candidates(heater):
+        """Return candidate concepts for opt/list inputs, or None for a manual heater."""
+        specification = str(heater).strip()
+        if specification.lower() == "opt":
+            return BES.HEATING_CONCEPTS
+        is_list = ("," in specification or specification.startswith("[")
+                   or specification.lower().startswith("opt:"))
+        if not is_list:
+            return None
+        if specification.lower().startswith("opt:"):
+            specification = specification[4:].strip()
+        if specification.startswith("["):
+            if not specification.endswith("]"):
+                raise ValueError("Heating candidate list must end with ']'.")
+            specification = specification[1:-1]
+        candidates = tuple(dict.fromkeys(token.strip().upper() for token in specification.split(",")))
+        invalid = set(candidates) - set(BES.HEATING_CONCEPTS)
+        if invalid:
+            raise ValueError(f"Invalid heating candidates {sorted(invalid)}; choose from {BES.HEATING_CONCEPTS}.")
+        return candidates
+
     @staticmethod
     def get_cooling_supply(building_features):
         """
