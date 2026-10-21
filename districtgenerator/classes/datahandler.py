@@ -31,6 +31,7 @@ from districtgenerator.functions import opti_central
 import districtgenerator.functions.heating_network_simple as heating_network_simple
 from districtgenerator.functions.heating_network_simple import calculate_soil_temperature
 from districtgenerator.data_handling.config import GlobalConfig, load_global_config
+from districtgenerator.functions.randomness import building_seed, seeded_random_state, seeded_demand_worker
 import multiprocessing as mp
 
 class Datahandler:
@@ -101,6 +102,7 @@ class Datahandler:
         self.params_ehdo_technical = {}
         self.params_ehdo_model = {}
         self.central_device_data = {}
+        self.centralDevices = {}
         self.calendar = {}
         self.ecoData = {}
         self.all_sim_ecoData = {} # Later overwriten with the calculated economic data for the simulated years
@@ -221,6 +223,8 @@ class Datahandler:
 
         self.scenario_name = scenario_name or global_config.scenario.scenario_name or "example_decentral"
         self.parallelization =  global_config.scenario.parallelization
+        self.random_seed = global_config.scenario.random_seed
+        self.design_energy_hub = global_config.scenario.design_energy_hub
 
         # --- 2. Load scenario data ---
 
@@ -238,6 +242,14 @@ class Datahandler:
 
             # Replace 1 values with "EH_DHW"
             self.scenario["dhw_heater"] = self.scenario["dhw_heater"].replace({1: "EH_DHW", "1": "EH_DHW", 1.0: "EH_DHW"})
+
+        # Validate supply selections before generating buildings/demands.
+        for building_id, features in self.scenario.iterrows():
+            try:
+                BES.get_heating_candidates(features["heater"])
+                BES.get_cooling_supply(features)
+            except ValueError as exc:
+                raise ValueError(f"Building {building_id}: {exc}") from exc
 
         # --- 4. Load pipe data based on the selected heat grid generation ---
 
@@ -774,6 +786,8 @@ class Datahandler:
 
         for idx, building in enumerate(self.district):
             if self.is_mixed_building(building["buildingFeatures"]["building"]):
+                seed = building_seed(self.random_seed, building["buildingFeatures"], "geometry")
+                building_random = rd if seed is None else rd.Random(seed)
                 # This building needs to be split - we'll handle it separately
                 buildings_to_skip.append(idx)
 
@@ -789,17 +803,17 @@ class Datahandler:
 
                 # Calculate floors based on main building type
                 if main_building_long == "single_family_house":
-                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(main_building_long))
+                    one_floor_area = building_random.randint(*self._get_one_floor_area_range_res(main_building_long))
                     total_floors = max(2, round(total_area / one_floor_area))
                 elif main_building_long == "terraced_house":
-                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(main_building_long))
+                    one_floor_area = building_random.randint(*self._get_one_floor_area_range_res(main_building_long))
                     total_floors = max(2, round(total_area / one_floor_area))
                 elif main_building_long == "multi_family_house":
-                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(main_building_long))
+                    one_floor_area = building_random.randint(*self._get_one_floor_area_range_res(main_building_long))
                     total_floors = max(2, round(total_area / one_floor_area))
                     if total_floors > 8: total_floors = 8
                 elif main_building_long == "apartment_block":
-                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(main_building_long))
+                    one_floor_area = building_random.randint(*self._get_one_floor_area_range_res(main_building_long))
                     total_floors = max(3, round(total_area / one_floor_area))
                 else:
                     # Generate a NonResidential building and get number of floors
@@ -921,6 +935,8 @@ class Datahandler:
         prj.name = self.scenario_name
 
         for building in self.district:
+            seed = building_seed(self.random_seed, building["buildingFeatures"], "geometry")
+            building_random = rd if seed is None else rd.Random(seed)
 
             # convert short names into designation needed for TEASER
             building_type = bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
@@ -947,18 +963,18 @@ class Datahandler:
                 if "fixed_floors" in building["buildingFeatures"]:
                     number_of_floors = building["buildingFeatures"]["fixed_floors"]
                 elif building_type == "single_family_house":
-                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(building_type))  
+                    one_floor_area = building_random.randint(*self._get_one_floor_area_range_res(building_type))
                     # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
                     number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
 
                 elif building_type == "terraced_house":
-                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(building_type))  # Source: TABULA German Building Typology
+                    one_floor_area = building_random.randint(*self._get_one_floor_area_range_res(building_type))  # Source: TABULA German Building Typology
                     # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
                     number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
 
                 elif building_type == "multi_family_house":
                     # Generate a valid one-floor area and number of floors in one step
-                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(building_type)) # Source: TABULA German Building Typology
+                    one_floor_area = building_random.randint(*self._get_one_floor_area_range_res(building_type)) # Source: TABULA German Building Typology
                     # Calculate the number of floors, rounding to the nearest integer and ensuring at least 2
                     number_of_floors = max(2, round(building["buildingFeatures"]["area"] / one_floor_area))
                     # Cap the number of floors to a maximum of 8
@@ -966,7 +982,7 @@ class Datahandler:
                         number_of_floors = 8
 
                 elif building_type == "apartment_block":
-                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(building_type))  # Source: TABULA German Building Typology
+                    one_floor_area = building_random.randint(*self._get_one_floor_area_range_res(building_type))  # Source: TABULA German Building Typology
                     # Calculate the number of floors, rounding to the nearest integer and ensuring at least 3
                     number_of_floors = max(3, round(building["buildingFeatures"]["area"] / one_floor_area))
 
@@ -1073,11 +1089,13 @@ class Datahandler:
 
             # %% create user object
             # containing number occupants, electricity demand,...
-            building["user"] = Users(building=building["buildingFeatures"]["building"],
-                                     area=building["buildingFeatures"]["area"],
-                                     year_of_construction=building["buildingFeatures"]["year"],
-                                     retrofit=building["buildingFeatures"]["retrofit"],
-                                     SIA2024=self.SIA2024)
+            user_seed = building_seed(self.random_seed, building["buildingFeatures"], "users")
+            with seeded_random_state(user_seed):
+                building["user"] = Users(building=building["buildingFeatures"]["building"],
+                                         area=building["buildingFeatures"]["area"],
+                                         year_of_construction=building["buildingFeatures"]["year"],
+                                         retrofit=building["buildingFeatures"]["retrofit"],
+                                         SIA2024=self.SIA2024, random_seed=user_seed)
 
             night_setback = building["buildingFeatures"]["night_setback"]
             # %% calculate design heat loads
@@ -1131,6 +1149,7 @@ class Datahandler:
                        "decentral_device_data": self.decentral_device_data,
                        "resultPath": self.resultPath,
                        "initial_day": self.initial_day,
+                       "random_seed": self.random_seed,
                        "design_building_data": self.design_building_data}
             # "spawn" is required on Windows and safest cross-platform
             mp_ctx = mp.get_context("spawn")
@@ -1191,6 +1210,7 @@ class Datahandler:
         self.combine_mixed_building_demands(saveUserProfiles)
 
 
+    @seeded_demand_worker
     def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles, gen_cars = True):
         """
         :param building:
@@ -1308,7 +1328,7 @@ class Datahandler:
             "night_setback": building["buildingFeatures"]["night_setback"],
         }
 
-    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, gen_cars=True, designEnergyhub=False):
+    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, gen_cars=True, designEnergyhub=None):
 
         """
         All in one solution for district and demand generation.
@@ -1327,13 +1347,19 @@ class Datahandler:
             The default is True.
         gen_cars: bool, optional
             True for generating car profiles, False to skip this step (Only taken into account if calcUserProfile is True).
-        designEnergyhub: bool, optional
-            Decision if energy hub will be designed. The default is False.
+        designEnergyhub: bool or None, optional
+            Request energy-hub design without a thermal network. None uses
+            DESIGN_ENERGY_HUB from the configuration (default False).
+            An explicit True or False overrides the configuration; a heat-grid
+            connection always triggers energy-hub design.
         
         Returns
         -------
         None.
         """
+        if designEnergyhub is None:
+            designEnergyhub = self.design_energy_hub
+
         self.generateEnvironment()
         self.initializeBuildings()
         self.generateBuildings()
@@ -1344,8 +1370,12 @@ class Datahandler:
         has_heat_grid = any(
             building["buildingFeatures"]["heater"] == "heat_grid"
             for building in self.district)
+        has_cooling_grid = any(
+            BES.get_cooling_supply(building["buildingFeatures"]) == "cooling_grid"
+            for building in self.district)
+        has_thermal_grid = has_heat_grid or has_cooling_grid
 
-        if has_heat_grid or designEnergyhub:
+        if has_thermal_grid or designEnergyhub:
             # Verify geometry data (district_parameters)
 
             # --- Check if building positions are available and valid ---
@@ -1356,12 +1386,12 @@ class Datahandler:
                 not isinstance(p, tuple) or len(p) != 2 or not all(isinstance(x, (int, float)) for x in p)
                 for p in self.scenario["position"]))
             
-            if has_heat_grid:
+            if has_thermal_grid:
                 if missing_positions:
-                    print("No district geometry found — running simple heating network design.")
+                    print("No district geometry found — running simple thermal network design.")
                     heating_network_simple.heating_network(self)
                 else:
-                    print("The districtgenerator currently does not support heating networks based on building positions — running simple heating network design.")
+                    print("The districtgenerator currently does not support thermal networks based on building positions — running simple thermal network design.")
                     heating_network_simple.heating_network(self)
 
                     # print("Generating and optimizing heating network...")
@@ -1380,7 +1410,7 @@ class Datahandler:
             self.designCentralDevices(saveGenerationProfiles=True)
             self.applyCentralDesignClusteringToOperationProfiles()
         else:
-            print("No central heat grid detected and no energy hub designed — skipping heating network design.")
+            print("No thermal network detected and no energy hub requested — skipping thermal network design.")
             self.centralDevices = {}
             self.prepareClusteringInputs()
 
@@ -1654,7 +1684,10 @@ class Datahandler:
         None.
         """
 
-        for building in self.district:
+        candidates = [BES.get_heating_candidates(building["buildingFeatures"]["heater"])
+                      for building in self.district]
+
+        for building, choices in zip(self.district, candidates):
 
             # %% create building energy system object
             # get capacities of all possible devices
@@ -1662,7 +1695,13 @@ class Datahandler:
                           decentral_device_data=self.decentral_device_data,
                           design_building_data=self.design_building_data,
                           file_path=self.filePath)
-            building["capacities"] = building["bes_obj"].designECS(building, self.site)
+            requested_heater = building["buildingFeatures"]["heater"]
+            try:
+                if choices:
+                    building["buildingFeatures"]["heater"] = choices[0]
+                building["capacities"] = building["bes_obj"].designECS(building, self.site)
+            finally:
+                building["buildingFeatures"]["heater"] = requested_heater
 
             # calculate PV and STC generation
             #building["generationPV"], building["generationSTC"] = \
@@ -1693,6 +1732,16 @@ class Datahandler:
                            building["user"].generationSTC,
                            delimiter=';',
                            fmt='%.2f')
+
+        if any(candidates):
+            from districtgenerator.functions.opti_dimensioning_decentral_devices import choose_heating_concept
+
+            self.clusterProfiles(centralEnergySupply=False)
+            for building, choices in zip(self.district, candidates):
+                if choices:
+                    choose_heating_concept(self, building, choices)
+                    self.scenario.loc[self.scenario["id"] == building["buildingFeatures"]["id"], "heater"] = (
+                        building["buildingFeatures"]["heater"])
 
     def designCentralDevices(self, saveGenerationProfiles):
         """
@@ -2381,6 +2430,7 @@ def _load_heating_profiles_worker(name, path):
     df_ts = pd.read_csv(ts_path, sep=";")
     return df_ts['heating'].to_numpy(), df_ts['cooling'].to_numpy()
 
+@seeded_demand_worker
 def _run_demand_worker(context, building, calcUserProfiles, saveUserProfiles, gen_cars=True):
     """
     Standalone worker for multiprocessing.

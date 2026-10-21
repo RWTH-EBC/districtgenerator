@@ -82,7 +82,7 @@ class Users:
         else:
             self.nb_main_rooms = int(value)
 
-    def __init__(self, building, area, year_of_construction, retrofit, SIA2024=None):
+    def __init__(self, building, area, year_of_construction, retrofit, SIA2024=None, random_seed=None):
         """
         Constructor of Users class.
 
@@ -92,6 +92,7 @@ class Users:
         """
 
         self.building = building
+        self.random_seed = random_seed
         self.nb_flats = None
         self.annual_el_demand_per_flat = None
         self.nb_rooms = None
@@ -408,7 +409,7 @@ class Users:
             mode = 'standard'
 
         # Generate a single random factor for the entire building.
-        rng = np.random.default_rng()
+        rng = np.random.default_rng(self.random_seed)
         std_dev = 0.10 # 10%
         random_factor = rng.normal(loc=1.0, scale=std_dev)
 
@@ -611,12 +612,14 @@ class Users:
                                     initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,
                                     building=self.building)
                 
+                # Occupancy profile in a flat (needed before DHW generation, which uses it as OpenDHW input)
+                occ_profile_residential = temp_obj.generate_occupancy_profiles_residential()
+
                 dhw_dict = temp_obj.generate_dhw_profile(building=building, holidays=holidays)
                 self.dhw += dhw_dict["dhw_power_timeseries_W"]
                 self.dhw_minutely += dhw_dict["dhw_power_timeseries_W_minutely"]
 
-                # Occupancy profile in a flat
-                self.occ = self.occ + temp_obj.generate_occupancy_profiles_residential()
+                self.occ = self.occ + occ_profile_residential
                 self.elec = self.elec + temp_obj.generate_el_profile_residential(holidays=holidays,
                                                                                  irradiance=irradiation,
                                                                                  el_wrapper=self.el_wrapper[j],

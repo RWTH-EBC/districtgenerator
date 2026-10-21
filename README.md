@@ -101,9 +101,14 @@ The minimal input data set was defined following the [TABULA archetype approach]
 - retrofit: retrofit state according to TABULA (0: existing state, 1: usual refurbishment, 2: advanced refurbishment)
 - area: reference floor area (given in square meters)
 - night_setback: night temperature setback (0 = no night setback, 1 = with night setback)
-- heater: selected heat generator type (HP = heat pump, CHP = combined heat and power, FC = fuel cell, BOI = boiler, heat_grid = district heating)
+- heater: selected heat generator type (HP = heat pump, CHP = combined heat and power, FC = fuel cell, BOI = boiler, heat_grid = district heating).
+  Use `opt` or a candidate list such as `opt:[HP,BOI]` to select the cheapest feasible
+  heating concept with existing sizing rules.
 - dhw_heater: selected domestic hot water generator type (0: no decentral domestic hot water generator, EH_DHW = electric heater)
 - cooling: calculation of cooling demand (0 = no cooling, 1 = with cooling)
+- cooler: cooling supply (`CC` = local compression chiller, `cooling_grid` = network cooling).
+  If omitted, `heater=heat_grid` uses network cooling; other heaters use local CC.
+  Only applies when `cooling=1`.
 - EV: electric vehicle share - fraction between 0 and 1 representing the proportion of electric vehicles in the building's total vehicle inventory
 - fTES: thermal energy storage size in liters per kW heating capacity of the heat generation system
 - fBAT: battery storage size in Wh per W of PV system power (Wh/W_PV)
@@ -127,6 +132,12 @@ The configuration includes assumptions and parameters related to location and we
 heating and cooling periods, building design conditions, thermal building model, economic parameters, energy prices, 
 emission factors, heating networks, central and decentralized technologies, optimization, solver settings, and
 report generation.
+
+Set `RANDOM_SEED=42` in `.env` for repeatable stochastic building and demand profiles;
+leave it empty for unrestricted randomness.
+Set `DESIGN_ENERGY_HUB=True` in `.env` to request an energy hub without a thermal network.
+Enable technologies separately, e.g. `C_PV__FEASIBLE=True`.
+Heating networks trigger hub design automatically.
 
 ## Workflow of the DistrictGenerator
 
