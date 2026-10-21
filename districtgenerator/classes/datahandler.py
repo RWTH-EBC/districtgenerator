@@ -1038,6 +1038,10 @@ class Datahandler:
                                                 design_building_data=self.design_building_data,
                                                 file_path=self.filePath,
                                                 SIA2024=self.SIA2024)
+                if hasattr(building["envelope"], "compute_heating_curve"):
+                    building["envelope"].compute_heating_curve(
+                        self.site, mode="unclustered"
+                    )
 
             else: # Non-residential buildings
 
@@ -1079,6 +1083,9 @@ class Datahandler:
                                                 design_building_data=self.design_building_data,
                                                 file_path=self.filePath,
                                                 SIA2024=self.SIA2024)
+                building["envelope"].compute_heating_curve(
+                    self.site, mode="unclustered"
+                )
 
             # %% create user object
             # containing number occupants, electricity demand,...
@@ -1880,6 +1887,11 @@ class Datahandler:
         self.site["T_e_cluster"] = self._select_profile_periods(
             self.site["T_e"], typedays, cluster_horizon, length_array)
 
+        for building in self.district:
+            envelope = building.get("envelope")
+            if envelope is not None and hasattr(envelope, "compute_heating_curve"):
+                envelope.compute_heating_curve(self.site, mode="clustered")
+
         # clusters / clusterAssignments / clusterWeights, keyed by original-period
         # index of each medoid (same convention as clustering_processing.clustering_processing)
         self.clusters = [int(medoid) for medoid in typedays]
@@ -1905,6 +1917,11 @@ class Datahandler:
          self.site, self.district, self.heat_grid_data) = (cp.clustering_processing(self.time, self.site, self.district,
                                                                                     self.heat_grid_data, self.centralDevices,
                                                                                     self.pyomo_config, centralEnergySupply))
+
+        for building in self.district:
+            envelope = building.get("envelope")
+            if envelope is not None and hasattr(envelope, "compute_heating_curve"):
+                envelope.compute_heating_curve(self.site, mode="clustered")
 
     def saveDistrict(self):
         """
