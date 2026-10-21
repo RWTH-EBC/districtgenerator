@@ -36,7 +36,7 @@ def example5_generate_demands():
     # With an 5R1C thermal building model the space heat profiles and a stochastic model the drinking hot water
     # profiles are calculated.
     # If you also want to calculate cooling demand profiles, you can set "cooling" within the .csv file to 1
-    data.generateDemands(calcUserProfiles=True, saveUserProfiles=False)
+    data.generateDemands(calcUserProfiles=True, saveUserProfiles=True)
 
     ### ===========================================  Output  =========================================== ###
     # The (demand) profiles for electricity demand of appliances and lighting (elec),
