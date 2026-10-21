@@ -10,6 +10,7 @@ import pyomo.environ as pyo
 import os
 import time
 import districtgenerator.functions.solver_config as solver_config
+from districtgenerator.classes.system import BES
 
 # Sets of energy conversion systems in the buildings
 DOM_DEVS = ("HP", "EH", "CHP", "BOI", "BBOI", "OBOI", "H2BOI", "STC", "DH", "FC", "CC", "PV", "BAT", "TES", "TES_DHW")
@@ -743,6 +744,11 @@ def build_model(model, data, year, cluster, sim_ecoData):
         else:
             return model.heat_dom["heat_grid", n, t] == 0 # if no local heat grid connection, no heat can be used
 
+    def cooling_grid_capacity_rule(model, n, t):
+        if BES.get_cooling_supply(buildingData[n]["buildingFeatures"]) == "cooling_grid":
+            return pyo.Constraint.Skip
+        return model.cool_dom["heat_grid", n, t] == 0
+
     # Aplication of the constraints for each device
 
     # Heat generating devices
@@ -769,6 +775,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.stc_cap = pyo.Constraint(model.n, model.t, rule=stc_capacity_rule, doc="Solar thermal collector heat generation limit")
     model.pv_capacity = pyo.Constraint(model.n, model.t, rule=pv_capacity_rule, doc="PV electrical generation limit")
     model.heat_grid_capacity = pyo.Constraint(model.n, model.t, rule=heat_grid_capacity_rule, doc="Local heat grid capacity constraint")
+    model.cooling_grid_capacity = pyo.Constraint(model.n, model.t, rule=cooling_grid_capacity_rule, doc="Network cooling only for buildings selecting network cooling")
 
     ################################################################################
     # Energy Conversion for Energyhub devices
@@ -933,8 +940,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     # Compression Chiller
     def cc_building_conversion_rule(model, n, t):
-        return model.cool_dom["CC", n, t] == model.power_dom["CC", n, t] * param_dec_devs["CC"]["grade"] * (
-                    273.15 + 5) / max(T_e[t] - 5, 0.1)
+        return model.cool_dom["CC", n, t] == model.power_dom["CC", n, t] * BES.compression_chiller_cop(T_e[t], param_dec_devs["CC"]["grade"])
     
     # Instantaneous electric water heater for DHW
     def eh_dhw_conversion_rule(model, n, t):
@@ -1235,7 +1241,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
         return (model.res_dom_power[n, t] + model.power_dom["PV", n, t] + model.power_dom["CHP", n, t] + model.power_dom["FC", n, t]
                 + model.dch_dom["BAT", n, t] + total_ev_discharge
                 == model.power_dom["Elec_dem", n, t] + total_ev_charge + model.power_dom["HP", n, t] +
-                model.power_dom["EH", n, t] + model.power_dom["EH_DHW", n, t] + model.ch_dom["BAT", n, t] + model.res_dom_feed[n, t])
+                model.power_dom["EH", n, t] + model.power_dom["EH_DHW", n, t] + model.power_dom["CC", n, t]
+                + model.ch_dom["BAT", n, t] + model.res_dom_feed[n, t])
                
     # Heating Balance
     def heating_balances_rule(block, n, t):

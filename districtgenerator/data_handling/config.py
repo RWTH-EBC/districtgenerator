@@ -611,6 +611,7 @@ class Scenario(BaseSettings):
         if isinstance(value, str) and value.strip().lower() in ('', 'none', 'null'):
             return None
         return value
+    design_energy_hub: bool = False # Request energy-hub design without a thermal network.
 
     model_config = SettingsConfigDict(
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
