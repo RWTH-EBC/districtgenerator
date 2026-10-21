@@ -2,7 +2,7 @@ from dataclasses import field
 from pathlib import Path
 import os
 
-from typing import Dict, Optional, Set, Tuple, ClassVar
+from typing import Dict, Literal, Optional, Set, Tuple, ClassVar
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -611,6 +611,10 @@ class Scenario(BaseSettings):
             return None
         return value
     design_energy_hub: bool = False # Request energy-hub design without a thermal network.
+    # Parallelization of the flats inside one residential building (Users.calcProfiles).
+    # 'none' keeps flats sequential; worker counts multiply with the building-level workers.
+    flat_parallelization: Literal['none', 'threading', 'multiprocessing'] = 'none'
+    flat_max_workers: int = Field(default=4, ge=1)
 
     model_config = SettingsConfigDict(
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
