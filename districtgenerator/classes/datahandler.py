@@ -222,6 +222,7 @@ class Datahandler:
 
         self.scenario_name = scenario_name or global_config.scenario.scenario_name or "example_decentral"
         self.parallelization =  global_config.scenario.parallelization
+        self.design_energy_hub = global_config.scenario.design_energy_hub
 
         # --- 2. Load scenario data ---
 
@@ -244,6 +245,9 @@ class Datahandler:
         for building_id, features in self.scenario.iterrows():
             try:
                 BES.get_heating_candidates(features["heater"])
+        # Validate optional cooling supply before generating buildings/demands.
+        for building_id, features in self.scenario.iterrows():
+            try:
                 BES.get_cooling_supply(features)
             except ValueError as exc:
                 raise ValueError(f"Building {building_id}: {exc}") from exc
@@ -1310,7 +1314,7 @@ class Datahandler:
             "night_setback": building["buildingFeatures"]["night_setback"],
         }
 
-    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, gen_cars=True, designEnergyhub=False):
+    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, gen_cars=True, designEnergyhub=None):
 
         """
         All in one solution for district and demand generation.
@@ -1329,13 +1333,19 @@ class Datahandler:
             The default is True.
         gen_cars: bool, optional
             True for generating car profiles, False to skip this step (Only taken into account if calcUserProfile is True).
-        designEnergyhub: bool, optional
-            Decision if energy hub will be designed. The default is False.
+        designEnergyhub: bool or None, optional
+            Request energy-hub design without a thermal network. None uses
+            DESIGN_ENERGY_HUB from the configuration (default False).
+            An explicit True or False overrides the configuration; a heat-grid
+            connection always triggers energy-hub design.
         
         Returns
         -------
         None.
         """
+        if designEnergyhub is None:
+            designEnergyhub = self.design_energy_hub
+
         self.generateEnvironment()
         self.initializeBuildings()
         self.generateBuildings()

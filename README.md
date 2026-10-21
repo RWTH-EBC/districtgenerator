@@ -133,6 +133,10 @@ heating and cooling periods, building design conditions, thermal building model,
 emission factors, heating networks, central and decentralized technologies, optimization, solver settings, and
 report generation.
 
+Set `DESIGN_ENERGY_HUB=True` in `.env` to request an energy hub without a thermal network.
+Enable technologies separately, e.g. `C_PV__FEASIBLE=True`.
+Heating networks trigger hub design automatically.
+
 ## Workflow of the DistrictGenerator
 
 The district generator integrates multiple open-source tools and databases. 
