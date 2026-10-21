@@ -133,6 +133,8 @@ heating and cooling periods, building design conditions, thermal building model,
 emission factors, heating networks, central and decentralized technologies, optimization, solver settings, and
 report generation.
 
+Set `RANDOM_SEED=42` in `.env` for repeatable stochastic building and demand profiles;
+leave it empty for unrestricted randomness.
 Set `DESIGN_ENERGY_HUB=True` in `.env` to request an energy hub without a thermal network.
 Enable technologies separately, e.g. `C_PV__FEASIBLE=True`.
 Heating networks trigger hub design automatically.
