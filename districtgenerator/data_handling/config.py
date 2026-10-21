@@ -603,6 +603,7 @@ class Scenario(BaseSettings):
     """
     scenario_name: str = 'base_scenario' # default value for scenario name
     parallelization: str = 'multiprocessing' # default value for parallelization type, options: 'multiprocessing', 'threading'
+    design_energy_hub: bool = False # Request energy-hub design without a thermal network.
 
     model_config = SettingsConfigDict(
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
