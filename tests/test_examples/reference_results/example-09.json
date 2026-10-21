@@ -3,7 +3,7 @@
     "seed": 42,
     "scenario": "example_non_residential",
     "timestep_s": 3600,
-    "solver": "gurobi",
+    "solver": "highs",
     "mip_gap": 0.001,
     "support_years": [
       0
@@ -3109,14 +3109,14 @@
   },
   "optimization": {
     "operationCosts": {
-      "0": 4600.0
+      "0": 4602.0
     },
     "annual_fixed_costs_decentral": 1461.4532547441356,
     "annual_fixed_costs_central": 0,
     "co2emissions": {
       "0": {
-        "total_co2": 6.01699908425392,
-        "co2_dem_grid": 2.7956738340684257,
+        "total_co2": 6.0191397497763415,
+        "co2_dem_grid": 2.7978144995908467,
         "co2_gas": 3.2213252501854943,
         "co2_biom": 0.0,
         "co2_waste": 0.0,
@@ -3126,7 +3126,7 @@
       }
     },
     "W_dem_GCP_year": {
-      "0": 8523.395835574467
+      "0": 8529.922254850142
     },
     "W_inj_GCP_year": {
       "0": 0.0

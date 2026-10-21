@@ -3,7 +3,7 @@
     "seed": 42,
     "scenario": "example_decentral",
     "timestep_s": 3600,
-    "solver": "gurobi",
+    "solver": "highs",
     "mip_gap": 0.001,
     "support_years": [
       0
@@ -4651,15 +4651,15 @@
   },
   "optimization": {
     "operationCosts": {
-      "0": 14032.0
+      "0": 14045.0
     },
     "annual_fixed_costs_decentral": 3661.108792071078,
     "annual_fixed_costs_central": 0,
     "co2emissions": {
       "0": {
-        "total_co2": 15.14353639862458,
-        "co2_dem_grid": 11.562625039528763,
-        "co2_gas": 3.5809113590958157,
+        "total_co2": 15.155877909767279,
+        "co2_dem_grid": 11.57496655067146,
+        "co2_gas": 3.580911359095818,
         "co2_biom": 0.0,
         "co2_waste": 0.0,
         "co2_hydrogen": 0.0,
@@ -4668,38 +4668,38 @@
       }
     },
     "W_dem_GCP_year": {
-      "0": 35251.905608319394
+      "0": 35289.53216668128
     },
     "W_inj_GCP_year": {
       "0": 0.0
     },
     "gas_year": {
-      "0": 14920.463996232567
+      "0": 14920.463996232575
     },
     "central_capacities": {
-      "PV": 0.0,
-      "WT": 0.0,
+      "PV": -0.0,
+      "WT": -0.0,
       "STC": 0.0,
-      "WAT": 0.0,
-      "HP": 0.0,
-      "GroundHP": 0.0,
-      "EB": 0.0,
-      "CC": 0.0,
+      "WAT": -0.0,
+      "HP": -0.0,
+      "GroundHP": -0.0,
+      "EB": -0.0,
+      "CC": -0.0,
       "AC": 0.0,
-      "CHP": 0.0,
+      "CHP": -0.0,
       "BOI": 0.0,
       "GHP": 0.0,
-      "BCHP": 0.0,
+      "BCHP": -0.0,
       "BBOI": 0.0,
-      "WCHP": 0.0,
+      "WCHP": -0.0,
       "WBOI": 0.0,
       "ELYZ": 0.0,
-      "FC": 0.0,
+      "FC": -0.0,
       "H2S": 0.0,
       "SAB": 0.0,
-      "TES": 0.0,
+      "TES": -0.0,
       "CTES": 0.0,
-      "BAT": 0.0,
+      "BAT": -0.0,
       "GS": 0.0
     },
     "building_capacities": {

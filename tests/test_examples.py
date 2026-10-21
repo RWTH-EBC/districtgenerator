@@ -2,6 +2,8 @@
 Run examples 1-10 with a fixed random seed and compare their results
 with the saved reference results.
 
+Use HiGHS for clustering and optimization so the tests need no Gurobi license.
+
 For normal testing, simply run this file. No extra settings are needed,
 and the saved reference results will not be changed.
 
@@ -22,6 +24,7 @@ from dotenv import dotenv_values
 import numpy as np
 import pandas as pd
 import pytest
+from pyomo.contrib import appsi
 
 
 TEST_DATA = Path(__file__).parent / "test_examples"  # Inputs and saved results for the tests
@@ -48,7 +51,7 @@ OVERRIDES = {
     "CLUSTERLENGTH": "604800",
     "CLUSTERNUMBER": "2",
     "NUM_INTERPOLATION_POINTS": "1",
-    "SOLVER_NAME": "gurobi",
+    "SOLVER_NAME": "highs",
     "SOLVER_OPTIONS__THREADS": "1",
     "SOLVER_OPTIONS__MIP_GAP": "0.001",
     "SOLVER_OPTIONS__TIME_LIMIT": "300",
@@ -82,9 +85,17 @@ def run_example(number, output):
     module = import_module(f"examples.{module_name}")
     function = getattr(module, function_name)
     real_datahandler = module.Datahandler
+    real_clustering_solver = appsi.solvers.Highs
     config = output / ".env.REGRESSION"
     values = write_config(config)
     config_results = {}
+
+    def configured_clustering_solver(*args, **kwargs):
+        # tsam otherwise uses automatic threads, which can conflict with the
+        # operation solver's thread limit through HiGHS' shared thread pool.
+        solver = real_clustering_solver(*args, **kwargs)
+        solver.highs_options["threads"] = int(values["SOLVER_OPTIONS__THREADS"])
+        return solver
 
     def configured_datahandler(*args, **kwargs):
         # Redirect inputs/outputs only; the example still uses the real model.
@@ -104,7 +115,9 @@ def run_example(number, output):
         return data
 
     # Scope environment overrides so a user's shell cannot override the test inputs.
-    with patch.object(module, "Datahandler", side_effect=configured_datahandler), patch.dict(
+    with patch.object(module, "Datahandler", side_effect=configured_datahandler), patch.object(
+        appsi.solvers, "Highs", side_effect=configured_clustering_solver
+    ), patch.dict(
         os.environ, {key: value for key, value in values.items() if value is not None}
     ):
         if number == 10:

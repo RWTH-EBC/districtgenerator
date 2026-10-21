@@ -3,7 +3,7 @@
     "seed": 42,
     "scenario": "example_decentral",
     "timestep_s": 3600,
-    "solver": "gurobi",
+    "solver": "highs",
     "mip_gap": 0.001,
     "support_years": [
       0
