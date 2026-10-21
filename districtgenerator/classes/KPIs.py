@@ -431,11 +431,19 @@ class KPIs:
             calc_annual_investment[n] = 0
             calc_annual_investment_unsubsidized[n] = 0
 
-            # HP temperature measures
-            # Only count measures if HP exists and sink temperature higher than 45°C
-            if capacities[n]["HP"] > 0 and district[n]["envelope"].hp_measures == True:
+            # HP low-temperature measures
+            hp_config = data.decentral_device_data.get("HP", {})
+            low_temp_measures_enabled = bool(
+                hp_config.get("enable_low_temp_measures", False)
+            )
+            heating_curve = district[n]["envelope"].heating_curve["clustered"]
+            if (
+                capacities[n]["HP"] > 0
+                and heating_curve["low_temp_measures_binding"]
+                and low_temp_measures_enabled
+            ):
                 heatload_kw = district[n]["envelope"].heatload / 1000  # kW
-                inv_eur_per_kw = data.decentral_device_data["HP"]["measures_inv_fix"]
+                inv_eur_per_kw = hp_config["low_temp_measures_inv_fix"]
                 inv_total = inv_eur_per_kw * heatload_kw  # €
 
                 ann_cost_meas = self.calc_annualized_investment(inv_total, data.ecoData)

@@ -635,6 +635,105 @@ class Envelope:
         else:
             raise TypeError("The provided project is not a TEASER project or a Non-Residential Building Class object.")
 
+    def compute_heating_curve(self, site, mode="unclustered"):
+        """
+        Compute building space-heating supply and return temperatures.
+
+        The radiator heating curve follows Laemmle et al. (2022),
+        https://doi.org/10.1016/j.energy.2021.122952.
+        """
+        if not hasattr(self, "heating_curve") or self.heating_curve is None:
+            self.heating_curve = {}
+
+        if mode == "unclustered":
+            T_out = np.asarray(site["T_e"], dtype=float).reshape(-1)
+        elif mode == "clustered":
+            T_out = np.asarray(site["T_e_cluster"], dtype=float).reshape(-1)
+        else:
+            raise ValueError(f"Unknown heating-curve mode: {mode}")
+
+        temp_levels = self.design_building_data["hp_sink_temp_levels"]
+        construction_year = int(self.construction_year)
+        retrofit = int(self.retrofit)
+
+        if construction_year >= 2010:
+            age_key = "2010-"
+        elif construction_year >= 1984:
+            age_key = "1984-2009"
+        elif construction_year >= 1979:
+            age_key = "1979-1983"
+        elif construction_year >= 1969:
+            age_key = "1969-1978"
+        elif construction_year >= 1958:
+            age_key = "1958-1968"
+        else:
+            age_key = "-1957"
+
+        Ts_design_orig, Tr_design_orig = temp_levels[age_key].get(
+            retrofit, temp_levels[age_key][0]
+        )
+        Ts_design_orig = float(Ts_design_orig)
+        Tr_design_orig = float(Tr_design_orig)
+
+        T_ne = float(site["T_ne"])
+        T_heating_curve_limit = 20.0
+        T_room = float(self.design_building_data["T_set_min"])
+        radiator_exponent = 1.3
+
+        Q_rel = (T_heating_curve_limit - T_out) / (
+            T_heating_curve_limit - T_ne
+        )
+        Q_rel = np.clip(Q_rel, 0.0, 1.0)
+
+        delta_T_design = Ts_design_orig - Tr_design_orig
+        T_mean_design = 0.5 * (Ts_design_orig + Tr_design_orig)
+
+        Ts_curve = (
+            T_room
+            + (T_mean_design - T_room)
+            * (Q_rel ** (1.0 / radiator_exponent))
+            + 0.5 * delta_T_design * Q_rel
+        )
+        Tr_curve = Ts_curve - Q_rel * delta_T_design
+
+        Ts_design_reduced = float(
+            self.design_building_data["low_temp_measures_supply_nom"]
+        )
+        Tr_design_reduced = float(
+            self.design_building_data["low_temp_measures_return_nom"]
+        )
+        low_temp_measures_binding = (
+            Ts_design_reduced < Ts_design_orig - 1e-6
+            or Tr_design_reduced < Tr_design_orig - 1e-6
+        )
+
+        if low_temp_measures_binding:
+            delta_T_design_reduced = Ts_design_reduced - Tr_design_reduced
+            T_mean_design_reduced = 0.5 * (
+                Ts_design_reduced + Tr_design_reduced
+            )
+            Ts_curve_reduced = (
+                T_room
+                + (T_mean_design_reduced - T_room)
+                * (Q_rel ** (1.0 / radiator_exponent))
+                + 0.5 * delta_T_design_reduced * Q_rel
+            )
+            Tr_curve_reduced = (
+                Ts_curve_reduced - Q_rel * delta_T_design_reduced
+            )
+        else:
+            Ts_curve_reduced = Ts_curve.copy()
+            Tr_curve_reduced = Tr_curve.copy()
+
+        self.heating_curve[mode] = {
+            "Ts_curve": Ts_curve,
+            "Tr_curve": Tr_curve,
+            "Ts_curve_reduced": Ts_curve_reduced,
+            "Tr_curve_reduced": Tr_curve_reduced,
+            "low_temp_measures_binding": low_temp_measures_binding,
+        }
+
+
     def calcHeatLoad(self, site, night_setback, method="design"):
         """
         Calculate design (nominal) heat load at norm outside temperature
