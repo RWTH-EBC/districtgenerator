@@ -25,8 +25,8 @@ def example9_multiple_configs(configs_dir: Path) -> list[Datahandler]:
     # 1. Go to the folder 'districtgenerator/data' (default location).
 
     # 2. Inside the 'data' folder, place / use your configuration files. For this
-    #    example, you could reuse both configs '.env.CONFIG.EXAMPLE' and '.env.CONFIG.FREIBURG'
-    #    or create another one, e.g., '.env.CONFIG.SCENARIO1'.
+    #    example, you could reuse '.env.CONFIG.FREIBURG' or create another one, e.g., '.env.CONFIG.SCENARIO1'
+    #    (see example 6). The template '.env.CONFIG.EXAMPLE' is skipped.
 
     # The script will find all files in the 'data' folder that start with
     # '.env' and process them one by one.
@@ -40,7 +40,8 @@ def example9_multiple_configs(configs_dir: Path) -> list[Datahandler]:
 
     all_data = []
 
-    scenario_files = [f for f in configs_dir.iterdir() if f.is_file() and f.name.startswith(".env")]
+    scenario_files = [f for f in configs_dir.iterdir() if f.is_file() and f.name.startswith(".env")
+                      and f.name != ".env.CONFIG.EXAMPLE"]
 
     print(f"Found {len(scenario_files)} scenario files in {configs_dir}:")
     for f in scenario_files:

@@ -13,7 +13,7 @@ def example7_decentral_scenario_evaluation():
     # Initialize District
     # Runs with the defaults from config.py. To change parameters, create your own file in districtgenerator/data
     # (see e6 and .env.CONFIG.EXAMPLE) and load it with Datahandler(env_path=".env.CONFIG.MYPROJECT").
-    data = Datahandler(scenario_name = "example_decentral", env_path=".env.CONFIG.EXAMPLE")
+    data = Datahandler(scenario_name = "example_decentral")
 
     # We directly generate a complete district.
     # Note that now more information in the .csv file are needed.

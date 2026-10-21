@@ -12,7 +12,7 @@ def example8_central_scenario_evaluation():
     # Initialize District
     # Runs with the defaults from config.py. To change parameters, create your own file in districtgenerator/data
     # (see e6 and .env.CONFIG.EXAMPLE) and load it with Datahandler(env_path=".env.CONFIG.MYPROJECT").
-    data = Datahandler(scenario_name = "example_central", env_path=".env.CONFIG.OLD")
+    data = Datahandler(scenario_name = "example_central")
 
     # We directly generate a complete district.
     # This includes the use of the EHDO tool to obtain an optimized energy central for neighborhoods.

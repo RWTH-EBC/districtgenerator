@@ -1480,57 +1480,43 @@ class GlobalConfig(BaseModel):
     calendar: 'CalendarConfig'
     scenario: 'Scenario'
     report: 'ReportConfig'
-class Settings(BaseSettings):
-    """
-    Settings class to manage global configuration parameters.
-    This class is used to load configuration parameters from an environment file.
-    """
-    env_file: str = '.env.CONFIG.EXAMPLE'
-
-    class Config:
-        env_file = '.env.CONFIG.EXAMPLE'  # Default .env file if no env_file is provided
-        env_file_encoding = 'utf-8'
-        extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
-
-
 def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
     """
-    Load the global configuration from the specified environment file.
-    If no environment file is provided, it defaults to standard parameters defined in the config classes.
-    For error handling, it prints the used environment file path.
-    Note: All parameters defined in '.env.CONFIG.' will override the default values in config.py
+    Load the global configuration.
+
+    Without an environment file, the default values defined in the config classes of this module are used.
+    With an environment file, all parameters defined in it override these defaults.
+    See data/.env.CONFIG.EXAMPLE for all parameters that can be overridden.
 
     Parameters
     ----------
     env_file : Optional[str]
-        The path to the environment file. If None, it uses the default from Settings.
-        Place config in the data folder of the districtgenerator package to use ".env.NAME" or use
-        absolute paths "c:/path/to/.env.CONFIG.EXAMPLE" or "/path/to/.env.CONFIG.EXAMPLE".
+        Name of an environment file in the data folder of the districtgenerator package (e.g. ".env.CONFIG.FREIBURG")
+        or an absolute path ("c:/path/to/.env.CONFIG.MYPROJECT"). If None, only the defaults are used.
 
     Returns
     -------
     GlobalConfig
-        An instance of GlobalConfig containing all configurations loaded from the environment file.
-
+        An instance of GlobalConfig containing all configurations.
     """
     if env_file is None:
-        settings = Settings()  # Load settings from the .env file
-        env_file = settings.env_file
+        env_file_path = None
+        os.environ.pop("ENV_FILE", None)
+        print("Using config: defaults from config.py")
+    else:
+        script_path = Path(__file__).resolve()
+        project_root = script_path.parent.parent
+        env_file_path = str(project_root / "data" / env_file)  # absolute paths are kept by pathlib
 
-    script_path = Path(__file__).resolve()
-    project_root = script_path.parent.parent
+        if not os.path.exists(env_file_path):
+            raise FileNotFoundError(
+                f"Configuration file not found. \n"
+                f"  - Looked for: {env_file_path}\n"
+                f"  - Based on script location: {script_path}"
+            )
 
-    env_file_path = str(project_root / "data" / env_file)
-
-    if not os.path.exists(env_file_path):
-        raise FileNotFoundError(
-            f"Configuration file not found. \n"
-            f"  - Looked for: {env_file_path}\n"
-            f"  - Based on script location: {script_path}"
-        )
-
-    os.environ["ENV_FILE"] = env_file_path
-    print(f'Using config: {os.environ["ENV_FILE"]}')
+        os.environ["ENV_FILE"] = env_file_path
+        print(f'Using config: {os.environ["ENV_FILE"]}')
 
     return GlobalConfig(
         location=LocationConfig(_env_file=env_file_path),
