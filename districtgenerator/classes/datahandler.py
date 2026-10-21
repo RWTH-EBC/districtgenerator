@@ -17,6 +17,7 @@ import holidays as hol
 from teaser.project import Project
 from .envelope_5R1C import Envelope as Envelope_5R1C
 from .envelope_7R2C import Envelope as Envelope_7R2C
+from .envelope_FourElements import Envelope as Envelope_FourElements
 from .solar import Sun
 from .users import Users
 from .system import BES
@@ -220,6 +221,7 @@ class Datahandler:
 
         self.scenario_name = scenario_name or global_config.scenario.scenario_name or "example_decentral"
         self.parallelization =  global_config.scenario.parallelization
+        self.design_energy_hub = global_config.scenario.design_energy_hub
 
         # --- 2. Load scenario data ---
 
@@ -237,6 +239,13 @@ class Datahandler:
 
             # Replace 1 values with "EH_DHW"
             self.scenario["dhw_heater"] = self.scenario["dhw_heater"].replace({1: "EH_DHW", "1": "EH_DHW", 1.0: "EH_DHW"})
+
+        # Validate optional cooling supply before generating buildings/demands.
+        for building_id, features in self.scenario.iterrows():
+            try:
+                BES.get_cooling_supply(features)
+            except ValueError as exc:
+                raise ValueError(f"Building {building_id}: {exc}") from exc
 
         # --- 4. Load pipe data based on the selected heat grid generation ---
 
@@ -1008,6 +1017,9 @@ class Datahandler:
                 elif self.design_building_data["thermal_model_type"] == "7R2C":
                     Envelope = Envelope_7R2C
                     building["thermal_model"] = "7R2C"
+                elif self.design_building_data["thermal_model_type"] == "FourElements":
+                    Envelope = Envelope_FourElements
+                    building["thermal_model"] = "FourElements"
                 else:
                     raise ValueError(f"Unknown thermal_model_type: {self.design_building_data['thermal_model_type']}")
 
@@ -1243,6 +1255,11 @@ class Datahandler:
             building["envelope"]._VDI6007_params()
             # Compute equivalent temperature
             building["envelope"].calc_theta_eq(self.site, building["user"].gains)
+        elif building.get("thermal_model") == "FourElements":
+            # Compute VDI6007 params
+            building["envelope"]._VDI6007_params()
+            # Compute equivalent temperature
+            building["envelope"].calc_theta_eq(self.site, building["user"].gains)
         else:
             raise ValueError(f"Unknown thermal_model_type: {self.design_building_data['thermal_model_type']}")
 
@@ -1292,7 +1309,7 @@ class Datahandler:
             "night_setback": building["buildingFeatures"]["night_setback"],
         }
 
-    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, gen_cars=True, designEnergyhub=False):
+    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, gen_cars=True, designEnergyhub=None):
 
         """
         All in one solution for district and demand generation.
@@ -1311,13 +1328,19 @@ class Datahandler:
             The default is True.
         gen_cars: bool, optional
             True for generating car profiles, False to skip this step (Only taken into account if calcUserProfile is True).
-        designEnergyhub: bool, optional
-            Decision if energy hub will be designed. The default is False.
+        designEnergyhub: bool or None, optional
+            Request energy-hub design without a thermal network. None uses
+            DESIGN_ENERGY_HUB from the configuration (default False).
+            An explicit True or False overrides the configuration; a heat-grid
+            connection always triggers energy-hub design.
         
         Returns
         -------
         None.
         """
+        if designEnergyhub is None:
+            designEnergyhub = self.design_energy_hub
+
         self.generateEnvironment()
         self.initializeBuildings()
         self.generateBuildings()
@@ -1328,8 +1351,12 @@ class Datahandler:
         has_heat_grid = any(
             building["buildingFeatures"]["heater"] == "heat_grid"
             for building in self.district)
+        has_cooling_grid = any(
+            BES.get_cooling_supply(building["buildingFeatures"]) == "cooling_grid"
+            for building in self.district)
+        has_thermal_grid = has_heat_grid or has_cooling_grid
 
-        if has_heat_grid or designEnergyhub:
+        if has_thermal_grid or designEnergyhub:
             # Verify geometry data (district_parameters)
 
             # --- Check if building positions are available and valid ---
@@ -1340,12 +1367,12 @@ class Datahandler:
                 not isinstance(p, tuple) or len(p) != 2 or not all(isinstance(x, (int, float)) for x in p)
                 for p in self.scenario["position"]))
             
-            if has_heat_grid:
+            if has_thermal_grid:
                 if missing_positions:
-                    print("No district geometry found — running simple heating network design.")
+                    print("No district geometry found — running simple thermal network design.")
                     heating_network_simple.heating_network(self)
                 else:
-                    print("The districtgenerator currently does not support heating networks based on building positions — running simple heating network design.")
+                    print("The districtgenerator currently does not support thermal networks based on building positions — running simple thermal network design.")
                     heating_network_simple.heating_network(self)
 
                     # print("Generating and optimizing heating network...")
@@ -1364,7 +1391,7 @@ class Datahandler:
             self.designCentralDevices(saveGenerationProfiles=True)
             self.applyCentralDesignClusteringToOperationProfiles()
         else:
-            print("No central heat grid detected and no energy hub designed — skipping heating network design.")
+            print("No thermal network detected and no energy hub requested — skipping thermal network design.")
             self.centralDevices = {}
             self.prepareClusteringInputs()
 
@@ -2435,6 +2462,9 @@ def _run_demand_worker(context, building, calcUserProfiles, saveUserProfiles, ge
     if building.get("thermal_model") == "5R1C":
         building["envelope"].calcNormativeProperties(site["SunRad"], building["user"].gains)
     elif building.get("thermal_model") == "7R2C":
+        building["envelope"]._VDI6007_params()
+        building["envelope"].calc_theta_eq(site, building["user"].gains)
+    elif building.get("thermal_model") == "FourElements":
         building["envelope"]._VDI6007_params()
         building["envelope"].calc_theta_eq(site, building["user"].gains)
     else:

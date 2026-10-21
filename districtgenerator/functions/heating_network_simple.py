@@ -1,7 +1,7 @@
 """
 District heating and cooling network calculation utilities.
 
-This module aggregates thermal demands of heat-grid-connected buildings,
+This module aggregates thermal demands of heating- and cooling-network-connected buildings,
 estimates network dimensions and costs, calculates buried-pipe thermal losses
 and soil temperatures, annualizes investment costs, and determines constant or
 weather-dependent network temperatures.
@@ -29,9 +29,9 @@ def heating_network(data):
     data : object
         DistrictGenerator data object. The function expects, among others,
         the attributes ``district``, ``heat_grid_data``, ``time``,
-        ``site``, ``pipe_data``, and ``ecoData``. Buildings connected to
-        the network must use ``"heat_grid"`` as
-        ``buildingFeatures["heater"]``.
+        ``site``, ``pipe_data``, and ``ecoData``. Heating connections use
+        ``heater="heat_grid"``; cooling connections use ``cooler="cooling_grid"``.
+        The two networks can serve different sets of buildings.
 
     Returns
     -------
@@ -42,6 +42,8 @@ def heating_network(data):
         annualized costs, soil temperature, network temperatures, and
         thermal losses.
     """
+
+    from districtgenerator.classes.system import BES
 
     heat_grid_data = data.heat_grid_data
     timeData = data.time
@@ -57,9 +59,11 @@ def heating_network(data):
         # Only buildings connected to the heat grid can be supplied by it
         if data.district[b]["buildingFeatures"]["heater"] == "heat_grid":
             heating += data.district[b]["user"].heat / 1000  # kW
-            cooling += data.district[b]["user"].cooling / 1000  # kW
-            dhw += data.district[b]["user"].dhw / 1000  # kW
+            if data.district[b]["buildingFeatures"].get("dhw_heater") is None:
+                dhw += data.district[b]["user"].dhw / 1000  # kW
             generationSTC += data.district[b]["user"].generationSTC / 1000  # kW
+        if BES.get_cooling_supply(data.district[b]["buildingFeatures"]) == "cooling_grid":
+            cooling += data.district[b]["user"].cooling / 1000  # kW
 
 
     heat_grid_data["net_heating_demand"] = np.maximum(heating + dhw - generationSTC, 0)  # kW
@@ -108,111 +112,60 @@ def calc_costs(data):
         selected nominal diameters, pipe dimensions, and total investment
         costs in ``data.heat_grid_data``.
     """
-    # Total Land Area (AL) in hectares
-    AL = data.site["district_area"]  # unit: ha
+    from districtgenerator.classes.system import BES
 
-    # Number of buildings connected to the network
-    buildings_connected = [b for b in data.district if b["buildingFeatures"]["heater"] == "heat_grid"]
-    number_of_buildings = len(buildings_connected)
+    grid = data.heat_grid_data
+    area = data.site["district_area"]  # hectares
+    connections = {
+        "heating": [b for b in data.district if b["buildingFeatures"]["heater"] == "heat_grid"],
+        "cooling": [b for b in data.district if BES.get_cooling_supply(b["buildingFeatures"]) == "cooling_grid"],
+    }
+    pipe_cost = 0.0
+    for kind, buildings in connections.items():
+        active = bool(buildings) and grid[f"net_sum_{kind}_demand"] > 0
+        if active and area <= 0:
+            raise ValueError("district_area must be positive for thermal network sizing.")
+        count = len(buildings)
+        lengths = {
+            "dist": (213 / (1 + 2.5 * np.exp(-0.34 * count)) - 25) * area if active else 0,
+            "serv": (163 / (1 + 3.9 * np.exp(-0.34 * count)) - 11) * area if active else 0,
+        }
+        for section, length in lengths.items():
+            grid[f"length_{kind}_{section}"] = length
+            if not active:
+                for dimension in ("DN", "da", "di", "Da"):
+                    grid[f"{dimension}_{kind}_{section}"] = 0
+                continue
+            density = grid[f"net_sum_{kind}_demand"] / length / 1000 / 1000 * 3600
+            diameter = (21.255 * np.log(density) + 48.064 if section == "dist"
+                        else 19.983 * np.exp(0.021 * density))
+            available = data.pipe_data[data.pipe_data["Nominal diameter (DN)"] >= diameter]
+            if available.empty:
+                raise ValueError(f"No pipe large enough for {kind} network {section}: DN {diameter}.")
+            pipe = available.loc[available["Nominal diameter (DN)"].idxmin()]
+            grid[f"DN_{kind}_{section}"] = pipe["Nominal diameter (DN)"]
+            grid[f"da_{kind}_{section}"] = pipe["Outer diameter (pipe) (mm)"]
+            grid[f"di_{kind}_{section}"] = pipe["Outer diameter (pipe) (mm)"] - 2 * pipe["Thickness (pipe) (mm)"]
+            grid[f"Da_{kind}_{section}"] = pipe["Outer diameter (case) (mm)"]
+            pipe_cost += (323.579 + 4.267 * grid[f"DN_{kind}_{section}"]) * length
 
-    # Calculate Total Building Floor Area
-    total_building_area = 0 # unit: m²
-    for building in buildings_connected:
-        total_building_area += building["buildingFeatures"].area
+    for section in ("dist", "serv"):
+        grid[f"length_{section}"] = max(grid[f"length_heating_{section}"], grid[f"length_cooling_{section}"])
 
-
-    calculated_FAR = total_building_area / (AL * 10000)  # Floor Area Ratio (FAR) (deutsch: Geschossflächenzahl)
-
-    # G represents the inequality of building distribution.
-    # G = 0 assumes perfectly even distribution of buildings.
-    # (Based on "Understanding effective width for district heating", Sánchez-García et al., 2023.)
-    G = 0
-
-    # Estimate Required Pipe Length per hectare
-    l_dist_perha = 213 / (1 + 2.5 * np.exp(-0.34 * number_of_buildings)) - 25 - 40 * G # Distribution pipes [m/ha]
-    l_serv_perha = 163 / (1 + 3.9 * np.exp(-0.34 * number_of_buildings)) - 11 - 30 * G # Service pipes [m/ha]
-
-    # Total Required Pipe Lengths
-    data.heat_grid_data["length_dist"] = l_dist_perha * AL   # [m]
-    data.heat_grid_data["length_serv"] = l_serv_perha * AL   # [m]
-
-    # --- Heating network
-    # Calculate linear Heat Densities
-    linear_heat_density_dist = data.heat_grid_data["net_sum_heating_demand"]/data.heat_grid_data["length_dist"]/1000/1000*3600 # GJ/(m*a)
-    linear_heat_density_serv = data.heat_grid_data["net_sum_heating_demand"]/data.heat_grid_data["length_serv"]/1000/1000*3600 # GJ/(m*a)
-
-    # Calculate required Nominal Diameters (DN)
-    DN_heating_dist = 21.255 * np.log(linear_heat_density_dist) + 48.064
-    DN_heating_serv = 19.983 * np.exp(0.021 * linear_heat_density_serv)
-
-    # Select Next Larger Available Pipe Size ---
-    larger_DN_dist = data.pipe_data[data.pipe_data["Nominal diameter (DN)"] >= DN_heating_dist]
-    chosen_row_dist = larger_DN_dist.loc[larger_DN_dist["Nominal diameter (DN)"].idxmin()]
-    data.heat_grid_data["DN_heating_dist"] = chosen_row_dist["Nominal diameter (DN)"]
-    data.heat_grid_data["da_heating_dist"] = chosen_row_dist["Outer diameter (pipe) (mm)"]
-    data.heat_grid_data["di_heating_dist"] = chosen_row_dist["Outer diameter (pipe) (mm)"] - 2 * chosen_row_dist["Thickness (pipe) (mm)"]
-    data.heat_grid_data["Da_heating_dist"] = chosen_row_dist["Outer diameter (case) (mm)"]  # outer diameter of the pipe including insulation
-
-    larger_DN_serv = data.pipe_data[data.pipe_data["Nominal diameter (DN)"] >= DN_heating_serv]
-    chosen_row_serv = larger_DN_serv.loc[larger_DN_serv["Nominal diameter (DN)"].idxmin()]
-    data.heat_grid_data["DN_heating_serv"] = chosen_row_serv["Nominal diameter (DN)"]
-    data.heat_grid_data["da_heating_serv"] = chosen_row_serv["Outer diameter (pipe) (mm)"]
-    data.heat_grid_data["di_heating_serv"] = chosen_row_serv["Outer diameter (pipe) (mm)"] - 2 * chosen_row_serv["Thickness (pipe) (mm)"]
-    data.heat_grid_data["Da_heating_serv"] = chosen_row_serv["Outer diameter (case) (mm)"]  # outer diameter of the pipe including insulation
-
-    # Heating Network Installation Cost
-    C_heating_network = (323.579 + 4.267 * data.heat_grid_data["DN_heating_dist"]) * data.heat_grid_data["length_dist"] + (323.579 + 4.267 * data.heat_grid_data["DN_heating_serv"]) * \
-                        data.heat_grid_data["length_serv"]  # €
-
-
-    # --- Cooling network
-    # Calculate linear Heat Densities
-    linear_cool_density_dist = data.heat_grid_data["net_sum_cooling_demand"] / data.heat_grid_data["length_dist"] / 1000 / 1000 * 3600  # GJ/(m*a)
-    linear_cool_density_serv = data.heat_grid_data["net_sum_cooling_demand"] / data.heat_grid_data["length_serv"] / 1000 / 1000 * 3600  # GJ/(m*a)
-    if linear_cool_density_dist > 0:
-        # Calculate required Nominal Diameters (DN)
-        DN_cooling_dist = 21.255 * np.log(linear_cool_density_dist) + 48.064
-        DN_cooling_serv = 19.983 * np.exp(0.021 * linear_cool_density_serv)
-
-        # Select Next Larger Available Pipe Size ---
-        larger_DN_dist = data.pipe_data[data.pipe_data["Nominal diameter (DN)"] >= DN_cooling_dist]
-        chosen_row_dist = larger_DN_dist.loc[larger_DN_dist["Nominal diameter (DN)"].idxmin()]
-        data.heat_grid_data["DN_cooling_dist"] = chosen_row_dist["Nominal diameter (DN)"]
-        data.heat_grid_data["da_cooling_dist"] = chosen_row_dist["Outer diameter (pipe) (mm)"]
-        data.heat_grid_data["di_cooling_dist"] = chosen_row_dist["Outer diameter (pipe) (mm)"] - 2 * chosen_row_dist["Thickness (pipe) (mm)"]
-        data.heat_grid_data["Da_cooling_dist"] = chosen_row_dist["Outer diameter (case) (mm)"]  # outer diameter of the pipe including insulation
-
-        larger_DN_serv = data.pipe_data[data.pipe_data["Nominal diameter (DN)"] >= DN_cooling_serv]
-        chosen_row_serv = larger_DN_serv.loc[larger_DN_serv["Nominal diameter (DN)"].idxmin()]
-        data.heat_grid_data["DN_cooling_serv"] = chosen_row_serv["Nominal diameter (DN)"]
-        data.heat_grid_data["da_cooling_serv"] = chosen_row_serv["Outer diameter (pipe) (mm)"]
-        data.heat_grid_data["di_cooling_serv"] = chosen_row_serv["Outer diameter (pipe) (mm)"] - 2 * chosen_row_serv["Thickness (pipe) (mm)"]
-        data.heat_grid_data["Da_cooling_serv"] = chosen_row_serv["Outer diameter (case) (mm)"]  # outer diameter of the pipe including insulation
-
-        # Cooling Network Installation Cost
-        C_cooling_network = (323.579 + 4.267 * data.heat_grid_data["DN_cooling_dist"]) * data.heat_grid_data["length_dist"] + (323.579 + 4.267 * data.heat_grid_data["DN_cooling_serv"]) * \
-                        data.heat_grid_data["length_serv"]  # €
-
-    else:
-        # No cooling network needed
-        data.heat_grid_data["DN_cooling_dist"] = 0 # m
-        data.heat_grid_data["DN_cooling_serv"] = 0 # m
-        C_cooling_network = 0 # €
-
-    # Substation Costs
-    C_substations = 0
-
-    buildings_connected = [b for b in data.district if b["buildingFeatures"]["heater"] == "heat_grid"]
-
-    for building in buildings_connected:
-        substation_capacity = max(building["envelope"].heatload/1000 + building["envelope"].dhwpower/1000, max(building["user"].cooling)/1000)  #kW
-        substation_costs = substation_capacity * data.heat_grid_data["C_subst"]
-        C_substations += substation_costs
-
-    # Total Network Costs
-    data.heat_grid_data["costs"] = C_heating_network + C_cooling_network + C_substations # €
-
+    substation_cost = 0.0
+    for building in data.district:
+        heat_peak = 0.0
+        cool_peak = 0.0
+        if building["buildingFeatures"]["heater"] == "heat_grid":
+            heat_peak = building["envelope"].heatload / 1000
+            if building["buildingFeatures"].get("dhw_heater") is None:
+                heat_peak += building["envelope"].dhwpower / 1000
+        if BES.get_cooling_supply(building["buildingFeatures"]) == "cooling_grid":
+            cool_peak = max(building["user"].cooling) / 1000
+        substation_cost += max(heat_peak, cool_peak) * grid["C_subst"]
+    grid["costs"] = pipe_cost + substation_cost
     return data
+
 
 def calculate_thermal_losses(data):
     """
@@ -243,60 +196,61 @@ def calculate_thermal_losses(data):
 
     #%% Losses in the heating network
 
-    # get heating network parameters
-    T_hot_heating_network = np.array(data.heat_grid_data["T_hot_heating_network"]["value"], dtype=float)
-    T_cold_heating_network = np.array(data.heat_grid_data["T_cold_heating_network"]["value"], dtype=float)
+    k_soil = data.heat_grid_data["k_soil"]
+    k_is = data.heat_grid_data["k_PUF"]
+    if data.heat_grid_data["net_sum_heating_demand"] > 0:
+        # get heating network parameters
+        T_hot_heating_network = np.array(data.heat_grid_data["T_hot_heating_network"]["value"], dtype=float)
+        T_cold_heating_network = np.array(data.heat_grid_data["T_cold_heating_network"]["value"], dtype=float)
 
-    D_heating_network = data.heat_grid_data["D_heating_network"] # Distance between the centerlines of the supply and return pipelines
+        D_heating_network = data.heat_grid_data["D_heating_network"] # Distance between the centerlines of the supply and return pipelines
 
-    k_soil = data.heat_grid_data["k_soil"]  # W/(m*K),
-    k_is =data.heat_grid_data["k_PUF"]   # W/(m*K)
-    Z_c =  data.heat_grid_data["grid_depth"] + 0.069 * k_soil
-    b = np.log((1+(2*Z_c/D_heating_network)**2)**0.5)
+        k_soil = data.heat_grid_data["k_soil"]  # W/(m*K),
+        k_is =data.heat_grid_data["k_PUF"]   # W/(m*K)
+        Z_c =  data.heat_grid_data["grid_depth"] + 0.069 * k_soil
+        b = np.log((1+(2*Z_c/D_heating_network)**2)**0.5)
 
-    Ts_heating_network = (T_hot_heating_network + T_cold_heating_network) / 2
-    Ta_heating_network = (T_hot_heating_network - T_cold_heating_network) / 2
+        Ts_heating_network = (T_hot_heating_network + T_cold_heating_network) / 2
+        Ta_heating_network = (T_hot_heating_network - T_cold_heating_network) / 2
 
-    # Losses in the distribution pipes
+        # Losses in the distribution pipes
 
-    a_dist = np.log(4 * Z_c / (data.heat_grid_data["Da_heating_dist"]/1000))
-    beta_dist =  k_soil / k_is * np.log((data.heat_grid_data["Da_heating_dist"]) / data.heat_grid_data["da_heating_dist"])
+        a_dist = np.log(4 * Z_c / (data.heat_grid_data["Da_heating_dist"]/1000))
+        beta_dist =  k_soil / k_is * np.log((data.heat_grid_data["Da_heating_dist"]) / data.heat_grid_data["da_heating_dist"])
 
-    # TODO: (a_dist + beta_dist +/- b) can hit exactly 0 for certain pipe-diameter/soil-parameter
-    # combinations, which makes **-1 silently return inf (no exception) instead of raising - this has
-    # caused a downstream crash when KPIs.py tries to round/export the resulting inf value. Needs a
-    # domain decision (e.g. clamp, alternate formula, or treat as zero-loss) rather than a blind fix.
-    ks_heating_network_dist = (a_dist + beta_dist + b)**-1
-    ka_heating_network_dist = (a_dist + beta_dist - b)**-1
+        ks_heating_network_dist = (a_dist + beta_dist + b)**-1
+        ka_heating_network_dist = (a_dist + beta_dist - b)**-1
 
-    qs_heating_network_dist = (Ts_heating_network- data.heat_grid_data["T_soil"]) * 2 * np.pi * k_soil * ks_heating_network_dist  # W/m
-    qa_heating_network_dist = (Ta_heating_network) * 2 * np.pi * k_soil * ka_heating_network_dist          # W/m
+        qs_heating_network_dist = (Ts_heating_network- data.heat_grid_data["T_soil"]) * 2 * np.pi * k_soil * ks_heating_network_dist  # W/m
+        qa_heating_network_dist = (Ta_heating_network) * 2 * np.pi * k_soil * ka_heating_network_dist          # W/m
 
-    losses_hotpipe_heating_network_dist = (qs_heating_network_dist + qa_heating_network_dist) * data.heat_grid_data["length_dist"]
-    losses_coldpipe_heating_network_dist = (qs_heating_network_dist - qa_heating_network_dist) * data.heat_grid_data["length_dist"]
-    losses_heating_network_dist = (losses_hotpipe_heating_network_dist + losses_coldpipe_heating_network_dist) / 1000  # kW
+        losses_hotpipe_heating_network_dist = (qs_heating_network_dist + qa_heating_network_dist) * data.heat_grid_data["length_heating_dist"]
+        losses_coldpipe_heating_network_dist = (qs_heating_network_dist - qa_heating_network_dist) * data.heat_grid_data["length_heating_dist"]
+        losses_heating_network_dist = (losses_hotpipe_heating_network_dist + losses_coldpipe_heating_network_dist) / 1000  # kW
 
-    # Losses in the service pipes
+        # Losses in the service pipes
 
-    a_serv = np.log(4 * Z_c / (data.heat_grid_data["Da_heating_serv"]/1000))
-    beta_serv =  k_soil / k_is * np.log((data.heat_grid_data["Da_heating_serv"]) / data.heat_grid_data["da_heating_serv"])
+        a_serv = np.log(4 * Z_c / (data.heat_grid_data["Da_heating_serv"]/1000))
+        beta_serv =  k_soil / k_is * np.log((data.heat_grid_data["Da_heating_serv"]) / data.heat_grid_data["da_heating_serv"])
 
-    # TODO: same zero-denominator/inf risk as ks_heating_network_dist/ka_heating_network_dist above.
-    ks_heating_network_serv = (a_serv + beta_serv + b)**-1
-    ka_heating_network_serv = (a_serv + beta_serv - b)**-1
+        ks_heating_network_serv = (a_serv + beta_serv + b)**-1
+        ka_heating_network_serv = (a_serv + beta_serv - b)**-1
 
-    qs_heating_network_serv = (Ts_heating_network- data.heat_grid_data["T_soil"]) * 2 * np.pi * k_soil * ks_heating_network_serv  # W/m
-    qa_heating_network_serv = (Ta_heating_network) * 2 * np.pi * k_soil * ka_heating_network_serv          # W/m
+        qs_heating_network_serv = (Ts_heating_network- data.heat_grid_data["T_soil"]) * 2 * np.pi * k_soil * ks_heating_network_serv  # W/m
+        qa_heating_network_serv = (Ta_heating_network) * 2 * np.pi * k_soil * ka_heating_network_serv          # W/m
 
-    losses_hotpipe_heating_network_serv = (qs_heating_network_serv + qa_heating_network_serv) * data.heat_grid_data["length_serv"]
-    losses_coldpipe_heating_network_serv = (qs_heating_network_serv - qa_heating_network_serv) * data.heat_grid_data["length_serv"]
-    losses_heating_network_serv = (losses_hotpipe_heating_network_serv + losses_coldpipe_heating_network_serv) / 1000  # kW
+        losses_hotpipe_heating_network_serv = (qs_heating_network_serv + qa_heating_network_serv) * data.heat_grid_data["length_heating_serv"]
+        losses_coldpipe_heating_network_serv = (qs_heating_network_serv - qa_heating_network_serv) * data.heat_grid_data["length_heating_serv"]
+        losses_heating_network_serv = (losses_hotpipe_heating_network_serv + losses_coldpipe_heating_network_serv) / 1000  # kW
 
-    # Losses in the substations
-    losses_substations_heating = data.heat_grid_data["h_loss_subst"]/100 * data.heat_grid_data["net_heating_demand"]
+        # Losses in the substations
+        losses_substations_heating = data.heat_grid_data["h_loss_subst"]/100 * data.heat_grid_data["net_heating_demand"]
 
-    # total losses in the heating network
-    data.heat_grid_data["total_losses_heating_network"] = losses_heating_network_dist + losses_heating_network_serv + losses_substations_heating # kW
+        # total losses in the heating network
+        data.heat_grid_data["total_losses_heating_network"] = losses_heating_network_dist + losses_heating_network_serv + losses_substations_heating # kW
+
+    else:
+        data.heat_grid_data["total_losses_heating_network"] = np.zeros(len(data.heat_grid_data["T_soil"]))
 
     #%% Losses in the cooling network
 
@@ -322,8 +276,8 @@ def calculate_thermal_losses(data):
         qs_cooling_network_dist = (Ts_cooling_network- data.heat_grid_data["T_soil"]) * 2 * np.pi * k_soil * ks_cooling_network_dist  # W/m
         qa_cooling_network_dist = (Ta_cooling_network) * 2 * np.pi * k_soil * ka_cooling_network_dist          # W/m
 
-        losses_hotpipe_cooling_network_dist = (qs_cooling_network_dist + qa_cooling_network_dist) * data.heat_grid_data["length_dist"]
-        losses_coldpipe_cooling_network_dist = (qs_cooling_network_dist - qa_cooling_network_dist) * data.heat_grid_data["length_dist"]
+        losses_hotpipe_cooling_network_dist = (qs_cooling_network_dist + qa_cooling_network_dist) * data.heat_grid_data["length_cooling_dist"]
+        losses_coldpipe_cooling_network_dist = (qs_cooling_network_dist - qa_cooling_network_dist) * data.heat_grid_data["length_cooling_dist"]
         losses_cooling_network_dist = (losses_hotpipe_cooling_network_dist + losses_coldpipe_cooling_network_dist) / 1000  # kW
 
         # Losses in the service pipes
@@ -337,8 +291,8 @@ def calculate_thermal_losses(data):
         qs_cooling_network_serv = (Ts_cooling_network - data.heat_grid_data["T_soil"]) * 2 * np.pi * k_soil * ks_cooling_network_serv  # W/m
         qa_cooling_network_serv = (Ta_cooling_network) * 2 * np.pi * k_soil * ka_cooling_network_serv  # W/m
 
-        losses_hotpipe_cooling_network_serv = (qs_cooling_network_serv + qa_cooling_network_serv) * data.heat_grid_data["length_serv"]
-        losses_coldpipe_cooling_network_serv = (qs_cooling_network_serv - qa_cooling_network_serv) * data.heat_grid_data["length_serv"]
+        losses_hotpipe_cooling_network_serv = (qs_cooling_network_serv + qa_cooling_network_serv) * data.heat_grid_data["length_cooling_serv"]
+        losses_coldpipe_cooling_network_serv = (qs_cooling_network_serv - qa_cooling_network_serv) * data.heat_grid_data["length_cooling_serv"]
         losses_cooling_network_serv = (losses_hotpipe_cooling_network_serv + losses_coldpipe_cooling_network_serv) / 1000  # kW
 
         # Losses in the substations
