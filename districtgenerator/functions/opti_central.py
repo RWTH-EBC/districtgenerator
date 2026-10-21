@@ -971,9 +971,11 @@ def build_model(model, data, year, cluster, sim_ecoData):
         # heating curve for this building
         hc = buildingData[n]["envelope"].heating_curve["clustered"]
 
-        Tsink_curve = float(hc["Ts_curve"][t])
+        # The flattened curves contain one full period per cluster.
+        curve_index = cluster * len(time_steps) + t
+        Tsink_curve = float(hc["Ts_curve"][curve_index])
 
-        Tsink_curve_reduced = float(hc["Ts_curve_reduced"][t])
+        Tsink_curve_reduced = float(hc["Ts_curve_reduced"][curve_index])
 
         # apply low-temp measures?
         measures_on = bool(param_dec_devs.get("HP", {}).get("enable_low_temp_measures")) and hc.get("low_temp_measures_binding")
