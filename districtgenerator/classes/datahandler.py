@@ -10,7 +10,8 @@ import random
 import time
 import math
 import warnings
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
+from multiprocessing import get_context
 import numpy as np
 import openpyxl
 import pandas as pd
@@ -1219,8 +1220,40 @@ class Datahandler:
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
-    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8, gen_cars=True):
-        use_parallel = True #todo: False while debugging
+    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8, gen_cars=None,
+                        parallelization="multiprocessing", task_level=None):
+        """Generate or load demands, choosing car modelling from the district by default.
+
+        With gen_cars=None, include cars for every building if any building has
+        an EV share above zero. Otherwise skip all vehicle profiles. Pass True
+        to include conventional cars even without EVs, or False to skip cars.
+        The same choice applies when loading saved profiles.
+
+        parallelization defaults to "multiprocessing"; "threading" remains
+        available explicitly. max_threads limits workers for either backend and
+        defaults to eight, capped by CPU count and the number of process tasks.
+        Process-based runs must start from an if __name__ == "__main__" guard.
+        task_level=None selects flat tasks for new process-based generation,
+        or building tasks for loading saved profiles or explicit threading.
+        task_level="flat" uses one shared process pool for residential flats,
+        then calculates heating/cooling and saves once per building. Flat mode
+        uses separate per-flat random streams; its numerical realization differs
+        from the legacy building-level stream, but is independent of worker
+        count when the initialized inputs and starting seed are held fixed.
+        """
+        started = time.perf_counter()
+        if gen_cars is None:
+            gen_cars = any(building["buildingFeatures"]["EV"] > 0 for building in self.district)
+        if parallelization not in {"threading", "multiprocessing"}:
+            raise ValueError("parallelization must be 'threading' or 'multiprocessing'")
+        if task_level is None:
+            task_level = "flat" if parallelization == "multiprocessing" and calcUserProfiles else "building"
+        if task_level not in {"building", "flat"}:
+            raise ValueError("task_level must be 'building' or 'flat'")
+        if task_level == "flat" and (parallelization != "multiprocessing" or not calcUserProfiles):
+            raise ValueError("Flat tasks require multiprocessing and calcUserProfiles=True")
+        if max_threads < 1:
+            raise ValueError("max_threads must be at least 1")
 
         # Thread count is limited by the maximum available CPU cores. Using more threads than cores usually provides no additional benefit but requires more temporary storage.
         max_threads = min(max_threads, os.cpu_count() or 1)
@@ -1239,29 +1272,48 @@ class Datahandler:
 
         self.save_progress()
 
-        if use_parallel:
-            with ThreadPoolExecutor(max_workers=max_threads) as executor:
-                futures = [executor.submit(generate_demands_worker_wrapper, args) for args in args_list]
-                for future in as_completed(futures):
-                    result = future.result()
-                    self.buildings_completed += 1
-                    results.append(result)
-                    self.save_progress()
-                    print(
-                        f"building {self.buildings_completed}/{self.buildings_total} calculated "
-                        f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): "
-                        f"{result.get('unique_name', '')}"
-                    )
+        if parallelization == "multiprocessing":
+            # Send common inputs once per process, not the entire Datahandler
+            # (including every other building) with every task.
+            context = {name: getattr(self, name) for name in (
+                "site", "calendar", "time", "decentral_device_data", "resultPath",
+                "initial_day", "design_building_data",
+            )}
+            task_count = sum(b["user"].nb_flats if b["user"].is_residential else 1
+                             for b in self.district) if task_level == "flat" else len(self.district)
+            max_threads = min(max_threads, 61, max(1, task_count))
+            seeds = np.random.SeedSequence(
+                int(np.random.randint(0, 2**32, dtype=np.uint32))
+            ).generate_state(len(self.district))
+            executor = ProcessPoolExecutor(
+                max_workers=max_threads, mp_context=get_context("spawn"),
+                initializer=_initialize_demand_process, initargs=(context,),
+            )
         else:
-            for args in args_list:
-                result = generate_demands_worker_wrapper(args)
+            executor = ThreadPoolExecutor(max_workers=max_threads)
+
+        with executor:
+            if task_level == "flat":
+                completed_results = _generate_flat_district(
+                    self, executor, seeds, saveUserProfiles, gen_cars,
+                )
+            elif parallelization == "multiprocessing":
+                futures = [executor.submit(_generate_demands_process,
+                           (building, calcUserProfiles, saveUserProfiles, gen_cars, int(seed)))
+                           for building, seed in zip(self.district, seeds)]
+                completed_results = (future.result() for future in as_completed(futures))
+            else:
+                futures = [executor.submit(generate_demands_worker_wrapper, args) for args in args_list]
+                completed_results = (future.result() for future in as_completed(futures))
+            for result in completed_results:
                 self.buildings_completed += 1
                 results.append(result)
-
                 self.save_progress()
-
-                print(f"building {self.buildings_completed}/{self.buildings_total} calculated " +
-                      f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): {result.get('unique_name', '')}")
+                print(
+                    f"building {self.buildings_completed}/{self.buildings_total} calculated "
+                    f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): "
+                    f"{result.get('unique_name', '')}"
+                )
 
         for result in results:
             building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
@@ -1279,6 +1331,10 @@ class Datahandler:
             building["user"].nb_units = result["nb_units"]
             building["user"].nb_occ = result["nb_occ"]
             building["user"].individual_car_profiles = result.get("individual_car_profiles", [])
+            if parallelization == "multiprocessing":
+                # Preserve all worker-side fields, including indoor temperatures
+                # and annual demand totals, not just the exported profile arrays.
+                building["user"] = result["user"]
             building["envelope"] = result["envelope"]
             building_features = building["buildingFeatures"].copy()
             building_features["night_setback"] = result["night_setback"]
@@ -1286,12 +1342,23 @@ class Datahandler:
 
         self.save_progress()
 
-        print("Finished generating demands with threading!")
+        print(f"Finished generating demands with {parallelization}!")
 
         # Combine demand profiles for mixed-use buildings
         self.combine_mixed_building_demands(saveUserProfiles)
 
-    def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles, gen_cars = True):
+        self.demand_timings = {result["unique_name"]: result["timings"] for result in results}
+        self.demand_generation_seconds = time.perf_counter() - started
+        print(f"Demand generation wall time: {self.demand_generation_seconds:.2f} s")
+        print("Per-building elapsed times (overlap across workers; not CPU times):")
+        if task_level == "flat":
+            print("  Flat profile stages are summed task times; total is the building finishing task only.")
+        for name, timings in sorted(self.demand_timings.items(), key=lambda item: item[1]["total"], reverse=True):
+            detail = ", ".join(f"{stage}={seconds:.2f}s" for stage, seconds in timings.items())
+            print(f"  {name}: {detail}")
+
+    def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles, gen_cars=True,
+                                user_profiles_ready=False):
         """
         :param building:
         :param calcUserProfiles: bool
@@ -1303,21 +1370,80 @@ class Datahandler:
             The default is True.
         """
         print(f'starting {building["unique_name"]}')
+        started = time.perf_counter()
+        timings = {}
+        stage_started = started
         warnings.filterwarnings("ignore", category=FutureWarning)
 
         # calculate or load user profiles
         if calcUserProfiles:
-            building["user"].calcProfiles(site=self.site,
-                                          holidays=self.calendar["holidays"],
-                                          time_resolution=self.time["timeResolution"],
-                                          time_horizon=self.time["dataLength"],
-                                          building_devices_data=self.decentral_device_data,
-                                          building=building,
-                                          path=os.path.join(self.resultPath, 'demands'),
-                                          initial_day=self.initial_day,
-                                          gen_cars=gen_cars)
+            if not user_profiles_ready:
+                building["user"].calcProfiles(
+                    site=self.site,
+                    holidays=self.calendar["holidays"],
+                    time_resolution=self.time["timeResolution"],
+                    time_horizon=self.time["dataLength"],
+                    building_devices_data=self.decentral_device_data,
+                    building=building,
+                    path=os.path.join(self.resultPath, 'demands'),
+                    initial_day=self.initial_day,
+                    gen_cars=gen_cars,
+                )
+
+            timings.update(building["user"].profile_timings)
+            timings["user_profiles"] = (
+                building["user"].profile_generation_seconds if user_profiles_ready
+                else time.perf_counter() - stage_started
+            )
+
+        else:
+            (building["user"].elec, building["user"].dhw, building["user"].dhw_minutely,
+             building["user"].occ, building["user"].gains,
+             building["user"].EV_carcharging_ondemand,
+             building["user"].EV_carprofile,
+             building["user"].ice_carprofile,
+             building["user"].nb_units,
+             building["user"].nb_main_rooms,
+             building["user"].nb_occ, building["user"].ev_capacity, building["envelope"].heatload,
+             building["envelope"].bivalent,
+             building["envelope"].heatlimit, building["envelope"].coolingload, building["envelope"].A,
+             building["user"].individual_car_profiles) = self.loadProfiles(building["unique_name"],
+                                                                 os.path.join(self.resultPath, 'demands'), gen_cars= gen_cars)
+            print("Load demands of building " + building["unique_name"])
+            timings["load_user_profiles"] = time.perf_counter() - stage_started
+
+        stage_started = time.perf_counter()
+        if building.get("thermal_model") == "5R1C":
+            building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
+        elif building.get("thermal_model") == "7R2C":
+            # Compute VDI6007 params
+            building["envelope"]._VDI6007_params(self.site["SunRad"])
+            # Compute equivalent temperature
+            building["envelope"].calc_theta_eq(self.site, building["user"].gains)
+        else:
+            raise ValueError(f"Unknown thermal_model_type: {self.design_building_data['thermal_model_type']}")
+        timings["thermal_setup"] = time.perf_counter() - stage_started
+
+        night_setback = building["buildingFeatures"]["night_setback"]
+
+        is_cooled = building["buildingFeatures"]["cooling"] # Indicates whether the building is actively cooled
+
+        # calculate or load heating profiles
+        stage_started = time.perf_counter()
+        if calcUserProfiles:
+            building["user"].calcHeatingProfile(site=self.site,
+                                                envelope=building["envelope"],
+                                                thermal_model=building["thermal_model"],
+                                                night_setback=night_setback,
+                                                is_cooled=is_cooled,
+                                                calendar=self.calendar,
+                                                time_resolution=self.time["timeResolution"],
+                                                initial_day=self.initial_day)
+            timings["heating_cooling"] = time.perf_counter() - stage_started
 
             if saveUserProfiles:
+                # Save the complete workbook once, after all profiles are ready.
+                stage_started = time.perf_counter()
                 self.saveProfiles(name=building["unique_name"],
                                   elec=building["user"].elec,
                                   dhw=building["user"].dhw,
@@ -1336,60 +1462,22 @@ class Datahandler:
                                   coolingload=building["envelope"].coolingload,
                                   envelope_areas=building["envelope"].A,
                                   path=os.path.join(self.resultPath, 'demands'),
-                                  individual_car_profiles=building["user"].individual_car_profiles)
-
-        else:
-            (building["user"].elec, building["user"].dhw, building["user"].dhw_minutely,
-             building["user"].occ, building["user"].gains,
-             building["user"].EV_carcharging_ondemand,
-             building["user"].EV_carprofile,
-             building["user"].ice_carprofile,
-             building["user"].nb_units,
-             building["user"].nb_main_rooms,
-             building["user"].nb_occ, building["user"].ev_capacity, building["envelope"].heatload,
-             building["envelope"].bivalent,
-             building["envelope"].heatlimit, building["envelope"].coolingload, building["envelope"].A,
-             building["user"].individual_car_profiles) = self.loadProfiles(building["unique_name"],
-                                                                 os.path.join(self.resultPath, 'demands'), gen_cars= gen_cars)
-            print("Load demands of building " + building["unique_name"])
-
-        if building.get("thermal_model") == "5R1C":
-            building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
-        elif building.get("thermal_model") == "7R2C":
-            # Compute VDI6007 params
-            building["envelope"]._VDI6007_params(self.site["SunRad"])
-            # Compute equivalent temperature
-            building["envelope"].calc_theta_eq(self.site, building["user"].gains)
-        else:
-            raise ValueError(f"Unknown thermal_model_type: {self.design_building_data['thermal_model_type']}")
-
-        night_setback = building["buildingFeatures"]["night_setback"]
-
-        is_cooled = building["buildingFeatures"]["cooling"] # Indicates whether the building is actively cooled
-
-        # calculate or load heating profiles
-        if calcUserProfiles:
-            building["user"].calcHeatingProfile(site=self.site,
-                                                envelope=building["envelope"],
-                                                thermal_model=building["thermal_model"],
-                                                night_setback=night_setback,
-                                                is_cooled=is_cooled,
-                                                calendar=self.calendar,
-                                                time_resolution=self.time["timeResolution"],
-                                                initial_day=self.initial_day)
-
-            if saveUserProfiles:
-                self.saveHeatingProfile(heat=building["user"].heat,
-                                        cooling=building["user"].cooling,
-                                        name=building["unique_name"],
-                                        path=os.path.join(self.resultPath, 'demands'))
+                                  individual_car_profiles=building["user"].individual_car_profiles,
+                                  heat=building["user"].heat,
+                                  cooling=building["user"].cooling)
+                timings["save_profiles"] = time.perf_counter() - stage_started
         else:
             heat, cooling = self.loadHeatingProfiles(name=building["unique_name"],
                                                      path=os.path.join(self.resultPath, 'demands'))
             building["user"].heat = heat
             building["user"].cooling = cooling
+            timings["load_heating_cooling"] = time.perf_counter() - stage_started
 
-    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, topology_option="road", gen_cars=True):
+        timings["total"] = time.perf_counter() - started
+        return timings
+
+    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, topology_option="road", gen_cars=None,
+                                parallelization="multiprocessing", task_level=None):
         """
         All in one solution for district and demand generation.
         Within a clustered time series, data points are aggregated across different time periods
@@ -1398,6 +1486,9 @@ class Datahandler:
         Parameters
         ----------
 
+        gen_cars: bool or None, optional
+            None: include cars district-wide if any building has a positive EV
+            share. True: always include cars. False: omit all vehicle profiles.
         calcUserProfiles: bool, optional
             True: calculate new user profiles.
             False: load user profiles from file.
@@ -1424,7 +1515,8 @@ class Datahandler:
         self.generateEnvironment()
         self.initializeBuildings()
         self.generateBuildings()
-        self.generateDemands(calcUserProfiles, saveUserProfiles, gen_cars=gen_cars)
+        self.generateDemands(calcUserProfiles, saveUserProfiles, gen_cars=gen_cars,
+                             parallelization=parallelization, task_level=task_level)
         self.designDecentralDevices(saveGenerationProfiles=True)
 
         # Check if district uses central energy supply (heat grid)
@@ -1476,9 +1568,13 @@ class Datahandler:
     def saveProfiles(self, name, elec, dhw, dhw_minutely, occ, gains, EV_carcharging_ondemand,
                      EV_carprofile, ev_capacity, ice_carprofile, nb_units,
                      nb_occ, heatload, bivalent, heatlimit, coolingload,
-                     envelope_areas, path, individual_car_profiles=None):
+                     envelope_areas, path, individual_car_profiles=None, heat=None, cooling=None):
         """
-        Save profiles to csv.
+        Save profiles to Excel, optionally including heating and cooling.
+
+        Supplying heat and cooling writes the complete workbook in one pass.
+        Existing callers can still save user profiles alone and append thermal
+        profiles later with saveHeatingProfile().
 
         Parameters
         ----------
@@ -1569,6 +1665,12 @@ class Datahandler:
                  "Design Heat Load (W)", "Bivalent Heat Load (W)",
                  "Heat Limit Heat Load (W)", "Design Cooling Load (W)", "Envelope Areas"])
         }
+
+        # Keep the same sheet order and headers as saveHeatingProfile().
+        if cooling is not None:
+            data_dict['cooling'] = (pd.DataFrame(cooling), ['Cooling in W'])
+        if heat is not None:
+            data_dict['heating'] = (pd.DataFrame(heat), ['Heating in W'])
 
         excel_file = os.path.join(path, name + '.xlsx')
         with pd.ExcelWriter(excel_file, engine='openpyxl') as writer:
@@ -2843,16 +2945,171 @@ class Datahandler:
             print("WARNUNG: keine gültige Wärmenetzgeneration angegeben!")
 
 
-def generate_demands_worker_wrapper(args):
+PROFILE_ARRAYS = (
+    "occ", "dhw", "dhw_minutely", "elec", "gains", "EV_carprofile",
+    "EV_carcharging_ondemand", "ice_carprofile",
+)
+
+
+def generate_flat_profile(user, context, features, inputs, seed, gen_cars):
+    """Run the existing user model for one flat, with its own random stream."""
+    random.seed(seed)
+    np.random.seed(seed)
+    started = time.perf_counter()
+    # Geometry, household size and appliance demand were already initialized in
+    # the parent. Do not draw a new household or a new flat count in the worker.
+    user.building = features["building"]
+    user.is_residential = True
+    user.nb_flats = 1
+    user.nb_occ = [inputs["occupants"]]
+    user.lighting_index = [inputs["lighting_index"]]
+    user.annual_el_demand_per_flat = np.asarray([inputs["annual_el_demand"]])
+    user.el_wrapper = []
+    user.calcProfiles(
+        site=context.site,
+        holidays=context.calendar["holidays"],
+        time_resolution=context.time["timeResolution"],
+        time_horizon=context.time["dataLength"],
+        building={"buildingFeatures": features},
+        building_devices_data=context.decentral_device_data,
+        path=os.path.join(context.resultPath, "demands"),
+        initial_day=context.initial_day,
+        gen_cars=gen_cars,
+        occupants_building=inputs["occupants_building"],
+    )
+    user.profile_generation_seconds = time.perf_counter() - started
+    return user
+
+
+def combine_flat_profiles(user, results, time_horizon, time_resolution):
+    """Sum flat results in index order, independent of completion order."""
+    if set(results) != set(range(user.nb_flats)):
+        raise ValueError("Missing or unexpected flat results")
+    for name in PROFILE_ARRAYS:
+        resolution = 60 if name == "dhw_minutely" else time_resolution
+        setattr(user, name, np.zeros(int(time_horizon / resolution)))
+    user.ev_capacity = [0.0]
+    user.individual_car_profiles = []
+    user.el_wrapper = []
+    user.profile_timings = {}
+    user.profile_generation_seconds = 0.0
+    for index in range(user.nb_flats):
+        flat = results[index]
+        for name in PROFILE_ARRAYS:
+            values = np.asarray(getattr(flat, name))
+            total = getattr(user, name)
+            if values.shape != total.shape or not np.isfinite(values).all():
+                raise ValueError(f"Invalid flat {index} profile: {name}")
+            total += values
+        # Each one-flat calculation starts with the same leading zero entry.
+        user.ev_capacity.extend(flat.ev_capacity[1:])
+        for car in flat.individual_car_profiles:
+            car = dict(car)
+            car["car_id"] = f"Car_{len(user.individual_car_profiles)}"
+            user.individual_car_profiles.append(car)
+        user.el_wrapper.extend(flat.el_wrapper)
+        for stage, seconds in flat.profile_timings.items():
+            user.profile_timings[stage] = user.profile_timings.get(stage, 0.0) + seconds
+        user.profile_generation_seconds += flat.profile_generation_seconds
+
+
+def _initialize_demand_process(context):
+    """Set up only the inputs needed by a demand worker in this process."""
+    global _demand_process_context
+    _demand_process_context = Datahandler.__new__(Datahandler)
+    _demand_process_context.__dict__.update(context)
+
+
+def _generate_demands_process(args):
+    """Generate one building with a seed independent of process scheduling."""
+    building, calc_profiles, save_profiles, gen_cars, seed = args
+    random.seed(seed)
+    np.random.seed(seed)
+    result = generate_demands_worker_wrapper(
+        (_demand_process_context, building, calc_profiles, save_profiles, gen_cars)
+    )
+    result["user"] = building["user"]
+    return result
+
+
+def _generate_flat_process(args):
+    features, inputs, seed, gen_cars = args
+    return generate_flat_profile(Users.__new__(Users), _demand_process_context,
+                                 features, inputs, seed, gen_cars)
+
+
+def _finish_flat_building_process(args):
+    building, save_profiles, gen_cars, seed = args
+    random.seed(seed)
+    np.random.seed(seed)
+    result = generate_demands_worker_wrapper(
+        (_demand_process_context, building, True, save_profiles, gen_cars),
+        user_profiles_ready=True,
+    )
+    result["user"] = building["user"]
+    return result
+
+
+def _generate_flat_district(data, executor, seeds, save_profiles, gen_cars):
+    """Use the same pool for all flats and subsequent building finishing tasks."""
+    tasks = {}
+    flat_results = {}
+    for building_index, (building, seed) in enumerate(zip(data.district, seeds)):
+        user = building["user"]
+        if not user.is_residential:
+            future = executor.submit(_generate_demands_process,
+                                     (building, True, save_profiles, gen_cars, int(seed)))
+            tasks[future] = (building_index, None)
+            continue
+        flat_results[building_index] = {}
+        for flat_index in range(user.nb_flats):
+            flat_seed = int(np.random.SeedSequence([int(seed), flat_index]).generate_state(1)[0])
+            inputs = {
+                "occupants": int(user.nb_occ[flat_index]),
+                "occupants_building": int(sum(user.nb_occ)),
+                "lighting_index": user.lighting_index[flat_index],
+                "annual_el_demand": float(user.annual_el_demand_per_flat[flat_index]),
+            }
+            future = executor.submit(_generate_flat_process,
+                                     (building["buildingFeatures"], inputs, flat_seed, gen_cars))
+            tasks[future] = (building_index, flat_index)
+    completed_flats = 0
+    flat_count = sum(data.district[index]["user"].nb_flats for index in flat_results)
+    for future in as_completed(tasks):
+        building_index, flat_index = tasks[future]
+        result = future.result()
+        if flat_index is None:
+            yield result
+        else:
+            flat_results[building_index][flat_index] = result
+            completed_flats += 1
+            print(f"Flat profiles completed: {completed_flats}/{flat_count}", flush=True)
+    # Finish buildings only after all their flat arrays have been combined in
+    # fixed order. No worker creates its own nested pool.
+    finishing = []
+    for index, results in flat_results.items():
+        building = data.district[index]
+        combine_flat_profiles(building["user"], results,
+                              data.time["dataLength"], data.time["timeResolution"])
+        results.clear()
+        finishing.append(executor.submit(_finish_flat_building_process,
+                         (building, save_profiles, gen_cars, int(seeds[index]))))
+    for future in as_completed(finishing):
+        yield future.result()
+
+
+def generate_demands_worker_wrapper(args, user_profiles_ready=False):
     """
     Wrapper outside the class for parallel demand generation.
     Args contains (self_ref, building, calcUserProfiles, saveUserProfiles, gen_cars).
     """
     self_ref, building, calcUserProfiles, saveUserProfiles, gen_cars = args
-    self_ref.generate_demands_worker(building, calcUserProfiles, saveUserProfiles, gen_cars=gen_cars)
+    timings = self_ref.generate_demands_worker(building, calcUserProfiles, saveUserProfiles, gen_cars=gen_cars,
+                                              user_profiles_ready=user_profiles_ready)
 
     result = {
         "unique_name": building["unique_name"],
+        "timings": timings,
         "elec": building["user"].elec,
         'dhw': building["user"].dhw,
         "dhw_minutely": building["user"].dhw_minutely,

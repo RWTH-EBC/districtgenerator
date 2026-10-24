@@ -1,22 +1,109 @@
 # -*- coding: utf-8 -*-
+import ast
+import hashlib
+from importlib.metadata import PackageNotFoundError, version
+import inspect
 import json
 import statistics
+import time
 import os, math
 import random as rd
+from types import FunctionType, SimpleNamespace
+import warnings
 import numpy as np
 import pandas as pd
 import openpyxl
 from .profiles import Profiles
 from . import power_simulation_non_residential as wrap_light
 import richardsonpy
-import richardsonpy.classes.stochastic_el_load_wrapper as wrap
 import richardsonpy.classes.appliance as app_model
 import richardsonpy.classes.lighting as light_model
+from richardsonpy.classes.stochastic_el_load_wrapper import ElectricityProfile as _UpstreamElectricityProfile
 import districtgenerator.functions._5R1C as heating_5R1C
 import districtgenerator.functions._7R2C as heating_7R2C
 from districtgenerator.classes.non_residential import GenericNonResidential
 
 RES_BUILDINGS = {"SFH", "TH", "MFH", "AB"}
+
+
+_RICHARDSON_ENV_SWITCH = "DISTRICTGENERATOR_RICHARDSON_INDEX"
+_RICHARDSON_REVIEWED_VERSION = "0.2.1"
+_RICHARDSON_APPLIANCE_SHA256 = "64774f715919a2afe2c0d63c118796ab8acddbe4f1a33317de029ed4015a2b07"
+_RICHARDSON_WRAPPER_SHA256 = "48cd572a0e93ebac1e91d9eaa641491a5df960721792bd18acc5cb89e75a57ee"
+
+
+def _build_richardson_adapter(upstream_version, appliance_function, power_sim):
+    """Adapt only the reviewed Richardson source, leaving installed code intact."""
+    if upstream_version != _RICHARDSON_REVIEWED_VERSION:
+        raise ValueError(f"unreviewed Richardson version {upstream_version}")
+    source = inspect.getsource(appliance_function)
+    wrapper_source = inspect.getsource(power_sim)
+    if hashlib.sha256(source.encode("utf-8")).hexdigest() != _RICHARDSON_APPLIANCE_SHA256:
+        raise ValueError("Richardson appliance source changed")
+    if hashlib.sha256(wrapper_source.encode("utf-8")).hexdigest() != _RICHARDSON_WRAPPER_SHA256:
+        raise ValueError("Richardson power_sim source changed")
+    tree = ast.parse(source)
+    expected = ast.parse("iTenMinuteCount = int(math.floor(j / 10.0))").body[0]
+    count = 0
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and ast.dump(node) == ast.dump(expected):
+            node.value = ast.parse("j // 10", mode="eval").body
+            count += 1
+    if count != 1:
+        raise ValueError(f"expected one reviewed minute index, found {count}")
+    namespace = appliance_function.__globals__.copy()
+    exec(compile(ast.fix_missing_locations(tree), inspect.getfile(appliance_function) + " [districtgenerator minute index]", "exec"), namespace)
+    candidate = namespace[appliance_function.__name__]
+    # Clone the call site with private globals; never monkeypatch Richardson.
+    appliance_proxy = SimpleNamespace(**vars(app_model))
+    appliance_proxy.run_application_simulation = candidate
+    wrapper_globals = power_sim.__globals__.copy()
+    wrapper_globals["appliance_model"] = appliance_proxy
+    adapted = FunctionType(power_sim.__code__, wrapper_globals, power_sim.__name__,
+                           power_sim.__defaults__, power_sim.__closure__)
+    adapted.__kwdefaults__ = power_sim.__kwdefaults__
+    return adapted
+
+
+def _configure_richardson_adapter(requested):
+    try:
+        installed = version("richardsonpy")
+    except PackageNotFoundError:
+        installed = "unknown"
+    status = {"requested": requested, "enabled": False, "richardsonpy_version": installed}
+    if not requested:
+        status["reason"] = "disabled"
+        return None, status
+    try:
+        adapted = _build_richardson_adapter(installed, app_model.run_application_simulation,
+                                            _UpstreamElectricityProfile.power_sim)
+    except (ValueError, OSError, TypeError, SyntaxError, KeyError) as error:
+        status["reason"] = str(error)
+        warnings.warn(f"Richardson minute-index optimization unavailable ({error}); "
+                      "using the original Richardson implementation.", RuntimeWarning, stacklevel=2)
+        return None, status
+    status.update(enabled=True, reason="reviewed source matches")
+    return adapted, status
+
+
+# Keep the class at module scope so Windows spawn workers can pickle it.
+_RICHARDSON_POWER_SIM, _RICHARDSON_STATUS = _configure_richardson_adapter(
+    os.environ.get(_RICHARDSON_ENV_SWITCH, "1") == "1")
+
+
+def richardson_optimization_status():
+    """Return the actual mode selected on import, also in spawned workers."""
+    return _RICHARDSON_STATUS.copy()
+
+
+class _RichardsonElectricityProfile(_UpstreamElectricityProfile):
+    """Upstream wrapper with an optional, source-checked index calculation."""
+
+    def power_sim(self, irradiation, weekend, day, occupancy):
+        if _RICHARDSON_POWER_SIM is None:
+            return super().power_sim(irradiation, weekend, day, occupancy)
+        return _RICHARDSON_POWER_SIM(self, irradiation, weekend, day, occupancy)
+
 
 class Users:
     """
@@ -550,7 +637,7 @@ class Users:
                                                            index=self.lighting_index[j])
 
                 #  Create wrapper object
-                self.el_wrapper.append(wrap.ElectricityProfile(appliances, lights))
+                self.el_wrapper.append(_RichardsonElectricityProfile(appliances, lights))
 
         else:
 
@@ -560,7 +647,8 @@ class Users:
             #  Create wrapper object only for lighting
             self.el_wrapper.append(wrap_light.ElectricityProfile(lights, self.building))
 
-    def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, building_devices_data, path, initial_day, gen_cars=True):
+    def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, building_devices_data, path, initial_day,
+                     gen_cars=True, occupants_building=None):
         """
         Calculate profiles for every flat and summarize them for the whole building
 
@@ -577,14 +665,27 @@ class Users:
             0-6 for Monday-Sunday.
         gen_cars : bool, optional if turned to false no car profiles are generated to improve perfomance if cars are not needed. The default is True.
             Be aware that setting it to false causes the simulation to not possess cars even if the scenario says so.
+        occupants_building : int, optional
+            Total occupants in the original building when this call handles
+            only one flat. Normally inferred from this user's households.
 
         Returns
         -------
         None.
         """
 
+        self.profile_timings = {}
+        if occupants_building is None:
+            occupants_building = sum(self.nb_occ)
+
+        def timed_call(stage, function, *args, **kwargs):
+            started = time.perf_counter()
+            result = function(*args, **kwargs)
+            self.profile_timings[stage] = self.profile_timings.get(stage, 0.0) + time.perf_counter() - started
+            return result
+
         if hasattr(self, 'create_el_wrapper'):
-            self.create_el_wrapper()
+            timed_call("electricity_setup", self.create_el_wrapper)
 
         irradiation = site["SunTotal"]
         T_e = site["T_e"]
@@ -608,30 +709,30 @@ class Users:
 
             current_index = 0  # To keep track of the starting index for car profiles Id in each flat
             for j in range(self.nb_flats):
-                temp_obj = Profiles(number_occupants=self.nb_occ[j], number_occupants_building=sum(self.nb_occ),
+                temp_obj = timed_call("occupancy", Profiles, number_occupants=self.nb_occ[j], number_occupants_building=occupants_building,
                                     initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,
                                     building=self.building)
 
                 # DHW, electricity and internal gains use the same flat occupancy.
-                occ_profile_residential = temp_obj.generate_occupancy_profiles_residential()
-                dhw_dict = temp_obj.generate_dhw_profile(building=building, holidays=holidays)
+                occ_profile_residential = timed_call("occupancy", temp_obj.generate_occupancy_profiles_residential)
+                dhw_dict = timed_call("dhw", temp_obj.generate_dhw_profile, building=building, holidays=holidays)
 
                 self.dhw += dhw_dict["dhw_power_timeseries_W"]
                 self.dhw_minutely += dhw_dict["dhw_power_timeseries_W_minutely"]
 
                 # Occupancy profile in a flat
                 self.occ = self.occ + occ_profile_residential
-                self.elec = self.elec + temp_obj.generate_el_profile_residential(holidays=holidays,
+                self.elec = self.elec + timed_call("electricity", temp_obj.generate_el_profile_residential, holidays=holidays,
                                                                                  irradiance=irradiation,
                                                                                  el_wrapper=self.el_wrapper[j],
                                                                                  annual_demand=self.annual_el_demand_per_flat[j])
 
-                self.gains = self.gains + temp_obj.generate_gain_profile_residential()
+                self.gains = self.gains + timed_call("gains", temp_obj.generate_gain_profile_residential)
 
                 # Calculate car profiles for residential buildings if gen_cars is True.
                 if gen_cars:
                     (EV_carprofile, EV_on_demand_charging, ev_capacity,
-                     ice_carprofile, individual_car_profiles) = temp_obj.generate_car_profile(
+                     ice_carprofile, individual_car_profiles) = timed_call("cars", temp_obj.generate_car_profile,
                          building=building,
                          building_devices_data=building_devices_data,
                          holidays=holidays,
@@ -664,15 +765,15 @@ class Users:
             holidays.update(school_holiday_days)
             holidays = sorted(list(holidays))  # keep format consistent
 
-            temp_obj = Profiles(number_occupants=round(statistics.mean(self.nb_occ)), number_occupants_building=sum(self.nb_occ),initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,building=self.building,SIA2024=self.SIA2024)
+            temp_obj = timed_call("occupancy", Profiles, number_occupants=round(statistics.mean(self.nb_occ)), number_occupants_building=occupants_building,initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,building=self.building,SIA2024=self.SIA2024)
             # Occupancy profile in the building
-            _,self.occ,_ = temp_obj.generate_profiles_non_residential(holidays = holidays)
-            self.elec = temp_obj.generate_el_profile_non_residential(irradiance=irradiation,el_wrapper=self.el_wrapper[0],annual_demand_app=self.annual_el_demand_zones)
+            _,self.occ,_ = timed_call("occupancy", temp_obj.generate_profiles_non_residential, holidays=holidays)
+            self.elec = timed_call("electricity", temp_obj.generate_el_profile_non_residential, irradiance=irradiation,el_wrapper=self.el_wrapper[0],annual_demand_app=self.annual_el_demand_zones)
 
-            gains_persons, gains_others = temp_obj.generate_gain_profile_non_residential()
+            gains_persons, gains_others = timed_call("gains", temp_obj.generate_gain_profile_non_residential)
             self.gains = gains_persons + gains_others
 
-            dhw_dict = temp_obj.generate_dhw_profile(building=building, holidays=holidays)
+            dhw_dict = timed_call("dhw", temp_obj.generate_dhw_profile, building=building, holidays=holidays)
 
             self.dhw = dhw_dict["dhw_power_timeseries_W"]
             self.dhw_minutely = dhw_dict["dhw_power_timeseries_W_minutely"]
@@ -681,7 +782,7 @@ class Users:
             if gen_cars:
                 # Car calculation for every non-residential building
                 (EV_carprofile, EV_on_demand_charging, ev_capacity,
-                ice_carprofile, individual_car_profiles) = temp_obj.generate_car_profile(
+                ice_carprofile, individual_car_profiles) = timed_call("cars", temp_obj.generate_car_profile,
                     building=building,
                     building_devices_data=building_devices_data,
                     holidays=holidays

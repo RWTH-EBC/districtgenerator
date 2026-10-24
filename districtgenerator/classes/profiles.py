@@ -123,22 +123,20 @@ class Profiles:
                                                 np.ones(60*3)),
                                                 axis=None)
 
-        # generate array for minutely profile
-        activity_profile_min = np.zeros(len(self.activity_profile) * 10)
-        # generate array for time adjusted profile
-        self.occ_profile = np.zeros(int(len(self.activity_profile) * 10 / tr_min))
+        # Each Richardson value covers ten minutes. Repeat the daily schedule
+        # without repeatedly reallocating a growing annual array.
+        activity_profile_min = np.repeat(np.asarray(self.activity_profile, dtype=float), 10)
+        sia_profile = np.tile(
+            sia_profile_daily_min,
+            math.ceil(len(activity_profile_min) / len(sia_profile_daily_min)),
+        )[:len(activity_profile_min)] * max(self.activity_profile)
+        activity_profile_min = np.maximum(activity_profile_min, sia_profile)
 
-        # append minutely sia profiles until nb_days is reached
-        sia_profile = []
-        while len(sia_profile) < len(activity_profile_min):
-            sia_profile = np.concatenate((sia_profile, sia_profile_daily_min), axis=None)
-        sia_profile = sia_profile * max(self.activity_profile)
-
-        # calculate minutely profile
-        for t in range(len(activity_profile_min)):
-            activity_profile_min[t] = max(self.activity_profile[int(t/10)], sia_profile[t])
-        for t in range(len(self.occ_profile)):
-            self.occ_profile[t] = np.round(np.mean(activity_profile_min[(t * tr_min):(t * tr_min + tr_min)]))
+        # Keep the original rounding and discard an incomplete final interval.
+        steps = len(activity_profile_min) // tr_min
+        self.occ_profile = np.round(
+            activity_profile_min[:steps * tr_min].reshape(steps, tr_min).mean(axis=1)
+        )
 
         return self.occ_profile
 

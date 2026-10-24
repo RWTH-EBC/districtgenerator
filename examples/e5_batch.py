@@ -177,7 +177,7 @@ def filter_missing_profile_buildings(data, force=False):
     return len(buildings_to_generate), skipped_count
 
 
-def generate_demands_for_scenario(scenario_name, max_threads, force=False):
+def generate_demands_for_scenario(scenario_name, max_threads=8, force=False):
     """
     Generate and save demand profiles for one scenario.
     """
@@ -273,17 +273,17 @@ def main():
     parser.add_argument(
         "--max-threads",
         type=int,
-        default=4,
-        help="Maximum building-profile threads per scenario. Default: 4.",
+        default=8,
+        help="Maximum profile processes per scenario. Default: 8 (flat-level generation).",
     )
     parser.add_argument(
         "--scenario-workers",
         type=int,
-        default=3,
+        default=1,
         help=(
-            "Number of scenarios to process in parallel. Default: 3. "
-            "For example, --scenario-workers 3 --max-threads 4 runs three "
-            "scenarios at once, each with four building-profile threads."
+            "Number of scenarios to process in parallel. Default: 1. "
+            "Each scenario has its own profile process pool, so keep this at 1 "
+            "when using eight profile workers to avoid multiplying process counts."
         ),
     )
     parser.add_argument(
@@ -305,7 +305,7 @@ def main():
     print(f"Found {len(scenarios)} scenario(s).")
     print(
         f"Run mode: {args.scenario_workers} scenario worker(s), "
-        f"{args.max_threads} building thread(s) per scenario."
+        f"{args.max_threads} profile process(es) per scenario (flat-level generation)."
     )
     for _, seed, scenario_name in scenarios:
         print(f"  seed {seed}: {scenario_name}")
