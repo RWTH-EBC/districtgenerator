@@ -1397,20 +1397,24 @@ class Datahandler:
             )
 
         else:
-            (building["user"].elec, building["user"].dhw, building["user"].dhw_minutely,
-             building["user"].occ, building["user"].gains,
-             building["user"].EV_carcharging_ondemand,
-             building["user"].EV_carprofile,
-             building["user"].ice_carprofile,
-             building["user"].nb_units,
-             building["user"].nb_main_rooms,
-             building["user"].nb_occ, building["user"].ev_capacity, building["envelope"].heatload,
-             building["envelope"].bivalent,
-             building["envelope"].heatlimit, building["envelope"].coolingload, building["envelope"].A,
-             building["user"].individual_car_profiles) = self.loadProfiles(building["unique_name"],
-                                                                 os.path.join(self.resultPath, 'demands'), gen_cars= gen_cars)
+            excel_file = os.path.join(self.resultPath, 'demands', building["unique_name"] + '.xlsx')
+            with pd.ExcelFile(excel_file, engine='openpyxl') as excel:
+                (building["user"].elec, building["user"].dhw, building["user"].dhw_minutely,
+                 building["user"].occ, building["user"].gains,
+                 building["user"].EV_carcharging_ondemand,
+                 building["user"].EV_carprofile,
+                 building["user"].ice_carprofile,
+                 building["user"].nb_units,
+                 building["user"].nb_main_rooms,
+                 building["user"].nb_occ, building["user"].ev_capacity, building["envelope"].heatload,
+                 building["envelope"].bivalent,
+                 building["envelope"].heatlimit, building["envelope"].coolingload, building["envelope"].A,
+                 building["user"].individual_car_profiles) = self._load_profiles_from_excel(excel, gen_cars)
+                timings["load_user_profiles"] = time.perf_counter() - stage_started
+                stage_started = time.perf_counter()
+                heat, cooling = self._load_heating_profiles_from_workbook(excel.book)
+                timings["load_heating_cooling"] = time.perf_counter() - stage_started
             print("Load demands of building " + building["unique_name"])
-            timings["load_user_profiles"] = time.perf_counter() - stage_started
 
         stage_started = time.perf_counter()
         if building.get("thermal_model") == "5R1C":
@@ -1467,11 +1471,8 @@ class Datahandler:
                                   cooling=building["user"].cooling)
                 timings["save_profiles"] = time.perf_counter() - stage_started
         else:
-            heat, cooling = self.loadHeatingProfiles(name=building["unique_name"],
-                                                     path=os.path.join(self.resultPath, 'demands'))
             building["user"].heat = heat
             building["user"].cooling = cooling
-            timings["load_heating_cooling"] = time.perf_counter() - stage_started
 
         timings["total"] = time.perf_counter() - started
         return timings
@@ -1707,7 +1708,7 @@ class Datahandler:
 
     def loadProfiles(self, name, path, gen_cars=True):
         """
-        Load profiles from csv.
+        Load saved user profiles and metadata from an Excel workbook.
 
         Parameters
         ----------
@@ -1718,11 +1719,17 @@ class Datahandler:
 
         Returns
         -------
-        None.
+        tuple
+            User profiles, building metadata, and individual car profiles.
         """
 
         excel_file = os.path.join(path, name + '.xlsx')
-        workbook = openpyxl.load_workbook(excel_file, data_only=True)
+        with pd.ExcelFile(excel_file, engine='openpyxl') as excel:
+            return self._load_profiles_from_excel(excel, gen_cars)
+
+    def _load_profiles_from_excel(self, excel, gen_cars):
+        """Read user and vehicle data through one already-open Excel reader."""
+        workbook = excel.book
 
         def load_sheet_to_numpy(workbook, sheet_name):
             sheet = workbook[sheet_name]
@@ -1747,11 +1754,11 @@ class Datahandler:
             EV_carcharging_ondemand = load_sheet_to_numpy(workbook, 'EV_charging_agg')
             ice_carprofile = load_sheet_to_numpy(workbook, 'ICE_fuel_agg')
 
-            df_car_info = pd.read_excel(excel_file, sheet_name='Car Info')
-            df_EV_demand = pd.read_excel(excel_file, sheet_name='EV_demand_individual')
-            df_EV_charging = pd.read_excel(excel_file, sheet_name='EV_charging_individual')
-            df_ICE_fuel = pd.read_excel(excel_file, sheet_name='ICE_fuel_individual')
-            df_Car_avail = pd.read_excel(excel_file, sheet_name='Car_availibility_individual')
+            df_car_info = pd.read_excel(excel, sheet_name='Car Info')
+            df_EV_demand = pd.read_excel(excel, sheet_name='EV_demand_individual')
+            df_EV_charging = pd.read_excel(excel, sheet_name='EV_charging_individual')
+            df_ICE_fuel = pd.read_excel(excel, sheet_name='ICE_fuel_individual')
+            df_Car_avail = pd.read_excel(excel, sheet_name='Car_availibility_individual')
 
             #reconstruct individual car profiles
             for i, row in df_car_info.iterrows():
@@ -1816,13 +1823,11 @@ class Datahandler:
         envelope_areas_json = other_data[7]
         envelope_areas = json.loads(envelope_areas_json)
 
-        workbook.close()
-
         return elec, dhw, dhw_minutely, occ, gains, EV_carcharging_ondemand, EV_carprofile, ice_carprofile, nb_units, nb_main_rooms, nb_occ, EV_capacity, heatload, bivalent, heatlimit, coolingload, envelope_areas, individual_car_profiles
 
     def loadHeatingProfiles(self, name, path):
         """
-        Load profiles from csv.
+        Load saved heating and cooling profiles from an Excel workbook.
 
         Parameters
         ----------
@@ -1833,11 +1838,17 @@ class Datahandler:
 
         Returns
         -------
-        None.
+        tuple
+            Heating and cooling arrays.
         """
 
         excel_file = os.path.join(path, name + '.xlsx')
-        workbook = openpyxl.load_workbook(excel_file, data_only=True)
+        with pd.ExcelFile(excel_file, engine='openpyxl') as excel:
+            return self._load_heating_profiles_from_workbook(excel.book)
+
+    @staticmethod
+    def _load_heating_profiles_from_workbook(workbook):
+        """Read thermal arrays without reopening the shared workbook."""
 
         def load_sheet_to_numpy(workbook, sheet_name):
             sheet = workbook[sheet_name]
@@ -1848,8 +1859,6 @@ class Datahandler:
 
         heat = load_sheet_to_numpy(workbook, 'heating')
         cooling = load_sheet_to_numpy(workbook, 'cooling')
-
-        workbook.close()
 
         return heat, cooling
 
