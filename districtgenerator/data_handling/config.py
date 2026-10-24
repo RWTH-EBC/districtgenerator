@@ -195,8 +195,8 @@ class EcoConfig(BaseSettings):
 
     # The interpolation points can be either defined by specifying the exact years in interpolation_points or by choosing a number of interpolation points num_interpolation_points.
     # *Warning: num_interpolation_points overrides interpolation_points if both are specified.
-    num_interpolation_points: Optional[int] = None # Number of interpolation points if not None these are used, otherwise the exact position is used
-    interpolation_points: str | list[int] = [0,5,10,15] # Explicit years starting each interpolation interval. Must begin with 0. Used if num_interpolation_points is None.
+    num_interpolation_points: Optional[int] = None # Requested economic points; enabled policy deadlines may add support years.
+    interpolation_points: str | list[int] = [0,5,10,15] # Interval starts, including mandatory policy years. Must begin with 0.
     investment_sensitivity_enabled: bool = False  # If True, batch/example runs evaluate min/mean/max cost cases for investments, O&M, substations, and pipe construction.
     investment_sensitivity_case: str = "mean"  # Cost case for a single run: "min", "mean", or "max".
     
@@ -1542,6 +1542,31 @@ class GlobalConfig(BaseModel):
     calendar: 'CalendarConfig'
     scenario_name: 'ScenarioName'
     report: 'ReportConfig'
+
+    @model_validator(mode='after')
+    def include_renewable_heat_policy_years(self) -> 'GlobalConfig':
+        """Split economic intervals at enabled heat-share deadlines before weighting."""
+        if not self.central.renewable_heat_share_enabled:
+            return self
+
+        years = self.central.renewable_heat_share_years
+        targets = self.central.renewable_heat_share_targets
+        if len(years) != len(targets):
+            raise ValueError("renewable_heat_share_years and renewable_heat_share_targets must have the same length.")
+        if any(year < 0 for year in years):
+            raise ValueError("Renewable heat share years must be non-negative assessment-year indices.")
+        if any(not 0 <= target <= 1 for target in targets):
+            raise ValueError("Renewable heat share targets must be between 0 and 1.")
+
+        requested_years = set(self.eco.interpolation_points)
+        policy_years = {year for year in years if year < self.eco.observation_time}
+        effective_years = sorted(requested_years | policy_years)
+        self.eco.interpolation_points = effective_years
+        added_years = sorted(policy_years - requested_years)
+        if added_years:
+            print(f"Added renewable heat policy support years: {added_years}. "
+                  f"Effective interpolation points ({len(effective_years)}): {effective_years}")
+        return self
 
 class Settings(BaseSettings):
     """
