@@ -23,6 +23,15 @@ INPUT_FILE = Path(
     "pfa_datentabelle_excel.xlsx"
 )
 
+# DATENQUELLE:
+# Bundesamt für Wirtschaft und Ausfuhrkontrolle (BAFA),
+# Bundesstelle für Energieeffizienz (BfEE) (o. J.):
+# Plattform für Abwärme (PfA) – Öffentlich zugängliche
+# Abwärmepotenziale gemäß § 17 Energieeffizienzgesetz (EnEfG).
+# Datenstand: 06.10.2025, Version 1.2
+# Abgerufen am: 08.10.2026.
+# URL: https://www.bfee-online.de/BfEE/DE/Effizienzpolitik/Plattform_fuer_Abwaerme/plattform_fuer_abwaerme_node.html
+
 
 # ------------------------------------------------------------
 # Relevantes Tabellenblatt

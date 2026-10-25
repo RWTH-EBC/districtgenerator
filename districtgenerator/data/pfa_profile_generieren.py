@@ -168,7 +168,7 @@ SOURCE_DIR = (
 
 GENERATOR_PACKAGE_DIR = (
         SOURCE_DIR
-        / "Generator_Datenpakete_Iteration3"
+        / "Generator_Datenpakete_Iteration4"
 )
 
 OUTPUT_BASE_DIR = (
@@ -181,7 +181,7 @@ OUTPUT_BASE_DIR = (
 # HIER DIE FERTIGE GRUPPE EINTRAGEN
 # -----------------------------------------------------------------------------
 
-TARGET_GROUP = "G39"
+TARGET_GROUP = "G"
 
 
 # -----------------------------------------------------------------------------
@@ -230,7 +230,7 @@ TARGET_SITE_ANNUAL_HEAT_KWH = None
 # Zufall reproduzierbar machen.
 # -----------------------------------------------------------------------------
 
-RANDOM_SEED = 44
+RANDOM_SEED = 45
 
 
 # =============================================================================

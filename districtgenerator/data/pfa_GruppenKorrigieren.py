@@ -68,7 +68,7 @@ GROUP_DIR = (
 
 OUTPUT_DIR = (
         SOURCE_DIR
-        / "Profilgruppen_Pruefung_Waermemenge"
+        / "Profilgruppen_Pruefung_Waermemenge_0"
 )
 
 GROUP_PATTERN = "Profilgruppe_G*.xlsx"

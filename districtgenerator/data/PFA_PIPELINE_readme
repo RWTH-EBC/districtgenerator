@@ -21,6 +21,15 @@ Ablauf
 Datei:
     pfa_datentabelle_excel.xlsx
 
+    # DATENQUELLE:
+    # Bundesamt für Wirtschaft und Ausfuhrkontrolle (BAFA),
+    # Bundesstelle für Energieeffizienz (BfEE) (o. J.):
+    # Plattform für Abwärme (PfA) – Öffentlich zugängliche
+    # Abwärmepotenziale gemäß § 17 Energieeffizienzgesetz (EnEfG).
+    # Datenstand: 06.10.2025, Version 1.2
+    # Abgerufen am: 08.10.2026.
+    # URL: https://www.bfee-online.de/BfEE/DE/Effizienzpolitik/Plattform_fuer_Abwaerme/plattform_fuer_abwaerme_node.html
+
 Zweck:
     Ausgangsdatensatz der Plattform für Abwärme (PFA).
 
@@ -61,6 +70,37 @@ Manuell:
     - vorgeschlagene Standortverbünde zusammenfassen oder getrennt lassen.
 
     Die vollständig bearbeitete Datei wird anschließend von pfa_postprocessingWZA2.py verwendet.
+
+
+#Angaben zum Referenzdatensatz:
+# =============================================================================
+# DATENQUELLE – WISSENSCHAFTLICHE VERGLEICHSKLASSIFIKATION
+# =============================================================================
+#
+# Unveröffentlichter Datensatz:
+# Angstmann, M. (o. J.): Unveröffentlichte Vergleichsdaten zur
+# Klassifizierung industrieller Abwärmepotenziale der Plattform
+# für Abwärme (PfA). Institut Arbeit und Technik (IAT),
+# Westfälische Hochschule, Gelsenkirchen.
+# Persönlich zur Verfügung gestellter Forschungsdatensatz,
+# erhalten am 29.09.2026. Nicht öffentlich zugänglich.
+#
+# Zugehörige wissenschaftliche Publikation:
+# Angstmann, M., Meyer, K. & Gärtner, S. (2025):
+# Exploring the Potential of Urban Manufacturer's Waste Heat
+# for the Residential Heating Transition in Germany:
+# A Spatial Analysis Across Four Federal States.
+# IAT Discussion Papers, No. 25/03.
+# Institut Arbeit und Technik (IAT), Westfälische Hochschule,
+# Gelsenkirchen.
+# DOI: https://doi.org/10.53190/dp/202503
+#
+# Verwendung:
+# Die persönlich bereitgestellten Vergleichsdaten dienen
+# der wissenschaftlichen Gegenüberstellung und Validierung
+# der eigenen WZ-Klassifizierung der PFA-Daten.
+#
+# =============================================================================
 
 
 4. WZA-Zusatzprüfung

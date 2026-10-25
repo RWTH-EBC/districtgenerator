@@ -31,6 +31,33 @@ REFERENCE_FILE = (
 
 REFERENCE_SHEET = "Final_Dataset_070825"
 
+# =============================================================================
+# DATENQUELLE – WISSENSCHAFTLICHE VERGLEICHSKLASSIFIKATION
+# =============================================================================
+#
+# Unveröffentlichter Datensatz:
+# Angstmann, M. (o. J.): Unveröffentlichte Vergleichsdaten zur
+# Klassifizierung industrieller Abwärmepotenziale der Plattform
+# für Abwärme (PfA). Institut Arbeit und Technik (IAT),
+# Westfälische Hochschule, Gelsenkirchen.
+# Persönlich zur Verfügung gestellter Forschungsdatensatz,
+# erhalten am 29.09.2026. Nicht öffentlich zugänglich.
+#
+# Zugehörige wissenschaftliche Publikation:
+# Angstmann, M., Meyer, K. & Gärtner, S. (2025):
+# Exploring the Potential of Urban Manufacturer's Waste Heat
+# for the Residential Heating Transition in Germany:
+# A Spatial Analysis Across Four Federal States.
+# IAT Discussion Papers, No. 25/03.
+# Institut Arbeit und Technik (IAT), Westfälische Hochschule,
+# Gelsenkirchen.
+# DOI: https://doi.org/10.53190/dp/202503
+#
+# Verwendung:
+# Die persönlich bereitgestellten Vergleichsdaten dienen
+# der wissenschaftlichen Gegenüberstellung und Validierung
+# der eigenen WZ-Klassifizierung der PFA-Daten.
+
 
 # ------------------------------------------------------------
 # Alle 68 klassifizierten WZ-Batches

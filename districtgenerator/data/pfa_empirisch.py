@@ -15,7 +15,7 @@ from openpyxl.utils import get_column_letter
 
 
 # =============================================================================
-# GENERATOR-DATENPAKETE – ITERATION 3
+# GENERATOR-DATENPAKETE – ITERATION 4
 # =============================================================================
 #
 # ZIEL
@@ -109,29 +109,15 @@ from openpyxl.utils import get_column_letter
 #    markiert und diagnostisch ausgewertet.
 #
 #
-# F) Quellenblöcke bilden
+# F) Generatorquellen OHNE Zusammenlegung
 #
-#    Mehrere technisch praktisch gleiche Quellen desselben Standortes werden
-#    konservativ zusammengefasst, wenn ALLE folgenden Merkmale gleich sind:
+#    Jedes final zulässige Originalpotential wird ein eigener Generatorblock.
+#    Weder Quellenfamilie noch Temperatur, Betriebsprofil oder Saisonform
+#    führen zu einer Zusammenlegung.
 #
-#        - Standort
-#        - Q-Klasse
-#        - normalisierte Quellen-/Maschinenfamilie
-#        - Temperatur (Iteration 1: auf 1 °C gerundet)
-#        - standardisiertes Betriebsprofil
-#        - Saisonalitätssignatur
-#
-#    Beispiel:
-#
-#        Kompressor 1, Q7, 60 °C, 16/5, gleiche Saisonform
-#        Kompressor 2, Q7, 60 °C, 16/5, gleiche Saisonform
-#
-#    -> ein Generator-Quellenblock
-#
-#    Aggregiert wird primär die JAHRESWÄRMEMENGE.
-#
-#    Die gemeldete Leistung wird nur diagnostisch summiert und ist KEINE
-#    Generator-Maximalleistung.
+#    Die bisherige Ähnlichkeitsanalyse mit 5 K und 10 K wird nur noch in
+#    separaten Diagnose-Dateien ausgewiesen; die produktive Datenbasis
+#    bleibt davon vollständig unabhängig.
 #
 #
 # G) Empirische halbsynthetische Struktur
@@ -158,11 +144,12 @@ from openpyxl.utils import get_column_letter
 #       temperature_distribution.parquet
 #       seasonality_distribution.parquet
 #       metadata.json
-#       Diagnose_Gxx_Iteration3.xlsx
+#       Diagnose_Gxx_Iteration4.xlsx
+#       Diagnose_Zusammenlegung_Gxx_Iteration4.xlsx (nur Diagnose)
 #
 # Zusätzlich optional CSV-Dateien als leicht kontrollierbare Fallbacks.
 #
-# Für die nächste Iteration am besten Diagnose_Gxx_Iteration3.xlsx zurückgeben.
+# Für die nächste Iteration am besten Diagnose_Gxx_Iteration4.xlsx zurückgeben.
 # =============================================================================
 
 
@@ -189,7 +176,7 @@ REVIEW_DIR = (
 
 OUTPUT_DIR = (
         SOURCE_DIR
-        / "Generator_Datenpakete_Iteration3"
+        / "Generator_Datenpakete_Iteration4"
 )
 
 GROUP_PATTERN = "Profilgruppe_G*.xlsx"
@@ -206,7 +193,7 @@ GROUP_PATTERN = "Profilgruppe_G*.xlsx"
 #     alle vorhandenen Gruppen verarbeiten.
 # -----------------------------------------------------------------------------
 
-TARGET_GROUPS = ["G39"]
+TARGET_GROUPS = ["G16"]
 
 
 # =============================================================================
@@ -298,9 +285,9 @@ REVIEW_FILE_TEMPLATE = "Pruefung_{group_id}_geprueft.xlsx"
 # In Iteration 1 nur vollständige 12-Monats-Daten als empirische Saisonform.
 REQUIRE_ALL_12_MONTHS_FOR_SEASONALITY = True
 
-# Rundung für die Signatur bei der Aggregation.
-# Zwei Quellen werden nur zusammengefasst, wenn die normalisierten Monatsfaktoren
-# nach Rundung gleich sind.
+# Signatur dient der Rückverfolgbarkeit der saisonalen Form.
+# Es erfolgt keine Zusammenlegung; auch die Diagnose verwendet die Saisonform
+# nicht als Gruppierungsschlüssel.
 SEASON_SIGNATURE_DECIMALS = 2  # nur Alt-Kompatibilität; nicht mehr Aggregationskriterium
 
 SUMMER_MONTHS = [
@@ -340,14 +327,14 @@ MONTH_HOURS = {
 
 
 # -----------------------------------------------------------------------------
-# Quellenblock-Aggregation
+# Quellenblock-Erhaltung: ein Originalpotential = ein Generatorblock.
+# Die alten Zusammenlegungskriterien werden nur für die Diagnose verwendet.
 # -----------------------------------------------------------------------------
 
-ENABLE_SOURCE_BLOCK_AGGREGATION = True
+ENABLE_SOURCE_BLOCK_AGGREGATION = False  # Produktiv dauerhaft deaktiviert; Diagnose separat
 
-# Temperatur wird zunächst sehr streng behandelt.
-# 60.0 und 60.4 -> 60 °C
-# 60 und 61 -> verschiedene Blöcke
+# Ausschließlich hypothetische Temperaturspanne für 5-K-Diagnose.
+# Die produktiven Quellen bleiben unabhängig von ihrer Temperatur getrennt.
 AGGREGATION_MAX_TEMPERATURE_SPAN_C = 5.0
 
 # Quellen ohne Namen werden NICHT anhand eines leeren Namens zusammengefasst.
@@ -355,11 +342,11 @@ AGGREGATE_EMPTY_SOURCE_NAMES = False
 
 
 # -----------------------------------------------------------------------------
-# Iteration 3: zusätzliche Sensitivitäts- und Preflight-Parameter
+# Iteration 4: zusätzliche Sensitivitäts- und Preflight-Parameter
 # -----------------------------------------------------------------------------
 
-# Produktive Aggregation bleibt bei maximal 5 K Temperaturspanne.
-# 10 K werden ausschließlich diagnostisch simuliert.
+# KEINE produktive Aggregation. 5 K und 10 K gelten ausschließlich für
+# die separate Diagnose potenziell ähnlicher Quellen.
 AGGREGATION_SENSITIVITY_TEMPERATURE_SPAN_C = 10.0
 
 # Preflight: harte physikalische Grenzen.
@@ -1707,7 +1694,7 @@ def derive_seasonality(
     Leitet aus den 12 Monats-Leistungsprofilen ausschließlich die relative
     Jahresform ab.
 
-    Neu in Iteration 3:
+    Neu in Iteration 4:
       - Anzahl aktive Monate
       - HHI-Konzentration
       - normierte Konzentration 0..1
@@ -2152,7 +2139,7 @@ def normalize_source_family(
         Kompressor 3
 
     als drei völlig verschiedene Maschinenfamilien erscheinen, obwohl sie
-    technisch häufig dieselbe Familie repräsentieren. Für Aggregation und
+    technisch häufig dieselbe Familie repräsentieren. Für Ähnlichkeitsdiagnose und
     Donor-Suche ist das unnötig restriktiv.
 
     ABER:
@@ -2622,7 +2609,7 @@ def build_site_filter(
     Nicht ausgeschlossene Klassen außerhalb Q1-Q7 zählen ebenfalls als
     nicht einordenbar.
 
-    Neu Iteration 3:
+    Neu Iteration 4:
         Abstand zur 20%-Grenze + Sensitivkennzeichen ab 15%.
     """
 
@@ -3079,14 +3066,8 @@ def build_source_blocks(
       - Q1-Q7
       - positiver Jahreswärmemenge
 
-    Produktive Aggregation:
-      - gleiche Standort-ID
-      - gleiche Q-Klasse
-      - gleiche normalisierte Quellenfamilie
-      - gleiches Betriebsprofil
-      - Temperaturspanne maximal 5 K
-
-    Saisonalität wird innerhalb eines Blocks wärmemengengewichtet aggregiert.
+    Jedes Originalpotential bleibt eigenständig (1:1).
+    Die frühere 5-K-Aggregation wird ausschließlich separat diagnostiziert.
     """
 
     suitable_sites = set(
@@ -3134,26 +3115,15 @@ def build_source_blocks(
             generator_sources,
         )
 
-    if ENABLE_SOURCE_BLOCK_AGGREGATION:
-        generator_sources = prepare_aggregation_keys(
-            generator_sources,
-            max_span_c=
-            AGGREGATION_MAX_TEMPERATURE_SPAN_C,
-            key_column=
-            "_Aggregation_Key",
-        )
-    else:
-        generator_sources[
-            "_Aggregation_Key"
-        ] = generator_sources[
-            "_Original_ID"
-        ].map(
-            lambda value:
-            (
-                "UNIQUE",
-                value,
-            )
-        )
+    # FESTE 1:1-Zuordnung: jede Originaldatensatz_ID erhält einen eigenen
+    # Generator-Block. Eine Gruppierung nach Ähnlichkeit ist hier ausgeschlossen.
+    if generator_sources["_Original_ID"].duplicated().any():
+        raise ValueError(f"{group_id}: doppelte Originaldatensatz_ID in Generatorquellen.")
+    if generator_sources["_Original_ID"].eq("").any():
+        raise ValueError(f"{group_id}: leere Originaldatensatz_ID in Generatorquellen.")
+    generator_sources["_Aggregation_Key"] = generator_sources["_Original_ID"].map(
+        lambda original_id: ("EINZELPOTENTIAL", original_id)
+    )
 
     block_rows = []
     mapping_rows = []
@@ -3497,15 +3467,26 @@ def build_source_blocks(
                 }
             )
 
-    return (
-        pd.DataFrame(
-            block_rows
-        ),
-        pd.DataFrame(
-            mapping_rows
-        ),
-        generator_sources,
-    )
+    blocks = pd.DataFrame(block_rows)
+    mapping = pd.DataFrame(mapping_rows)
+
+    # Harte Qualitätssicherung vor allen nachgelagerten Berechnungen.
+    if len(blocks) != len(generator_sources) or len(mapping) != len(generator_sources):
+        raise RuntimeError(f"{group_id}: 1:1-Invariante der Generatorquellen verletzt.")
+    if not blocks["Anzahl_Originalpotentiale"].eq(1).all():
+        raise RuntimeError(f"{group_id}: unzulässige Quellenzusammenlegung erkannt.")
+    if not mapping["Originaldatensatz_ID"].is_unique:
+        raise RuntimeError(f"{group_id}: Original-zu-Block-Mapping ist nicht eindeutig.")
+    if not blocks["Generator_Block_ID"].is_unique:
+        raise RuntimeError(f"{group_id}: doppelte Generator_Block_ID.")
+    if not np.isclose(
+            blocks["Waermemenge_Block_kWh_a"].sum(),
+            generator_sources["Waermemenge_final_kWh_a"].sum(),
+            rtol=1e-10, atol=1e-5,
+    ):
+        raise RuntimeError(f"{group_id}: Jahreswärmemenge beim 1:1-Export nicht erhalten.")
+
+    return blocks, mapping, generator_sources
 
 def assign_size_classes(
         blocks,
@@ -5048,6 +5029,126 @@ def build_donor_coverage(
     )
 
 
+
+def build_separate_merging_potential(group_id, generator_sources):
+    """Reine Diagnose; beeinflusst weder Blöcke noch Donoren oder Standorte.
+
+    Simuliert die bisherige 5-K-Zusammenlegung bei gleichem Standort,
+    gleicher Q-Klasse, normalisierter Familie und Betriebsprofil. Die
+    12-Monats-Saisonalität ist wie in Iteration 4 kein Kriterium.
+    """
+    overview_columns = [
+        "Experiment_Gruppe", "Diagnose_Gruppen_ID", "Standortverbund_ID",
+        "Quellklasse_Code", "Quellenfamilie_normalisiert", "Betriebsprofil_Code",
+        "Anzahl_Originalpotentiale", "Moegliche_Quellenzahlreduktion",
+        "Summe_Waermemenge_kWh_a", "Temperatur_Min_C", "Temperatur_Max_C",
+        "Temperaturspanne_K", "Originaldatensatz_IDs", "Quellennamen",
+        "Hinweis",
+    ]
+    member_columns = [
+        "Experiment_Gruppe", "Diagnose_Gruppen_ID", "Originaldatensatz_ID",
+        "Standortverbund_ID", "Quellklasse_Code", "Quellenname",
+        "Quellenfamilie_normalisiert", "Betriebsprofil_Code",
+        "Temperatur_C", "Waermemenge_kWh_a", "Hinweis",
+    ]
+    empty_groups = pd.DataFrame(columns=overview_columns)
+    empty_members = pd.DataFrame(columns=member_columns)
+    if generator_sources.empty:
+        return empty_groups, empty_members, generator_sources.copy()
+
+    # Nur in einer getrennten Kopie die 5-K-Simulationsschlüssel berechnen.
+    diagnostic_sources = prepare_aggregation_keys(
+        generator_sources,
+        max_span_c=AGGREGATION_MAX_TEMPERATURE_SPAN_C,
+        key_column="_Aggregation_Key_Diagnose_5K",
+    )
+    # Für die ältere 10-K-Sensitivitätsroutine den 5-K-Bezug explizit setzen.
+    diagnostic_sources["_Aggregation_Key"] = diagnostic_sources[
+        "_Aggregation_Key_Diagnose_5K"
+    ]
+
+    groups = []
+    members = []
+    for _key, group in diagnostic_sources.groupby(
+            "_Aggregation_Key_Diagnose_5K", sort=False, dropna=False
+    ):
+        if len(group) < 2:
+            continue
+        ids = sorted(group["_Original_ID"].map(clean_string))
+        site_id = clean_string(group["Standortverbund_ID_final"].iloc[0])
+        q_code = clean_string(group["Quellklasse_final"].iloc[0])
+        diag_id = deterministic_id("DZ", [group_id, site_id, q_code, *ids])
+        temps = pd.to_numeric(group["Temperatur_final_C"], errors="coerce").dropna()
+        temp_min = float(temps.min()) if len(temps) else np.nan
+        temp_max = float(temps.max()) if len(temps) else np.nan
+        note = "NUR DIAGNOSE – KEINE ZUSAMMENLEGUNG IN GENERATORDATEN"
+        groups.append({
+            "Experiment_Gruppe": group_id,
+            "Diagnose_Gruppen_ID": diag_id,
+            "Standortverbund_ID": site_id,
+            "Quellklasse_Code": q_code,
+            "Quellenfamilie_normalisiert": clean_string(group["Quellenfamilie_normalisiert"].iloc[0]),
+            "Betriebsprofil_Code": clean_string(group["Betriebsprofil_Code"].iloc[0]),
+            "Anzahl_Originalpotentiale": int(len(group)),
+            "Moegliche_Quellenzahlreduktion": int(len(group) - 1),
+            "Summe_Waermemenge_kWh_a": float(group["Waermemenge_final_kWh_a"].sum()),
+            "Temperatur_Min_C": temp_min,
+            "Temperatur_Max_C": temp_max,
+            "Temperaturspanne_K": (temp_max - temp_min) if len(temps) else np.nan,
+            "Originaldatensatz_IDs": " | ".join(ids),
+            "Quellennamen": " | ".join(unique_nonempty(group["Quellenname_final"])),
+            "Hinweis": note,
+        })
+        for _, source in group.iterrows():
+            members.append({
+                "Experiment_Gruppe": group_id,
+                "Diagnose_Gruppen_ID": diag_id,
+                "Originaldatensatz_ID": clean_string(source["_Original_ID"]),
+                "Standortverbund_ID": site_id,
+                "Quellklasse_Code": q_code,
+                "Quellenname": clean_string(source["Quellenname_final"]),
+                "Quellenfamilie_normalisiert": clean_string(source["Quellenfamilie_normalisiert"]),
+                "Betriebsprofil_Code": clean_string(source["Betriebsprofil_Code"]),
+                "Temperatur_C": numeric_value(source["Temperatur_final_C"]),
+                "Waermemenge_kWh_a": numeric_value(source["Waermemenge_final_kWh_a"]),
+                "Hinweis": note,
+            })
+
+    return (
+        pd.DataFrame(groups, columns=overview_columns),
+        pd.DataFrame(members, columns=member_columns),
+        diagnostic_sources,
+    )
+
+
+def write_separate_merging_diagnostic(folder, group_id, groups_5k,
+                                      members_5k, sensitivity_10k):
+    """Eigene Diagnose-Datei, nicht Teil der Generator-/Donor-Tabellen."""
+    path = folder / f"Diagnose_Zusammenlegung_{group_id}_Iteration4.xlsx"
+    overview = pd.DataFrame([
+        ("Produktive_Zusammenlegung", "NEIN"),
+        ("Potenzielle_5K_Gruppen", int(len(groups_5k))),
+        ("Betroffene_Originalpotentiale", int(len(members_5k))),
+        ("Moegliche_Quellenzahlreduktion_5K", int(groups_5k["Moegliche_Quellenzahlreduktion"].sum())),
+        ("Maximale_Temperaturspanne_5K_K", AGGREGATION_MAX_TEMPERATURE_SPAN_C),
+        ("Maximale_Temperaturspanne_10K_K", AGGREGATION_SENSITIVITY_TEMPERATURE_SPAN_C),
+        ("Hinweis", "Nur theoretische Ähnlichkeitsgruppen; produktive Quellen bleiben einzeln."),
+    ], columns=["Kennzahl", "Wert"])
+    # Diagnose immer als separate Excel-Datei; CSV als optionaler Fallback.
+    with pd.ExcelWriter(path, engine="openpyxl") as writer:
+        overview.to_excel(writer, sheet_name="Uebersicht", index=False)
+        groups_5k.to_excel(writer, sheet_name="Potenzial_5K", index=False)
+        members_5k.to_excel(writer, sheet_name="Einzelquellen_5K", index=False)
+        sensitivity_10k.to_excel(writer, sheet_name="Sensitivitaet_10K", index=False)
+    format_diagnostic_workbook(path)
+    if WRITE_CSV:
+        groups_5k.to_csv(
+            folder / f"Diagnose_Potenzial_Zusammenlegung_5K_{group_id}.csv",
+            sep=";", encoding="utf-8-sig", index=False,
+            )
+    return path
+
+
 def build_aggregation_sensitivity_10k(
         generator_sources,
 ):
@@ -5056,7 +5157,8 @@ def build_aggregation_sensitivity_10k(
     Simuliert, welche zusätzlichen Zusammenführungen bei 10 K statt 5 K
     Temperaturspanne entstehen würden.
 
-    Die produktiven Quellenblöcke bleiben unverändert bei 5 K.
+    Die produktiven Quellenblöcke bleiben grundsätzlich einzeln.
+    Die 10-K-Diagnose wird ausschließlich mit einer simulierten 5-K-Basis verglichen.
     """
 
     if generator_sources.empty:
@@ -5203,11 +5305,9 @@ def build_aggregation_diagnostics(
         blocks,
 ):
     """
-    Zeigt:
-        - wie viele Originalpotentiale zu Blöcken zusammengefasst wurden
-        - welche Blöcke mehrere Quellen enthalten
-        - welche potentiellen Familien wegen anderer Temperatur/BP/Saison
-          NICHT zusammengeführt wurden
+    Zusätzliche diagnostische Übersicht zu technisch ähnlichen Familien,
+    die bei einer hypothetischen 5-K-Analyse getrennt bleiben.
+    Produktiv wird grundsätzlich nichts zusammengeführt.
     """
 
     if generator_sources.empty:
@@ -5649,7 +5749,7 @@ def build_summary(
                 ),
             ],
             [
-                "Generator_Quellenbloecke",
+                "Generator_Einzelquellenbloecke_ohne_Zusammenlegung",
                 int(
                     len(
                         blocks
@@ -5905,7 +6005,7 @@ def write_diagnostic_excel(
 
     path = (
             folder
-            / f"Diagnose_{group_id}_Iteration3.xlsx"
+            / f"Diagnose_{group_id}_Iteration4.xlsx"
     )
 
     with pd.ExcelWriter(
@@ -6121,19 +6221,19 @@ def process_group(
         )
     )
 
+    # Theoretische Ähnlichkeitsgruppen: strikt separate Diagnosedaten,
+    # ohne Einfluss auf den produktiven Generator-Datenfluss.
     (
-        merged_blocks,
-        aggregation_candidates,
-    ) = build_aggregation_diagnostics(
-        group_id,
-        generator_sources,
-        blocks,
-    )
+        potential_merges_5k,
+        potential_merge_members_5k,
+        diagnostic_sources_5k,
+    ) = build_separate_merging_potential(group_id, generator_sources)
 
-    aggregation_sensitivity_10k = (
-        build_aggregation_sensitivity_10k(
-            generator_sources
-        )
+    aggregation_sensitivity_10k = build_aggregation_sensitivity_10k(
+        diagnostic_sources_5k
+    )
+    _, aggregation_candidates = build_aggregation_diagnostics(
+        group_id, diagnostic_sources_5k, blocks
     )
 
     review_audit = build_review_audit(
@@ -6203,6 +6303,15 @@ def process_group(
         for old_file in group_output.iterdir():
             if old_file.is_file():
                 old_file.unlink()
+
+    # Zusammenlegungspotenzial nur als SEPARATE Diagnosedatei erzeugen.
+    # Wird von den nachgelagerten Generator-Dateien nicht eingelesen.
+    merge_diagnostic_path = write_separate_merging_diagnostic(
+        group_output, group_id,
+        potential_merges_5k,
+        potential_merge_members_5k,
+        aggregation_sensitivity_10k,
+    )
 
     # -------------------------------------------------------------------------
     # Bereinigte Originalpotentiale
@@ -6340,8 +6449,6 @@ def process_group(
         "preflight":
             preflight,
 
-        "aggregation_sensitivity_10k":
-            aggregation_sensitivity_10k,
     }
 
     for name, df in datasets.items():
@@ -6353,7 +6460,7 @@ def process_group(
 
     metadata = {
         "iteration":
-            3,
+            4,
 
         "experiment_group":
             group_id,
@@ -6397,13 +6504,19 @@ def process_group(
         "special_operating_profiles_retained":
             True,
 
-        "aggregation_max_temperature_span_c":
+        "productive_source_aggregation": False,
+
+        "generator_block_definition": "one final eligible original potential per block",
+
+        "aggregation_max_temperature_span_c": None,
+
+        "aggregation_diagnostic_max_temperature_span_c":
             AGGREGATION_MAX_TEMPERATURE_SPAN_C,
 
         "aggregation_sensitivity_temperature_span_c":
             AGGREGATION_SENSITIVITY_TEMPERATURE_SPAN_C,
 
-        "seasonality_is_aggregation_key":
+        "seasonality_is_diagnostic_aggregation_key":
             False,
 
         "strong_operating_profile_completion":
@@ -6417,7 +6530,7 @@ def process_group(
                 "mitgefuehrt und nicht als Zieh-/Donorbedingung verwendet."
             ),
             (
-                "Portfolio und relative Blockgroessen bleiben gemeinsam "
+                "Portfolio und relative Einzelquellengroessen bleiben gemeinsam "
                 "empirisch auf Standortebene erhalten."
             ),
             (
@@ -6427,7 +6540,8 @@ def process_group(
                 "Unplausible technische Attribute werden nur als Donoren gesperrt."
             ),
             (
-                "5 K ist die produktive Aggregationsregel; 10 K nur Sensitivitaet."
+                "Keine produktive Zusammenlegung. 5 K und 10 K ausschliesslich "
+                "in separater Diagnosedatei."
             ),
             (
                 "Der vollstaendige 12-Monats-Vektor bleibt die Saisonform."
@@ -6518,14 +6632,16 @@ def process_group(
         "Groessenklassen":
             size_cutpoints,
 
-        "Aggregierte_Bloecke":
-            merged_blocks,
-
-        "Aggregations_Kandidaten":
+        "Getrennte_Aehnliche_Familien":
             aggregation_candidates,
 
-        "Aggregation_10K_Sens":
-            aggregation_sensitivity_10k,
+        "Zusammenlegung_Diagnose":
+            pd.DataFrame([{
+                "Hinweis": "Nur separate Diagnose; keine produktive Zusammenlegung",
+                "Datei": merge_diagnostic_path.name,
+                "Kandidatengruppen_5K": len(potential_merges_5k),
+                "Betroffene_Einzelquellen": len(potential_merge_members_5k),
+            }]),
 
         "Block_Stichprobe":
             blocks.head(
@@ -6604,7 +6720,13 @@ def process_group(
     )
 
     print(
-        f"      Generatorblöcke: {len(blocks):,}"
+        f"      Generatorblöcke (ohne Zusammenlegung): {len(blocks):,}"
+    )
+    print(
+        f"      theoretische 5-K-Kandidatengruppen (nur Diagnose): {len(potential_merges_5k):,}"
+    )
+    print(
+        f"      separate Zusammenlegungsdiagnose: {merge_diagnostic_path.name}"
     )
 
     print(
@@ -6697,7 +6819,7 @@ def write_global_overview(
 
     overview.to_csv(
         OUTPUT_DIR
-        / "_Uebersicht_Iteration3.csv",
+        / "_Uebersicht_Iteration4.csv",
         sep=";",
         encoding="utf-8-sig",
         index=False,
@@ -6707,7 +6829,7 @@ def write_global_overview(
 
         overview.to_parquet(
             OUTPUT_DIR
-            / "_Uebersicht_Iteration3.parquet",
+            / "_Uebersicht_Iteration4.parquet",
             index=False,
             )
 
@@ -6724,7 +6846,7 @@ def main():
     print()
     print("=" * 88)
     print(
-        "GENERATOR-DATENPAKETE – ITERATION 3"
+        "GENERATOR-DATENPAKETE – ITERATION 4"
     )
     print("=" * 88)
     print()
@@ -6847,7 +6969,7 @@ def main():
             failures
         ).to_csv(
             OUTPUT_DIR
-            / "_Fehler_Iteration3.csv",
+            / "_Fehler_Iteration4.csv",
             sep=";",
             encoding="utf-8-sig",
             index=False,
@@ -6883,20 +7005,20 @@ def main():
     )
 
     print(
-        "  1. Diagnose_Gxx_Iteration3.xlsx"
+        "  1. Diagnose_Gxx_Iteration4.xlsx"
     )
 
     print(
-        "  2. optional source_blocks.csv"
+        "  2. Diagnose_Zusammenlegung_Gxx_Iteration4.xlsx (nur Diagnose)"
     )
 
     print(
-        "  3. optional sites.csv"
+        "  3. optional source_blocks.csv / sites.csv"
     )
 
     print()
     print(
-        "Besonders interessant für Iteration 3:"
+        "Besonders interessant für Iteration 4:"
     )
 
     print(
@@ -6912,7 +7034,7 @@ def main():
     )
 
     print(
-        "  - Aggregations_Kandidaten"
+        "  - separates Diagnose-Potenzial einer theoretischen 5-K-Zusammenlegung"
     )
 
     print(
