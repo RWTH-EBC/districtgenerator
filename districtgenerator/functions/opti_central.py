@@ -8,6 +8,7 @@ import os
 from io import StringIO
 import time
 import districtgenerator.functions.solver_config as solver_config
+from districtgenerator.functions.hub_electricity_prices import operation_prices, hub_import_cost
 from datetime import datetime
 import logging
 from contextlib import redirect_stdout
@@ -634,7 +635,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
         if energyHubData == {}:
             return model.eh_power_WT[t] == 0
         else:
-            return model.eh_power_WT[t] == energyHubData["generation"]["Wind_cluster"][cluster][t] * 1000
+            return model.eh_power_WT[t] <= energyHubData["generation"]["Wind_cluster"][cluster][t] * 1000
 
     for device in ["EB", "HP", "WaterHP", "BOI", "GHP", "BBOI", "WBOI"]:
         constraint_rule = create_eh_heat_capacity_constraint(device)
@@ -1711,15 +1712,32 @@ def build_model(model, data, year, cluster, sim_ecoData):
     # DEFINE OBJECTIVE FUNCTION
     ################################################################################
 
+    # Hub/5G share purchase prices; dynamic hub exports use wholesale prices only.
+    hub_prices = operation_prices(ecoData, cluster, len(model.t))
+    hub_cost = model.from_grid_total_el_eh * ecoData["price_supply_el_eh"]
+    if ecoData.get("hub_electricity_price_mode", "static") == "dynamic":
+        hub_cost = hub_import_cost(
+            (model.eh_power_from_grid[t] for t in model.t), hub_prices,
+            timeData["timeResolution"] / 3600.0, watts=True)
+    model.hub_electricity_import_cost = pyo.Expression(expr=hub_cost)
+    model.decentral_5g_electricity_cost = pyo.Expression(expr=hub_import_cost(
+        (sum(model.decentral_5g_hp_el[n][t] for n in model.n) for t in model.t),
+        hub_prices, timeData["timeResolution"] / 3600.0, watts=True))
+    hub_export_prices = operation_prices(ecoData, cluster, len(model.t), feed_in=True)
+    hub_export_revenue = model.to_grid_total_el_eh * ecoData["revenue_feed_in_el_eh"]
+    if ecoData.get("hub_electricity_price_mode", "static") == "dynamic":
+        hub_export_revenue = hub_import_cost(
+            (model.eh_power_to_grid[t] for t in model.t), hub_export_prices,
+            timeData["timeResolution"] / 3600.0, watts=True)
+    model.hub_electricity_export_revenue = pyo.Expression(expr=hub_export_revenue)
+
     # Operational costs
     def operational_costs_rule(model):
-        decentral_5g_hp_el_costs = (dt * sum(model.decentral_5g_hp_el[n][t] for n in model.n for t in model.t) / 1000.0
-            * ecoData["price_supply_el_eh"])
         return (model.operational_costs == model.from_grid_total_el_buildings * ecoData["price_supply_el"]
                 - model.to_grid_total_el_buildings * ecoData["revenue_feed_in_el"]
-                + model.from_grid_total_el_eh * ecoData["price_supply_el_eh"]
-                - model.to_grid_total_el_eh * ecoData["revenue_feed_in_el_eh"]
-                + decentral_5g_hp_el_costs
+                + model.hub_electricity_import_cost
+                - model.hub_electricity_export_revenue
+                + model.decentral_5g_electricity_cost
                 + model.from_grid_total_gas_buildings * ecoData["price_supply_gas"]
                 + model.from_grid_total_gas_eh * ecoData["price_supply_gas_eh"]
                 + model.total_biomethane_used * ecoData.get("price_biomethane")
@@ -1849,11 +1867,14 @@ def solve_model_and_extract_results(model, data, year, cluster, sim_ecoData):
 
     # Overall costs and emissions
     results_dict["Cost_total"] = pyo.value(model.operational_costs)
+    results_dict["Cost_eh_import_el"] = pyo.value(model.hub_electricity_import_cost)
+    results_dict["Revenue_eh_export_el"] = pyo.value(model.hub_electricity_export_revenue)
+    results_dict["hub_electricity_tariff"] = dict(
+        sim_ecoData.get("hub_electricity_tariff", {"mode": "static"}),
+        period_prices_eur2023_kwh=operation_prices(sim_ecoData, cluster, len(time_steps)).tolist(),
+        period_export_prices_eur2023_kwh=operation_prices(sim_ecoData, cluster, len(time_steps), feed_in=True).tolist())
     results_dict["Emission_total"] = pyo.value(model.co2_total)
-    results_dict["Cost_decentral_HP_5G_el"] = (
-        dt * sum(results_dict["P_decentral_HP_5G"]) / 1000.0
-        * sim_ecoData["price_supply_el_eh"]
-    )
+    results_dict["Cost_decentral_HP_5G_el"] = pyo.value(model.decentral_5g_electricity_cost)
 
     ################################################################################
     # Energy Hub results

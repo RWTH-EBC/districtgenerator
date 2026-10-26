@@ -11,6 +11,7 @@ import numpy as np
 import time
 import os
 import districtgenerator.functions.solver_config as solver_config
+from districtgenerator.functions.hub_electricity_prices import design_import_cost, design_export_revenue
 
 EH_HEAT_PRODUCERS = ("STC", "HP", "WaterHP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
 EH_RENEWABLE_HEAT = ("STC", "HP", "WaterHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
@@ -190,9 +191,10 @@ def build_model(model, data, devs, param, dem):
     model.hydrogen_import_total = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
 
     # Revenues and costs per support year
+    electricity_cost_domain = pyo.Reals if "price_supply_el_eh_profile" in param else pyo.NonNegativeReals
     model.rev_feed_in_gas = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
-    model.rev_feed_in_el = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
-    model.supply_costs_el = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
+    model.rev_feed_in_el = pyo.Var(model.support_years, within=electricity_cost_domain)
+    model.supply_costs_el = pyo.Var(model.support_years, within=electricity_cost_domain)
     model.cap_costs_el = pyo.Var(within=pyo.NonNegativeReals)  # Same for all years
     model.supply_costs_gas = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
     model.cap_costs_gas = pyo.Var(within=pyo.NonNegativeReals)  # Same for all years
@@ -203,8 +205,8 @@ def build_model(model, data, devs, param, dem):
 
     model.total_annual_costs_devices = pyo.Var(within=pyo.NonNegativeReals)                 # Total annual costs for devices (inv and om)
     model.heat_grid_costs = pyo.Var(within=pyo.NonNegativeReals)                            # Total annual costs for heat grid (inv and om)
-    model.total_energy_costs = pyo.Var(model.support_years, within=pyo.NonNegativeReals)    # Total energy costs per year
-    model.annualized_energy_costs = pyo.Var(within=pyo.NonNegativeReals)                    # Annualized energy costs
+    model.total_energy_costs = pyo.Var(model.support_years, within=electricity_cost_domain)    # Total energy costs per year
+    model.annualized_energy_costs = pyo.Var(within=electricity_cost_domain)                    # Annualized energy costs
     model.misc_costs = pyo.Var(model.support_years, within=pyo.NonNegativeReals)            # e.g., CO2 costs, insurance, other taxes etc.
     model.annualized_misc_costs = pyo.Var(within=pyo.NonNegativeReals)                      # Annualized miscellaneous costs
     model.total_connection_costs = pyo.Var(within=pyo.NonNegativeReals)                     # Total annual costs for connection to grids
@@ -631,8 +633,10 @@ def build_model(model, data, devs, param, dem):
 
     # Electricity costs and revenues (per support year with year-specific prices)
     for y in model.support_years:
-        model.constraints.add(model.supply_costs_el[y] == model.from_el_grid_total[y] * param["price_supply_el_eh"][y])
-        model.constraints.add(model.rev_feed_in_el[y] == model.to_el_grid_total[y] * param["revenue_feed_in_el_eh"][y])
+        hub_cost = design_import_cost(model, param, y, data.time["timeResolution"] / 3600.0)
+        model.constraints.add(model.supply_costs_el[y] == hub_cost)
+        export_revenue = design_export_revenue(model, param, y, data.time["timeResolution"] / 3600.0)
+        model.constraints.add(model.rev_feed_in_el[y] == export_revenue)
 
         # Gas costs and revenues (per support year with year-specific prices)
         model.constraints.add(model.supply_costs_gas[y] == model.from_gas_grid_total[y] * param["price_supply_gas_eh"][y])

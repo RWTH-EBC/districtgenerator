@@ -6,6 +6,7 @@ from reportlab.graphics.shapes import *
 from itertools import zip_longest
 import pandas as pd
 from districtgenerator.classes.certificate_generator import CertificateBuilder
+from districtgenerator.functions.hub_electricity_prices import operation_prices
 
 class KPIs:
 
@@ -560,12 +561,23 @@ class KPIs:
 
         for year in self.inputData["simulated_years"]:
             ecoData = data.all_sim_ecoData[year]
+            hub_electricity_cost = self.el_dem_eh[year] * ecoData["price_supply_el_eh"]
+            hub_export_revenue = self.el_inj_eh[year] * ecoData["revenue_feed_in_el_eh"]
+            if ecoData.get("hub_electricity_price_mode", "static") == "dynamic":
+                hub_electricity_cost = sum(
+                    self.inputData["resultsOptimization"][year][c]["Cost_eh_import_el"]
+                    * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+                    for c in range(len(self.inputData["clusters"])))
+                hub_export_revenue = sum(
+                    self.inputData["resultsOptimization"][year][c]["Revenue_eh_export_el"]
+                    * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+                    for c in range(len(self.inputData["clusters"])))
 
             # Save all costs in a dictionary for each year
             self.detailed_costs_year[year] = {
                 "eh_fixed": self.annual_fixed_costs_central,
                 "decentral_fixed": self.annual_fixed_costs_decentral,
-                "electricity": (self.el_dem_buildings[year] * ecoData["price_supply_el"] + self.el_dem_eh[year] * ecoData["price_supply_el_eh"] + self.cost_decentral_HP_5G_el_year.get(year, 0.0)),
+                "electricity": (self.el_dem_buildings[year] * ecoData["price_supply_el"] + hub_electricity_cost + self.cost_decentral_HP_5G_el_year.get(year, 0.0)),
                 "gas": (self.gas_dem_buildings[year] * ecoData["price_supply_gas"] + self.gas_dem_eh[year] * ecoData["price_supply_gas_eh"]),
                 "biomethane": self.biomethane_year[year] * ecoData.get("price_biomethane"),
                 "oil": self.oil_year[year] * ecoData["price_oil"],
@@ -573,7 +585,7 @@ class KPIs:
                 "biomass": self.biomass_year[year] * ecoData["price_biomass"],
                 "district_heat": self.districtHeat_year[year] * ecoData["price_district_heat"],
                 "hydrogen": self.hydrogen_year[year] * ecoData["price_hydrogen"],
-                "revenue_feed_in_el": -(self.el_inj_buildings[year] * ecoData["revenue_feed_in_el"] + self.el_inj_eh[year] * ecoData["revenue_feed_in_el_eh"])
+                "revenue_feed_in_el": -(self.el_inj_buildings[year] * ecoData["revenue_feed_in_el"] + hub_export_revenue)
             }
 
     def calc_annual_cost_device(self, dev, ecoData, cap, mode="subsidized"):
@@ -902,6 +914,10 @@ class KPIs:
         by the central Energy Hub to all buildings connected to the district
         heating network for each simulated year.
 
+        Grid electricity allocated to electric heat producers is valued at its
+        timestep tariff in dynamic mode. The existing allocation of grid energy
+        and the annual reference-price convention for CHP fuel allocation remain unchanged.
+
         For co-generation technologies (CHP, biomass CHP, waste CHP, and fuel
         cells), fuel costs are allocated between heat and electricity using a
         price-based allocation method:
@@ -1072,7 +1088,11 @@ class KPIs:
                     fuel_cost_heat += cw * share_heat * fuel_kWh * price_h2
 
                 # Electricity cost for heat-producing electric EH devices
-                el_heat_from_grid_cluster = 0.0
+                electricity_prices = (
+                    operation_prices(eco, c, T)
+                    if eco.get("hub_electricity_price_mode", "static") == "dynamic"
+                    else np.full(T, price_el))
+                el_heat_cost_cluster = 0.0
                 for t in range(T):
                     hp_t = eh_power.get("HP", [0] * T)[t]
                     waterhp_t = eh_power.get("WaterHP", [0] * T)[t]
@@ -1080,8 +1100,8 @@ class KPIs:
                     grid_t =eh_power.get("from_grid", [0] * T)[t]
                     el_heat_t = (hp_t + waterhp_t + eb_t) * dt / 3600 / 1000
                     grid_kWh = grid_t * dt / 3600 / 1000
-                    el_heat_from_grid_cluster += min(el_heat_t, grid_kWh)
-                el_cost_heat += cw * el_heat_from_grid_cluster * price_el
+                    el_heat_cost_cluster += min(el_heat_t, grid_kWh) * electricity_prices[t]
+                el_cost_heat += cw * el_heat_cost_cluster
 
             # LCOH
             total_cost = fixed_cost_heat + fuel_cost_heat + el_cost_heat

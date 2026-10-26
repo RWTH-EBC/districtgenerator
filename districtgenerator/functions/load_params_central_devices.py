@@ -7,6 +7,7 @@ import time
 import os
 import copy
 from districtgenerator.classes.solar import Sun
+from districtgenerator.functions.hub_electricity_prices import select_price_periods
 
 
 def load_params(data):
@@ -211,6 +212,22 @@ def load_params(data):
         "clusterMatrix": param["cluster_matrix"].copy(),
         "sigma": param["sigma"].copy(),
     }
+
+    if ecoData.get("hub_electricity_price_mode", "static") == "dynamic":
+        param["price_supply_el_eh_profile"] = {
+            year: select_price_periods(eco["price_supply_el_eh_profile"], param["typedays"], clusterHorizon)
+            for year, eco in all_sim_ecoData.items()
+        }
+        param["revenue_feed_in_el_eh_profile"] = {
+            year: select_price_periods(eco["revenue_feed_in_el_eh_profile"], param["typedays"], clusterHorizon)
+            for year, eco in all_sim_ecoData.items()
+        }
+        result_dict["hub_electricity_tariff"] = {
+            year: dict(eco["hub_electricity_tariff"],
+                       period_prices_eur2023_kwh=param["price_supply_el_eh_profile"][year].tolist(),
+                       period_export_prices_eur2023_kwh=param["revenue_feed_in_el_eh_profile"][year].tolist())
+            for year, eco in all_sim_ecoData.items()
+        }
 
     heat_grid = {
         k: heat_grid_data[k]

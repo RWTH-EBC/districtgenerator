@@ -30,6 +30,7 @@ from .non_residential import NonResidential
 import districtgenerator.functions.SIA as SIA
 import districtgenerator.functions.clustering_medoid as cm
 from districtgenerator.functions import opti_central
+from districtgenerator.functions.hub_electricity_prices import (effective_profile, load_reference_deviation, select_price_periods)
 import districtgenerator.functions.heating_network_simple as heating_network_simple
 from districtgenerator.functions.heating_network_2leiter import network_2leiter_simple
 from districtgenerator.functions.heating_network_5g import network_5G
@@ -2173,6 +2174,16 @@ class Datahandler:
             if "envelope" in building and hasattr(building["envelope"], "compute_heating_curve"):
                 building["envelope"].compute_heating_curve(self.site, mode="clustered")
 
+        self._map_hub_prices_to_operation(typedays, cluster_horizon)
+
+    def _map_hub_prices_to_operation(self, typedays, cluster_horizon):
+        for eco in self.all_sim_ecoData.values():
+            if eco.get("hub_electricity_price_mode", "static") == "dynamic":
+                eco["price_supply_el_eh_cluster"] = select_price_periods(
+                    eco["price_supply_el_eh_profile"], typedays, cluster_horizon)
+                eco["revenue_feed_in_el_eh_cluster"] = select_price_periods(
+                    eco["revenue_feed_in_el_eh_profile"], typedays, cluster_horizon)
+
     def clusterProfiles(self, centralEnergySupply):
         """
         Perform time series aggregation for profiles by using the k-medoids clustering algorithm.
@@ -2548,6 +2559,8 @@ class Datahandler:
         for c in self.clusters:
             self.clusterWeights[c] = len(self.clusterAssignments[c])
 
+        self._map_hub_prices_to_operation(self.clusters, int(initialArrayLenght))
+
     def saveDistrict(self):
         """
         Save district dict as pickle file.
@@ -2710,7 +2723,10 @@ class Datahandler:
             'investment_sensitivity_enabled',
             'investment_sensitivity_case',
             'investment_sensitivity_cases',
+            'hub_electricity_price_mode',
         ]
+        # Config loading and sensitivity initialization populate all these keys.
+        single_values = {key: self.ecoData[key] for key in single_value_keys}
         ecoData = {k: v for k, v in self.ecoData.copy().items() if k not in single_value_keys}
 
         # All keys that have co2 in name are undiscounted
@@ -2763,9 +2779,17 @@ class Datahandler:
 
                 all_sim_ecoData[year][key] = effective_price
 
-            # Add the values in single_value_keys to each year's ecoData
-            for key in single_value_keys:
-                all_sim_ecoData[year][key] = self.ecoData[key]
+            all_sim_ecoData[year].update(single_values)
+
+        if self.ecoData.get("hub_electricity_price_mode", "static") == "dynamic":
+            deviation, metadata = load_reference_deviation(self.time["timeResolution"])
+            for year in simulated_years:
+                all_sim_ecoData[year]["price_supply_el_eh_profile"] = effective_profile(
+                    self.ecoData["price_supply_el_eh"], year_segments[year], interest_factor, deviation)
+                all_sim_ecoData[year]["revenue_feed_in_el_eh_profile"] = effective_profile(
+                    self.ecoData["revenue_feed_in_el_eh"], year_segments[year], interest_factor, deviation)
+                all_sim_ecoData[year]["hub_electricity_tariff"] = dict(
+                    metadata, represented_year_indices=list(year_segments[year]))
 
         return all_sim_ecoData
 

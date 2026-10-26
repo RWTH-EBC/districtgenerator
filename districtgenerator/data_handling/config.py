@@ -204,8 +204,9 @@ class EcoConfig(BaseSettings):
     # electricity prices and feed-in revenue in €/kWh
     price_supply_el: str | list = [0.3460, 0.3480, 0.3500, 0.3520, 0.3540, 0.3560, 0.3526, 0.3492, 0.3458, 0.3424, 0.3390, 0.3366, 0.3342, 0.3318, 0.3294, 0.3270, 0.3270, 0.3270, 0.3270, 0.3270]    # Electricity price in €/kWh
     revenue_feed_in_el: str | list = [0.0794]  # Feed-in electricity price in €/kWh
-    price_supply_el_eh: str | list = [0.1590, 0.1554, 0.1518, 0.1482, 0.1446, 0.1410, 0.1394, 0.1378, 0.1362, 0.1346, 0.1330, 0.1302, 0.1274, 0.1246, 0.1218, 0.1190, 0.1190, 0.1190, 0.1190, 0.1190]  # Electricity price for the energy hub in €/kWh
-    revenue_feed_in_el_eh: str | list = [0.0794] # Feed-in electricity price for the energy hub in €/kWh
+    price_supply_el_eh: str | list = [0.2115463857, 0.2109990768, 0.2038387938, 0.2015507572, 0.2007464812, 0.2016041517, 0.2004113553, 0.1993530735, 0.1979686980, 0.1971538117, 0.1972020203, 0.1991279589, 0.1984195020, 0.1964530368, 0.1943849190, 0.1887506425, 0.1849403736, 0.1802900418, 0.1765141941, 0.1758764225]  # Reviewed PAPER hub purchase tariff, net EUR2023/kWh for 2026-2045.
+    hub_electricity_price_mode: str = "static"  # Static or dynamic electricity price for the energy hub.
+    revenue_feed_in_el_eh: str | list = [0.1054687407, 0.1038339919, 0.0954862690, 0.0921107924, 0.0913190765, 0.0922589612, 0.0913483789, 0.0907723112, 0.0901701499, 0.0896374778, 0.0905679005, 0.0934760533, 0.0944498105, 0.0940655595, 0.0934796558, 0.0886275935, 0.0852995388, 0.0811314211, 0.0776377876, 0.0773822301] # Hub feed-in reference price: annual wholesale means, net EUR2023/kWh for 2026-2045. No subsidies or marketing fees. Static: annual level; dynamic: level + hourly deviations.
 
     # gas and other fuel prices in €/kWh
     price_supply_gas: str | list = [0.1230, 0.1218, 0.1206, 0.1194, 0.1182, 0.1170, 0.1198, 0.1226, 0.1254, 0.1282, 0.1310, 0.1338, 0.1366, 0.1394, 0.1422, 0.1450, 0.1450, 0.1450, 0.1450, 0.1450]    # Gas price in €/kWh
@@ -260,6 +261,14 @@ class EcoConfig(BaseSettings):
         if case not in {"min", "mean", "max"}:
             raise ValueError("investment_sensitivity_case must be 'min', 'mean', or 'max'.")
         return case
+
+    @field_validator('hub_electricity_price_mode', mode='before')
+    @classmethod
+    def validate_hub_electricity_price_mode(cls, value):
+        mode = str(value).strip().lower()
+        if mode not in {"static", "dynamic"}:
+            raise ValueError("hub_electricity_price_mode must be 'static' or 'dynamic'.")
+        return mode
     
     @model_validator(mode='after')
     def expand_lists_to_observation_time(self) -> 'EcoConfig':
