@@ -93,7 +93,9 @@ class Datahandler:
                  scenario_file_path = None,
                  srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                  filePath = None,
-                 env_path = None):
+                 env_path = None,
+                 profile_input_path = None,
+                 network_output_path = None):
         """
         Constructor of Datahandler class.
 
@@ -115,6 +117,10 @@ class Datahandler:
             Path to the data directory. If None, it defaults to 'srcPath/data'.
         env_path : str, optional
             Path to the environment configuration file. If None, it defaults to the global configuration file.
+        profile_input_path : str, optional
+            Read existing demand workbooks from this directory instead of resultPath/demands.
+        network_output_path : str, optional
+            Write and read generated network topology files in this directory.
 
         Returns
         -------
@@ -131,6 +137,8 @@ class Datahandler:
         self.input_scenario_name = scenario_name
         self.output_scenario_name = output_scenario_name or scenario_name
         self.scenario_name = scenario_name
+        self.profile_input_path = profile_input_path
+        self.network_output_path = network_output_path
         self.scenario = None
         self.total_building_area = None
 
@@ -1278,7 +1286,7 @@ class Datahandler:
             # (including every other building) with every task.
             context = {name: getattr(self, name) for name in (
                 "site", "calendar", "time", "decentral_device_data", "resultPath",
-                "initial_day", "design_building_data",
+                "initial_day", "design_building_data", "profile_input_path",
             )}
             task_count = sum(b["user"].nb_flats if b["user"].is_residential else 1
                              for b in self.district) if task_level == "flat" else len(self.district)
@@ -1398,7 +1406,8 @@ class Datahandler:
             )
 
         else:
-            excel_file = os.path.join(self.resultPath, 'demands', building["unique_name"] + '.xlsx')
+            profile_dir = getattr(self, "profile_input_path", None) or os.path.join(self.resultPath, 'demands')
+            excel_file = os.path.join(profile_dir, building["unique_name"] + '.xlsx')
             with pd.ExcelFile(excel_file, engine='openpyxl') as excel:
                 (building["user"].elec, building["user"].dhw, building["user"].dhw_minutely,
                  building["user"].occ, building["user"].gains,
@@ -2857,7 +2866,8 @@ class Datahandler:
                 "position": [base_pos[0] + offset_x, base_pos[1] + offset_y]
             }
 
-        run_pipeline_node(district_type, buildings_info, transformer_info)
+        run_pipeline_node(district_type, buildings_info, transformer_info,
+                          output_dir=self.network_output_path)
 
     def designNetworkwithRoad(self):
         """
@@ -2899,7 +2909,8 @@ class Datahandler:
             buildings_info,
             lines_info,
             transformer_info,
-            topology_label=scenario_input_name
+            topology_label=scenario_input_name,
+            output_dir=self.network_output_path
         )
 
     def generateNetwork(self, topology_option):
@@ -2951,7 +2962,8 @@ class Datahandler:
             topology_file = f"topology_{topology_option}_{district_type}_buildings_{connected_building_count}.json"
 
         # load the file of the heating network topology
-        with open(os.path.join(self.scenario_file_path, topology_file)) as json_file:
+        topology_dir = self.network_output_path or self.scenario_file_path
+        with open(os.path.join(topology_dir, topology_file)) as json_file:
             jsonData = json.load(json_file)
 
         self.pipeline_nodes = jsonData.get("nodes", {})

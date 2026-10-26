@@ -13,7 +13,7 @@ import warnings
 
 
 SCENARIO_NAME = "district_E_seed_1_buildings_10"
-ENV_PATH = ".env.CONFIG.EXAMPLE"
+ENV_PATH = ".env.CONFIG.PAPER"
 
 
 def _scenario_csv_path(scenario_name):

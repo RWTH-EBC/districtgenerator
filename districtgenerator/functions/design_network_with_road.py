@@ -225,7 +225,7 @@ def orient_network(G, plant):
     return directed_dict
 
 def run_pipeline_road(district_type, building_width, house_connection, buildings_info, lines_info, transformer_info,
-                      topology_label=None):
+                      topology_label=None, output_dir=None):
     """
     Consider road constraints, ensuring all main pipelines are laid beneath roads.
     using Steiner Tree algorithm
@@ -464,7 +464,7 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
         # Save figure
         # define the save path for the output file
         current_dir = os.path.dirname(__file__)
-        save_dir = os.path.join(current_dir, '..', 'data', 'scenarios')
+        save_dir = output_dir or os.path.join(current_dir, '..', 'data', 'scenarios')
         # create the folder if it doesn't exist
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
@@ -684,7 +684,7 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
         # Save figure
         # define the save path for the output file
         current_dir = os.path.dirname(__file__)
-        save_dir = os.path.join(current_dir, '..', 'data', 'scenarios')
+        save_dir = output_dir or os.path.join(current_dir, '..', 'data', 'scenarios')
         # create the folder if it doesn't exist
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)

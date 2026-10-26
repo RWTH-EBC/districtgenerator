@@ -66,7 +66,7 @@ def orient_network(G, plant):
                 queue.append(neighbor)
     return directed_dict
 
-def run_pipeline_node(district_type, buildings_info, transformer_info):
+def run_pipeline_node(district_type, buildings_info, transformer_info, output_dir=None):
     """
     Ignore road restrictions and connect all building nodes and energy center nodes via the shortest path.
     using Minimum Spanning Tree(MST) algorithm
@@ -145,7 +145,7 @@ def run_pipeline_node(district_type, buildings_info, transformer_info):
     # Save figure
     # define the save path for the output file
     current_dir = os.path.dirname(__file__)
-    save_dir = os.path.join(current_dir, '..', 'data', 'scenarios')
+    save_dir = output_dir or os.path.join(current_dir, '..', 'data', 'scenarios')
     # create the folder if it doesn't exist
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
