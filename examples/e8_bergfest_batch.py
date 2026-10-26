@@ -1,6 +1,7 @@
-"""Optimize the first ten numeric seeds per Paper_3 type with BERGFEST settings.
+"""Obtain ten successful districts per Paper_3 type with BERGFEST settings.
 
-Run this file normally for all 240 district/cost cases. Use --dry-run to check
+Try up to twenty numeric seeds per type until ten pass all three cost cases.
+Failed districts remain recorded and are skipped on resume. Use --dry-run to check
 inputs without optimization, --pilot for the first district's three cases, or
 --resume <run-folder> to continue a saved run. Existing results are never reused
 as writable workspaces: retries receive a new attempt directory.
@@ -31,6 +32,7 @@ RUNS_ROOT = PAPER_ROOT / "optimization_runs"
 CONFIG = ROOT / "districtgenerator" / "data" / ".env.CONFIG.BERGFEST"
 TYPES = "ABCDEFHI"
 CASES = ("mean", "min", "max")
+TARGET_PER_TYPE = 10
 REQUIRED_SHEETS = {
     "Electricity", "Hot Water", "Hot Water Minute", "Occupancy", "Internal Gains",
     "EV_demand_agg", "EV_charging_agg", "ICE_fuel_agg", "EV_demand_individual",
@@ -55,7 +57,7 @@ def select_districts():
         found.sort()
         if len(found) != 20:
             raise ValueError(f"Expected 20 original districts of type {district_type}; found {len(found)}.")
-        for seed, path in found[:10]:
+        for seed, path in found:
             selected.append({"type": district_type, "seed": seed, "name": path.stem,
                              "csv_sha256": digest(path), "json_sha256": digest(path.with_suffix('.json'))})
     return selected
@@ -122,7 +124,7 @@ def load_manifest(run_dir):
     if not run_dir.is_relative_to(RUNS_ROOT.resolve()):
         raise ValueError("The resume folder must be inside Paper_3/optimization_runs.")
     manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
-    if manifest["version"] != 1 or manifest["cases"] != list(CASES):
+    if manifest["version"] not in (1, 2) or manifest["cases"] != list(CASES):
         raise ValueError("Unsupported batch manifest.")
     if digest(run_dir / ".env.CONFIG.BERGFEST") != manifest["config_sha256"]:
         raise ValueError("The saved run configuration was modified; start a new run instead.")
@@ -179,9 +181,20 @@ def worker(run_dir, scenario, case, attempt):
 
 
 def run_batch(run_dir, manifest, pilot):
-    items = manifest["districts"][:1] if pilot else manifest["districts"]
-    failed = 0
+    candidates = sorted(manifest["districts"], key=lambda item: (item["type"], item["seed"]))
+    items = candidates[:1] if pilot else candidates
+    successful = {kind: [] for kind in TYPES}
+    failed = {kind: [] for kind in TYPES}
     for item in items:
+        kind = item["type"]
+        if len(successful[kind]) >= TARGET_PER_TYPE:
+            continue
+        district_dir = run_dir / item["name"]
+        if (district_dir / "district_failed.json").exists():
+            failed[kind].append(item["name"])
+            print(f"Previously failed district: {item['name']}; trying next seed.", flush=True)
+            continue
+        district_failed = False
         for case in CASES:
             case_dir = run_dir / item["name"] / case
             if any(case_dir.glob("attempt_*/completed.json")):
@@ -201,12 +214,34 @@ def run_batch(run_dir, manifest, pilot):
                      str(run_dir), item["name"], case, str(attempt)],
                     stdout=stream, stderr=subprocess.STDOUT, cwd=attempt, check=False)
             if result.returncode != 0 or not (attempt / "completed.json").exists():
-                failed += 1
                 print(f"FAILED: {item['name']} / {case}; see {log}", flush=True)
-                # Do not repeat the same infrastructure failure across all 240 jobs.
-                raise RuntimeError(f"Batch stopped after a failed case. Resume with --resume {run_dir}")
+                write_json_new(district_dir / "district_failed.json", {
+                    "scenario": item["name"], "case": case, "returncode": result.returncode,
+                    "log": str(log.relative_to(run_dir)),
+                    "finished": datetime.now().astimezone().isoformat(),
+                })
+                failed[kind].append(item["name"])
+                district_failed = True
+                break
             print(f"Completed {item['name']} / {case}", flush=True)
-    print(f"Finished selected cases. Run folder: {run_dir}; failures: {failed}")
+        if not district_failed:
+            successful[kind].append(item["name"])
+            print(f"Type {kind}: {len(successful[kind])}/{TARGET_PER_TYPE} successful districts.", flush=True)
+    shortfalls = {kind: TARGET_PER_TYPE - len(names) for kind, names in successful.items()
+                  if len(names) < TARGET_PER_TYPE}
+    report = {"pilot": pilot, "successful": successful, "failed": failed,
+              "shortfalls": shortfalls, "target_per_type": TARGET_PER_TYPE}
+    report_path = run_dir / f"batch_summary_{datetime.now():%Y%m%d-%H%M%S}_{uuid4().hex[:6]}.json"
+    write_json_new(report_path, report)
+    print(f"Summary: {report_path}", flush=True)
+    if pilot:
+        print("Pilot finished; the full per-type target was not attempted.", flush=True)
+        if any(failed.values()):
+            raise RuntimeError("Pilot district failed; inspect its logs before submitting the full batch.")
+    elif shortfalls:
+        raise RuntimeError(f"Candidates exhausted; missing successful districts by type: {shortfalls}")
+    else:
+        print("Target reached: 10 successful districts per type, all three cases complete.", flush=True)
 
 
 def main():
@@ -233,7 +268,8 @@ def main():
         seeds = [item["seed"] for item in selected if item["type"] == district_type]
         if seeds:
             print(f"Type {district_type}: seeds {seeds}")
-    print(f"Selected {len(selected)} districts x 3 investment cases = {len(selected) * 3} evaluations.")
+    print(f"Available: {len(selected)} candidates, up to {len(selected) * 3} case evaluations. "
+          f"Target: {TARGET_PER_TYPE} successful districts per type (all three cases).", flush=True)
     preflight(selected, config_path)
     if args.dry_run:
         return
@@ -242,7 +278,7 @@ def main():
         run_dir = RUNS_ROOT / f"BERGFEST_{datetime.now():%Y%m%d-%H%M%S}_{uuid4().hex[:6]}"
         run_dir.mkdir()
         shutil.copyfile(CONFIG, run_dir / ".env.CONFIG.BERGFEST")
-        manifest = {"version": 1, "districts": items, "cases": list(CASES),
+        manifest = {"version": 2, "districts": items, "cases": list(CASES),
                     "config_sha256": digest(run_dir / ".env.CONFIG.BERGFEST"),
                     "created": datetime.now().astimezone().isoformat()}
         write_json_new(run_dir / "manifest.json", manifest)
