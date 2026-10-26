@@ -5,10 +5,11 @@ Failed districts remain recorded and are skipped on resume. Use --dry-run to che
 inputs without optimization, --pilot for the first district's three cases, or
 --resume <run-folder> to continue a saved run. Existing results are never reused
 as writable workspaces: retries receive a new attempt directory.
+For Slurm arrays, use --resume <run-folder> --type A (one task per type).
 """
 
 import argparse
-from contextlib import redirect_stdout
+from contextlib import ExitStack, contextmanager, redirect_stdout
 from datetime import datetime
 from hashlib import sha256
 import io
@@ -180,11 +181,49 @@ def worker(run_dir, scenario, case, attempt):
         raise
 
 
-def run_batch(run_dir, manifest, pilot):
+@contextmanager
+def type_lock(run_dir, kind):
+    """Hold an OS lock; process exit releases it without deleting the lock file."""
+    with (run_dir / f"type_{kind}.lock").open("a+b") as stream:
+        if os.name == "nt":
+            import msvcrt
+            if stream.tell() == 0:
+                stream.write(b"0")
+                stream.flush()
+            stream.seek(0)
+            acquire = lambda: msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+            release = lambda: msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            acquire = lambda: fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            release = lambda: fcntl.flock(stream, fcntl.LOCK_UN)
+        try:
+            acquire()
+        except OSError as error:
+            raise RuntimeError(f"Another task already owns type {kind} in {run_dir}") from error
+        try:
+            yield
+        finally:
+            release()
+
+
+def run_batch(run_dir, manifest, pilot, district_type=None):
+    kinds = [district_type] if district_type else list(TYPES)
+    if district_type is not None and district_type not in TYPES:
+        raise ValueError(f"Unknown district type: {district_type}")
+    # Whole-batch and per-type invocations use the same locks.
+    with ExitStack() as stack:
+        for kind in kinds:
+            stack.enter_context(type_lock(run_dir, kind))
+        return run_selected_types(run_dir, manifest, pilot, kinds)
+
+
+def run_selected_types(run_dir, manifest, pilot, kinds):
     candidates = sorted(manifest["districts"], key=lambda item: (item["type"], item["seed"]))
+    candidates = [item for item in candidates if item["type"] in kinds]
     items = candidates[:1] if pilot else candidates
-    successful = {kind: [] for kind in TYPES}
-    failed = {kind: [] for kind in TYPES}
+    successful = {kind: [] for kind in kinds}
+    failed = {kind: [] for kind in kinds}
     for item in items:
         kind = item["type"]
         if len(successful[kind]) >= TARGET_PER_TYPE:
@@ -213,6 +252,10 @@ def run_batch(run_dir, manifest, pilot):
                     [sys.executable, "-u", str(Path(__file__).resolve()), "--worker",
                      str(run_dir), item["name"], case, str(attempt)],
                     stdout=stream, stderr=subprocess.STDOUT, cwd=attempt, check=False)
+            if result.returncode < 0:
+                raise RuntimeError(
+                    f"Worker terminated by signal {-result.returncode}; inspect {log} and Slurm "
+                    "resource limits before resuming. District is not excluded.")
             if result.returncode != 0 or not (attempt / "completed.json").exists():
                 print(f"FAILED: {item['name']} / {case}; see {log}", flush=True)
                 write_json_new(district_dir / "district_failed.json", {
@@ -229,7 +272,7 @@ def run_batch(run_dir, manifest, pilot):
             print(f"Type {kind}: {len(successful[kind])}/{TARGET_PER_TYPE} successful districts.", flush=True)
     shortfalls = {kind: TARGET_PER_TYPE - len(names) for kind, names in successful.items()
                   if len(names) < TARGET_PER_TYPE}
-    report = {"pilot": pilot, "successful": successful, "failed": failed,
+    report = {"pilot": pilot, "types": kinds, "successful": successful, "failed": failed,
               "shortfalls": shortfalls, "target_per_type": TARGET_PER_TYPE}
     report_path = run_dir / f"batch_summary_{datetime.now():%Y%m%d-%H%M%S}_{uuid4().hex[:6]}.json"
     write_json_new(report_path, report)
@@ -241,7 +284,8 @@ def run_batch(run_dir, manifest, pilot):
     elif shortfalls:
         raise RuntimeError(f"Candidates exhausted; missing successful districts by type: {shortfalls}")
     else:
-        print("Target reached: 10 successful districts per type, all three cases complete.", flush=True)
+        print(f"Target reached: 10 successful districts per selected type {kinds}, "
+              "all three cases complete.", flush=True)
 
 
 def main():
@@ -249,8 +293,12 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Check all selected input profiles without optimization or output creation.")
     parser.add_argument("--pilot", action="store_true", help="Run only the first district in mean/min/max; resume later for the rest.")
     parser.add_argument("--resume", type=Path, help="Continue a saved run using its immutable configuration snapshot.")
+    parser.add_argument("--type", choices=list(TYPES), dest="district_type",
+                        help="With --resume, process only this settlement type (Slurm array task).")
     parser.add_argument("--worker", nargs=4, metavar=("RUN", "SCENARIO", "CASE", "ATTEMPT"), help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.district_type and (not args.resume or args.pilot or args.worker):
+        parser.error("--type requires --resume and cannot be combined with --pilot or --worker.")
     if args.worker:
         run, scenario, case, attempt = args.worker
         worker(Path(run).resolve(), scenario, case, Path(attempt))
@@ -263,7 +311,10 @@ def main():
     else:
         items = select_districts()
         config_path = CONFIG
-    selected = items[:1] if args.pilot else items
+    selected = [item for item in items if item["type"] == args.district_type] if args.district_type else items
+    selected = selected[:1] if args.pilot else selected
+    if not selected:
+        parser.error("The saved manifest contains no candidates for the selected type.")
     for district_type in TYPES:
         seeds = [item["seed"] for item in selected if item["type"] == district_type]
         if seeds:
@@ -283,7 +334,7 @@ def main():
                     "created": datetime.now().astimezone().isoformat()}
         write_json_new(run_dir / "manifest.json", manifest)
     print(f"All outputs will be stored under: {run_dir}", flush=True)
-    run_batch(run_dir, manifest, args.pilot)
+    run_batch(run_dir, manifest, args.pilot, district_type=args.district_type)
 
 
 if __name__ == "__main__":
