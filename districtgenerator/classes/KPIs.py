@@ -532,11 +532,13 @@ class KPIs:
 
                 heat_grid_total_cost = heat_grid_ann_cost + heat_grid_om_cost
 
-                if heat_grid_total_cost > 0.0:
+                if heat_grid_total_cost != 0.0 or data.heat_grid_data.get("costs", 0.0) > 0.0:
                     self.central_individual_devices_annualized_cost["Heat_Grid"] = {
                         "cap": "",
                         "subsidized_annual_cost": heat_grid_total_cost,
-                        "unsubsidized_annual_cost": heat_grid_total_cost
+                        "unsubsidized_annual_cost": float(data.heat_grid_data.get(
+                            "ann_costs_without_HP_5G_unsubsidized", data.heat_grid_data.get(
+                                "ann_costs_without_HP_5G", data.heat_grid_data.get("ann_costs_unsubsidized", heat_grid_ann_cost)))) + heat_grid_om_cost
                     }
 
                 hp_5g_ann_cost = float(data.heat_grid_data.get("HP_5G_ann_costs", 0.0))
@@ -548,7 +550,8 @@ class KPIs:
                     self.central_individual_devices_annualized_cost["HP_5G"] = {
                         "cap": hp_5g_capacity,
                         "subsidized_annual_cost": hp_5g_total_cost,
-                        "unsubsidized_annual_cost": hp_5g_total_cost
+                        "unsubsidized_annual_cost": float(data.heat_grid_data.get(
+                            "HP_5G_ann_costs_unsubsidized", hp_5g_ann_cost)) + hp_5g_om_cost
                     }
 
         except KeyError:
@@ -626,7 +629,8 @@ class KPIs:
         q = 1 + ecoData["interest_rate"]
 
         # Calculate capital recovery factor
-        CRF = ((q ** observation_time) * interest_rate) / ((q ** observation_time) - 1)
+        from districtgenerator.functions.investment_funding import capital_recovery_factor
+        CRF = capital_recovery_factor(interest_rate, observation_time)
 
         # Get device life time
         life_time = dev["life_time"]
@@ -654,7 +658,7 @@ class KPIs:
         inv_subsidized = dev["inv_var"] * cap
         # Annualized investment costs
         if mode == "subsidized":
-            c_inv = inv_subsidized * ann_factor
+            c_inv = inv_unsubsidized * ann_factor - (inv_unsubsidized - inv_subsidized) * CRF
         elif mode == "unsubsidized":
             c_inv = inv_unsubsidized * ann_factor
         else: raise ValueError(f"Mode {mode} for investment cost calculation not recognized. Possible modes are 'subsidized' and 'unsubsidized'.")
@@ -681,7 +685,8 @@ class KPIs:
         q = 1 + interest_rate
 
         # Capital recovery factor
-        CRF = ((q ** observation_time) * interest_rate) / ((q ** observation_time) - 1)
+        from districtgenerator.functions.investment_funding import capital_recovery_factor
+        CRF = capital_recovery_factor(interest_rate, observation_time)
 
         return inv_total * CRF
 

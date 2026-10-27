@@ -12,6 +12,7 @@ import time
 import os
 import districtgenerator.functions.solver_config as solver_config
 from districtgenerator.functions.hub_electricity_prices import design_import_cost, design_export_revenue
+from districtgenerator.functions.investment_funding import (add_investment_funding, funding_results, capital_recovery_factor, prepare_investment_funding)
 
 EH_HEAT_PRODUCERS = ("STC", "HP", "WaterHP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
 EH_RENEWABLE_HEAT = ("STC", "HP", "WaterHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
@@ -92,6 +93,9 @@ def run_optim(data, devs, param, dem, result_dict):
 
 def build_model(model, data, devs, param, dem):
 
+    prepare_investment_funding(data)
+    bew_enabled = getattr(data, "funding_config", {}).get("enabled", False)
+
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # 1. Initialize Pyomo Model and Define Sets
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -171,10 +175,10 @@ def build_model(model, data, devs, param, dem):
     # Investment costs (same for all years)
     model.inv = pyo.Var(model.all_devs, within=pyo.NonNegativeReals)    # subsidized investment costs payed by the investor
     model.inv_base = pyo.Var(model.all_devs, within=pyo.NonNegativeReals)  # unsubsidized investment costs
-    model.c_inv = pyo.Var(model.all_devs, within=pyo.NonNegativeReals)
+    model.c_inv = pyo.Var(model.all_devs, within=pyo.Reals)
     model.c_inv_base = pyo.Var(model.all_devs, within=pyo.NonNegativeReals)  # unsubsidized annualized investment costs
     model.c_om = pyo.Var(model.all_devs, within=pyo.NonNegativeReals)
-    model.c_total = pyo.Var(model.all_devs, within=pyo.NonNegativeReals)
+    model.c_total = pyo.Var(model.all_devs, within=pyo.Reals)
 
     # Grid limits (same for all years - infrastructure decision)
     model.grid_limit_el = pyo.Var(within=pyo.NonNegativeReals)
@@ -203,7 +207,7 @@ def build_model(model, data, devs, param, dem):
     model.supply_costs_waste = pyo.Var(model.support_years, within=pyo.Reals)
     model.supply_costs_hydrogen = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
 
-    model.total_annual_costs_devices = pyo.Var(within=pyo.NonNegativeReals)                 # Total annual costs for devices (inv and om)
+    model.total_annual_costs_devices = pyo.Var(within=pyo.Reals)                 # Total annual costs for devices (inv and om)
     model.heat_grid_costs = pyo.Var(within=pyo.NonNegativeReals)                            # Total annual costs for heat grid (inv and om)
     model.total_energy_costs = pyo.Var(model.support_years, within=electricity_cost_domain)    # Total energy costs per year
     model.annualized_energy_costs = pyo.Var(within=electricity_cost_domain)                    # Annualized energy costs
@@ -669,9 +673,12 @@ def build_model(model, data, devs, param, dem):
             model.constraints.add(model.c_om[dev] == 0)
             model.constraints.add(model.c_total[dev] == 0)
         else:
-            model.constraints.add(model.inv[dev] == devs[dev]["inv_var"] * model.cap[dev])  # investment costs
+            initial_price = devs[dev]["inv_base"] if bew_enabled else devs[dev]["inv_var"]
+            model.constraints.add(model.inv[dev] == initial_price * model.cap[dev])  # BEW replaces individual grants
             model.constraints.add(model.inv_base[dev] == devs[dev]["inv_base"] * model.cap[dev])  # unsubsidized investment costs
-            model.constraints.add(model.c_inv[dev] == model.inv[dev] * devs[dev]["ann_factor"])  # annualized investment costs
+            model.constraints.add(model.c_inv[dev] == model.inv_base[dev] * devs[dev]["ann_factor"]
+                                  - (model.inv_base[dev] - model.inv[dev]) * capital_recovery_factor(
+                                      param["interest_rate"], param["observation_time"]))
             model.constraints.add(model.c_inv_base[dev] == model.inv_base[dev] * devs[dev]["ann_factor"])  # unsubsidized annualized investment costs
             model.constraints.add(model.c_om[dev] == devs[dev]["cost_om"] * model.inv_base[dev])  # operation and maintenance costs. Use the unsubsidized costs for O&M calculation
             model.constraints.add(model.c_total[dev] == model.c_inv[dev] + model.c_om[dev])  # total annualized costs for investment and O&M
@@ -680,7 +687,10 @@ def build_model(model, data, devs, param, dem):
     model.constraints.add(model.total_annual_costs_devices == sum(model.c_total[dev] for dev in model.all_devs))
 
     # Heat grid costs
-    model.constraints.add(model.heat_grid_costs == data.heat_grid_data["ann_costs"] + data.heat_grid_data["om_costs"])
+    grid_annuity = data.heat_grid_data["ann_costs"]
+    if getattr(data, "funding_config", {}).get("enabled", False):
+        grid_annuity = data.heat_grid_data.get("ann_costs_before_network_funding", grid_annuity)
+    model.constraints.add(model.heat_grid_costs == grid_annuity + data.heat_grid_data["om_costs"])
 
     # Connection costs to electricity and gas grid (currently assumed to be a constant annual cost)
     model.constraints.add(model.total_connection_costs == model.cap_costs_el + model.cap_costs_gas)
@@ -752,13 +762,16 @@ def build_model(model, data, devs, param, dem):
     model.constraints.add(model.annualized_energy_costs == npv_energy * annuity_factor)
     model.constraints.add(model.annualized_misc_costs == npv_misc * annuity_factor)
 
+    add_investment_funding(model, data, param)
+
     # Total annual costs (According to VDI 2067 Blatt 1)
     # obj_tac = capital_cost + om_cost + supply_costs + taxes and other costs - revenues
     model.constraints.add(model.obj_tac == model.total_annual_costs_devices  # Cost associated with devices (inv and om)
                           + model.total_connection_costs  # Cost for connection to el and gas grid
                           + model.heat_grid_costs  # Cost for heat grid inv and om
                           + model.annualized_energy_costs  # Energy supply costs minus revenues from feed-in
-                          + model.annualized_misc_costs)  # Miscellaneous costs minus revenues
+                          + model.annualized_misc_costs
+                          - model.annual_investment_grant)  # One initial project grant only
 
     # CO2 emissions calculation (Sum over the whole observation period)
     model.constraints.add(model.obj_co2 == sum(
@@ -807,7 +820,8 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
 
     solver_config.write_solution_file(model = model,
                                       model_name = model_name,
-                                      result_dir = result_dir)
+                                      result_dir = result_dir,
+                                      pyomo_config = data.pyomo_config)
 
     ################################################################################
     # Post-processing and Result Extraction #! This needs to be adapted to multi-year optimization
@@ -861,12 +875,44 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     heat_grid_om_costs = data.heat_grid_data.get("om_costs", 0)
 
     result_dict["total_inv_cost"] = int(sum(safe_value(model.inv, k) for k in model.all_devs) + heat_grid_costs)
-    result_dict["total_inv_cost_unsubsidized"] = int(sum(safe_value(model.inv_base, k) for k in model.all_devs) + heat_grid_costs)
+    result_dict["total_inv_cost_unsubsidized"] = int(sum(safe_value(model.inv_base, k) for k in model.all_devs)
+                                                   + data.heat_grid_data.get("costs_unsubsidized", heat_grid_costs))
     result_dict["total_ann_inv_cost"] = int(
         sum(safe_value(model.c_inv, k) for k in model.all_devs) + heat_grid_ann_costs)
     result_dict["total_ann_inv_cost_unsubsidized"] = int(
-        sum(safe_value(model.c_inv_base, k) for k in model.all_devs) + heat_grid_ann_costs)
+        sum(safe_value(model.c_inv_base, k) for k in model.all_devs)
+        + data.heat_grid_data.get("ann_costs_unsubsidized", heat_grid_ann_costs))
     result_dict["total_om_cost"] = int(sum(safe_value(model.c_om, k) for k in model.all_devs) + heat_grid_om_costs)
+
+    # Allocate only the network grant; individual device grants stay in model.c_inv.
+    funding = funding_results(model, data)
+    result_dict["investment_funding"] = funding
+    if funding["enabled"]:
+        result_dict["tac"] = float(safe_value_single(model.obj_tac))
+        for k in model.all_devs:
+            result_dict[k]["investment_grant_eur"] = funding["components"][k]["grant_eur"]
+            result_dict[k]["ann_inv_cost"] = safe_value(model.c_inv, k) - funding["components"][k]["annual_grant_eur"]
+        network_annual_grant = sum(v["annual_grant_eur"] for k, v in funding["components"].items()
+                                   if k.startswith("network_"))
+        grid = data.heat_grid_data
+        before_grid_annuity = grid.get("ann_costs_before_network_funding", grid["ann_costs"])
+        gross_grid_annuity = grid.get("ann_costs_unsubsidized", grid["ann_costs"])
+        grid["ann_costs_unsubsidized"] = gross_grid_annuity
+        hp_5g_annual_grant = funding["components"].get("HP_5G", {}).get("annual_grant_eur", 0.0)
+        grid_annual_grant = network_annual_grant + hp_5g_annual_grant
+        grid["ann_costs"] = before_grid_annuity - grid_annual_grant
+        if "HP_5G_ann_costs_unsubsidized" in grid:
+            grid["HP_5G_ann_costs"] = grid["HP_5G_ann_costs_unsubsidized"] - hp_5g_annual_grant
+        if "ann_costs_without_HP_5G_unsubsidized" in grid:
+            grid["ann_costs_without_HP_5G"] = grid["ann_costs_without_HP_5G_unsubsidized"] - network_annual_grant
+        if "network_total_costs_before_network_funding" in grid:
+            grid["network_total_costs"] = grid["network_total_costs_before_network_funding"] - grid_annual_grant
+        grid["investment_funding"] = funding
+        result_dict["total_inv_cost"] = sum(safe_value(model.inv, k) for k in model.all_devs) + heat_grid_costs - funding["grant_eur"]
+        gross_annual = sum(safe_value(model.c_inv_base, k) for k in model.all_devs) + gross_grid_annuity
+        result_dict["total_ann_inv_cost"] = sum(safe_value(model.c_inv, k) for k in model.all_devs) + before_grid_annuity - funding["annual_grant_eur"]
+        result_dict["total_ann_inv_cost_unsubsidized"] = gross_annual
+        result_dict["total_inv_cost_unsubsidized"] = sum(safe_value(model.inv_base, k) for k in model.all_devs) + grid.get("costs_unsubsidized", heat_grid_costs)
 
     # Total energy imports and exports - per support year
     result_dict["from_el_grid_total_by_year"] = {y: int(safe_value(model.from_el_grid_total, y) / 1000) for y in model.support_years} #MWh

@@ -3,6 +3,7 @@ import math
 import numpy as np
 import pyomo.environ as pyo
 import districtgenerator.functions.solver_config as solver_config
+from districtgenerator.functions.investment_funding import once_only_annuity
 
 """
 Fixed-design building operation optimization + cheapest concept selection.
@@ -57,7 +58,8 @@ def annualized_device_cost_over_horizon(dev, eco_data, cap, mode):
     inv_subsidized = float(dev["inv_var"]) * float(cap)
 
     if mode == "subsidized":
-        c_inv = inv_subsidized * ann_factor
+        c_inv = once_only_annuity(inv_unsubsidized, ann_factor,
+                                 inv_unsubsidized - inv_subsidized, eco_data)
     elif mode == "unsubsidized":
         c_inv = inv_unsubsidized * ann_factor
     else:

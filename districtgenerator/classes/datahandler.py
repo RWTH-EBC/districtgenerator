@@ -30,6 +30,7 @@ from .non_residential import NonResidential
 import districtgenerator.functions.SIA as SIA
 import districtgenerator.functions.clustering_medoid as cm
 from districtgenerator.functions import opti_central
+from districtgenerator.functions.investment_funding import annual_operation_funding_heat_mix
 from districtgenerator.functions.hub_electricity_prices import (effective_profile, load_reference_deviation, select_price_periods)
 import districtgenerator.functions.heating_network_simple as heating_network_simple
 from districtgenerator.functions.heating_network_2leiter import network_2leiter_simple
@@ -128,6 +129,7 @@ class Datahandler:
         """
 
         global_config: GlobalConfig = load_global_config(env_file=env_path)
+        self.funding_config = global_config.funding.model_dump()
 
         if filePath is None:
             filePath = os.path.join(srcPath, 'data')
@@ -707,12 +709,8 @@ class Datahandler:
 
             # Mark as combined and remove mixed-part flags
             combined_building["buildingFeatures"]["is_mixed_combined"] = True
-            if "is_mixed_part" in combined_building["buildingFeatures"]:
-                del combined_building["buildingFeatures"]["is_mixed_part"]
-            if "mixed_role" in combined_building["buildingFeatures"]:
-                del combined_building["buildingFeatures"]["mixed_role"]
-            if "mixed_parent_id" in combined_building["buildingFeatures"]:
-                del combined_building["buildingFeatures"]["mixed_parent_id"]
+            combined_building["buildingFeatures"] = combined_building["buildingFeatures"].drop(
+                labels=["is_mixed_part", "mixed_role", "mixed_parent_id"], errors="ignore")
 
             # Create unique name for combined building
             combined_building["unique_name"] = f"{self.scenario_name}_{parent_id}_{main_type}+{secondary_type}"
@@ -2668,6 +2666,7 @@ class Datahandler:
         simulated_years = self.ecoData["interpolation_points"]
 
         self.resultsOptimization = {year: {} for year in simulated_years}
+        self.operation_funding_heat_mix = {}
 
         # Remove all solution files from previous optimizations
         opti_central.remove_previous_models_and_solutions() # For better visibility remove previous solution files
@@ -2685,6 +2684,27 @@ class Datahandler:
 
                 # save results as attribute
                 self.resultsOptimization[year][cluster] = results_temp # Save the results of the optimization for each cluster
+
+            year_results = self.resultsOptimization[year]
+            if self.funding_config.get("enabled", False) and all(r is not None for r in year_results.values()):
+                initial = annual_operation_funding_heat_mix(year_results, self.clusterWeights)
+                fallback = not initial["within_acceptance_band"]
+                self.operation_funding_heat_mix[year] = {
+                    "initial": initial, "fallback_used": fallback, "final": initial,
+                }
+                if fallback:
+                    print(f"Year {year}: annual funding heat mix outside 72%/12% acceptance band; "
+                          "rerunning clusters to minimise heat-mix violations, then operating costs.")
+                    for cluster in range(self.time["clusterNumber"]):
+                        year_results[cluster] = opti_central.run_opti_central(
+                            data=self, year=year, cluster=cluster, sim_ecoData=sim_ecoData,
+                            funding_fallback=True)
+                    final = (annual_operation_funding_heat_mix(year_results, self.clusterWeights)
+                             if all(r is not None for r in year_results.values()) else None)
+                    self.operation_funding_heat_mix[year]["final"] = final
+                    if final is not None:
+                        print(f"Year {year}: fallback annual eligible share={final['renewable_share']}, "
+                              f"gas share={final['gas_share']}; original targets met={final['meets_targets']}.")
 
         end_time = time.time()
         print(f"\nOptimization of clusters for all simulated years completed in {end_time - start_time:.2f} seconds.")

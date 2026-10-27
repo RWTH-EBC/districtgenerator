@@ -876,7 +876,8 @@ def calc_annual_investment(devs, param):
     q = 1 + param["interest_rate"]
 
     # Calculate capital recovery factor
-    CRF = ((q**observation_time)*interest_rate)/((q**observation_time)-1)
+    from districtgenerator.functions.investment_funding import capital_recovery_factor
+    CRF = capital_recovery_factor(interest_rate, observation_time)
 
     # Calculate annuity factor for each device
     for device in devs.keys():

@@ -1435,6 +1435,15 @@ def compute_and_save_network_costs_2leiter(data, param):
 
     data.heat_grid_data["om_costs"] = network_om_costs
     data.heat_grid_data["ann_costs"] = network_ann_costs
+    data.heat_grid_data["ann_costs_before_network_funding"] = network_ann_costs
+    data.heat_grid_data["ann_costs_unsubsidized"] = network_ann_costs
+    data.heat_grid_data["initial_investment_components"] = {
+        "network_pipes": inv_pipes,
+        "network_construction": inv_construction,
+        "network_pump": inv_pump,
+        "network_substations": C_substations,
+    }
+    data.heat_grid_data["costs"] = inv_pipes + inv_construction + inv_pump + C_substations
 
     # -------------------------------------------------------------------------
     # Plot annual network cost stack
@@ -1688,7 +1697,8 @@ def calc_annual_factor(data, life_time):
     interest_rate = data.ecoData["interest_rate"]
     q = 1.0 + interest_rate
 
-    CRF = ((q ** observation_time) * interest_rate) / ((q ** observation_time) - 1.0)
+    from districtgenerator.functions.investment_funding import capital_recovery_factor
+    CRF = capital_recovery_factor(interest_rate, observation_time)
     n = int(math.floor(observation_time / life_time))
     invest_replacements = sum((q ** (-i * life_time)) for i in range(1, n + 1))
     res_value = ((n + 1) * life_time - observation_time) / life_time * (q ** (-observation_time))

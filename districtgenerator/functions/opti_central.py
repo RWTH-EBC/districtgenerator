@@ -8,6 +8,7 @@ import os
 from io import StringIO
 import time
 import districtgenerator.functions.solver_config as solver_config
+from districtgenerator.functions.investment_funding import (add_operation_funding_heat_mix, operation_funding_heat_totals,)
 from districtgenerator.functions.hub_electricity_prices import operation_prices, hub_import_cost
 from datetime import datetime
 import logging
@@ -80,7 +81,7 @@ def _get_grid_renewable_electricity_share(config, year):
     shares = config.get("grid_renewable_electricity_share")
     return float(shares[year])
 
-def run_opti_central(data, year, cluster, sim_ecoData):
+def run_opti_central(data, year, cluster, sim_ecoData, funding_fallback=False):
     """
     This function runs the optimization for the clusters to determine the optimal operation of the energy devices in a district.
 
@@ -105,6 +106,8 @@ def run_opti_central(data, year, cluster, sim_ecoData):
     # build the model
     model = pyo.ConcreteModel(name=f"Device_Operation_Optimization_Year_{year}_Cluster_{cluster}")
     build_model(model=model, data=data, year=year, cluster=cluster, sim_ecoData=sim_ecoData)
+    if funding_fallback:
+        add_operation_funding_heat_mix(model, data, cluster, soft=True)
     model_building_time = time.time() - start_time
     print(f"Pyomo model built successfully in {model_building_time:.2f} seconds.")
     # solve the model and extract results
@@ -1774,6 +1777,27 @@ def build_model(model, data, year, cluster, sim_ecoData):
     return model
 
 
+def _solve_operation_model(model, data, model_name, result_dir):
+    """Normally one solve; fallback first minimises kWh violations, then costs."""
+    if hasattr(model, "funding_violation"):
+        model.objective.deactivate()
+        model.funding_violation_objective = pyo.Objective(expr=model.funding_violation, sense=pyo.minimize)
+        first = solver_config.execute_and_diagnose(
+            model=model, pyomo_config=data.pyomo_config,
+            model_name=model_name + "_minimum_heat_mix_violation", result_dir=result_dir)
+        if first.solver.termination_condition != pyo.TerminationCondition.optimal:
+            return first
+        minimum = max(0.0, float(pyo.value(model.funding_violation)))
+        tolerance = max(1e-6, 1e-6 * max(0.0, float(pyo.value(model.funding_total_heat))))
+        model.funding_minimum_violation_kwh = minimum
+        model.funding_keep_minimum_violation = pyo.Constraint(expr=model.funding_violation <= minimum + tolerance)
+        model.funding_violation_objective.deactivate()
+        model.objective.set_value(model.operational_costs)
+        model.objective.activate()
+    return solver_config.execute_and_diagnose(
+        model=model, pyomo_config=data.pyomo_config, model_name=model_name, result_dir=result_dir)
+
+
 def solve_model_and_extract_results(model, data, year, cluster, sim_ecoData):
     """
     Solves the Pyomo model and extracts results in the same format as the original Gurobi code.
@@ -1785,17 +1809,15 @@ def solve_model_and_extract_results(model, data, year, cluster, sim_ecoData):
 
     model_name = f"opti_central_model_year_{year}_cluster_{cluster}"
 
-    results = solver_config.execute_and_diagnose(model = model,
-                                   pyomo_config = data.pyomo_config,
-                                   model_name = model_name,
-                                   result_dir = result_dir)
+    results = _solve_operation_model(model, data, model_name, result_dir)
 
     if results.solver.termination_condition != pyo.TerminationCondition.optimal:
         return None
 
     solver_config.write_solution_file(model = model,
                                       model_name = model_name,
-                                      result_dir = result_dir)
+                                      result_dir = result_dir,
+                                      pyomo_config = data.pyomo_config)
 
     # Extract results
     timeData = data.time
@@ -2083,6 +2105,9 @@ def solve_model_and_extract_results(model, data, year, cluster, sim_ecoData):
     results_dict["daily_peak"] = {}
     for d in [0, 1, 2, 3, 4, 5, 6]:
         results_dict["daily_peak"][d] = pyo.value(model.daily_peak[d])
+
+    if getattr(data, "funding_config", {}).get("enabled", False):
+        results_dict["funding_heat_mix"] = operation_funding_heat_totals(model, data, cluster)
 
     return results_dict
 

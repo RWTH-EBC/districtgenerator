@@ -152,6 +152,7 @@ def calc_costs(data):
 
     # Substation Costs
     C_substations = 0
+    C_substations_heating = 0
 
     buildings_connected = [b for b in data.district if b["buildingFeatures"]["heater"] == "heat_grid"]
 
@@ -159,9 +160,19 @@ def calc_costs(data):
         substation_capacity = max(building["envelope"].heatload/1000 + building["dhwpower"]/1000, max(building["user"].cooling)/1000)  #kW
         substation_costs = substation_capacity * data.heat_grid_data["C_subst"]
         C_substations += substation_costs
+        # Only the heating design capacity is assigned to the heat-network grant.
+        # Extra capacity required solely for cooling remains outside the grant.
+        heating_capacity = max(building["envelope"].heatload / 1000 + building["dhwpower"] / 1000, 0)
+        C_substations_heating += heating_capacity * data.heat_grid_data["C_subst"]
 
     # Total Network Costs
     data.heat_grid_data["costs"] = C_heating_network + C_cooling_network + C_substations # €
+    data.heat_grid_data["network_model"] = "simple"
+    data.heat_grid_data["initial_investment_components"] = {
+        "network_heating": C_heating_network,
+        "network_substations": C_substations_heating,
+    }
+    data.heat_grid_data["noneligible_cooling_investment"] = C_cooling_network + C_substations - C_substations_heating
 
     return data
 
@@ -438,7 +449,8 @@ def calc_annual_investment(data):
     q = 1 + interest_rate
 
     # Calculate capital recovery factor
-    CRF = ((q**observation_time)*interest_rate)/((q**observation_time)-1)
+    from districtgenerator.functions.investment_funding import capital_recovery_factor
+    CRF = capital_recovery_factor(interest_rate, observation_time)
 
     # Get device life time
     life_time = data.heat_grid_data["life_time"]
@@ -461,6 +473,8 @@ def calc_annual_investment(data):
 
     data.heat_grid_data["CRF"] = CRF
     data.heat_grid_data["ann_costs"] = data.heat_grid_data["costs"] * data.heat_grid_data["ann_factor"] # €/a
+    data.heat_grid_data["ann_costs_unsubsidized"] = data.heat_grid_data["ann_costs"]
+    data.heat_grid_data["ann_costs_before_network_funding"] = data.heat_grid_data["ann_costs"]
     data.heat_grid_data["om_costs"] = data.heat_grid_data["C_OM"] * data.heat_grid_data["net_sum_heating_demand"]/1000 + data.heat_grid_data["C_OM"] * data.heat_grid_data["net_sum_cooling_demand"]/1000 # €/a
 
     return data
