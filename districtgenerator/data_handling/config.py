@@ -381,6 +381,9 @@ class PyomoConfig(BaseSettings):
     solver_options__nonconvex: int = 2            # Allow non-convex problems
     solver_options__dual_reductions: int = 1        # Try to reduce the model size before solving 1 = yes, 0 = no -> May slightly change results
     solver_options: dict = {}
+    solver_export_lp: bool = True  # Retain a diagnostic model even after successful solves.
+    solver_export_txt: bool = True  # Verbose, uncompressed variable listing.
+    solver_export_compact: bool = False  # Full-precision variable values in CSV.gz.
 
     @field_validator('solver_executable', mode='before')
     @classmethod
@@ -643,6 +646,7 @@ class ReportConfig(BaseSettings):
 
     # KPI Save options
     kpi_save_type: str = "xlsx" # Format for saving KPIs, selected between: "csv", "xlsx", and "None" to save the KPIs in a CSV file, Excel file, or not save them at all.
+    batch_save_district_pickle: bool = False  # BERGFEST only; explicit saveDistrict() calls are unchanged.
 
     # --- Colors Dictionary ---
     colors: dict = {}
@@ -1502,6 +1506,15 @@ class CentralDeviceConfig(BaseSettings):
 
 ### Global Config Classes ###
 
+class FundingConfig(BaseSettings):
+    """BEW M2 investment and M4 operating scenario; individual grants apply when off.
+    """
+    enabled: bool = False
+    rate: float = Field(default=0.4, ge=0, le=0.4, allow_inf_nan=False)
+
+    model_config = SettingsConfigDict(env_prefix="FUNDING_", extra="ignore")
+
+
 class GlobalConfig(BaseModel):
     """
     GlobalConfig class to manage all configurations for the district generator.
@@ -1551,10 +1564,15 @@ class GlobalConfig(BaseModel):
     calendar: 'CalendarConfig'
     scenario_name: 'ScenarioName'
     report: 'ReportConfig'
+    funding: FundingConfig = Field(default_factory=FundingConfig)
 
     @model_validator(mode='after')
     def include_renewable_heat_policy_years(self) -> 'GlobalConfig':
         """Split economic intervals at enabled heat-share deadlines before weighting."""
+        # M4 pays only 10 years (in indices 0..9). Keep the boundary at index 10 in both
+        # funding scenarios so their economic intervals and operating support years match.
+        if self.eco.observation_time > 10:
+            self.eco.interpolation_points = sorted(set(self.eco.interpolation_points) | {10})
         if not self.central.renewable_heat_share_enabled:
             return self
 
@@ -1642,6 +1660,7 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         central=CentralDeviceConfig(_env_file=env_file_path),
         calendar=CalendarConfig(_env_file=env_file_path),
         scenario_name = ScenarioName(_env_file=env_file_path),
-        report=ReportConfig(_env_file=env_file_path)
+        report=ReportConfig(_env_file=env_file_path),
+        funding=FundingConfig(_env_file=env_file_path)
 
     )

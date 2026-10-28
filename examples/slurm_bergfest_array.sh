@@ -16,12 +16,17 @@
 #SBATCH --error=districtgenerator/data/scenarios/Paper_3/optimization_runs/array_%A_%a.err
 
 set -e
-if [[ $# -ne 1 || ! -f "$1/manifest.json" ]]; then
-    print -u2 "Supply the existing BERGFEST run folder containing manifest.json."
+if [[ $# -lt 1 || $# -gt 2 || ! -f "$1/manifest.json" ]]; then
+    print -u2 "Supply RUN_FOLDER and optionally --retry-failed-districts or --pilot."
+    exit 2
+fi
+if [[ $# -eq 2 && "$2" != --retry-failed-districts && "$2" != --pilot ]]; then
+    print -u2 "The optional argument is --retry-failed-districts or --pilot."
     exit 2
 fi
 ROOT="$SLURM_SUBMIT_DIR"
 RUN_FOLDER="$1"
+shift
 types=(A B C D E F H I)
 TYPE="${types[$((SLURM_ARRAY_TASK_ID + 1))]}"
 
@@ -36,4 +41,4 @@ export NUMEXPR_NUM_THREADS=1
 
 cd "$ROOT"
 print "Settlement type: $TYPE; run folder: $RUN_FOLDER"
-srun --cpu-bind=cores python -u examples/e8_bergfest_batch.py --resume "$RUN_FOLDER" --type "$TYPE"
+srun --cpu-bind=cores python -u examples/e8_bergfest_batch.py --resume "$RUN_FOLDER" --type "$TYPE" "$@"

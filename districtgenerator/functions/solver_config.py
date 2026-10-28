@@ -4,6 +4,10 @@ from pyomo.environ import SolverFactory
 import os, sys
 import json
 import time
+import csv
+import gzip
+import math
+import traceback
 from districtgenerator.data_handling.config import PyomoConfig
 import pyomo.environ as pyo
 from contextlib import redirect_stdout
@@ -246,21 +250,37 @@ def execute_and_diagnose(model, pyomo_config, model_name, result_dir):
     # Initialize solver
     solver, solver_options = create_solver(pyomo_config=pyomo_config)
 
-    # Save the model to an .lp file
+    os.makedirs(result_dir, exist_ok=True)
+    if not (pyomo_config.get("solver_export_txt", True)
+            or pyomo_config.get("solver_export_compact", False)):
+        raise ValueError("Enable either TXT or compact exports to retain detailed results.")
+
     lp_filename = os.path.join(result_dir, f"{model_name}.lp")
-    model.write(lp_filename, io_options={"symbolic_solver_labels": True})
+    if pyomo_config.get("solver_export_lp", True):
+        model.write(lp_filename, io_options={"symbolic_solver_labels": True})
 
     # temporary log-file for the solver
     solver_log_path = os.path.join(result_dir, f"solver_output_{model_name}.log")
 
-    # Capture solver output in a log file by redirecting stdout:
-    with open(solver_log_path, 'w', encoding='utf-8') as log_file:
-        with redirect_stdout(log_file):
-            results = solver.solve(model, tee=True, options=solver_options)
+    started = time.perf_counter()
+    try:
+        with open(solver_log_path, 'w', encoding='utf-8') as log_file:
+            with redirect_stdout(log_file):
+                results = solver.solve(model, tee=True, options=solver_options)
+    except Exception:
+        with open(solver_log_path, 'a', encoding='utf-8') as log_file:
+            log_file.write(traceback.format_exc())
+        if not os.path.exists(lp_filename):
+            model.write(lp_filename, io_options={"symbolic_solver_labels": True})
+        raise
 
     term_cond = results.solver.termination_condition
+    write_solver_summary(model, results, pyomo_config, model_name, result_dir,
+                         time.perf_counter() - started)
 
     if term_cond != pyo.TerminationCondition.optimal:
+        if not os.path.exists(lp_filename):
+            model.write(lp_filename, io_options={"symbolic_solver_labels": True})
         _diagnose_solution(model, term_cond, result_dir, model_name, lp_filename, solver_log_path)
         # Add potential further analysis here for the different termination conditions
         if term_cond == pyo.TerminationCondition.infeasible:
@@ -271,10 +291,53 @@ def execute_and_diagnose(model, pyomo_config, model_name, result_dir):
         elif term_cond == pyo.TerminationCondition.infeasibleOrUnbounded:
             pass
 
-    # Remove temporary solver log file
-    _safe_remove_file(solver_log_path)
+    else:
+        if pyomo_config.get("solver_export_compact", False):
+            write_compact_solution(model, model_name, result_dir)
+        _safe_remove_file(solver_log_path)
 
     return results
+
+
+def _finite_number(value):
+    try:
+        number = float(value)
+        return number if math.isfinite(number) else None
+    except (ValueError, TypeError):
+        return None
+
+
+def write_solver_summary(model, results, config, model_name, result_dir, elapsed):
+    """Record solver quality; missing bounds/gaps remain unknown, not zero."""
+    objectives = list(model.component_data_objects(pyo.Objective, active=True))
+    objective = _finite_number(pyo.value(objectives[0], exception=False)) if objectives else None
+    lower = _finite_number(getattr(results.problem, "lower_bound", None))
+    upper = _finite_number(getattr(results.problem, "upper_bound", None))
+    gap = abs(upper - lower) if lower is not None and upper is not None else None
+    summary = {
+        "model": model_name, "solver": config.get("solver_name"),
+        "status": str(results.solver.status),
+        "termination_condition": str(results.solver.termination_condition),
+        "elapsed_seconds": elapsed, "objective": objective,
+        "lower_bound": lower, "upper_bound": upper,
+        "absolute_bound_gap": gap,
+        "relative_bound_gap": (gap / abs(objective) if gap is not None and objective
+                               else (0.0 if gap == 0 else None)),
+        "relative_bound_gap_definition": "abs(upper-lower)/abs(objective); unknown if bounds unavailable",
+        "requested_relative_mip_gap": config.get("solver_options", {}).get("mip_gap"),
+        "variables": model.nvariables(), "constraints": model.nconstraints(),
+    }
+    with open(os.path.join(result_dir, f"solver_summary_{model_name}.json"), "w", encoding="utf-8") as stream:
+        json.dump(summary, stream, indent=2, allow_nan=False)
+
+
+def write_compact_solution(model, model_name, result_dir):
+    """Stream every active variable's unique name and full-precision value to CSV.gz."""
+    path = os.path.join(result_dir, f"variables_{model_name}.csv.gz")
+    with gzip.open(path, "wt", encoding="utf-8", newline="", compresslevel=1) as stream:
+        writer = csv.writer(stream)
+        writer.writerow(["variable", "value"])
+        writer.writerows((var.name, var.value) for var in model.component_data_objects(pyo.Var, active=True))
 
 def _diagnose_solution(model, term_cond, result_dir, model_name, lp_filename, solver_log_path):
     """
@@ -322,11 +385,10 @@ def _diagnose_solution(model, term_cond, result_dir, model_name, lp_filename, so
     # Attempt to solve the same model with Gurobi to get more detailed information about infeasibility or unboundedness, if Gurobi is available
     if gurobi_available:
         try:
-            model.write("debug_model.lp", io_options={'symbolic_solver_labels': True})
             with gp.Env(empty=True) as env:
                 env.setParam("OutputFlag", 0) # Use a silent environment to avoid Gurobi output in the console
                 env.start()
-                m = gp.read("debug_model.lp", env=env)
+                m = gp.read(lp_filename, env=env)
                 m.setParam('DualReductions', 0) # Disable presolving reductions to get more accurate IIS
                 print("Running Gurobi optimization to determine source of termination...")
                 m.optimize()
@@ -377,18 +439,17 @@ def _diagnose_solution(model, term_cond, result_dir, model_name, lp_filename, so
             with open(errorfile_path, 'a') as f:
                 f.write(f"\nGurobi analysis failed: {e}\n")
 
-        if os.path.exists("debug_model.lp"):
-            os.remove("debug_model.lp")
-
     else:
         # TODO: Add IIS analysis if Gurobi is not available. e.g. using an elastic programming approach might be utilized to identify violated constraints (as described by https://web.mit.edu/lpsolve/doc/Infeasible.htm)
         with open(errorfile_path, 'a') as f:
             f.write("\nCurrently no infeasibility analysis implemented if gurobi is not available.\n")
 
-def write_solution_file(model, model_name, result_dir):
+def write_solution_file(model, model_name, result_dir, pyomo_config=None):
     """
     Writes the solution of the optimization model to a file.
     """
+    if pyomo_config is not None and not pyomo_config.get("solver_export_txt", True):
+        return
     file_path = os.path.join(result_dir, f"solution_file_{model_name}.txt")
     try:
         with open(file_path, 'w') as f:
