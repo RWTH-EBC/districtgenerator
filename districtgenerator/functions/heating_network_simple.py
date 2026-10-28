@@ -449,7 +449,7 @@ def calc_annual_investment(data):
     q = 1 + interest_rate
 
     # Calculate capital recovery factor
-    from districtgenerator.functions.investment_funding import capital_recovery_factor
+    from districtgenerator.functions.bew_funding import capital_recovery_factor
     CRF = capital_recovery_factor(interest_rate, observation_time)
 
     # Get device life time

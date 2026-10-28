@@ -1697,7 +1697,7 @@ def calc_annual_factor(data, life_time):
     interest_rate = data.ecoData["interest_rate"]
     q = 1.0 + interest_rate
 
-    from districtgenerator.functions.investment_funding import capital_recovery_factor
+    from districtgenerator.functions.bew_funding import capital_recovery_factor
     CRF = capital_recovery_factor(interest_rate, observation_time)
     n = int(math.floor(observation_time / life_time))
     invest_replacements = sum((q ** (-i * life_time)) for i in range(1, n + 1))

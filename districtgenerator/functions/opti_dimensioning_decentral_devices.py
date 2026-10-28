@@ -3,7 +3,7 @@ import math
 import numpy as np
 import pyomo.environ as pyo
 import districtgenerator.functions.solver_config as solver_config
-from districtgenerator.functions.investment_funding import once_only_annuity
+from districtgenerator.functions.bew_funding import once_only_annuity
 
 """
 Fixed-design building operation optimization + cheapest concept selection.

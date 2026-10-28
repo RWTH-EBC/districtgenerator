@@ -91,6 +91,7 @@ class KPIs:
         inputData["resultsOptimization"] = data.resultsOptimization
         inputData["district"] = data.district
 
+        self.operating_funding = getattr(data, "operating_funding", {})
         self.inputData = inputData
 
         # prepare data to compute KPIs
@@ -588,7 +589,8 @@ class KPIs:
                 "biomass": self.biomass_year[year] * ecoData["price_biomass"],
                 "district_heat": self.districtHeat_year[year] * ecoData["price_district_heat"],
                 "hydrogen": self.hydrogen_year[year] * ecoData["price_hydrogen"],
-                "revenue_feed_in_el": -(self.el_inj_buildings[year] * ecoData["revenue_feed_in_el"] + hub_export_revenue)
+                "revenue_feed_in_el": -(self.el_inj_buildings[year] * ecoData["revenue_feed_in_el"] + hub_export_revenue),
+                "operating_subsidy": -(getattr(self, "operating_funding", {}).get(year) or {}).get("paid_grant_eur", 0.0)
             }
 
     def calc_annual_cost_device(self, dev, ecoData, cap, mode="subsidized"):
@@ -629,7 +631,7 @@ class KPIs:
         q = 1 + ecoData["interest_rate"]
 
         # Calculate capital recovery factor
-        from districtgenerator.functions.investment_funding import capital_recovery_factor
+        from districtgenerator.functions.bew_funding import capital_recovery_factor
         CRF = capital_recovery_factor(interest_rate, observation_time)
 
         # Get device life time
@@ -685,7 +687,7 @@ class KPIs:
         q = 1 + interest_rate
 
         # Capital recovery factor
-        from districtgenerator.functions.investment_funding import capital_recovery_factor
+        from districtgenerator.functions.bew_funding import capital_recovery_factor
         CRF = capital_recovery_factor(interest_rate, observation_time)
 
         return inv_total * CRF
@@ -1110,6 +1112,7 @@ class KPIs:
 
             # LCOH
             total_cost = fixed_cost_heat + fuel_cost_heat + el_cost_heat
+            total_cost -= (getattr(self, "operating_funding", {}).get(year) or {}).get("paid_grant_eur", 0.0)
 
             if Q_total_eh > 1e-9:
                 lcoh_eh = 100.0 * total_cost / Q_total_eh
@@ -1395,6 +1398,18 @@ class KPIs:
 
         kpi_data_yearly["Autonomy (Time Fraction)"] = {year: self.energy_autonomy_year.get(year, None) for year in years}
         kpi_data_yearly["Gasoline Costs (€/a)"] = {year: self.gasoline_costs.get(year, None) for year in years}
+        if getattr(self, "operating_funding", {}):
+            for label, key in (("BEW operating subsidy (€/a)", "paid_grant_eur"),
+                               ("BEW provisional operating subsidy (€/a)", "provisional_grant_eur"),
+                               ("BEW annual subsidy correction (€/a)", "correction_eur")):
+                kpi_data_yearly[label] = {year: (self.operating_funding.get(year) or {}).get(key, 0.0) for year in years}
+            for device in ("HP", "WaterHP"):
+                kpi_data_yearly[f"BEW {device} annual JAZ (-)"] = {
+                    year: (self.operating_funding.get(year) or {}).get("devices", {}).get(device, {}).get("annual_jaz")
+                    for year in years}
+                kpi_data_yearly[f"BEW {device} binding caps"] = {
+                    year: ", ".join((self.operating_funding.get(year) or {}).get("devices", {}).get(device, {}).get("binding_caps", []))
+                    for year in years}
         # kpi_data_yearly["CO2 Emissions Gasoline "] = #* Should this be considered, as emissions from EV are considered through electricity consumption? This makes it look EVs are worse for emissions.
 
         # Create dictionary for year-independent KPIs (same value for all years)

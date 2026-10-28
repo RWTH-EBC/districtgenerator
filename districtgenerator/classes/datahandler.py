@@ -30,7 +30,7 @@ from .non_residential import NonResidential
 import districtgenerator.functions.SIA as SIA
 import districtgenerator.functions.clustering_medoid as cm
 from districtgenerator.functions import opti_central
-from districtgenerator.functions.investment_funding import annual_operation_funding_heat_mix
+from districtgenerator.functions.bew_funding import annual_operation_funding_heat_mix, settle_operating_funding
 from districtgenerator.functions.hub_electricity_prices import (effective_profile, load_reference_deviation, select_price_periods)
 import districtgenerator.functions.heating_network_simple as heating_network_simple
 from districtgenerator.functions.heating_network_2leiter import network_2leiter_simple
@@ -2667,6 +2667,7 @@ class Datahandler:
 
         self.resultsOptimization = {year: {} for year in simulated_years}
         self.operation_funding_heat_mix = {}
+        self.operating_funding = {}
 
         # Remove all solution files from previous optimizations
         opti_central.remove_previous_models_and_solutions() # For better visibility remove previous solution files
@@ -2705,6 +2706,9 @@ class Datahandler:
                     if final is not None:
                         print(f"Year {year}: fallback annual eligible share={final['renewable_share']}, "
                               f"gas share={final['gas_share']}; original targets met={final['meets_targets']}.")
+
+            if self.funding_config.get("enabled", False):
+                self.operating_funding[year] = settle_operating_funding(self, year)
 
         end_time = time.time()
         print(f"\nOptimization of clusters for all simulated years completed in {end_time - start_time:.2f} seconds.")

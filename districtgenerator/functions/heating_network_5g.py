@@ -1481,7 +1481,7 @@ def compute_and_save_network_costs_5g_fixed(data, param):
         calc_annual_factor(data, hp_data["life_time"])
     )
 
-    from districtgenerator.functions.investment_funding import once_only_annuity
+    from districtgenerator.functions.bew_funding import once_only_annuity
     hp_5g_ann_costs_unsubsidized = inv_hp_5g_unsubsidized * hp_5g_ann_factor
     hp_5g_ann_costs = once_only_annuity(inv_hp_5g_unsubsidized, hp_5g_ann_factor,
                                      inv_hp_5g_unsubsidized - inv_hp_5g_subsidized, data.ecoData)
@@ -2051,7 +2051,7 @@ def calc_annual_factor(data, life_time):
     interest_rate = data.ecoData["interest_rate"]
     q = 1.0 + interest_rate
 
-    from districtgenerator.functions.investment_funding import capital_recovery_factor
+    from districtgenerator.functions.bew_funding import capital_recovery_factor
     CRF = capital_recovery_factor(interest_rate, observation_time)
     n = int(math.floor(observation_time / life_time))
     invest_replacements = sum((q ** (-i * life_time)) for i in range(1, n + 1))

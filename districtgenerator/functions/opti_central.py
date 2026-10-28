@@ -8,7 +8,7 @@ import os
 from io import StringIO
 import time
 import districtgenerator.functions.solver_config as solver_config
-from districtgenerator.functions.investment_funding import (add_operation_funding_heat_mix, operation_funding_heat_totals,)
+from districtgenerator.functions.bew_funding import (add_operation_funding_heat_mix, operation_funding_heat_totals, add_operating_funding, operating_funding_results, policy_heat_mix_conditions, bew_5g_recovered_heat_profile)
 from districtgenerator.functions.hub_electricity_prices import operation_prices, hub_import_cost
 from datetime import datetime
 import logging
@@ -1634,7 +1634,15 @@ def build_model(model, data, year, cluster, sim_ecoData):
         )
         total_heat = sum(getattr(model, f"eh_heat_{dev}")[t] for dev in EH_HEAT_PRODUCERS for t in model.t)
 
-        return renewable_heat >= target_share * total_heat
+        absorption = sum(model.eh_heat_AC[t] for t in model.t)
+        recovered = 0.0
+        if heatingNetworkData.get("heatgrid_generation") == "5G":
+            meta = energyHubData["capacities"]["cluster_meta"]
+            profile = bew_5g_recovered_heat_profile(data, meta["typedays"], int(meta["clusterLength"]))
+            recovered = sum(profile[cluster, int(t)] * 1000 for t in model.t)
+        conditions = policy_heat_mix_conditions(total_heat, renewable_heat, absorption, recovered, target_share)
+        model.policy_heat_balance = pyo.Constraint(expr=conditions[1])
+        return conditions[0]
 
     model.from_grid_total_gas_constraint = pyo.Constraint(rule=from_grid_total_gas_rule, doc="from_grid_total_gas")
     model.from_grid_total_gas_eh = pyo.Expression(expr=dt * sum(model.eh_gas_from_grid[t] for t in model.t) / 1000)
@@ -1749,6 +1757,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
                 + model.total_waste_used * ecoData["price_waste"]
                 + model.total_oil_used * ecoData["price_oil"]
                 + model.total_district_heat_used * ecoData["price_district_heat"]
+                - (model.operating_funding.credit if hasattr(model, "operating_funding") else 0.0)
                 )
 
     # Emissions
@@ -1769,6 +1778,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
             return model.obj == model.operational_costs
         elif ecoData["optimization_focus"] == 1:
             return model.obj == model.co2_total
+
+    add_operating_funding(model, data, year=year, cluster=cluster, eco=sim_ecoData)
 
     model.operational_costs_constraint = pyo.Constraint(rule=operational_costs_rule, doc="Total_amount_operational_costs")
     model.co2_total_constraint = pyo.Constraint(rule=co2_total_rule, doc="Total_amount_CO2_emissions")
@@ -2108,6 +2119,9 @@ def solve_model_and_extract_results(model, data, year, cluster, sim_ecoData):
 
     if getattr(data, "funding_config", {}).get("enabled", False):
         results_dict["funding_heat_mix"] = operation_funding_heat_totals(model, data, cluster)
+        module4 = operating_funding_results(model)
+        if year in module4:
+            results_dict["operating_funding"] = module4[year]
 
     return results_dict
 

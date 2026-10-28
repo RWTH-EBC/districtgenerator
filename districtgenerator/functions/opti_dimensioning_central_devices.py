@@ -12,7 +12,7 @@ import time
 import os
 import districtgenerator.functions.solver_config as solver_config
 from districtgenerator.functions.hub_electricity_prices import design_import_cost, design_export_revenue
-from districtgenerator.functions.investment_funding import (add_investment_funding, funding_results, capital_recovery_factor, prepare_investment_funding)
+from districtgenerator.functions.bew_funding import (add_investment_funding, funding_results, capital_recovery_factor, prepare_investment_funding, add_operating_funding, policy_heat_mix_conditions, bew_5g_recovered_heat_profile, design_operating_payments)
 
 EH_HEAT_PRODUCERS = ("STC", "HP", "WaterHP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
 EH_RENEWABLE_HEAT = ("STC", "HP", "WaterHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
@@ -441,7 +441,15 @@ def build_model(model, data, devs, param, dem):
                 for d in model.clusters
                 for t in model.time_steps
             )
-            model.constraints.add(renewable_heat >= target_share * total_heat)
+            absorption = sum(model.heat["AC", y, c, t] * param["cluster_weights"][c]
+                             for c in model.clusters for t in model.time_steps)
+            recovered = 0.0
+            if is_5g_network:
+                profile = bew_5g_recovered_heat_profile(data, param["typedays"], len(model.time_steps))
+                recovered = sum(profile[c, int(t)] * param["cluster_weights"][c]
+                                for c in model.clusters for t in model.time_steps)
+            for condition in policy_heat_mix_conditions(total_heat, renewable_heat, absorption, recovered, target_share):
+                model.constraints.add(condition)
 
     ################################################################################
     # Meet peak demands of unclustered demands to ensure the design can handle peak loads
@@ -763,6 +771,8 @@ def build_model(model, data, devs, param, dem):
     model.constraints.add(model.annualized_misc_costs == npv_misc * annuity_factor)
 
     add_investment_funding(model, data, param)
+    add_operating_funding(model, data, param=param, devs=devs)
+    operating_credit = model.operating_funding.annual_credit if hasattr(model, "operating_funding") else 0.0
 
     # Total annual costs (According to VDI 2067 Blatt 1)
     # obj_tac = capital_cost + om_cost + supply_costs + taxes and other costs - revenues
@@ -771,7 +781,8 @@ def build_model(model, data, devs, param, dem):
                           + model.heat_grid_costs  # Cost for heat grid inv and om
                           + model.annualized_energy_costs  # Energy supply costs minus revenues from feed-in
                           + model.annualized_misc_costs
-                          - model.annual_investment_grant)  # One initial project grant only
+                          - model.annual_investment_grant
+                          - operating_credit)  # Separate initial investment and first-ten-year operating grants
 
     # CO2 emissions calculation (Sum over the whole observation period)
     model.constraints.add(model.obj_co2 == sum(
@@ -913,6 +924,12 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
         result_dict["total_ann_inv_cost"] = sum(safe_value(model.c_inv, k) for k in model.all_devs) + before_grid_annuity - funding["annual_grant_eur"]
         result_dict["total_ann_inv_cost_unsubsidized"] = gross_annual
         result_dict["total_inv_cost_unsubsidized"] = sum(safe_value(model.inv_base, k) for k in model.all_devs) + grid.get("costs_unsubsidized", heat_grid_costs)
+
+    if hasattr(model, "operating_funding"):
+        payments, annual_credit = design_operating_payments(model, param)
+        result_dict["operating_funding"] = payments
+        result_dict["annualized_operating_grant_eur"] = annual_credit
+        result_dict["tac"] = float(pyo.value(model.obj_tac)) + float(pyo.value(model.operating_funding.annual_credit)) - annual_credit
 
     # Total energy imports and exports - per support year
     result_dict["from_el_grid_total_by_year"] = {y: int(safe_value(model.from_el_grid_total, y) / 1000) for y in model.support_years} #MWh
