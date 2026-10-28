@@ -3,13 +3,16 @@
 """
 Batch-generate demand profiles for existing typdistrict scenario CSV files.
 
-Default use:
+Default use (Paper_3 only):
     python examples/e5_batch.py
 
-By default, this processes all existing district A, B, C, D, E, F, H and I
-scenarios with 30 buildings. It runs three scenarios in parallel, each with
-four building profile threads. This gives parallelism across scenarios and
-buildings without pushing memory usage as hard as many manually started runs.
+Preview without generating profiles:
+    python examples/e5_batch.py --dry-run
+
+By default, this processes only the 160 Paper_3 districts and saves under
+Paper_3/results/<scenario>. It runs one scenario at a time, with up to eight
+flat-level profile processes. Use --general-scenarios for the original mode,
+which reads the general scenarios folder and writes to the general results folder.
 """
 
 import argparse
@@ -50,7 +53,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 
-def find_scenarios(districts, buildings, seeds=None):
+def find_scenarios(districts, buildings, seeds=None, scenario_dir=SCENARIO_DIR):
     """
     Return scenario names for existing CSV files matching district/building filters.
     """
@@ -59,7 +62,7 @@ def find_scenarios(districts, buildings, seeds=None):
 
     for district in districts:
         pattern = f"district_{district}_seed_*_buildings_{buildings}.csv"
-        for csv_path in SCENARIO_DIR.glob(pattern):
+        for csv_path in Path(scenario_dir).glob(pattern):
             match = re.fullmatch(
                 rf"district_{district}_seed_(\d+)_buildings_{buildings}\.csv",
                 csv_path.name,
@@ -76,11 +79,11 @@ def find_scenarios(districts, buildings, seeds=None):
     return sorted(scenarios, key=lambda item: (item[0], item[1]))
 
 
-def profile_workbook_is_complete(unique_name, require_thermal=True):
+def profile_workbook_is_complete(unique_name, require_thermal=True, demand_dir=DEMAND_DIR):
     """
     Return True when the saved building demand workbook exists and has all needed sheets.
     """
-    profile_file = DEMAND_DIR / f"{unique_name}.xlsx"
+    profile_file = Path(demand_dir) / f"{unique_name}.xlsx"
     if not profile_file.exists():
         return False
 
@@ -134,6 +137,7 @@ def filter_missing_profile_buildings(data, force=False):
     if force:
         return len(data.district), 0
 
+    demand_dir = Path(data.resultPath) / "demands"
     mixed_groups = {}
     for building in data.district:
         features = building["buildingFeatures"]
@@ -145,7 +149,7 @@ def filter_missing_profile_buildings(data, force=False):
 
     for building in data.district:
         features = building["buildingFeatures"]
-        if profile_workbook_is_complete(building["unique_name"]):
+        if profile_workbook_is_complete(building["unique_name"], demand_dir=demand_dir):
             continue
 
         if features.get("is_mixed_part", False):
@@ -158,6 +162,7 @@ def filter_missing_profile_buildings(data, force=False):
         if combined_name is not None and not profile_workbook_is_complete(
             combined_name,
             require_thermal=False,
+            demand_dir=demand_dir,
         ):
             mixed_parents_to_regenerate.add(parent_id)
 
@@ -177,7 +182,8 @@ def filter_missing_profile_buildings(data, force=False):
     return len(buildings_to_generate), skipped_count
 
 
-def generate_demands_for_scenario(scenario_name, max_threads=8, force=False):
+def generate_demands_for_scenario(scenario_name, max_threads=8, force=False,
+                                  scenario_dir=None, result_root=None):
     """
     Generate and save demand profiles for one scenario.
     """
@@ -185,9 +191,16 @@ def generate_demands_for_scenario(scenario_name, max_threads=8, force=False):
 
     print(f"\n=== Running {scenario_name} ===")
 
+    result_path = Path(result_root) / scenario_name if result_root is not None else None
+    if result_path is not None:
+        result_path.mkdir(parents=True, exist_ok=True)
+        (result_path / "demands").mkdir(exist_ok=True)
+
     data = Datahandler(
         scenario_name=scenario_name,
         env_path=".env.CONFIG.PAPER",
+        scenario_file_path=str(scenario_dir) if scenario_dir is not None else None,
+        resultPath=str(result_path) if result_path is not None else None,
     )
 
     data.generateEnvironment()
@@ -221,11 +234,13 @@ def run_scenario_job(job):
     """
     Worker wrapper for optional scenario-level multiprocessing.
     """
-    scenario_name, max_threads, force = job
+    scenario_name, max_threads, force, scenario_dir, result_root = job
     return generate_demands_for_scenario(
         scenario_name=scenario_name,
         max_threads=max_threads,
         force=force,
+        scenario_dir=scenario_dir,
+        result_root=result_root,
     )
 
 
@@ -254,6 +269,19 @@ def main():
     parser = argparse.ArgumentParser(
         description="Generate demand profiles for existing typdistrict scenario CSVs."
     )
+    source_group = parser.add_mutually_exclusive_group()
+    source_group.add_argument(
+        "--paper-3",
+        action="store_true",
+        help="Use only Paper_3 scenarios (default) and save under Paper_3/results/<scenario>.",
+    )
+    source_group.add_argument(
+        "--general-scenarios",
+        action="store_false",
+        dest="paper_3",
+        help="Use the original general scenario and result folders instead of Paper_3.",
+    )
+    parser.set_defaults(paper_3=True)
     parser.add_argument(
         "--districts",
         default="ABCDEFHI",
@@ -298,10 +326,29 @@ def main():
     )
     args = parser.parse_args()
 
+    if args.max_threads < 1 or args.scenario_workers < 1:
+        parser.error("Worker counts must be positive.")
+    scenario_dir = SCENARIO_DIR / "Paper_3" if args.paper_3 else SCENARIO_DIR
+    result_root = scenario_dir / "results" if args.paper_3 else None
+    if not scenario_dir.is_dir():
+        parser.error(f"Scenario folder does not exist: {scenario_dir}")
+    if args.paper_3 and (args.districts != "ABCDEFHI" or args.buildings != 30 or args.seeds is not None):
+        parser.error("Paper_3 mode processes all 160 districts; do not combine it with district, building or seed filters.")
+
     districts = [district.strip().upper() for district in args.districts if district.strip()]
     seeds = parse_seed_list(args.seeds)
-    scenarios = find_scenarios(districts, args.buildings, seeds=seeds)
+    scenarios = find_scenarios(districts, args.buildings, seeds=seeds, scenario_dir=scenario_dir)
+    if args.paper_3:
+        for district in districts:
+            count = sum(item[0] == district for item in scenarios)
+            if count != 20:
+                parser.error(f"Paper_3 must contain 20 districts of type {district}; found {count}.")
+        missing_json = [name for _, _, name in scenarios if not (scenario_dir / f"{name}.json").is_file()]
+        if missing_json:
+            parser.error(f"Missing district JSON files: {', '.join(missing_json)}")
 
+    print(f"Scenario inputs: {scenario_dir}")
+    print(f"Profile outputs: {result_root / '<scenario>' / 'demands' if result_root is not None else DEMAND_DIR}")
     print(f"Found {len(scenarios)} scenario(s).")
     print(
         f"Run mode: {args.scenario_workers} scenario worker(s), "
@@ -322,6 +369,8 @@ def main():
                     scenario_name=scenario_name,
                     max_threads=args.max_threads,
                     force=args.force,
+                    scenario_dir=scenario_dir,
+                    result_root=result_root,
                 )
             except Exception as error:
                 print(f"\n!!! Failed: {scenario_name}")
@@ -330,7 +379,7 @@ def main():
                 failed_runs.append(scenario_name)
     else:
         jobs = [
-            (scenario_name, args.max_threads, args.force)
+            (scenario_name, args.max_threads, args.force, scenario_dir, result_root)
             for _, _, scenario_name in scenarios
         ]
         with ProcessPoolExecutor(max_workers=args.scenario_workers) as executor:

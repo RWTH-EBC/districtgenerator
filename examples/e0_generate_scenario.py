@@ -4,9 +4,10 @@
 This script generates district layouts based on the selected settlement type and
 the target number of buildings.
 
-It can be used in two modes:
+It can be used in three modes:
 1. Generate one district interactively.
 2. Generate a batch of districts automatically.
+3. Generate Paper_3: 20 valid districts per type A-F, H, I, with 30 buildings each.
 
 Typical settlement types include:
 A   "german": "Streusiedlungen",
@@ -85,7 +86,8 @@ def generate_one_district(output_subdirectory=None):
         )
 
 
-def generate_batch():
+def generate_batch(settlement_types=None, number_of_new_districts_per_type=None,
+                   number_of_buildings=None, output_subdirectory=None):
     """
     Generate a batch of districts automatically.
 
@@ -94,36 +96,58 @@ def generate_batch():
     - Generates the requested number of valid districts.
     - If a seed cannot generate the requested number of buildings, the
       generation function automatically tries the next seed.
-    - Writes every batch to a new timestamped subfolder, so
-      previously generated districts are never overwritten.
+    - Writes every batch to a new subfolder (timestamped unless explicitly named).
+      Refuses to use an existing folder, even if it is empty.
 
     Example:
     If 20 valid districts are requested and seed 2 fails, the outputs may use
     seeds 1, 3, 4, ..., 21.
     """
 
-    settlement_input = input(
-        "\nEnter settlement type(s), e.g. H or ABCDEFGHI: "
-    ).strip().upper()
-    settlement_types = list(settlement_input)
+    if settlement_types is None:
+        settlement_types = input(
+            "\nEnter settlement type(s), e.g. H or ABCDEFGHI: "
+        ).strip().upper()
+    settlement_types = list(settlement_types)
     invalid_types = [district_type for district_type in settlement_types if district_type not in list("ABCDEFGHI")]
     if not settlement_types or invalid_types:
         raise ValueError("Please enter only settlement types A-I.")
+    if len(set(settlement_types)) != len(settlement_types):
+        raise ValueError("Please enter each settlement type only once.")
 
-    number_of_new_districts_per_type = int(
-        input("\nEnter number of valid districts to generate per type: ").strip()
-    )
-    number_of_buildings = int(
-        input("\nEnter number of buildings per district: ").strip()
-    )
+    if number_of_new_districts_per_type is None:
+        number_of_new_districts_per_type = int(
+            input("\nEnter number of valid districts to generate per type: ").strip()
+        )
+    if number_of_buildings is None:
+        number_of_buildings = int(
+            input("\nEnter number of buildings per district: ").strip()
+        )
+    if number_of_new_districts_per_type < 1 or number_of_buildings < 1:
+        raise ValueError("District and building counts must be positive.")
     type_label = "".join(settlement_types)
-    batch_subdirectory = (
+    batch_subdirectory = output_subdirectory or (
         f"validation_{type_label}_"
         f"{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     )
+    if (os.path.basename(batch_subdirectory) != batch_subdirectory
+            or batch_subdirectory in {".", ".."}
+            or os.path.isabs(batch_subdirectory)
+            or os.path.splitdrive(batch_subdirectory)[0]):
+        raise ValueError("output_subdirectory must be one folder name.")
+    batch_directory = os.path.join(
+        PROJECT_ROOT, "districtgenerator", "data", "scenarios", batch_subdirectory
+    )
+    # Reserve a fresh folder before starting any generation subprocess.
+    try:
+        os.makedirs(batch_directory, exist_ok=False)
+    except FileExistsError:
+        raise FileExistsError(
+            f"Refusing to overwrite an existing batch folder: {batch_directory}"
+        ) from None
     print(
         "\nThis batch will be saved separately in: "
-        f"districtgenerator/data/scenarios/{batch_subdirectory}"
+        f"{batch_directory}"
     )
     max_seed_to_try = 500
 
@@ -182,14 +206,15 @@ def generate_batch():
                 )
 
             successful_seed_match = re.search(
-                rf"Generated valid district: type {district_type}, seed (\d+),",
+                rf"Generated valid district: type {district_type}, seed (\d+), buildings (\d+),",
                 completed_stdout
             )
-            successful_seed = (
-                int(successful_seed_match.group(1))
-                if successful_seed_match
-                else seed
-            )
+            if not successful_seed_match:
+                raise RuntimeError("Generation ended without confirming a valid district.")
+            successful_seed = int(successful_seed_match.group(1))
+            if (successful_seed < seed
+                    or int(successful_seed_match.group(2)) != number_of_buildings):
+                raise RuntimeError("Generated district does not match the requested seed or building count.")
 
             new_districts_created += 1
             print(
@@ -207,6 +232,7 @@ def main():
 
     Use mode 1 if you want to generate one district manually.
     Use mode 2 if you want to generate a batch of valid districts.
+    Use mode 3 for the protected Paper_3 batch (160 districts, 30 buildings each).
     """
 
     # Internal mode used by generate_batch().
@@ -223,8 +249,9 @@ def main():
     print("\nSelect generation mode:")
     print("1: Generate one district")
     print("2: Generate batch")
+    print("3: Generate Paper_3 (types ABCDEFHI, 20 districts per type, 30 buildings)")
 
-    mode = input("\nEnter mode 1 or 2: ").strip()
+    mode = input("\nEnter mode 1, 2 or 3: ").strip()
 
     if mode == "1":
         generate_one_district()
@@ -232,8 +259,16 @@ def main():
     elif mode == "2":
         generate_batch()
 
+    elif mode == "3":
+        generate_batch(
+            settlement_types="ABCDEFHI",
+            number_of_new_districts_per_type=20,
+            number_of_buildings=30,
+            output_subdirectory="Paper_3",
+        )
+
     else:
-        print("Invalid mode. Please enter 1 or 2.")
+        print("Invalid mode. Please enter 1, 2 or 3.")
 
 
 if __name__ == "__main__":
