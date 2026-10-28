@@ -1065,26 +1065,15 @@ class Datahandler:
                     )
 
                     # ---- SAVE GENERATION PROFILES (Optional) ----
+                    # Same naming scheme as the demand profiles ("<unique_name>_timeseries.csv"):
+                    # files are overwritten on recompute instead of accumulating when the
+                    # gmlId changes; zone/scenario are already encoded in generation_path.
                     if saveGenerationProfiles:
-                        # base_directory = os.path.join(self.resultPath, 'generation', self.scenario_name)
-                        # os.makedirs(base_directory, exist_ok=True)
-                        np.savetxt(
-                            self.generation_path
-                            + '/decentralPV_' + building["unique_name"] + '_' + self.scenario_name + '_'
-                            + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
-                            building["user"].generationPV,
-                            delimiter=';',
-                            fmt='%.2f'
-                        )
+                        np.savetxt(os.path.join(self.generation_path, f'{building["unique_name"]}_generationPV.csv'),
+                                   building["user"].generationPV, delimiter=';', fmt='%.2f')
+                        np.savetxt(os.path.join(self.generation_path, f'{building["unique_name"]}_generationSTC.csv'),
+                                   building["user"].generationSTC, delimiter=';', fmt='%.2f')
 
-                        np.savetxt(
-                            self.generation_path
-                            + '/decentralSTC_' + building["unique_name"] + '_' + self.scenario_name + '_'
-                            + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
-                            building["user"].generationSTC,
-                            delimiter=';',
-                            fmt='%.2f'
-                        )
                 else:
                     raise Exception("Using standard PV calculation")
             except:
@@ -1106,25 +1095,15 @@ class Datahandler:
                                             usageFactorSTC=building["buildingFeatures"].get("f_STC", 0.3)
                                             )
 
-                # optionally save generation profiles
-                if saveGenerationProfiles == True:
-                    np.savetxt(
-                        self.generation_path
-                        + '/decentralPV_' + building["unique_name"] + '_' + self.scenario_name + '_'
-                        + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
-                        building["user"].generationPV,
-                        delimiter=';',
-                        fmt='%.2f'
-                    )
-
-                    np.savetxt(
-                        self.generation_path
-                        + '/decentralSTC_' + building["unique_name"] + '_' + self.scenario_name + '_'
-                        + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
-                        building["user"].generationSTC,
-                        delimiter=';',
-                        fmt='%.2f'
-                    )
+                # ---- SAVE GENERATION PROFILES (Optional) ----
+                # Same naming scheme as the demand profiles ("<unique_name>_timeseries.csv"):
+                # files are overwritten on recompute instead of accumulating when the
+                # gmlId changes; zone/scenario are already encoded in generation_path.
+                if saveGenerationProfiles:
+                    np.savetxt(os.path.join(self.generation_path, f'{building["unique_name"]}_generationPV.csv'),
+                               building["user"].generationPV, delimiter=';', fmt='%.2f')
+                    np.savetxt(os.path.join(self.generation_path, f'{building["unique_name"]}_generationSTC.csv'),
+                               building["user"].generationSTC, delimiter=';', fmt='%.2f')
 
 
     def designCentralDevices(self, saveGenerationProfiles):
