@@ -227,7 +227,7 @@ def worker(run_dir, scenario, case, attempt):
     if case not in CASES:
         raise ValueError(f"Unknown investment case: {case}")
     validate_source(item)
-    validate_config(run_dir / ".env.CONFIG.BERGFEST")
+    config = validate_config(run_dir / ".env.CONFIG.BERGFEST")
     expected_parent = (run_dir / scenario / case).resolve()
     attempt = attempt.resolve()
     if attempt.parent != expected_parent or not re.fullmatch(r"attempt_\d{3}", attempt.name):
@@ -250,12 +250,20 @@ def worker(run_dir, scenario, case, attempt):
         policy = output_policy(manifest)
         data.pyomo_config.update({key: value for key, value in policy.items() if key.startswith("solver_")})
         data.scenario["heater"] = "heat_grid"
+        if not config.report.batch_building_pv_enabled:
+            data.scenario[["f_PV1", "f_PV2"]] = 0.0
         data.scenario.to_csv(attempt / "scenario_heat_grid.csv", sep=";", index=False)
         data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False,
                                       topology_option=data.heat_grid_data["topology_option"],
                                       gen_cars=None)
         if not all(b["buildingFeatures"]["heater"] == "heat_grid" for b in data.district):
             raise ValueError("Not all buildings are connected to heat_grid.")
+        if not config.report.batch_building_pv_enabled:
+            for building in data.district:
+                pv = building["capacities"]["PV"]
+                if (np.any(np.asarray(building["generationPV"]) != 0)
+                        or any(pv[key] != 0 for key in ("nb_modules", "area", "P_ref"))):
+                    raise ValueError(f"Building PV was not disabled: {building['unique_name']}")
         data.optimizationClusters()
         data.calculateKPIs()
         if policy["batch_save_district_pickle"]:

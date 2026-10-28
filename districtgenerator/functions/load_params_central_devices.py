@@ -111,6 +111,8 @@ def load_params(data):
     param["renewable_heat_share_targets"] = central_device_data.get("renewable_heat_share_targets")
     param["renewable_heat_share_years"] = central_device_data.get("renewable_heat_share_years")
     param["grid_renewable_electricity_share"] = central_device_data.get("grid_renewable_electricity_share")
+    param["exclusive_heat_pumps"] = central_device_data.get("exclusive_heat_pumps", False)
+    param["min_thermal_generator_capacity"] = central_device_data.get("min_thermal_generator_capacity", 0.0)
 
     ################################################################
     # DESIGN CLUSTERING

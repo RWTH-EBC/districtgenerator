@@ -10,12 +10,54 @@ import pyomo.environ as pyo
 import numpy as np
 import time
 import os
+import math
 import districtgenerator.functions.solver_config as solver_config
 from districtgenerator.functions.hub_electricity_prices import design_import_cost, design_export_revenue
 from districtgenerator.functions.bew_funding import (add_investment_funding, funding_results, capital_recovery_factor, prepare_investment_funding, add_operating_funding, policy_heat_mix_conditions, bew_5g_recovered_heat_profile, design_operating_payments)
 
 EH_HEAT_PRODUCERS = ("STC", "HP", "WaterHP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
 EH_RENEWABLE_HEAT = ("STC", "HP", "WaterHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
+
+
+def add_thermal_installation_constraints(model, devs, param):
+    """Optional generators are either absent or meet a minimum thermal nameplate size.
+
+    CHP/fuel-cell capacities are electrical in this model, so their lower bounds
+    are converted with eta_th/eta_el. Storage energy and operating part load are
+    unaffected. Finite technology bounds link capacities to installation binaries.
+    """
+    minimum = float(param.get("min_thermal_generator_capacity", 0.0))
+    exclusive = param.get("exclusive_heat_pumps", False)
+    if not math.isfinite(minimum) or minimum < 0:
+        raise ValueError("Minimum thermal generator capacity must be finite and nonnegative.")
+    selected = [dev for dev in EH_HEAT_PRODUCERS if dev in model.all_devs
+                and devs[dev]["feasible"] and (minimum > 0 or (exclusive and dev in ("HP", "WaterHP")))]
+    if not selected:
+        return set()
+    model.thermal_installed = pyo.Var(selected, domain=pyo.Binary)
+    model.thermal_installation = pyo.ConstraintList()
+    for dev in selected:
+        specs = devs[dev]
+        factor = 1.0
+        if dev in ("CHP", "BCHP", "WCHP", "FC"):
+            eta_el, eta_th = float(specs["eta_el"]), float(specs["eta_th"])
+            if not (math.isfinite(eta_el) and math.isfinite(eta_th) and eta_el > 0 and eta_th > 0):
+                raise ValueError(f"Positive finite electrical/thermal efficiencies are required for {dev}.")
+            factor = eta_th / eta_el
+        lower = max(float(specs.get("min_cap") or 0.0), minimum / factor)
+        if dev == "STC":
+            area_factor = float(specs["G_stc"]) * float(specs["eta"])
+            lower = max(lower, float(specs.get("min_area") or 0.0) * area_factor)
+            upper = float(specs["max_area"]) * area_factor
+        else:
+            upper = float(specs["max_cap"])
+        if not (math.isfinite(upper) and upper >= 0 and math.isfinite(lower) and lower >= 0):
+            raise ValueError(f"Finite nonnegative capacity bounds are required for optional {dev}.")
+        model.thermal_installation.add(model.cap[dev] >= lower * model.thermal_installed[dev])
+        model.thermal_installation.add(model.cap[dev] <= upper * model.thermal_installed[dev])
+    if exclusive and all(dev in selected for dev in ("HP", "WaterHP")):
+        model.thermal_installation.add(model.thermal_installed["HP"] + model.thermal_installed["WaterHP"] <= 1)
+    return set(selected)
 
 
 def _get_renewable_heat_share_schedule(config):
@@ -223,6 +265,7 @@ def build_model(model, data, devs, param, dem):
     # Define maximum Capacity of devices Constraints
     ################################################################################
     model.constraints = pyo.ConstraintList()
+    optional_thermal = add_thermal_installation_constraints(model, devs, param)
 
     # Add capacity constraints for all devices as specified in devs
     for dev in model.all_devs:
@@ -233,7 +276,8 @@ def build_model(model, data, devs, param, dem):
                 continue  # Area constraints are handled separately and no capacity constraints are needed
             min_cap = devs[dev].get("min_cap")
             max_cap = devs[dev].get("max_cap")
-            if min_cap is not None: model.constraints.add(model.cap[dev] >= min_cap)
+            if min_cap is not None and dev not in optional_thermal:
+                model.constraints.add(model.cap[dev] >= min_cap)
             if max_cap is not None: model.constraints.add(model.cap[dev] <= max_cap)
 
     # Set area constraints for devices that require area as specified in devs
@@ -241,7 +285,9 @@ def build_model(model, data, devs, param, dem):
         if devs[dev]["feasible"]:
             min_area = devs[dev].get("min_area")
             max_area = devs[dev].get("max_area")
-            if min_area is not None: model.constraints.add(model.area[dev] >= min_area)
+            if min_area is not None:
+                installed = model.thermal_installed[dev] if dev in optional_thermal else 1
+                model.constraints.add(model.area[dev] >= min_area * installed)
             if max_area is not None: model.constraints.add(model.area[dev] <= max_area)
 
     if is_5g_network:

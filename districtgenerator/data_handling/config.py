@@ -647,6 +647,7 @@ class ReportConfig(BaseSettings):
     # KPI Save options
     kpi_save_type: str = "xlsx" # Format for saving KPIs, selected between: "csv", "xlsx", and "None" to save the KPIs in a CSV file, Excel file, or not save them at all.
     batch_save_district_pickle: bool = False  # BERGFEST only; explicit saveDistrict() calls are unchanged.
+    batch_building_pv_enabled: bool = True  # BERGFEST only; false sets both building PV roof factors to zero.
 
     # --- Colors Dictionary ---
     colors: dict = {}
@@ -1100,6 +1101,8 @@ class CentralDeviceConfig(BaseSettings):
     renewable_heat_share_enabled: bool = False  # Enforce minimum renewable heat shares for central supply and decentral buildings.
     renewable_heat_share_targets: str | list[float] = Field(default_factory=list)  # Minimum renewable heat shares, from 0 to 1, corresponding to the scheduled years.
     renewable_heat_share_years: str | list[int] = Field(default_factory=list)  # Assessment-year indices at which the corresponding renewable heat targets take effect.
+    exclusive_heat_pumps: bool = False  # Install at most one of HP and WaterHP in the energy hub.
+    min_thermal_generator_capacity: float = Field(default=0.0, ge=0, allow_inf_nan=False)  # kW thermal if installed, otherwise zero. Not a minimum operating load.
 
     # PV parameters (Photovoltaic System)
     PV__feasible: bool = False  # Should this be considered for the central optimization.
