@@ -1040,9 +1040,9 @@ class Datahandler:
 
             # save the building capacities from here, need to force HP as device, output in
             try:
+                # Fiware berechnung
                 if not pv_standard:
-
-                    # Parse string inputs to lists
+                                    # Parse string inputs to lists
                     roof_areas = [float(area) for area in building["buildingFeatures"]["surfaceAreaSuitableForSolarPV"].split("|")]
                     roof_inclinations = [float(beta) for beta in str(building["buildingFeatures"]["roofInclination"]).split("|")]
                     cardinal_directions = [float(gamma) for gamma in str(building["buildingFeatures"]["cardinalDirection"]).split("|")]
@@ -1050,6 +1050,11 @@ class Datahandler:
 
                     # Adjust inclinations: flat roofs (0°) get default value (35°)
                     roof_inclinations = [beta if beta != 0 else 35 for beta in roof_inclinations]
+                    # FIWARE roof areas are net module areas (modanetto: module layout incl.
+                    # setbacks/obstacles), so no further usage reduction for PV.
+                    f_pv = 1.0
+                    f_stc = building["buildingFeatures"].get("f_STC", 0.3)
+
                     # Call calcPVAndSTCProfile once with all roof segments
                     building["user"].generationPV, building["user"].generationSTC = sun.calcPVAndSTCProfile(
                         time=self.time,
@@ -1057,12 +1062,16 @@ class Datahandler:
                         area_roof=roof_areas,
                         betas=roof_inclinations,
                         gammas=cardinal_directions,
-                        usageFactorPV1=building["buildingFeatures"].get("f_PV1", 0),
-                        usageFactorPV2=building["buildingFeatures"].get("f_PV2", 0),
-                        usageFactorPV=building["buildingFeatures"].get("f_PV", 0.6),
-                        usageFactorSTC=building["buildingFeatures"].get("f_STC", 0.3),
+                        usageFactorPV1=0, #building["buildingFeatures"].get("f_PV1", 0),
+                        usageFactorPV2=0, #building["buildingFeatures"].get("f_PV2", 0),
+                        usageFactorPV=f_pv,  #building["buildingFeatures"].get("f_PV", 0.6),
+                        usageFactorSTC=f_stc, #building["buildingFeatures"].get("f_STC", 0.3),
                         devices=self.decentral_device_data,
                     )
+
+                    # Capacities must refer to the same area as the generation profiles
+                    # (profile = f_PV * sum(segment areas)); designECS used the TABULA roof.
+                    _set_solar_areas(building, roof_areas, self.decentral_device_data, f_pv, f_stc)
 
                     # ---- SAVE GENERATION PROFILES (Optional) ----
                     # Same naming scheme as the demand profiles ("<unique_name>_timeseries.csv"):
@@ -1076,9 +1085,13 @@ class Datahandler:
 
                 else:
                     raise Exception("Using standard PV calculation")
-            except:
-                print("DEBUG: Using standard PV calculation for building " + building["unique_name"])
-                # Standard single-surface calculation
+            except Exception as e:
+                # Fallback to TABULA roof (south, 35°); log why, it changes the PV profile basis
+                print(f"WARNING: standard PV calculation for {building['unique_name']}: {e}")                # Standard single-surface calculation
+
+                f_pv = building["buildingFeatures"].get("f_PV", 0.5)  # gross TABULA roof -> reduce
+                f_stc = building["buildingFeatures"].get("f_STC", 0.3)
+
                 building["user"].generationPV, building["user"].generationSTC = \
                     sun.calcPVAndSTCProfile(time=self.time,
                                             site=self.site,
@@ -1089,11 +1102,14 @@ class Datahandler:
                                             # surface azimuth angles (Orientation to the south: 0°)
                                             gammas=[building["buildingFeatures"].get("gamma_PV", 0)],
                                             #DEFAULT VALUES FOR VALUE CHECK IN DATAHANDLER?? TODO
-                                            usageFactorPV1=building["buildingFeatures"].get("f_PV1", 0),
-                                            usageFactorPV2=building["buildingFeatures"].get("f_PV2", 0),
-                                            usageFactorPV=building["buildingFeatures"].get("f_PV", 0.6),
-                                            usageFactorSTC=building["buildingFeatures"].get("f_STC", 0.3)
+                                            usageFactorPV1=0, #building["buildingFeatures"].get("f_PV1", 0),
+                                            usageFactorPV2=0, # building["buildingFeatures"].get("f_PV2", 0),
+                                            usageFactorPV=f_pv,
+                                            usageFactorSTC=f_stc,
                                             )
+
+                _set_solar_areas(building, [building["envelope"].A["opaque"]["roof"]],
+                                 self.decentral_device_data, f_pv, f_stc)
 
                 # ---- SAVE GENERATION PROFILES (Optional) ----
                 # Same naming scheme as the demand profiles ("<unique_name>_timeseries.csv"):
@@ -1782,3 +1798,15 @@ def _run_demand_worker(context, building, calcUserProfiles, saveUserProfiles, ge
         "envelope": building["envelope"],
         "night_setback": building["buildingFeatures"]["night_setback"],
     }
+
+def _set_solar_areas(building, area_roof, devices, f_pv, f_stc):
+    """
+    Overwrite PV/STC capacities with the area the generation profiles were computed
+    for (usage factor * sum of roof segment areas), so that profile / area gives the
+    correct specific yield. Modifies building in place.
+    """
+    pv_area = f_pv * float(sum(area_roof))
+    building["capacities"]["PV"]["area"] = pv_area
+    building["capacities"]["PV"]["nb_modules"] = int(pv_area / devices["PV"]["area_real"])
+    building["capacities"]["PV"]["P_ref"] = pv_area * devices["PV"]["P_nominal"]
+    building["capacities"]["STC"]["area"] = f_stc * float(sum(area_roof))
