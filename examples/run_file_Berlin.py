@@ -5,7 +5,8 @@ Run this file for the connection to the Berlin heat cadastre.
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from districtgenerator.classes import *
+from districtgenerator.classes import Datahandler
+from pathlib import Path
 import warnings
 
 
@@ -13,9 +14,11 @@ import warnings
 def run_opti(district_id, config_name):
     warnings.filterwarnings("ignore", category=FutureWarning)
     # Initialize District
-    data = Datahandler(scenario_name = district_id, heat_map_berlin=True, env_path=".env.CONFIG." + config_name)
+    data = Datahandler(scenario_name=district_id, heat_map_berlin=True, env_path=".env.CONFIG." + config_name)
+    for folder in ("demands", "generation", "optimization_results"):
+        Path(data.resultPath, folder).mkdir(parents=True, exist_ok=True)
     topology_option = data.heat_grid_data["topology_option"]
-    data.generateDistrictComplete(calcUserProfiles=True, saveUserProfiles=True, topology_option = topology_option)
+    data.generateDistrictComplete(calcUserProfiles=True, saveUserProfiles=True, topology_option=topology_option)
     # Calculation of the devices' optimal operation
     data.optimizationClusters()
 
@@ -32,6 +35,5 @@ def run_opti(district_id, config_name):
 if __name__ == '__main__':
     # Name the district ID here --> should apply to the name of the csv-Input file
     district_id = "waermschoen_1"
-    # Name the config_name here --> should apply to the name of the .env file in the folder: data/envs
     config_name = "BERLIN"
     data = run_opti(district_id=district_id, config_name=config_name)

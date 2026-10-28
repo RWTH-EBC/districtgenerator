@@ -1,6 +1,3 @@
-## Updated `README.md` (English, with Berlin Heat Cadastre getting started)
-
-
 ![E.ON EBC RWTH Aachen University](./img/EBC_Logo.png)
 
 # DistrictGenerator
@@ -46,16 +43,25 @@ Key contributions:
 
 ### 1) Install the DistrictGenerator
 
-Clone the repository:
+For the Berlin workflow, use one of the following alternatives. Run commands in a terminal.
+
+**New installation (Windows):**
 
 ```bash
-git clone https://github.com/RWTH-EBC/districtgenerator
+git clone --branch Projekt_berlin --single-branch https://github.com/RWTH-EBC/districtgenerator.git districtgenerator_berlin
+cd districtgenerator_berlin
+py -3.12 -m venv .venv
+.venv\Scripts\activate
+python -m pip install --upgrade pip
+python -m pip install -e .
 ```
 
-Install in editable mode:
+**Existing clone:** switch branches in that repository; do not clone another repository inside it.
 
 ```bash
-pip install -e districtgenerator
+git fetch origin
+git switch Projekt_berlin
+python -m pip install -e .
 ```
 
 ---
@@ -64,16 +70,33 @@ pip install -e districtgenerator
 
 This section describes the workflow for the **Berlin project branch** and the required input data handling.
 
-#### 2.1 Clone the Berlin project branch
+#### 2.1 Run the Berlin district
+
+From the repository root, run:
 
 ```bash
-git clone -b Projekt_berlin https://github.com/RWTH-EBC/districtgenerator
+python -m examples.run_file_Berlin
 ```
 
-#### 2.2 Use the Berlin project run file
+The [run file](examples/run_file_Berlin.py) uses `district_id="waermschoen_1"` and
+`.env.CONFIG.BERLIN`. Put your `waermschoen_1.csv` and the corresponding
+solar-potential CSV in `districtgenerator/data/scenarios/`. Set `heat_map_berlin=True`
+for raw heat-cadastre data. The script generates new profiles, designs the heating
+network and energy hub, optimizes operation, and exports KPIs and a PDF to
+`districtgenerator/results/`. The configuration uses the open-source HiGHS solver,
+installed with the package. The annual calculation can take several minutes.
+Large multifamily buildings can take much longer because household profiles are
+simulated separately for every apartment; the printed runtime estimate is approximate.
 
-Once you have installed the DistrictGenerator, you can check the [run file](examples/run_file_Berlin.py). 
-This should be used for the Berlin project. 
+#### 2.2 Use your own district
+
+Place `<district_id>.csv` in `districtgenerator/data/scenarios/` and change
+`district_id` in the run file (for example to `waermschoen_1`). Input filenames must
+match exactly. Mapped `_dg.csv` and `_wkb.csv` files are generated automatically.
+
+For a small synthetic example, set `district_id="berlin_reference"` in the same
+run file. Its building CSV, solar-potential CSV and geometry JSON are in
+`districtgenerator/data/scenarios/`.
 
 #### 2.3 Minimum manual required input data (Berlin: scenario CSV vs. WKB export CSV)
 
@@ -86,13 +109,29 @@ Create a single scenario CSV that contains (at minimum) the required fields list
 
 **Option B — Export from the Berlin heat cadastre and map to DistrictGenerator scenario format**  
 Export the heat cadastre data to CSV and ensure it contains at least the fields listed below. 
-If you only have a gpkg export, you can convert it to CSV using [this file](functions/gpgk_to_csv.py)
+If you only have a GeoPackage, install the optional conversion dependencies and use
+[the converter](districtgenerator/functions/gpgk_to_csv.py):
+
+```bash
+python -m pip install -e ".[geo]"
+python -m districtgenerator.functions.gpgk_to_csv path/to/export.gpkg --layer layer_name --output districtgenerator/data/scenarios/waermschoen_1.csv
+```
+
+Use the heat-cadastre **point layer**. The converter preserves attributes, transforms
+coordinates to EPSG:25833 and writes a comma-separated raw CSV. It does not perform
+the building mapping. Existing output files are not overwritten.
 
 Depending on which option you use, set the variable in the Berlin run file:
 
 - In `examples/run_file_Berlin.py`, set:
   - `heat_map_berlin = True` if you start from heat cadastre export + mapping
   - `heat_map_berlin = False` if you already provide a ready-to-run DistrictGenerator scenario CSV
+
+Raw cadastre CSVs may use commas or semicolons. Finished DistrictGenerator scenarios
+must use semicolons and lowercase column names such as `building`, `year` and
+`retrofit`. Do not manually rename `building_type_simplified` to `building` or pass
+`GMH` directly as a DistrictGenerator building type: the Berlin mapper uses
+`iwu_class` and converts `GMH` to `MFH`.
 
 #### 2.4 Required minimum inputs for heat cadastre export (must exist for mapping)
 
@@ -145,8 +184,12 @@ To enable this, provide an additional CSV file containing (at minimum) the follo
 - `modanetto` (net usable module area)
 
 **File naming convention:**  
-The file must be named like the scenario, with the suffix:
+Use a semicolon-separated file named like the scenario, with the suffix:
 - `<scenario_name>_pv_stc_potential.csv`
+
+`uuid` must match the buildings' `alkis_id`. This file takes precedence over the
+city-wide `pv_geeignete_dachflaechen.csv`, which is used as a fallback.
+If neither exists, the tool warns and uses zero PV/solar-thermal generation.
 
 ---
 
@@ -157,7 +200,7 @@ Provide a scenario CSV (e.g., based on the template) with one row per building.
 
 **Required/used columns in a DistrictGenerator scenario CSV (project-wide):**
 
-- `id`: building ID (integer, unique)
+- `id`: unique building ID (Berlin mapping uses the `alkis_id` string)
 - `building`: building type code  
   Residential: `SFH`, `TH`, `MFH`, `AB`
 
@@ -165,7 +208,7 @@ Provide a scenario CSV (e.g., based on the template) with one row per building.
   - `NWG_TYP_A` — Office / administration / public administration building (*Büro-, Verwaltungs- oder Amtsgebäude*) → `OB`
   - `NWG_TYP_B` — Research and higher-education building (*Gebäude für Forschung und Hochschullehre*) → `UNI`
   - `NWG_TYP_C` — Healthcare and nursing building (*Gebäude für Gesundheit und Pflege*) → `HOSPITAL`
-  - `NWG_TYP_D` — School / daycare / other care building (*Schule, Kindertagesstätte und sonstiges Betreuungsgebäude*) → `SCHOOL`
+  - `NWG_TYP_D` — School / daycare / other care building (*Schule, Kindertagesstätte und sonstiges Betreuungsgebäude*) → `SC`
   - `NWG_TYP_E` — Culture and leisure building (*Gebäude für Kultur und Freizeit*) → `CULTURE`
   - `NWG_TYP_F` — Sports building (*Sportgebäude*) → `SPORT`
   - `NWG_TYP_G` — Accommodation / gastronomy / catering building (*Beherbergungs- oder Unterbringungsgebäude, Gastronomie oder Verpflegung*) → `RE`
@@ -185,7 +228,7 @@ Provide a scenario CSV (e.g., based on the template) with one row per building.
 - `retrofit`: retrofit state (`0` existing, `1` usual refurbishment, `2` advanced refurbishment)
 - `area`: reference floor area in m²
 - `night_setback`: (`0` no night setback, `1` with night setback)
-- `heater` / `heating`: heat generator / supply concept (project values)
+- `heater`: heat generator / supply concept (project values)
   - `HP` — Heat pump (typically electric-driven)
   - `EH` — Electric heater / electric boiler (direct electric heating)
   - `CHP` — Combined heat and power unit (cogeneration: heat + electricity)
@@ -200,6 +243,7 @@ Provide a scenario CSV (e.g., based on the template) with one row per building.
   - `opt` — “Optimized” retrofit/system configuration (generic optimization preset used in the Berlin workflow)
   - `opt_geg` — Optimization preset aligned with GEG requirements (German Buildings Energy Act)
   - List of multiple heat generators (e.g. `HP, EH`) — User-defined/custom optimization preset 
+- `cooling`: active cooling (`0` disabled, `1` enabled)
 - `EV`: electric vehicle share (0..1)
 - `f_TES`: thermal energy storage size in liters per kW heating capacity
 - `f_BAT`: battery size in Wh per W of PV power (Wh/W_PV)
@@ -207,10 +251,9 @@ Provide a scenario CSV (e.g., based on the template) with one row per building.
 - `f_PV2`: fraction of roof area for PV at gamma + 180°
 - `f_STC`: fraction of roof area for solar thermal collectors
 - `gamma_PV`: azimuth angle in degrees (0° = south-facing)
-- `ev_charging` / `EV_charging`: EV charging behavior (`bidirectional`, `on_demand`, `intelligent`)
+- `ev_charging`: EV charging behavior (`bidirectional`, `on_demand`, `intelligent`)
 
-**Template:**  
-`districtgenerator/data/scenarios/example.csv` can be used as a template.
+For a finished scenario, use the supplied `example_central.csv` as a column template.
 
 ---
 
@@ -329,4 +372,3 @@ DistrictGenerator was developed within the publicly funded project
 and with financial support by BMWK (German Federal Ministry for Economic Affairs and Climate Action).
 
 <img src="https://www.innovation-beratung-foerderung.de/INNO/Redaktion/DE/Bilder/Titelbilder/titel_foerderlogo_bmwi.jpg?__blob=normal" width="200">
-```

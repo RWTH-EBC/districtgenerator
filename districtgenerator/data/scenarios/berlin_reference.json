@@ -1,0 +1,4 @@
+{
+  "parameters": {"district_type": "berlin_reference"},
+  "values": {"transformer_station": {"position": [0, -20]}}
+}

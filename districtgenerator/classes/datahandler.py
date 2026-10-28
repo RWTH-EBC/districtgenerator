@@ -297,29 +297,44 @@ class Datahandler:
                                             self.scenario_file_path + "/" + self.scenario_name + "_dg.csv")
             self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}_dg.csv"), delimiter=";",
                                          converters={"position": parse_position}, dtype=dtype_dict).set_index("id", drop=False))
-            """self.pv_stc_potential = pd.read_csv(
-                self.scenario_file_path + "/" + self.scenario_name + "_pv_stc_potential.csv",
-                delimiter=';',
-                usecols=["uuid", "richtung", "neigung", "dachtyp", "modanetto"]
-            )"""
             alkis_ids = set(self.scenario["alkis_id"].dropna().astype(str).unique())
-
-            chunks = pd.read_csv(
+            solar_columns = ["uuid", "richtung", "neigung", "dachtyp", "modanetto"]
+            solar_paths = [
+                os.path.join(self.scenario_file_path, f"{self.scenario_name}_pv_stc_potential.csv"),
                 os.path.join(self.scenario_file_path, "pv_geeignete_dachflaechen.csv"),
-                delimiter=';',
-                usecols=["uuid", "richtung", "neigung", "dachtyp", "modanetto"],
-                dtype={"uuid": str},
-                chunksize=100000
-            )
-
-            self.pv_stc_potential = pd.concat(
-                (chunk[chunk["uuid"].isin(alkis_ids)] for chunk in chunks),
-                ignore_index=True
-            )
+            ]
+            solar_path = next((path for path in solar_paths if os.path.isfile(path)), None)
+            if solar_path is None:
+                self.pv_stc_potential = pd.DataFrame(columns=solar_columns)
+                warnings.warn(
+                    "No Berlin solar-potential CSV found. PV and solar thermal generation are zero. "
+                    f"Provide {solar_paths[0]} to include solar generation.",
+                    UserWarning,
+                )
+            else:
+                chunks = pd.read_csv(
+                    solar_path, delimiter=';', usecols=solar_columns,
+                    dtype={"uuid": str}, chunksize=100000,
+                )
+                self.pv_stc_potential = pd.concat(
+                    (chunk[chunk["uuid"].isin(alkis_ids)] for chunk in chunks),
+                    ignore_index=True,
+                )
         else:
             # %% load normal formatted scenario file
-            self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
-                                         converters={"position": parse_position}, dtype=dtype_dict).set_index("id", drop=False))
+            self.scenario = pd.read_csv(
+                os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"),
+                delimiter=";", converters={"position": parse_position}, dtype=dtype_dict,
+            )
+            required = {"id", "building", "year", "retrofit", "area", "heater"}
+            missing = required - set(self.scenario.columns)
+            if missing:
+                raise ValueError(
+                    f"Scenario {self.scenario_name!r} is missing columns: {', '.join(sorted(missing))}. "
+                    "Use a semicolon-separated DistrictGenerator scenario with lowercase column names "
+                    "(including 'retrofit'). For a raw Berlin heat-cadastre CSV, use heat_map_berlin=True."
+                )
+            self.scenario = self.scenario.set_index("id", drop=False)
 
         json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
 
@@ -2917,10 +2932,21 @@ class Datahandler:
         wkb_data = pd.read_csv(
             wkb_file_path,
             encoding="utf-8",
-            delimiter=",",
+            sep=None,
+            engine="python",
             decimal=".",
             na_values=["NULL", "null", "", "nan"]
         )
+
+        required = {"x", "y", "alkis_id", "heat_relevance", "iwu_class", "construction_year",
+                    "renovation_state_simulated", "gross_floor_area", "number_floors", "heating_system"}
+        missing = required - set(wkb_data.columns)
+        if missing:
+            raise ValueError(
+                f"Berlin heat-cadastre CSV is missing columns: {', '.join(sorted(missing))}. "
+                "Provide the original export columns; do not rename building_type_simplified to building. "
+                "Building types are mapped from iwu_class."
+            )
 
         # Ensure coordinates are numeric
         wkb_data["x"] = pd.to_numeric(wkb_data["x"], errors="coerce")
@@ -2947,6 +2973,8 @@ class Datahandler:
 
         scenario_df = pd.DataFrame(scenario_rows)
         accepted_wkb_df = pd.DataFrame(accepted_wkb_rows)
+        if scenario_df.empty:
+            raise ValueError("No valid Berlin buildings remain after mapping. Check the reported rejected rows.")
 
         # Save batch CSV files
         num_csv = max(1, (len(scenario_df) + batch_size - 1) // batch_size)
@@ -3021,7 +3049,7 @@ class Datahandler:
                 "position": [base_pos[0] + offset_x, base_pos[1] + offset_y]
             }
 
-        run_pipeline_node(district_type, buildings_info, transformer_info)
+        run_pipeline_node(district_type, buildings_info, transformer_info, output_dir=self.scenario_file_path)
 
     def designNetworkwithRoad(self):
         """
@@ -3051,7 +3079,8 @@ class Datahandler:
         lines_info = jsonData["values"]["lines_info"]
         transformer_info = jsonData["values"]["transformer_station"]
 
-        run_pipeline_road(district_type, building_width, house_connection, buildings_info, lines_info, transformer_info)
+        run_pipeline_road(district_type, building_width, house_connection, buildings_info, lines_info, transformer_info,
+                          output_dir=self.scenario_file_path)
 
     def generateNetwork(self, topology_option):
         """

@@ -1,0 +1,4 @@
+alkis_id,heat_relevance,iwu_class,construction_year,renovation_state_simulated,gross_floor_area,number_floors,heating_system,x,y
+SYNTHETIC_BERLIN_1,wärmerelevant,GMH_B,1998,teilsaniert,600,3,heat_grid,390000,5820000
+SYNTHETIC_BERLIN_2,wärmerelevant,MFH_B,1995,teilsaniert,500,3,heat_grid,390040,5820020
+SYNTHETIC_BERLIN_3,wärmerelevant,EFH_B,2005,teilsaniert,150,2,Wärmepumpe,390020,5820050
