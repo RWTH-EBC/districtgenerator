@@ -5,6 +5,22 @@
 This document distinguishes the implemented procedure from methodological
 decisions that still require validation.
 
+The building-use method and results include the 29 October 2026 SPORT-only
+cached recount: explicit sports halls and fitness centres are eligible for the
+SPORT archetype. Candidate geometries, memberships and settlement-type
+assignments remain those of the original 30 September 2026 run. Observed OSM
+use counts are kept separate from the generation assumption that unknown-use
+footprints in type A are residential. The revised parameter workbook is now
+active. `Paper_3/Districts` contains 20 validated definitions per type A--F, H
+and I (160 total), retaining true seed IDs and an ordered district index.
+The active set is the first 20 valid seeds from an ascending search starting
+at seed 1 for each type, verified by two independent searches. C/8 is included
+instead of C/29, and H/27 instead of H/30; B/82 is the twentieth valid B seed.
+These final two replacements left the other 158 definition pairs unchanged.
+Removed definitions are archived. No demand profiles or optimization results
+were moved or calculated in this selection update. Historical optimization
+results still describe their original input snapshots.
+
 
 
 All equations are displayed in mathematical notation. Distances and areas are
@@ -77,8 +93,9 @@ refresh of this shared cache, then continues with analysis.
 
 The first worksheet of `typdistrict_parameters.xlsx` supplies the minimum and
 maximum BCR, building-density and FAR values for source settlement types A–I.
-The workbook is opened read-only. Its SHA-256 hash is recorded before and after
-the run:
+For the original 30 September morphology run, the workbook was opened read-only.
+Its SHA-256 hash was recorded before and after that run (this is not the hash
+of the subsequently revised active workbook):
 
 **7d7c4a0aa0bc358b84f7429545015f7b0676a83f1d244f0c8cabc877d05fc05a**
 
@@ -1481,6 +1498,14 @@ representative points. A POI is assigned to a building when its representative
 point lies within that building footprint. POIs without a containing eligible
 building are recorded diagnostically but excluded from building-based ratios.
 
+For SPORT, a representative point alone is not sufficient when the POI has
+polygon geometry: the complete sports-hall or fitness-centre polygon must be
+covered by the containing building footprint. Point POIs must lie inside the
+footprint. Parking, garages, grandstands, stadiums, pavilions and riding halls
+cannot become SPORT through a contained POI. In addition, contained POIs cannot
+promote an otherwise unsupported grandstand, pavilion or riding hall to a
+heated cultural or other supported archetype.
+
 When several direct tags or POIs could assign different subtypes to one
 building, the first category in this priority order is retained:
 
@@ -1495,6 +1520,11 @@ replaces the main `building` value, so current use can override the building's
 original purpose. Negative office, shop and healthcare tags provide no activity
 evidence.
 
+SPORT additionally checks both physical `building` and `building:use` tags:
+an incompatible structure cannot become a sports hall solely through an
+overriding use tag. The original broad SPORT rules remain available only as
+`sport_policy='legacy'` for reproducing historical counts.
+
 The categories are:
 
 | Code | Non-residential building type |
@@ -1506,7 +1536,7 @@ The categories are:
 | UNI | University or college building |
 | HOSPITAL | Hospital, clinic or other identified medical facility |
 | CULTURE | Cultural facility |
-| SPORT | Sports facility |
+| SPORT | Indoor sports hall or explicitly identified fitness centre |
 | RETAIL | Other retail building |
 | WORKSHOP | Workshop, manufacturing, warehouse or industrial building |
 | OTHER_NRB | Identified non-residential use outside the ten model categories |
@@ -1522,7 +1552,7 @@ The following tag rules determine the subtypes:
 | RE | Restaurant, cafe, fast_food, bar, pub, biergarten, food_court and ice_cream amenities; restaurant/cafe/pub buildings. |
 | RETAIL | Remaining active shops and retail/kiosk buildings; `amenity=pharmacy` or `healthcare=pharmacy`. |
 | CULTURE | Existing theatre, cinema, arts centre, community centre, library, events venue, museum, gallery and artwork evidence; conference_centre, exhibition_centre, music_venue and planetarium amenity/tourism tags. |
-| SPORT | Sports leisure tags, sport tags and sports buildings, including sports_centre and riding_hall. |
+| SPORT | Explicit `building=sports_hall`, `building:use=sports_hall`, `leisure=sports_hall` or `leisure=fitness_centre`, subject to compatible building evidence and the POI-containment conditions above. |
 | WORKSHOP | Craft and industrial activity, industrial/warehouse/workshop/manufacture/factory buildings and `man_made=works`. Industrial-site exclusions still apply before candidate analysis. |
 | HOSPITAL | Hospital/clinic buildings; hospital, clinic, doctors or dentist amenities; healthcare values hospital, clinic, doctor, dentist, dialysis, medical_imaging or rehabilitation. This is a grouped medical category, not exclusively large hospitals. |
 | OTHER_NRB | Other healthcare practices; hotels/hostels/motels/guest houses; worship buildings, police/fire stations, social facilities/nursing homes, post offices, station/transport buildings, barns/stables and other agricultural outbuildings. Also language_school and training amenities pending local validation, and generic non-residential buildings without a more specific subtype. |
@@ -1534,6 +1564,28 @@ OTHER_NRB is an analysis category only; the generator retains its ten NRB types.
 It participates in the main-use split and subtype exports. A residential
 building with a contained OTHER_NRB activity is mixed-use; an otherwise generic
 footprint with that activity is non-residential.
+
+### 7.3 SPORT exclusions and thermal-archetype interpretation
+
+The SPORT category supplies the thermal `Turnhalle` archetype. Including an
+explicit fitness centre is an agreed modelling approximation: its opening
+hours, ventilation, showers and heat demand need not equal those of a sports
+hall. The tags establish facility-use evidence, not actual heating or energy
+intensity. The following evidence is insufficient for SPORT:
+
+| Evidence | Corrected treatment |
+|---|---|
+| `sport=fitness` alone or outdoor `leisure=fitness_station` | Activity evidence only; does not establish an indoor fitness centre. |
+| Other `sport=*` alone, such as soccer or shooting | Does not establish a sports hall; retain another supported use if independently identified, otherwise no subtype from this tag. |
+| Outdoor `leisure=pitch` | Does not establish an indoor building use. |
+| Generic `leisure=sports_centre` without explicit hall evidence | OTHER_NRB rather than an automatic Turnhalle proxy. |
+| Swimming pool, riding hall, grandstand, stadium or pavilion | Unsupported sports uses, normally OTHER_NRB; not SPORT. Existing independently identified, higher-priority uses remain subject to the classifier's priority rules. |
+| Parking or ambiguous sports POI overlapping a footprint | Not SPORT. Without another informative building-use tag, use can remain unknown. |
+
+The cached source lacks `indoor`, `covered` and name attributes. No new OSM
+download or inference from unavailable tags was used to resolve ambiguous
+facilities. Removing a SPORT label does not remove the footprint from the
+geometry or morphology analysis.
 
 
 
@@ -1595,9 +1647,10 @@ The NRB denominator includes identified non-residential activities in mixed-use
 buildings. It is therefore not identical to $N_{\mathrm{nonres}}$, which counts
 only buildings whose main-use category is non-residential.
 
-The subtype denominator includes OTHER_NRB. The ten generator subtype shares
-therefore sum to less than 100% whenever OTHER_NRB is present; all eleven analysis
-shares sum to 100% when the denominator is nonzero.
+The raw analysis subtype denominator includes OTHER_NRB. The ten supported
+subtype shares in that export therefore sum to less than 100% whenever OTHER_NRB
+is present; all eleven analysis shares sum to 100% when the denominator is
+nonzero. These raw shares are not the generator's normalized subtype weights.
 
 Because natural candidate sizes can differ, the outputs retain two aggregation
 perspectives. The pooled, building-weighted share for type $t$ is calculated
@@ -1608,6 +1661,64 @@ unweighted mean across districts of type $t$. Every district therefore
 contributes equally. The pooled results are written to the dedicated building-
 split and NRB summary files; the means of district-level percentages are
 included in `osm_use_summary_by_type.csv`.
+
+### 8.1 Generation probabilities and the type-A residential assumption
+
+Raw evidence tables retain all four main-use categories, including unknown.
+For generation, types B--I continue to use the known-use normalization above.
+For type A only, unknown-use footprints are assumed residential because the
+study treats scattered settlements as predominantly residential:
+
+$$
+p_{\mathrm{res},A}^{\mathrm{gen}}=
+\frac{N_{\mathrm{res},A}+N_{\mathrm{unknown},A}}{N_{\mathrm{all},A}},
+\qquad
+p_{\mathrm{nonres},A}^{\mathrm{gen}}=
+\frac{N_{\mathrm{nonres},A}}{N_{\mathrm{all},A}},
+\qquad
+p_{\mathrm{mix},A}^{\mathrm{gen}}=
+\frac{N_{\mathrm{mix},A}}{N_{\mathrm{all},A}}.
+$$
+
+This is a type-specific modelling assumption, not an observed OSM residential
+classification. The corrected type-A counts are 42 residential, 42
+non-residential, zero mixed and 234 unknown out of 318. Generation therefore
+uses 276/318 = 86.79% residential and 42/318 = 13.21% non-residential.
+Observed labels remain unchanged. No EFH/MFH, age, retrofit, footprint or
+floor-area parameter is inferred from the unknown-use tag; existing
+residential-archetype proportions are retained.
+
+For all types, generator subtype weights retain the existing denominator:
+
+$$
+w_k^{\mathrm{gen}}=
+\frac{N_k^{\mathrm{NRB}}}{\sum_{j\in\mathcal K_{\mathrm{supported}}}N_j^{\mathrm{NRB}}}.
+$$
+
+Here $\mathcal K_{\mathrm{supported}}$ contains the ten model categories and
+excludes OTHER_NRB. No separate OTHER_NRB denominator correction has been
+implemented. Correcting SPORT changes these weights for other supported
+categories even when their counts do not change. SPORT is excluded from
+mixed-use draws. Its marginal draw probability is the pure non-residential
+main-use share multiplied by its supported-subtype weight.
+
+For type A, 1 of the 22 supported NRB footprints is SPORT, giving 4.55% within
+supported NRB and approximately 0.60% among all generated buildings under the
+residential assumption. This does not prescribe an exact number per district.
+
+`examples/aachen_osm_pilot.py` integrates classification, generation parameters
+and documentation. Its `--reuse-analysis` option recounts the frozen source
+using existing candidate geometries and memberships, without downloads or
+reclustering. The earlier legacy replay matched all 4,271 original candidates;
+the accepted population remains 3,207 candidates. The explicit
+`--type-a-unknown-residential` generation assumption is enabled by default;
+`--no-type-a-unknown-residential` disables it. Neither changes observed unknown
+labels. Every run exports a separate workbook, probability tables and an edit
+manifest, then updates this Markdown and its HTML rendering. The input workbook
+is never overwritten. `examples/finalize_paper3_scenarios.py`
+validates and activates the prepared definitions and workbook, archives stale
+inputs/profiles and saves frozen provenance. The tables below distinguish the
+corrected observations from the activated generation parameters.
 
 
 
@@ -1716,13 +1827,15 @@ The candidates contain 115,353 unique building footprints, corresponding to 58.7
 | Total range score $D_t$ | 0.031 | 0.167 | 0.991 |
 | Total midpoint score $C_t$ | 0.418 | 0.928 | 3.128 |
 
+Morphology and candidate assignments remain from that original run. Sections 12--15 use the corrected sports-hall/fitness-centre cached recount, stored separately in `D:/ResearchArtifacts/districtgenerator/tmp/osm_workflow_consolidation_20261029_v1/recount`. The original run files are historical records and have not been overwritten. Type-A unknown-to-residential generation weights are reported separately in Section 17; they do not alter the observed-use tables.
+
 FAR is available for 166 candidates. The block-frontage requirement is met by 1,022 candidates. Rural influence boundaries are applied to 1,877 candidates.
 
 Candidate areas range from 0.093 to 35.586 ha.
 
 ## 11. Settlement-type assignment results
 
-| Type | Candidates | Buildings | Exact | Approximate | Unique compatible | Midpoint tie-break | Nearest outside ranges | Unknown use |
+| Type | Candidates | Buildings | Exact | Approximate | Unique compatible | Midpoint tie-break | Nearest outside ranges | Unknown use, original run |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | A | 23 | 318 | 2 | 21 | 2 | 0 | 21 | 73.3% |
 | B | 253 | 6,724 | 6 | 247 | 6 | 0 | 247 | 68.6% |
@@ -1735,6 +1848,8 @@ Candidate areas range from 0.093 to 35.586 ha.
 | I | 135 | 5,442 | 0 | 135 | 0 | 0 | 135 | 56.5% |
 | UNCLASSIFIED | 1,064 | 24,460 | 0 | 0 | 0 | 0 | 0 | 78.6% |
 
+The unknown-use column above belongs to the original morphology export. For corrected observed use shares, see Section 13.
+
 Classification quality is exact for 114, approximate for 3,093 and unclassified for 1,064 candidates. 3,207 candidates enter type-specific results.
 
 The final context classes contain URBAN=656, RURAL=3,615. Context changes 224 assignments relative to unrestricted scoring.
@@ -1743,46 +1858,46 @@ The final context classes contain URBAN=656, RURAL=3,615. Context changes 224 as
 
 | Main-use category | Buildings | Percentage of all | Percentage of known use |
 |---|---:|---:|---:|
-| Residential | 18,726 | 20.602% | 85.215% |
-| Mixed-use | 560 | 0.616% | 2.548% |
-| Non-residential | 2,689 | 2.958% | 12.237% |
-| Unknown | 68,918 | 75.823% | — |
+| Residential | 18,726 | 20.602% | 85.262% |
+| Mixed-use | 560 | 0.616% | 2.550% |
+| Non-residential | 2,677 | 2.945% | 12.189% |
+| Unknown | 68,930 | 75.836% | — |
 | **Total** | **90,893** | **100.000%** | — |
 
-The known-use population contains 21,975 buildings; 75.823% have unknown main use.
+The known-use population contains 21,963 buildings; 75.836% have unknown main use.
 
 ## 13. Main-use results by assigned type
 
 | Type | Buildings | Residential, all | Mixed, all | Non-residential, all | Unknown | Known-use buildings | Residential, known | Mixed, known | Non-residential, known |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| A | 318 | 13.2% | 0.0% | 13.5% | 73.3% | 85 | 49.4% | 0.0% | 50.6% |
-| B | 6,724 | 27.6% | 0.3% | 3.5% | 68.6% | 2,112 | 88.0% | 0.9% | 11.0% |
-| C | 6,788 | 12.0% | 0.2% | 4.3% | 83.6% | 1,116 | 73.0% | 1.1% | 25.9% |
-| D | 9,675 | 21.6% | 0.3% | 6.2% | 71.9% | 2,717 | 76.8% | 1.1% | 22.1% |
-| E | 57,425 | 18.7% | 0.1% | 1.3% | 79.8% | 11,573 | 93.0% | 0.6% | 6.5% |
+| A | 318 | 13.2% | 0.0% | 13.2% | 73.6% | 84 | 50.0% | 0.0% | 50.0% |
+| B | 6,724 | 27.6% | 0.3% | 3.4% | 68.6% | 2,109 | 88.1% | 0.9% | 10.9% |
+| C | 6,788 | 12.0% | 0.2% | 4.2% | 83.6% | 1,114 | 73.2% | 1.1% | 25.8% |
+| D | 9,675 | 21.6% | 0.3% | 6.2% | 71.9% | 2,716 | 76.8% | 1.1% | 22.1% |
+| E | 57,425 | 18.7% | 0.1% | 1.3% | 79.9% | 11,570 | 93.0% | 0.6% | 6.4% |
 | F | 142 | 19.0% | 0.0% | 5.6% | 75.4% | 35 | 77.1% | 0.0% | 22.9% |
-| G | 2,282 | 22.9% | 0.9% | 10.4% | 65.8% | 780 | 66.9% | 2.7% | 30.4% |
-| H | 2,097 | 40.9% | 4.5% | 11.3% | 43.3% | 1,188 | 72.1% | 7.9% | 19.9% |
+| G | 2,282 | 22.9% | 0.9% | 10.3% | 65.9% | 779 | 67.0% | 2.7% | 30.3% |
+| H | 2,097 | 40.9% | 4.5% | 11.3% | 43.4% | 1,187 | 72.2% | 7.9% | 19.9% |
 | I | 5,442 | 32.3% | 5.8% | 5.4% | 56.5% | 2,369 | 74.2% | 13.4% | 12.4% |
 
 ## 14. Overall non-residential subtype results
 
-A total of 3,249 buildings receive a subtype: 1,974 from direct building evidence and 1,275 from contained POIs. 407 classified POIs have no containing eligible building.
+A total of 3,237 buildings receive a subtype: 1,970 from direct building evidence and 1,267 from contained POIs. 268 classified POIs have no containing eligible building.
 
 | NRB subtype | Buildings | Percentage of classified NRB | Percentage of all buildings |
 |---|---:|---:|---:|
-| Office (OB) | 254 | 7.818% | 0.279% |
-| School (SC) | 338 | 10.403% | 0.372% |
-| Restaurant (RE) | 350 | 10.773% | 0.385% |
-| Grocery (GS) | 166 | 5.109% | 0.183% |
-| University (UNI) | 93 | 2.862% | 0.102% |
-| Hospital/medical (HOSPITAL) | 151 | 4.648% | 0.166% |
-| Culture (CULTURE) | 64 | 1.970% | 0.070% |
-| Sport (SPORT) | 108 | 3.324% | 0.119% |
-| Other retail (RETAIL) | 679 | 20.899% | 0.747% |
-| Workshop/industrial (WORKSHOP) | 364 | 11.203% | 0.400% |
-| Other identified NRB (OTHER_NRB) | 682 | 20.991% | 0.750% |
-| **Total** | **3,249** | **100.000%** | **3.575%** |
+| Office (OB) | 255 | 7.878% | 0.281% |
+| School (SC) | 338 | 10.442% | 0.372% |
+| Restaurant (RE) | 350 | 10.812% | 0.385% |
+| Grocery (GS) | 166 | 5.128% | 0.183% |
+| University (UNI) | 93 | 2.873% | 0.102% |
+| Hospital/medical (HOSPITAL) | 151 | 4.665% | 0.166% |
+| Culture (CULTURE) | 64 | 1.977% | 0.070% |
+| Sport (SPORT) | 34 | 1.050% | 0.037% |
+| Other retail (RETAIL) | 681 | 21.038% | 0.749% |
+| Workshop/industrial (WORKSHOP) | 364 | 11.245% | 0.400% |
+| Other identified NRB (OTHER_NRB) | 741 | 22.892% | 0.815% |
+| **Total** | **3,237** | **100.000%** | **3.561%** |
 
 ## 15. Non-residential subtype results by assigned type
 
@@ -1790,19 +1905,19 @@ Percentages are conditional on subtype-classified NRB buildings within each assi
 
 | Type | NRB buildings | OB | SC | RE | GS | UNI | HOSPITAL | CULTURE | SPORT | RETAIL | WORKSHOP | OTHER_NRB |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| A | 43 | 20.9% | 0.0% | 7.0% | 2.3% | 0.0% | 0.0% | 7.0% | 16.3% | 7.0% | 4.7% | 34.9% |
-| B | 253 | 6.3% | 4.7% | 5.9% | 4.0% | 0.0% | 0.8% | 1.6% | 5.1% | 10.3% | 11.5% | 49.8% |
-| C | 301 | 5.0% | 10.3% | 4.3% | 3.7% | 0.7% | 2.7% | 2.3% | 4.3% | 13.0% | 15.3% | 38.5% |
-| D | 631 | 7.8% | 12.0% | 7.4% | 4.4% | 5.2% | 3.3% | 2.2% | 4.1% | 18.4% | 17.7% | 17.3% |
-| E | 813 | 4.6% | 13.9% | 14.4% | 6.3% | 0.0% | 6.0% | 1.8% | 1.8% | 19.7% | 9.7% | 21.8% |
+| A | 42 | 21.4% | 0.0% | 7.1% | 2.4% | 0.0% | 0.0% | 7.1% | 2.4% | 7.1% | 4.8% | 47.6% |
+| B | 250 | 6.4% | 4.8% | 6.0% | 4.0% | 0.0% | 0.8% | 1.6% | 1.6% | 10.4% | 11.6% | 52.8% |
+| C | 299 | 5.0% | 10.4% | 4.3% | 3.7% | 0.7% | 2.7% | 2.3% | 1.0% | 13.0% | 15.4% | 41.5% |
+| D | 630 | 7.8% | 12.1% | 7.5% | 4.4% | 5.2% | 3.3% | 2.2% | 0.2% | 18.6% | 17.8% | 21.0% |
+| E | 810 | 4.6% | 14.0% | 14.4% | 6.3% | 0.0% | 6.0% | 1.9% | 0.9% | 19.9% | 9.8% | 22.3% |
 | F | 8 | 0.0% | 0.0% | 12.5% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 25.0% | 37.5% | 25.0% |
-| G | 258 | 8.5% | 15.9% | 5.8% | 2.3% | 10.1% | 4.3% | 1.9% | 5.4% | 10.1% | 16.7% | 19.0% |
-| H | 331 | 14.5% | 13.3% | 8.2% | 4.5% | 6.6% | 9.1% | 1.5% | 3.9% | 22.4% | 6.3% | 9.7% |
-| I | 611 | 9.5% | 3.4% | 18.3% | 7.2% | 1.6% | 4.9% | 1.8% | 1.1% | 38.1% | 4.7% | 9.2% |
+| G | 257 | 8.9% | 16.0% | 5.8% | 2.3% | 10.1% | 4.3% | 1.9% | 2.3% | 10.1% | 16.7% | 21.4% |
+| H | 330 | 14.5% | 13.3% | 8.2% | 4.5% | 6.7% | 9.1% | 1.5% | 2.7% | 22.4% | 6.4% | 10.6% |
+| I | 611 | 9.5% | 3.4% | 18.3% | 7.2% | 1.6% | 4.9% | 1.8% | 0.5% | 38.1% | 4.7% | 9.8% |
 
 ## 16. Result files
 
-The documented outputs are stored in `D:/PycharmProjects/districtgenerator/examples/results/aachen_osm_building_sections_compact_v7`:
+The original morphology outputs are stored in `D:/PycharmProjects/districtgenerator/examples/results/aachen_osm_building_sections_compact_v7`:
 
 - `candidate_districts.geojson`: candidate geometries and indicators;
 - `candidate_metrics.csv`: morphology and matching results;
@@ -1818,3 +1933,53 @@ The documented outputs are stored in `D:/PycharmProjects/districtgenerator/examp
 The review map is approximately 126.1 MB.
 
 OSM data attribution: © OpenStreetMap contributors, ODbL.
+
+The original use CSVs above retain the old classification. Corrected use CSVs with the same filenames are in `D:/ResearchArtifacts/districtgenerator/tmp/osm_workflow_consolidation_20261029_v1/recount`. `source_hashes.json` records unchanged cached inputs. No downloads, candidate regeneration or profile regeneration were required.
+
+## 17. Corrected SPORT weights and generation parameters
+
+Updated 29 October 2026. These tables use the original OSM type codes A--I. Raw type G is not used in the Paper-3 ensemble; raw H/I are labelled G/H in its figures.
+
+### 17.1 SPORT classification correction
+
+| Type | Original SPORT count | Corrected SPORT count | Original SPORT among supported NRB | Corrected SPORT among supported NRB |
+|---|---:|---:|---:|---:|
+| A | 7 | 1 | 25.00% | 4.55% |
+| B | 13 | 4 | 10.24% | 3.39% |
+| C | 13 | 3 | 7.03% | 1.71% |
+| D | 26 | 1 | 4.98% | 0.20% |
+| E | 15 | 7 | 2.36% | 1.11% |
+| F | 0 | 0 | 0.00% | 0.00% |
+| G | 14 | 6 | 6.70% | 2.97% |
+| H | 13 | 9 | 4.35% | 3.05% |
+| I | 7 | 3 | 1.26% | 0.54% |
+
+In the historical frozen-Aachen audit, of the seven original type-A SPORT footprints, only fitness centre `way/76448164` remains SPORT. Four grandstands and the public building associated with a shooting POI are OTHER_NRB; the parking footprint becomes unknown. The original type-A SPORT count of seven was therefore not seven supported sports halls.
+
+### 17.2 Main-use generation assumptions
+
+| Type | Residential | Non-residential | Mixed | Unknown footprints assumed residential | Marginal SPORT probability |
+|---|---:|---:|---:|---:|---:|
+| A | 86.79% | 13.21% | 0.00% | 234 | 0.600% |
+| B | 88.15% | 10.91% | 0.95% | 0 | 0.370% |
+| C | 73.16% | 25.76% | 1.08% | 0 | 0.442% |
+| D | 76.80% | 22.09% | 1.10% | 0 | 0.044% |
+| E | 93.00% | 6.43% | 0.57% | 0 | 0.072% |
+| F | 77.14% | 22.86% | 0.00% | 0 | 0.000% |
+| G | 67.01% | 30.30% | 2.70% | 0 | 0.900% |
+| H | 72.20% | 19.88% | 7.92% | 0 | 0.607% |
+| I | 74.21% | 12.41% | 13.38% | 0 | 0.068% |
+
+Type-A unknown-as-residential assignment in these tables: enabled. The default policy enables it; --no-type-a-unknown-residential disables it. For B--I, unknowns remain excluded from the main-use denominator. The supported-subtype denominator, which excludes OTHER_NRB, remains unchanged for every type. Classification corrections nevertheless change subtype weights.
+
+### 17.3 Implementation status and reproduction
+
+The frozen workbook used to generate the active districts has SHA-256 `03e547593a79592b34249241c5cdadafa2ff2769b2ab649612460bba3e70b279`. `Paper_3/Districts` now contains the first 20 valid seeds from an ascending search beginning at seed 1 for each type A--F, H and I, 160 districts total. Two independent searches produced identical seed lists and CSV/JSON definitions. Compared with the previous revised set, 158 definition pairs remain byte-identical; C/8 replaces C/29 and H/27 replaces H/30. B/82 remains the twentieth valid B seed. True seed IDs remain in filenames; `district_index.csv` lists positions 01--20 within each type. Removed definitions and the prior index/provenance are archived in `D:\PycharmProjects\districtgenerator\districtgenerator\data\scenarios\Paper_3\archives\before_first20_selection_20261029_162830_9b3b4a`. This final selection update did not change demand profiles, optimization results or the parameter workbook. The selected set can reuse profiles for 3,961 buildings; 839 buildings need profiles (842 split-building generation tasks). Those counts include profiles already missing before the selection update. SPORT demand parameters, EFH/MFH, age and retrofit probability parameters remain unchanged. The active `provenance/active_first20_selection.json` records the independent search, hashes and archive; the earlier `promotion.json` retains the original OSM-revision activation history.
+
+Prepared probabilities: `D:/ResearchArtifacts/districtgenerator/tmp/osm_workflow_consolidation_20261029_v1/recount/probabilities.csv`. The integrated OSM workflow exports `typdistrict_parameters.xlsx` and `generation_parameters.json`, which records the assumption, source hash and exact cell edits. The input workbook is never overwritten. Raw unknown-use labels remain unchanged.
+
+Reproduce counts, parameters and documentation together from cached morphology:
+
+```powershell
+python examples/aachen_osm_pilot.py --reuse-analysis "examples/results/aachen_osm_building_sections_compact_v7" --output "NEW_OUTPUT_DIR" --verify-parameters "districtgenerator/data/typdistrict_parameters.xlsx"
+```

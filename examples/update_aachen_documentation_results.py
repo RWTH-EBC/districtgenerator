@@ -1,8 +1,10 @@
-"""Generate Sections 10--16 of the Aachen documentation from a completed run."""
+"""Update Aachen results, optionally using a cached use recount and generation weights."""
 
 from __future__ import annotations
 
+import argparse
 import json
+import warnings
 from datetime import datetime
 from pathlib import Path
 
@@ -46,11 +48,12 @@ def _quantile(frame, column, label, digits=3):
             f"{q3:.{digits}f} |")
 
 
-def _result_text(output_dir):
+def _result_text(output_dir, use_results=None, generator_parameters=None):
     manifest = json.loads((output_dir / "manifest.json").read_text(encoding="utf-8"))
     candidates = pd.read_csv(output_dir / "candidate_metrics.csv")
-    split = pd.read_csv(output_dir / "osm_building_split_percentages_by_type.csv")
-    nrb = pd.read_csv(output_dir / "osm_nrb_building_percentages_by_type.csv")
+    use_dir = use_results or output_dir
+    split = pd.read_csv(use_dir / "osm_building_split_percentages_by_type.csv")
+    nrb = pd.read_csv(use_dir / "osm_nrb_building_percentages_by_type.csv")
     created = datetime.fromisoformat(manifest["created_utc"].replace("Z", "+00:00"))
     scope = manifest.get("analysis_scope", "unspecified")
     included_mask = candidates["included_in_type_results"].astype(str).str.lower().isin(
@@ -90,6 +93,13 @@ def _result_text(output_dir):
               _quantile(candidates, "row_structure_pct", "General row structure (%)"),
               _quantile(candidates, "range_score", "Total range score $D_t$"),
               _quantile(candidates, "midpoint_score", "Total midpoint score $C_t$"), ""]
+    if use_results:
+        lines += ["Morphology and candidate assignments remain from that original run. "
+                  "Sections 12--15 use the corrected sports-hall/fitness-centre cached recount, "
+                  f"stored separately in `{use_dir.as_posix()}`. The original run files are "
+                  "historical records and have not been overwritten. Type-A unknown-to-residential "
+                  "generation weights are reported separately in Section 17; they do not alter "
+                  "the observed-use tables.", ""]
     far_count = pd.to_numeric(candidates["far"], errors="coerce").notna().sum()
     block_count = (pd.to_numeric(candidates["block_frontage_structure_pct"],
                                  errors="coerce") >= 50).sum()
@@ -101,7 +111,7 @@ def _result_text(output_dir):
               (f"Candidate areas range from {pd.to_numeric(candidates.area_ha).min():.3f} "
                f"to {pd.to_numeric(candidates.area_ha).max():.3f} ha."), "",
               "## 11. Settlement-type assignment results", "",
-              "| Type | Candidates | Buildings | Exact | Approximate | Unique compatible | Midpoint tie-break | Nearest outside ranges | Unknown use |",
+              "| Type | Candidates | Buildings | Exact | Approximate | Unique compatible | Midpoint tie-break | Nearest outside ranges | Unknown use, original run |",
               "|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
     for typ in TYPES + ["UNCLASSIFIED"]:
         group = candidates[candidates["assigned_type"] == typ]
@@ -119,7 +129,9 @@ def _result_text(output_dir):
             f"{_pct(weighted_unknown)} |")
     quality = manifest.get("classification_quality", {})
     contexts = manifest.get("settlement_contexts", {})
-    lines += ["", (f"Classification quality is exact for {_int(quality.get('exact', 0))}, "
+    lines += ["", "The unknown-use column above belongs to the original morphology export. "
+              "For corrected observed use shares, see Section 13.", "",
+              (f"Classification quality is exact for {_int(quality.get('exact', 0))}, "
                      f"approximate for {_int(quality.get('approximate', 0))} and unclassified "
                      f"for {_int(quality.get('unclassified', 0))} candidates. "
                      f"{_int(included_mask.sum())} candidates enter type-specific results."), "",
@@ -189,7 +201,7 @@ def _result_text(output_dir):
         lines.append(f"| {row.typ} | {_int(row.classified_nrb_building_count)} | {values} |")
     map_size = (output_dir / "review_map.html").stat().st_size / (1024 * 1024)
     lines += ["", "## 16. Result files", "",
-              f"The documented outputs are stored in `{output_dir.as_posix()}`:", "",
+              f"The original morphology outputs are stored in `{output_dir.as_posix()}`:", "",
               "- `candidate_districts.geojson`: candidate geometries and indicators;",
               "- `candidate_metrics.csv`: morphology and matching results;",
               "- `building_membership.csv`: traceable OSM building membership;",
@@ -202,10 +214,110 @@ def _result_text(output_dir):
               "- `manifest.json`: hashes, settings, versions and provenance.", "",
               f"The review map is approximately {map_size:.1f} MB.", "",
               "OSM data attribution: © OpenStreetMap contributors, ODbL.", ""]
+    if use_results:
+        lines += ["The original use CSVs above retain the old classification. Corrected use CSVs "
+                  f"with the same filenames are in `{use_dir.as_posix()}`. "
+                  "`source_hashes.json` records unchanged cached inputs. No downloads, "
+                  "candidate regeneration or profile regeneration were required.", ""]
+    if generator_parameters:
+        params = pd.read_csv(generator_parameters)
+        if 'generation' in set(params.policy):
+            params = params[params.policy == 'generation']
+        else:
+            params = params[params.policy == 'halls_fitness_type_A_unknown_residential']
+        params = params.set_index('typ')
+        old = pd.read_csv(output_dir / 'osm_nrb_building_percentages_by_type.csv').set_index('typ')
+        corrected = nrb.set_index('typ')
+        supported = [code for code in NRB_LABELS if code != 'OTHER_NRB']
+        lines += ["## 17. Corrected SPORT weights and generation parameters", "",
+                  f"Updated {datetime.now():%d %B %Y}. These tables use the original OSM type codes A--I. "
+                  "Raw type G is not used in the Paper-3 ensemble; raw H/I are labelled G/H in its figures.", "",
+                  "### 17.1 SPORT classification correction", "",
+                  "| Type | Original SPORT count | Corrected SPORT count | Original SPORT among supported NRB | Corrected SPORT among supported NRB |",
+                  "|---|---:|---:|---:|---:|"]
+        for typ in sorted(params.index):
+            previous = old.loc[typ]
+            denominator = sum(previous[f'nrb_{code}_building_count'] for code in supported)
+            lines.append(f"| {typ} | {int(previous.nrb_SPORT_building_count)} | "
+                         f"{int(corrected.loc[typ, 'nrb_SPORT_building_count'])} | "
+                         f"{_pct(_percentage(previous.nrb_SPORT_building_count, denominator), 2)} | "
+                         f"{_pct(params.loc[typ, 'SPORT_conditional_pct'], 2)} |")
+        lines += ["", "In the historical frozen-Aachen audit, of the seven original type-A SPORT footprints, only fitness centre "
+                  "`way/76448164` remains SPORT. Four grandstands and the public building associated "
+                  "with a shooting POI are OTHER_NRB; the parking footprint becomes unknown. "
+                  "The original type-A SPORT count of seven was therefore not seven supported sports halls.", "",
+                  "### 17.2 Main-use generation assumptions", "",
+                  "| Type | Residential | Non-residential | Mixed | Unknown footprints assumed residential | Marginal SPORT probability |",
+                  "|---|---:|---:|---:|---:|---:|"]
+        for typ in sorted(params.index):
+            row = params.loc[typ]
+            lines.append(f"| {typ} | {_pct(row.residential_pct, 2)} | {_pct(row.nonres_pct, 2)} | "
+                         f"{_pct(row.mixed_pct, 2)} | {int(row.assumed_residential_from_unknown)} | "
+                         f"{_pct(row.sport_all_buildings_probability_pct, 3)} |")
+        promotion_path = ROOT / 'districtgenerator/data/scenarios/Paper_3/Districts/provenance/promotion.json'
+        status = ("Classification, generation parameters and documentation are integrated in the OSM workflow. "
+                  "A separate parameter workbook is exported; the input "
+                  "`districtgenerator/data/typdistrict_parameters.xlsx` is not overwritten by the workflow. "
+                  "Existing districts, load profiles and optimization results therefore still represent "
+                  "their original parameter snapshots. No new scenario or optimization results are implied "
+                  "by these tables. EFH/MFH, age and retrofit parameters are unchanged.")
+        if promotion_path.exists():
+            promoted = json.loads(promotion_path.read_text(encoding='utf-8'))
+            status = ("The corrected parameter workbook is now active, with SHA-256 "
+                      f"`{promoted['workbook_sha256']}`. `Paper_3/Districts` contains 20 validated "
+                      "district definitions per type A--F, H and I, 160 total. True random seed IDs "
+                      "remain in filenames; `district_index.csv` lists positions 01--20 in numeric "
+                      "seed order within each type. B/82 replaces B/11 and H/30 replaces H/20; "
+                      "both replacements passed byte-identical replay. The 98 unchanged districts "
+                      "retain their original definitions; 60 use revised definitions under the same "
+                      "seed IDs. Original definitions, old layout images, the prior workbook and "
+                      f"outdated profile files are archived in `{promoted['archive']}`. "
+                      "Profiles for 3,985 buildings remain reusable; 815 buildings require profiles "
+                      "(818 generation tasks because three new mixed-use buildings split into parts). "
+                      "No new demand profiles or optimizations were calculated. SPORT demand "
+                      "parameters were retained as requested. Historical optimization results have "
+                      "not been changed. EFH/MFH, age and retrofit probability parameters are unchanged.")
+            first20_path = promotion_path.parent / 'active_first20_selection.json'
+            if first20_path.exists():
+                selection = json.loads(first20_path.read_text(encoding='utf-8'))
+                status = ("The frozen workbook used to generate the active districts has SHA-256 "
+                          f"`{selection['workbook_sha256']}`. `Paper_3/Districts` now contains the first "
+                          "20 valid seeds from an ascending search beginning at seed 1 for each type "
+                          "A--F, H and I, 160 districts total. Two independent searches produced identical "
+                          "seed lists and CSV/JSON definitions. Compared with the previous revised set, "
+                          "158 definition pairs remain byte-identical; C/8 replaces C/29 and H/27 "
+                          "replaces H/30. B/82 remains the twentieth valid B seed. True seed IDs remain "
+                          "in filenames; `district_index.csv` lists positions 01--20 within each type. "
+                          f"Removed definitions and the prior index/provenance are archived in `{selection['selection_archive']}`. "
+                          "This final selection update did not change demand profiles, optimization results "
+                          "or the parameter workbook. The selected set can reuse profiles for "
+                          f"{selection['reusable_buildings']:,} buildings; {selection['buildings_needing_profiles']:,} "
+                          f"buildings need profiles ({selection['generation_tasks']:,} split-building generation tasks). "
+                          "Those counts include profiles already missing before the selection update. "
+                          "SPORT demand parameters, EFH/MFH, age and retrofit probability parameters remain unchanged. "
+                          "The active `provenance/active_first20_selection.json` records the independent "
+                          "search, hashes and archive; the earlier `promotion.json` retains the original "
+                          "OSM-revision activation history.")
+        assumption_enabled = 'A' in params.index and params.loc['A', 'known'] > params.loc['A', 'observed_known']
+        lines += ["", f"Type-A unknown-as-residential assignment in these tables: {'enabled' if assumption_enabled else 'disabled or no unknowns assigned'}. "
+                  "The default policy enables it; --no-type-a-unknown-residential disables it. "
+                  "For B--I, unknowns remain excluded from the main-use denominator. "
+                  "The supported-subtype denominator, which excludes OTHER_NRB, remains unchanged "
+                  "for every type. Classification corrections nevertheless change subtype weights.", "",
+                  "### 17.3 Implementation status and reproduction", "",
+                  status, "",
+                  f"Prepared probabilities: `{generator_parameters.as_posix()}`. "
+                  "The integrated OSM workflow exports `typdistrict_parameters.xlsx` and "
+                  "`generation_parameters.json`, which records the assumption, source hash and exact cell edits. "
+                  "The input workbook is never overwritten. Raw unknown-use labels remain unchanged.", "",
+                  "Reproduce counts, parameters and documentation together from cached morphology:", "",
+                  "```powershell",
+                  'python examples/aachen_osm_pilot.py --reuse-analysis "examples/results/aachen_osm_building_sections_compact_v7" --output "NEW_OUTPUT_DIR" --verify-parameters "districtgenerator/data/typdistrict_parameters.xlsx"',
+                  "```", ""]
     return "\n".join(lines)
 
 
-def update_documentation_results(output_dir):
+def update_documentation_results(output_dir, use_results=None, generator_parameters=None, documentation=None):
     output_dir = Path(output_dir).resolve()
     required = ["manifest.json", "candidate_metrics.csv",
                 "osm_building_split_percentages_by_type.csv",
@@ -213,14 +325,27 @@ def update_documentation_results(output_dir):
     missing = [name for name in required if not (output_dir / name).exists()]
     if missing:
         raise FileNotFoundError("Missing completed-run files: " + ", ".join(missing))
-    current = DOCUMENTATION.read_text(encoding="utf-8")
+    use_results = Path(use_results).resolve() if use_results else None
+    generator_parameters = Path(generator_parameters).resolve() if generator_parameters else None
+    target = Path(documentation) if documentation is not None else DOCUMENTATION
+    current = target.read_text(encoding="utf-8")
+    if '## 17. Corrected SPORT weights' in current and not (use_results and generator_parameters):
+        warnings.warn('Kept existing corrected documentation unchanged. Provide --use-results and '
+                      '--generator-parameters to refresh it without dropping the documented assumptions.',
+                      stacklevel=2)
+        return target
     if RESULT_HEADING not in current:
         raise ValueError(f"Missing documentation heading: {RESULT_HEADING}")
     prefix = current.split(RESULT_HEADING, 1)[0].rstrip()
-    DOCUMENTATION.write_text(prefix + "\n\n\n" + _result_text(output_dir), encoding="utf-8")
-    return DOCUMENTATION
+    target.write_text(prefix + "\n\n\n" + _result_text(output_dir, use_results, generator_parameters), encoding="utf-8")
+    return target
 
 
 if __name__ == "__main__":
     default = ROOT / "examples/results/aachen_osm_building_sections_compact_v7"
-    print(f"Updated documentation results: {update_documentation_results(default)}")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--morphology-results', type=Path, default=default)
+    parser.add_argument('--use-results', type=Path)
+    parser.add_argument('--generator-parameters', type=Path)
+    args = parser.parse_args()
+    print(f"Updated documentation results: {update_documentation_results(args.morphology_results, args.use_results, args.generator_parameters)}")

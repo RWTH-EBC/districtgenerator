@@ -12,8 +12,10 @@ SOURCE = ROOT / "docs" / "aachen_osm_street_cluster_method_results.md"
 OUTPUT = ROOT / "docs" / "aachen_osm_street_cluster_method_results.html"
 
 
-def render() -> Path:
-    markdown_source = SOURCE.read_text(encoding="utf-8")
+def render(source=None, output=None) -> Path:
+    source = Path(source) if source is not None else SOURCE
+    output = Path(output) if output is not None else OUTPUT
+    markdown_source = source.read_text(encoding="utf-8")
     encoded_source = json.dumps(markdown_source, ensure_ascii=False).replace(
         "</", "<\\/"
     )
@@ -67,8 +69,8 @@ def render() -> Path:
 </body>
 </html>
 """
-    OUTPUT.write_text(html, encoding="utf-8")
-    return OUTPUT
+    output.write_text(html, encoding="utf-8")
+    return output
 
 
 if __name__ == "__main__":

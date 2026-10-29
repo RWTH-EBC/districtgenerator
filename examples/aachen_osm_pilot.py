@@ -2,7 +2,9 @@
 
 Requires osmnx, geopandas, shapely, scipy, pyproj, openpyxl and folium. Download once with
 --download; cached GeoParquet/GeoJSON are reused for offline runs. The input
-workbook is opened read-only and verified by SHA-256 before/after each run.
+workbook is preserved and verified by SHA-256 before/after each run. Generation
+probabilities, a separate workbook and documentation are exported together.
+Use --reuse-analysis to reuse saved candidate geometry and memberships.
 """
 from __future__ import annotations
 
@@ -188,8 +190,15 @@ def _osm_tag(row, key):
     return str(value).strip().lower()
 
 
-def classify_osm_object(row):
-    """Map one OSM object to one mutually exclusive NRB category."""
+def classify_osm_object(row, sport_policy='indoor_hall'):
+    """Map SPORT from explicit sports-hall or fitness-centre evidence.
+
+    Fitness centres use Turnhalle as an agreed modelling approximation.
+    Activity-only tags do not establish a building use.
+    The legacy policy exists solely to reproduce previously exported counts.
+    """
+    if sport_policy not in {'indoor_hall', 'legacy'}:
+        raise ValueError(f'Unknown SPORT policy: {sport_policy}')
     amenity = _osm_tag(row, 'amenity')
     shop = _osm_tag(row, 'shop')
     office = _osm_tag(row, 'office')
@@ -225,7 +234,13 @@ def classify_osm_object(row):
         return 'GS'
     if amenity in FOOD_AMENITIES or building in {'restaurant', 'cafe', 'pub'}:
         return 'RE'
-    if leisure in SPORT_LEISURE or sport or building in SPORT_BUILDINGS:
+    if sport_policy == 'legacy' and (leisure in SPORT_LEISURE or sport or building in SPORT_BUILDINGS):
+        return 'SPORT'
+    incompatible = any(_osm_tag(row, tag) in {
+        'parking', 'garage', 'garages', 'grandstand', 'stadium', 'pavilion', 'riding_hall'
+    } for tag in ('building', 'building:use')) or amenity == 'parking'
+    if sport_policy == 'indoor_hall' and not incompatible and (
+            building == 'sports_hall' or leisure in {'sports_hall', 'fitness_centre'}):
         return 'SPORT'
     if (amenity in CULTURE_AMENITIES or tourism in CULTURE_TOURISM
             or building in CULTURE_BUILDINGS):
@@ -238,6 +253,7 @@ def classify_osm_object(row):
     if office or building in OFFICE_BUILDINGS or amenity in OFFICE_AMENITIES:
         return 'OB'
     if (building in NONRES_BUILDINGS or amenity in OTHER_NRB_AMENITIES
+            or (sport_policy == 'indoor_hall' and leisure in SPORT_LEISURE - {'pitch', 'sports_hall'})
             or tourism in {'hotel', 'hostel', 'motel', 'guest_house'}
             or _osm_tag(row, 'railway') == 'station'
             or _osm_tag(row, 'public_transport') == 'station'):
@@ -271,8 +287,12 @@ def classify_building_split(building_tag, final_category,
     return 'unknown'
 
 
-def classify_nrb_buildings(features):
-    """Return mutually exclusive NRB counts and main-use diagnostics."""
+def classify_nrb_buildings(features, sport_policy='indoor_hall', return_buildings=False):
+    """Count footprint uses without changing the eligible geometry population.
+
+    Hall/fitness-centre POIs must be contained in a compatible footprint; a polygon's
+    representative point alone is insufficient evidence of an indoor hall.
+    """
     counts = {category: 0 for category in ANALYSIS_CATEGORIES}
     diagnostics = {
         'classified_nrb_building_count': 0,
@@ -287,10 +307,10 @@ def classify_nrb_buildings(features):
         'classified_poi_without_building_count': 0,
     }
     if features is None or features.empty:
-        return counts, diagnostics
+        return (counts, diagnostics, gpd.GeoDataFrame()) if return_buildings else (counts, diagnostics)
 
     features = features.copy()
-    features['model_category'] = features.apply(classify_osm_object, axis=1)
+    features['model_category'] = features.apply(lambda row: classify_osm_object(row, sport_policy), axis=1)
     building_mask = (
         features.get('building', pd.Series(index=features.index, dtype=object))
         .fillna('').astype(str).str.strip() != '')
@@ -301,7 +321,7 @@ def classify_nrb_buildings(features):
         poi_count = int(features['model_category'].notna().sum())
         diagnostics['classified_poi_count'] = poi_count
         diagnostics['classified_poi_without_building_count'] = poi_count
-        return counts, diagnostics
+        return (counts, diagnostics, buildings) if return_buildings else (counts, diagnostics)
 
     buildings = buildings.reset_index(drop=True)
     buildings['building_id'] = buildings.index
@@ -328,6 +348,23 @@ def classify_nrb_buildings(features):
                 poi_points[['model_category', 'geometry']],
                 buildings[['building_id', 'geometry']], how='left', op='within')
         joined = joined.dropna(subset=['building_id']).copy()
+        if sport_policy == 'indoor_hall' and not joined.empty:
+            def compatible_sport_poi(item):
+                target = buildings.loc[int(item.building_id)]
+                # An artwork/club POI does not turn an open sports structure
+                # into a heated cultural or other supported building archetype.
+                if (_osm_tag(target, 'building') in {'grandstand', 'pavilion', 'riding_hall'}
+                        and target.model_category == 'OTHER_NRB'):
+                    return False
+                if item.model_category != 'SPORT':
+                    return True
+                if (any(_osm_tag(target, tag) in {
+                        'parking', 'garage', 'garages', 'grandstand', 'stadium', 'pavilion', 'riding_hall'
+                        } for tag in ('building', 'building:use'))
+                        or _osm_tag(target, 'amenity') == 'parking'):
+                    return False
+                return target.geometry.covers(poi_features.loc[item.name].geometry)
+            joined = joined[joined.apply(compatible_sport_poi, axis=1)]
         assigned_poi_indices = set(joined.index)
         if not joined.empty:
             priority = {
@@ -362,7 +399,7 @@ def classify_nrb_buildings(features):
     for split_name in ('residential', 'mixed', 'nonres', 'unknown'):
         diagnostics[f'{split_name}_building_split_count'] = int(
             (buildings['building_split'] == split_name).sum())
-    return counts, diagnostics
+    return (counts, diagnostics, buildings) if return_buildings else (counts, diagnostics)
 
 
 def choose_analysis_scope(requested_scope):
@@ -3251,6 +3288,160 @@ def write_map(out, districts, buildings, roads, membership,
     m.save(str(out/'review_map.html'))
 
 
+def probability_rows(frame, label='generation', unknown_residential_types=('A',)):
+    """Derive generation weights separately from observed, unmodified OSM uses."""
+    if not set(unknown_residential_types) <= {'A'}:
+        raise ValueError('Only type A supports the unknown-as-residential assumption.')
+    accepted = frame.query_success.astype(str).str.lower().isin(['true', '1'])
+    accepted &= frame.included_in_type_results.astype(str).str.lower().isin(['true', '1'])
+    rows = []
+    for typ, group in frame[accepted].groupby('typ'):
+        observed_known = sum(group[f'{s}_building_split_count'].sum()
+                             for s in ['residential', 'mixed', 'nonres'])
+        unknown = group.unknown_building_split_count.sum()
+        assigned = unknown if typ in unknown_residential_types else 0
+        known = observed_known + assigned
+        residential = group.residential_building_split_count.sum() + assigned
+        supported = sum(group[f'nrb_{c}_building_count'].sum() for c in MODEL_CATEGORIES)
+        record = dict(typ=typ, policy=label, candidates=len(group),
+                      footprints=int(group.building_footprint_count.sum()), known=int(known),
+                      nonres=int(group.nonres_building_split_count.sum()), supported_nrb=int(supported),
+                      sport=int(group.nrb_SPORT_building_count.sum()),
+                      observed_known=int(observed_known), observed_unknown=int(unknown),
+                      assumed_residential_from_unknown=int(assigned), effective_residential=int(residential),
+                      residential_pct=100 * residential / known if known else 0,
+                      mixed_pct=100 * group.mixed_building_split_count.sum() / known if known else 0,
+                      nonres_pct=100 * group.nonres_building_split_count.sum() / known if known else 0)
+        for category in MODEL_CATEGORIES:
+            record[f'{category}_conditional_pct'] = (
+                100 * group[f'nrb_{category}_building_count'].sum() / supported if supported else 0)
+        record['sport_all_buildings_probability_pct'] = record['nonres_pct'] * record['SPORT_conditional_pct'] / 100
+        rows.append(record)
+    return pd.DataFrame(rows)
+
+
+def export_generation_parameters(counts, template, output, unknown_residential_types=('A',)):
+    """Export a new workbook, changing only use probabilities; never edit the input."""
+    output, template = Path(output), Path(template)
+    destination = output / 'typdistrict_parameters.xlsx'
+    if destination.exists() or destination.resolve() == template.resolve():
+        raise FileExistsError(f'Refusing to overwrite parameter workbook: {destination}')
+    before = sha(template)
+    probabilities = probability_rows(counts, unknown_residential_types=unknown_residential_types)
+    if probabilities.empty or not set(probabilities.typ) <= set('ABCDEFGHI'):
+        raise ValueError('Parameter export requires valid type counts.')
+    book = openpyxl.load_workbook(template)
+    try:
+        sheet = book.worksheets[0]
+        headers = {cell.value: cell.column for cell in sheet[1] if cell.value is not None}
+        type_rows = {row[0].value: row[0].row for row in sheet.iter_rows(min_row=2)
+                     if row[0].value in set('ABCDEFGHI')}
+        edits = []
+        for record in probabilities.to_dict('records'):
+            values = {'OSM Wohnnutzung (%)': record['residential_pct'],
+                      'OSM Nichtwohnnutzung (%)': record['nonres_pct'],
+                      'OSM Mischnutzung (%)': record['mixed_pct']}
+            values.update({f'OSM Anteil {c} an NRB (%)': record[f'{c}_conditional_pct']
+                           for c in MODEL_CATEGORIES})
+            for header, value in values.items():
+                cell = sheet.cell(type_rows[record['typ']], headers[header])
+                edits.append(dict(typ=record['typ'], address=cell.coordinate,
+                                  header=header, old=cell.value, value=round(value, 2)))
+                cell.value = round(value, 2)
+        book.save(destination)
+    finally:
+        book.close()
+    probabilities.to_csv(output / 'probabilities.csv', index=False)
+    policy = dict(sport_rule='explicit_hall_or_fitness_centre',
+                  unknown_residential_types=list(unknown_residential_types),
+                  raw_unknown_labels_preserved=True,
+                  updated_types=sorted(probabilities.typ),
+                  types_retained_from_template=sorted(set('ABCDEFGHI') - set(probabilities.typ)),
+                  other_nrb_denominator_policy='unchanged_supported_subtypes_only',
+                  source_workbook_sha256=before, workbook_sha256=sha(destination), edits=edits)
+    (output / 'generation_parameters.json').write_text(json.dumps(policy, indent=2), encoding='utf-8')
+    if sha(template) != before:
+        raise RuntimeError('Input workbook changed during export.')
+    return destination
+
+
+def verify_parameter_workbook(exported, reference):
+    """Compare all cell values/formulas, not ZIP metadata or workbook timestamps."""
+    books = [openpyxl.load_workbook(path, read_only=True, data_only=False)
+             for path in (exported, reference)]
+    try:
+        values = [{sheet.title: {(i, j): value
+                                 for i, row in enumerate(sheet.iter_rows(values_only=True), 1)
+                                 for j, value in enumerate(row, 1) if value is not None}
+                   for sheet in book.worksheets} for book in books]
+        if values[0] != values[1]:
+            raise ValueError('Exported workbook differs from the reference workbook.')
+    finally:
+        for book in books:
+            book.close()
+
+
+def recount_cached_uses(analysis, source_cache, output):
+    """Reclassify saved memberships without downloading or rerunning morphology."""
+    manifest = json.loads((analysis / 'manifest.json').read_text(encoding='utf-8'))
+    cache = source_cache / 'osm_features_slim.pkl'
+    if sha(cache) != manifest['source_feature_cache_sha256']:
+        raise ValueError('Source cache differs from the saved morphology analysis.')
+    inputs = [cache, analysis / 'manifest.json', analysis / 'candidate_districts.geojson',
+              analysis / 'building_membership.csv', analysis / 'osm_use_counts_by_district.csv']
+    hashes = {str(p.resolve()): sha(p) for p in inputs}
+    features = pd.read_pickle(cache).to_crs(25832)
+    features.geometry = features.geometry.make_valid()
+    saved_rows = pd.read_csv(analysis / 'osm_use_counts_by_district.csv')
+    members = pd.read_csv(analysis / 'building_membership.csv')
+    candidates = gpd.read_file(analysis / 'candidate_districts.geojson').to_crs(features.crs).set_index('district_id')
+    memberships = members.groupby('district_id').osm_key.apply(list).to_dict()
+    tree = shapely.STRtree(features.geometry.to_numpy())
+    rows = []
+    for number, (_, saved) in enumerate(saved_rows.iterrows(), 1):
+        geometry = candidates.loc[saved.district_id].geometry
+        ids = memberships.get(saved.district_id, [])
+        keys = [(key.split('/')[0], int(key.split('/')[1])) for key in ids]
+        buildings = features.loc[keys].copy() if keys else features.iloc[:0].copy()
+        buildings['osm_key'] = ids
+        nearby = features.iloc[tree.query(geometry, predicate='intersects')]
+        is_building = nearby.building.fillna('').astype(str).ne('') & nearby.geometry.geom_type.isin(['Polygon', 'MultiPolygon'])
+        pois = nearby[~is_building & nearby.geometry.representative_point().within(geometry)]
+        subset = gpd.GeoDataFrame(pd.concat([buildings, pois], ignore_index=True, sort=False),
+                                 geometry='geometry', crs=features.crs)
+        counts, diagnostics = classify_nrb_buildings(subset)
+        row = saved.to_dict()
+        row.update(diagnostics)
+        add_use_percentage_columns(row, {}, counts, diagnostics)
+        rows.append(row)
+        if number % 100 == 0:
+            print(f'Reclassified {number}/{len(saved_rows)} saved candidates', flush=True)
+    write_use_outputs(rows, output)
+    for path, digest in hashes.items():
+        if sha(Path(path)) != digest:
+            raise RuntimeError(f'Cached analysis input changed: {path}')
+    (output / 'source_hashes.json').write_text(json.dumps(hashes, indent=2), encoding='utf-8')
+    (output / 'manifest.json').write_text(json.dumps(dict(
+        morphology_source=str(analysis.resolve()), source_feature_cache_sha256=sha(cache),
+        geometry_and_membership_reused=True, downloads=False,
+        sport_rule='explicit_hall_or_fitness_centre'), indent=2), encoding='utf-8')
+
+
+def finish_use_workflow(analysis, use_results, args):
+    counts = pd.read_csv(use_results / 'osm_use_counts_by_district.csv')
+    unknown_types = ('A',) if args.type_a_unknown_residential else ()
+    exported = export_generation_parameters(counts, args.parameters, use_results, unknown_types)
+    if args.verify_parameters:
+        verify_parameter_workbook(exported, args.verify_parameters)
+        print('All workbook cell values match the reference.', flush=True)
+    from update_aachen_documentation_results import update_documentation_results
+    from render_aachen_documentation import render as render_documentation
+    documentation = update_documentation_results(
+        analysis, use_results, use_results / 'probabilities.csv', documentation=args.documentation)
+    html = render_documentation(source=documentation, output=documentation.with_suffix('.html'))
+    print(f'Exported parameters: {exported}\nUpdated documentation: {documentation}\nHTML: {html}', flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--download', action='store_true')
@@ -3272,7 +3463,20 @@ def main():
                         default=ROOT/'examples/results/aachen_osm_pilot_v2',
                         help='Directory containing boundary.geojson and osm_features_slim.pkl.')
     parser.add_argument('--parameters', type=Path, default=ROOT/'districtgenerator/data/typdistrict_parameters.xlsx')
+    parser.add_argument('--reuse-analysis', type=Path,
+                        help='Reclassify saved memberships; no downloads or morphology regeneration.')
+    parser.add_argument('--type-a-unknown-residential', action=argparse.BooleanOptionalAction, default=True,
+                        help='Generation-only assumption for type A; raw OSM unknowns remain unknown.')
+    parser.add_argument('--verify-parameters', type=Path, help='Require exported cell values to match this workbook.')
+    parser.add_argument('--documentation', type=Path, default=ROOT/'docs/aachen_osm_street_cluster_method_results.md')
     args = parser.parse_args()
+    if args.reuse_analysis:
+        if args.download or args.output is None:
+            parser.error('--reuse-analysis requires --output and cannot be combined with --download.')
+        args.output.mkdir(parents=True, exist_ok=False)
+        recount_cached_uses(args.reuse_analysis, args.source_cache, args.output)
+        finish_use_workflow(args.reuse_analysis, args.output, args)
+        return
     if not args.min_buildings <= args.target_buildings <= args.max_buildings:
         raise ValueError('Expected min-buildings <= target-buildings <= max-buildings.')
     args.scope = choose_analysis_scope(args.scope)
@@ -3637,12 +3841,7 @@ def main():
                     'packages': {name:importlib.metadata.version(name) for name in ['osmnx','geopandas','shapely','scipy','pyproj','openpyxl','folium']},
                     **result}
         (args.output/'manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
-        from update_aachen_documentation_results import update_documentation_results
-        from render_aachen_documentation import render as render_documentation
-        documentation_path = update_documentation_results(args.output)
-        html_path = render_documentation()
-        print(f'Updated documentation results: {documentation_path}', flush=True)
-        print(f'Updated documentation HTML: {html_path}', flush=True)
+        finish_use_workflow(args.output, args.output, args)
         print(json.dumps(manifest, indent=2), flush=True)
     finally:
         if sha(args.parameters) != before:
