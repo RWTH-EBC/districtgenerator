@@ -9,6 +9,7 @@ For Slurm arrays, use --resume <run-folder> --type A (one task per type).
 """
 
 import argparse
+import csv
 from contextlib import ExitStack, contextmanager, redirect_stdout
 from datetime import datetime
 from hashlib import sha256
@@ -49,11 +50,99 @@ def digest(path):
     return sha256(Path(path).read_bytes()).hexdigest()
 
 
+def scenario_folder():
+    return PAPER_ROOT / 'Districts' if (PAPER_ROOT / 'Districts').is_dir() else PAPER_ROOT
+
+
+def profile_folder(name):
+    parent = 'load_profiles' if (PAPER_ROOT / 'Districts').is_dir() else 'results'
+    return PAPER_ROOT / parent / name / 'demands'
+
+
+def resolved_directory(path):
+    path = Path(path).resolve()
+    if os.name == 'nt' and not str(path).startswith('\\\\?\\'):
+        path = Path('\\\\?\\' + str(path))
+    return path
+
+
+def reusable_results(previous, items):
+    """Reuse only identical definitions, unchanged profiles and all six completed cases."""
+    previous = resolved_directory(previous)
+    old = json.loads((previous / 'manifest.json').read_text(encoding='utf-8'))
+    if old['version'] != 4 or old['cases'] != list(CASES):
+        raise ValueError('Reuse requires a completed paired-funding comparison.')
+    if digest(previous / '.env.CONFIG.BERGFEST') != old['config_sha256']:
+        raise ValueError('Previous configuration snapshot was modified.')
+    for variant in FUNDING_VARIANTS:
+        child = json.loads((previous / variant / 'manifest.json').read_text(encoding='utf-8'))
+        if digest(previous / variant / '.env.CONFIG.BERGFEST') != child['config_sha256']:
+            raise ValueError(f'Previous {variant} configuration snapshot was modified.')
+    if (previous / '.env.CONFIG.BERGFEST').read_text(encoding='utf-8') != CONFIG.read_text(encoding='utf-8'):
+        raise ValueError('Comparison configuration changed; previous results cannot be reused.')
+    if (previous / 'code_changes.patch').read_bytes().strip():
+        raise ValueError('Previous run used code edits; review them before reusing results.')
+    commit = (previous / 'code_commit.txt').read_text().strip()
+    changes = subprocess.run(['git', 'diff', '--name-only', commit, 'HEAD', '--',
+                              'districtgenerator/classes', 'districtgenerator/functions',
+                              'districtgenerator/data_handling'], cwd=ROOT,
+                             capture_output=True, text=True, check=True)
+    if changes.stdout.strip():
+        raise ValueError('Committed model code changed; review before reusing results.')
+    plan_path = scenario_folder() / 'provenance/profile_plan.csv'
+    with plan_path.open(newline='', encoding='utf-8-sig') as stream:
+        rows = list(csv.DictReader(stream))
+    unchanged = {row['scenario'] for row in rows}
+    unchanged -= {row['scenario'] for row in rows if row['action'] != 'reuse'}
+    unchanged = {name for name in unchanged
+                 if len([row for row in rows if row['scenario'] == name]) == 30
+                 and len({row['id'] for row in rows if row['scenario'] == name}) == 30}
+    known = {item['name']: item for item in old['districts']}
+    matches = {}
+    for item in items:
+        name = item['name']
+        if name not in unchanged or name not in known:
+            continue
+        if any(item[key] != known[name][key] for key in ('csv_sha256', 'json_sha256')):
+            continue
+        attempts = {}
+        for variant in FUNDING_VARIANTS:
+            for case in CASES:
+                markers = sorted((previous / variant / name / case).glob('attempt_*/completed.json'))
+                if markers:
+                    completed = json.loads(markers[-1].read_text(encoding='utf-8'))
+                    if completed.get('scenario') != name or completed.get('case') != case:
+                        raise ValueError(f'Invalid previous completion marker: {markers[-1]}')
+                    attempts[f'{variant}/{name}/{case}'] = str(markers[-1].parent.relative_to(previous))
+        if len(attempts) == 6:
+            matches[name] = attempts
+    return dict(source_run=str(previous), profile_plan_sha256=digest(plan_path), districts=matches)
+
+
+def copy_reused_results(previous, run_dir, reuse):
+    """Copy completed cases into the new run; the previous run remains untouched."""
+    previous = resolved_directory(previous)
+    for name, cases in reuse['districts'].items():
+        for case_path, source in cases.items():
+            source = (previous / source).resolve()
+            if not source.is_relative_to(previous.resolve()):
+                raise ValueError('Reuse source escaped the previous run.')
+            target = run_dir / case_path / 'attempt_001'
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if target.exists():
+                raise FileExistsError(f'Reuse destination already exists: {target}')
+            pending = target.parent / f'reuse_pending_{uuid4().hex[:8]}'
+            shutil.copytree(source, pending)
+            write_json_new(pending / 'reused_from.json', {'source': str(source), 'scenario': name})
+            pending.rename(target)
+        print(f'Reused all six completed cases: {name}', flush=True)
+
+
 def select_districts():
     selected = []
     for district_type in TYPES:
         found = []
-        for path in PAPER_ROOT.glob(f"district_{district_type}_seed_*_buildings_30.csv"):
+        for path in scenario_folder().glob(f"district_{district_type}_seed_*_buildings_30.csv"):
             match = re.fullmatch(rf"district_{district_type}_seed_(\d+)_buildings_30", path.stem)
             if match:
                 found.append((int(match[1]), path))
@@ -81,7 +170,7 @@ def validate_config(path):
 
 def validate_source(item):
     for suffix in ("csv", "json"):
-        path = PAPER_ROOT / f"{item['name']}.{suffix}"
+        path = scenario_folder() / f"{item['name']}.{suffix}"
         if digest(path) != item[f"{suffix}_sha256"]:
             raise ValueError(f"Original scenario changed since this run was prepared: {path}")
 
@@ -93,11 +182,11 @@ def preflight(items, config_path):
     checked = 0
     for item in items:
         validate_source(item)
-        profile_dir = PAPER_ROOT / "results" / item["name"] / "demands"
+        profile_dir = profile_folder(item['name'])
         # Initialization also resolves mixed-use split names, without generating demands.
         with redirect_stdout(io.StringIO()):
             data = Datahandler(scenario_name=item["name"], env_path=str(config_path),
-                               scenario_file_path=str(PAPER_ROOT), resultPath=str(profile_dir.parent))
+                               scenario_file_path=str(scenario_folder()), resultPath=str(profile_dir.parent))
             if len(data.scenario) != 30:
                 raise ValueError(f"Expected 30 scenario rows: {item['name']}")
             data.scenario["heater"] = "heat_grid"
@@ -244,8 +333,8 @@ def worker(run_dir, scenario, case, attempt):
         data = Datahandler(
             scenario_name=scenario, output_scenario_name=f"{scenario}_central_4G_inv_{case}",
             investment_sensitivity_case=case, env_path=str(run_dir / ".env.CONFIG.BERGFEST"),
-            resultPath=str(attempt), scenario_file_path=str(PAPER_ROOT),
-            profile_input_path=str(PAPER_ROOT / "results" / scenario / "demands"),
+            resultPath=str(attempt), scenario_file_path=str(scenario_folder()),
+            profile_input_path=str(profile_folder(scenario)),
             network_output_path=str(attempt / "network" / "topology"))
         policy = output_policy(manifest)
         data.pyomo_config.update({key: value for key, value in policy.items() if key.startswith("solver_")})
@@ -412,6 +501,8 @@ def package_results(run_dir, destination=None, dry_run=False):
                 latest[kind] = (path, summary)
     selected = {}
     files = {run_dir / "manifest.json", run_dir / ".env.CONFIG.BERGFEST"}
+    if (run_dir / 'reuse_plan.json').is_file():
+        files.add(run_dir / 'reuse_plan.json')
     if manifest["version"] == 4:
         for variant in FUNDING_VARIANTS:
             files.update({run_dir / variant / "manifest.json", run_dir / variant / ".env.CONFIG.BERGFEST"})
@@ -500,7 +591,15 @@ def main():
     parser.add_argument("--package-output", type=Path, help="New archive path for --package; existing files are never overwritten.")
     parser.add_argument("--paired-funding", action="store_true", help="Create a matched funding OFF/ON comparison; EB must be disabled.")
     parser.add_argument("--prepare-only", action="store_true", help="Create immutable run snapshots and exit without optimization (safe on login nodes).")
+    parser.add_argument('--reuse-from', type=Path, help='Copy matching completed six-case results from a previous comparison into a new run.')
+    parser.add_argument('--plan-only', action='store_true', help='Report reuse/rerun counts without reading unfinished profiles or executing optimization.')
+    parser.add_argument('--plan-output', type=Path, help='New JSON file for the read-only plan.')
     args = parser.parse_args()
+    if (args.reuse_from or args.plan_only or args.plan_output) and (
+            not args.paired_funding or args.resume or args.worker or args.package or args.pilot):
+        parser.error('Reuse/planning options require a new --paired-funding comparison.')
+    if args.plan_output and not args.plan_only:
+        parser.error('--plan-output requires --plan-only.')
     if args.package:
         if (args.resume or args.pilot or args.worker or args.district_type or args.retry_failed_districts
                 or args.paired_funding or args.prepare_only):
@@ -551,6 +650,19 @@ def main():
     per_district = 6 if paired else 3
     print(f"Available: {len(selected)} candidates, up to {len(selected) * per_district} case evaluations. "
           f"Target: {TARGET_PER_TYPE} successful districts per type (all {per_district} evaluations).", flush=True)
+    reuse = reusable_results(args.reuse_from, items) if args.reuse_from else None
+    if args.plan_only:
+        report = {'optimization_executed': False, 'profiles_must_still_pass_preflight': True,
+                  'reuse': reuse, 'types': {}}
+        for kind in TYPES:
+            first = [item for item in items if item['type'] == kind][:TARGET_PER_TYPE]
+            reused = [item['name'] for item in first if reuse and item['name'] in reuse['districts']]
+            rerun = [item['name'] for item in first if item['name'] not in reused]
+            report['types'][kind] = {'reuse': reused, 'rerun': rerun}
+            print(f'Type {kind}: reuse {len(reused)}, rerun {len(rerun)}; remaining seeds are reserves.')
+        if args.plan_output:
+            write_json_new(args.plan_output, report)
+        return
     preflight(selected, config_path)
     if args.dry_run:
         return
@@ -572,6 +684,9 @@ def main():
         if paired:
             create_comparison_variants(run_dir, manifest)
         write_json_new(run_dir / "manifest.json", manifest)
+        if reuse:
+            write_json_new(run_dir / 'reuse_plan.json', reuse)
+            copy_reused_results(args.reuse_from, run_dir, reuse)
     print(f"All outputs will be stored under: {run_dir}", flush=True)
     if args.prepare_only:
         print("Prepared only; no optimization executed. Submit the saved folder to Slurm.", flush=True)
