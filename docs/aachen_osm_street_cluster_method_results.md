@@ -5,21 +5,10 @@
 This document distinguishes the implemented procedure from methodological
 decisions that still require validation.
 
-The building-use method and results include the 29 October 2026 SPORT-only
-cached recount: explicit sports halls and fitness centres are eligible for the
-SPORT archetype. Candidate geometries, memberships and settlement-type
-assignments remain those of the original 30 September 2026 run. Observed OSM
-use counts are kept separate from the generation assumption that unknown-use
-footprints in type A are residential. The revised parameter workbook is now
-active. `Paper_3/Districts` contains 20 validated definitions per type A--F, H
-and I (160 total), retaining true seed IDs and an ordered district index.
-The active set is the first 20 valid seeds from an ascending search starting
-at seed 1 for each type, verified by two independent searches. C/8 is included
-instead of C/29, and H/27 instead of H/30; B/82 is the twentieth valid B seed.
-These final two replacements left the other 158 definition pairs unchanged.
-Removed definitions are archived. No demand profiles or optimization results
-were moved or calculated in this selection update. Historical optimization
-results still describe their original input snapshots.
+The method combines settlement morphology, building-use classification and
+generation probabilities. Explicit sports halls and fitness centres supply
+the SPORT archetype. Observed OSM use counts are reported separately from the
+generation assumption that unknown-use footprints in type A are residential.
 
 
 
@@ -71,9 +60,7 @@ The query retains objects carrying any of the following attributes: `building`,
 `building:use`, `building:flats`, `highway`, `shop`, `amenity`, `office`,
 `craft`, `landuse`, `leisure`, `tourism`, `healthcare`, `industrial` and
 `sport`, `man_made`, `railway` and `public_transport`. The cached source contains 389,080 OSM features. A source cache created
-before `building:use` and `building:flats` were added to the query must be
-refreshed before these attributes can affect the results. The same applies to
-the additional factory and transport attributes when absent from a source cache.
+without the required attributes must be refreshed to support their analysis.
 
 All metric geometric operations are performed in ETRS89 / UTM zone 32N
 (EPSG:25832). Map outputs are transformed to WGS 84 (EPSG:4326).
@@ -93,13 +80,8 @@ refresh of this shared cache, then continues with analysis.
 
 The first worksheet of `typdistrict_parameters.xlsx` supplies the minimum and
 maximum BCR, building-density and FAR values for source settlement types A–I.
-For the original 30 September morphology run, the workbook was opened read-only.
-Its SHA-256 hash was recorded before and after that run (this is not the hash
-of the subsequently revised active workbook):
-
-**7d7c4a0aa0bc358b84f7429545015f7b0676a83f1d244f0c8cabc877d05fc05a**
-
-The two hashes are identical. Random ordering of road seeds uses seed 2026,
+The input workbook is not modified. Its SHA-256 hash is recorded and checked
+to protect the parameter input. Random ordering of road seeds uses seed 2026,
 making a run reproducible when the data, code and software versions remain
 unchanged.
 
@@ -1522,8 +1504,7 @@ evidence.
 
 SPORT additionally checks both physical `building` and `building:use` tags:
 an incompatible structure cannot become a sports hall solely through an
-overriding use tag. The original broad SPORT rules remain available only as
-`sport_policy='legacy'` for reproducing historical counts.
+overriding use tag.
 
 The categories are:
 
@@ -1573,7 +1554,7 @@ hours, ventilation, showers and heat demand need not equal those of a sports
 hall. The tags establish facility-use evidence, not actual heating or energy
 intensity. The following evidence is insufficient for SPORT:
 
-| Evidence | Corrected treatment |
+| Evidence | Treatment |
 |---|---|
 | `sport=fitness` alone or outdoor `leisure=fitness_station` | Activity evidence only; does not establish an indoor fitness centre. |
 | Other `sport=*` alone, such as soccer or shooting | Does not establish a sports hall; retain another supported use if independently identified, otherwise no subtype from this tag. |
@@ -1681,7 +1662,7 @@ p_{\mathrm{mix},A}^{\mathrm{gen}}=
 $$
 
 This is a type-specific modelling assumption, not an observed OSM residential
-classification. The corrected type-A counts are 42 residential, 42
+classification. The type-A counts are 42 residential, 42
 non-residential, zero mixed and 234 unknown out of 318. Generation therefore
 uses 276/318 = 86.79% residential and 42/318 = 13.21% non-residential.
 Observed labels remain unchanged. No EFH/MFH, age, retrofit, footprint or
@@ -1696,9 +1677,8 @@ w_k^{\mathrm{gen}}=
 $$
 
 Here $\mathcal K_{\mathrm{supported}}$ contains the ten model categories and
-excludes OTHER_NRB. No separate OTHER_NRB denominator correction has been
-implemented. Correcting SPORT changes these weights for other supported
-categories even when their counts do not change. SPORT is excluded from
+excludes OTHER_NRB. All supported-subtype weights are normalized using this
+denominator. SPORT is excluded from
 mixed-use draws. Its marginal draw probability is the pure non-residential
 main-use share multiplied by its supported-subtype weight.
 
@@ -1707,18 +1687,15 @@ supported NRB and approximately 0.60% among all generated buildings under the
 residential assumption. This does not prescribe an exact number per district.
 
 `examples/aachen_osm_pilot.py` integrates classification, generation parameters
-and documentation. Its `--reuse-analysis` option recounts the frozen source
+and documentation. Its `--reuse-analysis` option classifies the cached source
 using existing candidate geometries and memberships, without downloads or
-reclustering. The earlier legacy replay matched all 4,271 original candidates;
-the accepted population remains 3,207 candidates. The explicit
+reclustering. The explicit
 `--type-a-unknown-residential` generation assumption is enabled by default;
 `--no-type-a-unknown-residential` disables it. Neither changes observed unknown
 labels. Every run exports a separate workbook, probability tables and an edit
 manifest, then updates this Markdown and its HTML rendering. The input workbook
-is never overwritten. `examples/finalize_paper3_scenarios.py`
-validates and activates the prepared definitions and workbook, archives stale
-inputs/profiles and saves frozen provenance. The tables below distinguish the
-corrected observations from the activated generation parameters.
+is never overwritten. The tables distinguish observed building uses from
+generation probabilities.
 
 
 
@@ -1801,7 +1778,7 @@ classification.
 
 ## 10. Candidate-generation results
 
-These results were generated automatically from the completed `full_staedteregion_aachen` run created on 2026-09-30 at 17:00 UTC. The source directory is `D:/PycharmProjects/districtgenerator/examples/results/aachen_osm_building_sections_compact_v7`.
+The following results describe the `full_staedteregion_aachen` analysis extent.
 
 The run identified 4,271 non-overlapping candidates.
 
@@ -1827,7 +1804,7 @@ The candidates contain 115,353 unique building footprints, corresponding to 58.7
 | Total range score $D_t$ | 0.031 | 0.167 | 0.991 |
 | Total midpoint score $C_t$ | 0.418 | 0.928 | 3.128 |
 
-Morphology and candidate assignments remain from that original run. Sections 12--15 use the corrected sports-hall/fitness-centre cached recount, stored separately in `D:/ResearchArtifacts/districtgenerator/tmp/osm_workflow_consolidation_20261029_v1/recount`. The original run files are historical records and have not been overwritten. Type-A unknown-to-residential generation weights are reported separately in Section 17; they do not alter the observed-use tables.
+Sections 12--15 describe observed OSM uses. Section 17 gives the generation weights, including the type-A residential assumption. Observations and generation assumptions are reported separately.
 
 FAR is available for 166 candidates. The block-frontage requirement is met by 1,022 candidates. Rural influence boundaries are applied to 1,877 candidates.
 
@@ -1835,20 +1812,18 @@ Candidate areas range from 0.093 to 35.586 ha.
 
 ## 11. Settlement-type assignment results
 
-| Type | Candidates | Buildings | Exact | Approximate | Unique compatible | Midpoint tie-break | Nearest outside ranges | Unknown use, original run |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| A | 23 | 318 | 2 | 21 | 2 | 0 | 21 | 73.3% |
-| B | 253 | 6,724 | 6 | 247 | 6 | 0 | 247 | 68.6% |
-| C | 308 | 6,788 | 34 | 274 | 34 | 0 | 274 | 83.6% |
-| D | 379 | 9,675 | 9 | 370 | 9 | 0 | 370 | 71.9% |
-| E | 1,951 | 57,425 | 57 | 1,894 | 57 | 0 | 1,894 | 79.8% |
-| F | 5 | 142 | 0 | 5 | 0 | 0 | 5 | 75.4% |
-| G | 94 | 2,282 | 6 | 88 | 6 | 0 | 88 | 65.8% |
-| H | 59 | 2,097 | 0 | 59 | 0 | 0 | 59 | 43.3% |
-| I | 135 | 5,442 | 0 | 135 | 0 | 0 | 135 | 56.5% |
-| UNCLASSIFIED | 1,064 | 24,460 | 0 | 0 | 0 | 0 | 0 | 78.6% |
-
-The unknown-use column above belongs to the original morphology export. For corrected observed use shares, see Section 13.
+| Type | Candidates | Buildings | Exact | Approximate | Unique compatible | Midpoint tie-break | Nearest outside ranges |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| A | 23 | 318 | 2 | 21 | 2 | 0 | 21 |
+| B | 253 | 6,724 | 6 | 247 | 6 | 0 | 247 |
+| C | 308 | 6,788 | 34 | 274 | 34 | 0 | 274 |
+| D | 379 | 9,675 | 9 | 370 | 9 | 0 | 370 |
+| E | 1,951 | 57,425 | 57 | 1,894 | 57 | 0 | 1,894 |
+| F | 5 | 142 | 0 | 5 | 0 | 0 | 5 |
+| G | 94 | 2,282 | 6 | 88 | 6 | 0 | 88 |
+| H | 59 | 2,097 | 0 | 59 | 0 | 0 | 59 |
+| I | 135 | 5,442 | 0 | 135 | 0 | 0 | 135 |
+| UNCLASSIFIED | 1,064 | 24,460 | 0 | 0 | 0 | 0 | 0 |
 
 Classification quality is exact for 114, approximate for 3,093 and unclassified for 1,064 candidates. 3,207 candidates enter type-specific results.
 
@@ -1917,7 +1892,7 @@ Percentages are conditional on subtype-classified NRB buildings within each assi
 
 ## 16. Result files
 
-The original morphology outputs are stored in `D:/PycharmProjects/districtgenerator/examples/results/aachen_osm_building_sections_compact_v7`:
+The workflow exports the following result files:
 
 - `candidate_districts.geojson`: candidate geometries and indicators;
 - `candidate_metrics.csv`: morphology and matching results;
@@ -1934,31 +1909,27 @@ The review map is approximately 126.1 MB.
 
 OSM data attribution: © OpenStreetMap contributors, ODbL.
 
-The original use CSVs above retain the old classification. Corrected use CSVs with the same filenames are in `D:/ResearchArtifacts/districtgenerator/tmp/osm_workflow_consolidation_20261029_v1/recount`. `source_hashes.json` records unchanged cached inputs. No downloads, candidate regeneration or profile regeneration were required.
+## 17. Generation parameters
 
-## 17. Corrected SPORT weights and generation parameters
+Generation weights distinguish observed building uses from modelling assumptions. The subtype weights are conditional on the ten supported NRB categories; OTHER_NRB is not part of this denominator.
 
-Updated 29 October 2026. These tables use the original OSM type codes A--I. Raw type G is not used in the Paper-3 ensemble; raw H/I are labelled G/H in its figures.
+### 17.1 SPORT weights
 
-### 17.1 SPORT classification correction
+| Type | SPORT buildings | SPORT among supported NRB |
+|---|---:|---:|
+| A | 1 | 4.55% |
+| B | 4 | 3.39% |
+| C | 3 | 1.71% |
+| D | 1 | 0.20% |
+| E | 7 | 1.11% |
+| F | 0 | 0.00% |
+| G | 6 | 2.97% |
+| H | 9 | 3.05% |
+| I | 3 | 0.54% |
 
-| Type | Original SPORT count | Corrected SPORT count | Original SPORT among supported NRB | Corrected SPORT among supported NRB |
-|---|---:|---:|---:|---:|
-| A | 7 | 1 | 25.00% | 4.55% |
-| B | 13 | 4 | 10.24% | 3.39% |
-| C | 13 | 3 | 7.03% | 1.71% |
-| D | 26 | 1 | 4.98% | 0.20% |
-| E | 15 | 7 | 2.36% | 1.11% |
-| F | 0 | 0 | 0.00% | 0.00% |
-| G | 14 | 6 | 6.70% | 2.97% |
-| H | 13 | 9 | 4.35% | 3.05% |
-| I | 7 | 3 | 1.26% | 0.54% |
+### 17.2 Main-use generation weights
 
-In the historical frozen-Aachen audit, of the seven original type-A SPORT footprints, only fitness centre `way/76448164` remains SPORT. Four grandstands and the public building associated with a shooting POI are OTHER_NRB; the parking footprint becomes unknown. The original type-A SPORT count of seven was therefore not seven supported sports halls.
-
-### 17.2 Main-use generation assumptions
-
-| Type | Residential | Non-residential | Mixed | Unknown footprints assumed residential | Marginal SPORT probability |
+| Type | Residential | Non-residential | Mixed | Unknown footprints assigned residential | Marginal SPORT probability |
 |---|---:|---:|---:|---:|---:|
 | A | 86.79% | 13.21% | 0.00% | 234 | 0.600% |
 | B | 88.15% | 10.91% | 0.95% | 0 | 0.370% |
@@ -1970,16 +1941,16 @@ In the historical frozen-Aachen audit, of the seven original type-A SPORT footpr
 | H | 72.20% | 19.88% | 7.92% | 0 | 0.607% |
 | I | 74.21% | 12.41% | 13.38% | 0 | 0.068% |
 
-Type-A unknown-as-residential assignment in these tables: enabled. The default policy enables it; --no-type-a-unknown-residential disables it. For B--I, unknowns remain excluded from the main-use denominator. The supported-subtype denominator, which excludes OTHER_NRB, remains unchanged for every type. Classification corrections nevertheless change subtype weights.
+The default policy assigns unknown-use footprints to residential generation only for type A. Types B--I use known-use normalization. Raw OSM unknown labels are retained in the observed-use tables.
 
-### 17.3 Implementation status and reproduction
+### 17.3 Workflow and reproducibility
 
-The frozen workbook used to generate the active districts has SHA-256 `03e547593a79592b34249241c5cdadafa2ff2769b2ab649612460bba3e70b279`. `Paper_3/Districts` now contains the first 20 valid seeds from an ascending search beginning at seed 1 for each type A--F, H and I, 160 districts total. Two independent searches produced identical seed lists and CSV/JSON definitions. Compared with the previous revised set, 158 definition pairs remain byte-identical; C/8 replaces C/29 and H/27 replaces H/30. B/82 remains the twentieth valid B seed. True seed IDs remain in filenames; `district_index.csv` lists positions 01--20 within each type. Removed definitions and the prior index/provenance are archived in `D:\PycharmProjects\districtgenerator\districtgenerator\data\scenarios\Paper_3\archives\before_first20_selection_20261029_162830_9b3b4a`. This final selection update did not change demand profiles, optimization results or the parameter workbook. The selected set can reuse profiles for 3,961 buildings; 839 buildings need profiles (842 split-building generation tasks). Those counts include profiles already missing before the selection update. SPORT demand parameters, EFH/MFH, age and retrofit probability parameters remain unchanged. The active `provenance/active_first20_selection.json` records the independent search, hashes and archive; the earlier `promotion.json` retains the original OSM-revision activation history.
+`aachen_osm_pilot.py` calculates classification counts, generation weights and documentation in one workflow. It exports `probabilities.csv`, a separate `typdistrict_parameters.xlsx` and `generation_parameters.json`. The manifest records the assumption, source hash and exported cell values. The input workbook is not overwritten.
 
-Prepared probabilities: `D:/ResearchArtifacts/districtgenerator/tmp/osm_workflow_consolidation_20261029_v1/recount/probabilities.csv`. The integrated OSM workflow exports `typdistrict_parameters.xlsx` and `generation_parameters.json`, which records the assumption, source hash and exact cell edits. The input workbook is never overwritten. Raw unknown-use labels remain unchanged.
-
-Reproduce counts, parameters and documentation together from cached morphology:
+The cached-analysis option reuses candidate geometries and memberships:
 
 ```powershell
-python examples/aachen_osm_pilot.py --reuse-analysis "examples/results/aachen_osm_building_sections_compact_v7" --output "NEW_OUTPUT_DIR" --verify-parameters "districtgenerator/data/typdistrict_parameters.xlsx"
+python examples/aachen_osm_pilot.py --reuse-analysis "examples/results/aachen_osm_building_sections_compact_v7" --output "NEW_OUTPUT_DIR"
 ```
+
+`--type-a-unknown-residential` enables the type-A assumption by default; `--no-type-a-unknown-residential` disables it. `--verify-parameters PATH` checks exported cell values against a reference workbook.
