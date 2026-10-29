@@ -122,7 +122,7 @@ The example_decentral.csv file can be used as [template](https://github.com/RWTH
 
 ### Additional configuration categories and input data
 
-In the [file](https://github.com/RWTH-EBC/districtgenerator/blob/develop/districtgenerator/data_handling/config.py) 
+In the [file](https://github.com/RWTH-EBC/districtgenerator/blob/develop/districtgenerator/config/settings.py) 
 further data can be found. Default values are already stored there. General modeling assumptions are managed through 
 Pydantic-based configuration classes and will be overwritten through an .env configuration file if the Datahandler 
 is initialized with it. This .env file can be found
@@ -173,6 +173,34 @@ profiles are needed for domestic hot water profile generation, for which functio
 are utilized. Finally, the static building data, as well as the time-resolved weather and internal gain data, 
 are included in the space heating profile generation. These are computed by means of a 5R1C- or 7R2C-substitution model 
 according to VDI 6007-1 using the simplified hourly method.
+
+### Package structure
+
+The packages of the districtgenerator follow its workflow. The `Datahandler` runs the steps in this order
+and delegates each step to its package:
+
+```
+districtgenerator/
+├── datahandler.py     # runs the workflow step by step
+├── config/            # configuration loaded from .env.CONFIG files
+├── environment/       # weather, site conditions, solar irradiance, soil temperature
+├── buildings/
+│   ├── typology/      # residential, non-residential and mixed-use buildings, SIA 2024
+│   ├── thermal/       # thermal building models: 5R1C, 7R2C and four elements
+│   └── profiles/      # occupancy, electricity, DHW, internal gains, cars
+├── energy_systems/    # technologies, building and central energy systems, heat grid, wind turbines
+├── time_series/       # typical periods and time resolution
+├── economics/         # annuities and price paths
+├── optimization/      # decentral heating concept, central dimensioning and operation
+├── analysis/          # KPIs, plots and the certificate
+├── storage/           # saving and loading of profiles and districts
+├── utilities/         # helpers without domain knowledge
+└── data/              # input data
+```
+
+Import the Datahandler with `from districtgenerator import Datahandler`. The previous import
+`from districtgenerator.classes import Datahandler` keeps working. Old module paths such as
+`districtgenerator.functions.opti_central` still resolve to their new modules, with a deprecation warning.
 
 ## Final output of the DistrictGenerator
 

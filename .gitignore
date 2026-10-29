@@ -20,3 +20,4 @@ districtgenerator/data/weather/*
 *.egg/
 *.eggs
 districtgenerator.egg-info/*
+docs/_build/

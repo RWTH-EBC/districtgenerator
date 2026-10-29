@@ -1,5 +1,14 @@
 # Version History
 
+## Unreleased
+
+- Restructured the package by scientific workflow: `environment`, `buildings`, `energy_systems`, `time_series`,
+  `economics`, `optimization`, `analysis`, `storage`, `config` and `utilities` replace `classes` and `functions`
+- Lean `Datahandler` that delegates each workflow step to its package; its public methods are unchanged
+- Old import paths and pickled districts keep working through deprecated aliases
+- One thermal model registry, one demand worker for threads and processes, one annuity implementation
+- Split the certificate generator into submodules
+
 ## v0.1.2
 
 - 7R2C building modeling according to VDI 6007-1

@@ -1,5 +1,0 @@
-===============
-Examples
-===============
-
-.. mdinclude::  examples/README.md
