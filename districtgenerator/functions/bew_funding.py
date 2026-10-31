@@ -334,7 +334,8 @@ def _positive_cost(block, name, cost, lower, upper):
 def add_operating_funding(model, data, *, param=None, devs=None, year=None, cluster=None, eco=None):
     """M4:
     No components are created with BEW off or after the ten-year support period.
-    Direct hub PV/WT/WAT/BCHP supplies heating HPs before other hub consumers.
+    Direct hub PV/WT/WAT/BCHP and biomethane CHP electricity supply heating HPs
+    before other hub consumers. Only the fossil share of generic CHP is unfunded.
     Battery and other unqualified generation get no operating credit. At the hub
     connection, building PV is grid electricity.
     AC receives non-credited heat first, then HP, WaterHP, STC, BBOI and BCHP;
@@ -409,6 +410,15 @@ def add_operating_funding(model, data, *, param=None, devs=None, year=None, clus
         return float(operation_prices(eco, cluster, len(model.t))[p[2]])
     renewables = [d for d in ("PV", "WT", "WAT", "BCHP") if active(d)]
     others = [d for d in ("CHP", "WCHP", "FC") if active(d)]
+    biomethane_chp = active("CHP")
+    if biomethane_chp:
+        chp_specs = devs["CHP"] if design else data.central_device_data["CHP"]
+        chp_eta_el = float(chp_specs["eta_el"])
+        if not (math.isfinite(chp_eta_el) and chp_eta_el > 0):
+            raise ValueError("M4 biomethane CHP requires a positive finite electrical efficiency.")
+    renewable_bound = sum(capacity_bound(d) for d in renewables)
+    if biomethane_chp:
+        renewable_bound += capacity_bound("CHP")
     ac_active = active("AC")
     m4 = pyo.Block(concrete=True)
     model.operating_funding = m4
@@ -419,11 +429,16 @@ def add_operating_funding(model, data, *, param=None, devs=None, year=None, clus
         flow.electricity = pyo.Var(hp, ("grid", "direct", "unfunded"), domain=pyo.NonNegativeReals)
         flow.constraints = pyo.ConstraintList()
         demand = sum(power(d, p) for d in hp)
-        renewable = sum(power(d, p) for d in renewables)
-        if renewables and hp:
+        # Fuel input times efficiency avoids dividing by variable total CHP output.
+        renewable_chp = 0.0
+        if biomethane_chp:
+            fuel = model.biomethane["CHP", *p] if design else model.eh_biomethane_CHP[p[2]] / 1000.0
+            renewable_chp = chp_eta_el * fuel
+        renewable = sum(power(d, p) for d in renewables) + renewable_chp
+        if (renewables or biomethane_chp) and hp:
             bound_hp = sum(heat_bound(d) / cop(d, p) for d in hp)
             direct = _minimum(flow, "hp_first", renewable, demand,
-                              sum(capacity_bound(d) for d in renewables), bound_hp)
+                              renewable_bound, bound_hp)
         else:
             direct = 0.0
         battery = 0.0
@@ -438,7 +453,7 @@ def add_operating_funding(model, data, *, param=None, devs=None, year=None, clus
         if hp:
             flow.constraints.add(sum(flow.electricity[d, "direct"] for d in hp) == direct)
             flow.constraints.add(sum(flow.electricity[d, "grid"] for d in hp) <= power("from_grid", p))
-            flow.constraints.add(sum(flow.electricity[d, "unfunded"] for d in hp) <= battery + sum(power(d, p) for d in others))
+            flow.constraints.add(sum(flow.electricity[d, "unfunded"] for d in hp) <= battery + sum(power(d, p) for d in others) - renewable_chp)
         if ac_active:
             flow.cooling_electricity = pyo.Var(hp, ("grid", "direct", "unfunded"), domain=pyo.NonNegativeReals)
             for d in hp:
