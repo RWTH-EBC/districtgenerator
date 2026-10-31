@@ -10,6 +10,7 @@ import random
 import time
 import math
 import warnings
+import hashlib
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 from multiprocessing import get_context
 import numpy as np
@@ -59,6 +60,22 @@ def _preload_richardson_occupancy_matrices():
     finally:
         random.setstate(py_random_state)
         np.random.set_state(numpy_random_state)
+
+
+def _demand_seeds(buildings, profile_seed=None):
+    """Keep legacy streams by default; explicit seeds are stable under filtering."""
+    if profile_seed is None:
+        return np.random.SeedSequence(
+            int(np.random.randint(0, 2**32, dtype=np.uint32))
+        ).generate_state(len(buildings))
+    if not isinstance(profile_seed, (int, np.integer)) or profile_seed < 0:
+        raise ValueError("profile_seed must be a nonnegative integer or None")
+    seeds = []
+    for building in buildings:
+        key = hashlib.sha256(building["unique_name"].encode("utf-8")).digest()[:8]
+        entropy = [int(profile_seed), int.from_bytes(key[:4], "little"), int.from_bytes(key[4:], "little")]
+        seeds.append(np.random.SeedSequence(entropy).generate_state(1)[0])
+    return np.asarray(seeds, dtype=np.uint32)
 
 
 class Datahandler:
@@ -1228,7 +1245,7 @@ class Datahandler:
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8, gen_cars=None,
-                        parallelization="multiprocessing", task_level=None):
+                        parallelization="multiprocessing", task_level=None, profile_seed=None):
         """Generate or load demands, choosing car modelling from the district by default.
 
         With gen_cars=None, include cars for every building if any building has
@@ -1247,12 +1264,17 @@ class Datahandler:
         uses separate per-flat random streams; its numerical realization differs
         from the legacy building-level stream, but is independent of worker
         count when the initialized inputs and starting seed are held fixed.
+        profile_seed=None retains legacy random streams. An explicit nonnegative
+        seed gives each unique building name a stable multiprocessing stream,
+        independent of which completed buildings have been filtered out.
         """
         started = time.perf_counter()
         if gen_cars is None:
             gen_cars = any(building["buildingFeatures"]["EV"] > 0 for building in self.district)
         if parallelization not in {"threading", "multiprocessing"}:
             raise ValueError("parallelization must be 'threading' or 'multiprocessing'")
+        if profile_seed is not None and parallelization != "multiprocessing":
+            raise ValueError("Explicit profile_seed requires multiprocessing")
         if task_level is None:
             task_level = "flat" if parallelization == "multiprocessing" and calcUserProfiles else "building"
         if task_level not in {"building", "flat"}:
@@ -1289,9 +1311,7 @@ class Datahandler:
             task_count = sum(b["user"].nb_flats if b["user"].is_residential else 1
                              for b in self.district) if task_level == "flat" else len(self.district)
             max_threads = min(max_threads, 61, max(1, task_count))
-            seeds = np.random.SeedSequence(
-                int(np.random.randint(0, 2**32, dtype=np.uint32))
-            ).generate_state(len(self.district))
+            seeds = _demand_seeds(self.district, profile_seed)
             executor = ProcessPoolExecutor(
                 max_workers=max_threads, mp_context=get_context("spawn"),
                 initializer=_initialize_demand_process, initargs=(context,),

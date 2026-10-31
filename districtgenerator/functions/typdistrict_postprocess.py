@@ -1166,9 +1166,10 @@ def scenario_generation(
         os.path.join(current_dir, '..', 'data', 'scenarios')
     )
     if output_subdirectory:
-        safe_subdirectory = os.path.basename(output_subdirectory)
-        if safe_subdirectory != output_subdirectory or safe_subdirectory in {".", ".."}:
-            raise ValueError("output_subdirectory must be one folder name.")
+        if (os.path.isabs(output_subdirectory) or os.path.splitdrive(output_subdirectory)[0]
+                or any(part in {"", ".", ".."} for part in output_subdirectory.replace("\\", "/").split("/"))):
+            raise ValueError("output_subdirectory must be a relative path without traversal.")
+        safe_subdirectory = os.path.normpath(output_subdirectory)
         save_dir = os.path.join(scenario_root, safe_subdirectory)
     else:
         save_dir = scenario_root

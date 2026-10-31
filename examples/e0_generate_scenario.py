@@ -7,7 +7,7 @@ the target number of buildings.
 It can be used in three modes:
 1. Generate one district interactively.
 2. Generate a batch of districts automatically.
-3. Generate Paper_3: 20 valid districts per type A-F, H, I, with 30 buildings each.
+3. Generate Paper_3: 10 valid districts per type A-F, H, I, with 30 buildings each.
 
 Typical settlement types include:
 A   "german": "Streusiedlungen",
@@ -130,11 +130,10 @@ def generate_batch(settlement_types=None, number_of_new_districts_per_type=None,
         f"validation_{type_label}_"
         f"{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     )
-    if (os.path.basename(batch_subdirectory) != batch_subdirectory
-            or batch_subdirectory in {".", ".."}
+    if (any(part in {"", ".", ".."} for part in batch_subdirectory.replace("\\", "/").split("/"))
             or os.path.isabs(batch_subdirectory)
             or os.path.splitdrive(batch_subdirectory)[0]):
-        raise ValueError("output_subdirectory must be one folder name.")
+        raise ValueError("output_subdirectory must be a relative path without traversal.")
     batch_directory = os.path.join(
         PROJECT_ROOT, "districtgenerator", "data", "scenarios", batch_subdirectory
     )
@@ -232,7 +231,7 @@ def main():
 
     Use mode 1 if you want to generate one district manually.
     Use mode 2 if you want to generate a batch of valid districts.
-    Use mode 3 for the protected Paper_3 batch (160 districts, 30 buildings each).
+    Use mode 3 for the protected Paper_3 batch (80 districts, 30 buildings each).
     """
 
     # Internal mode used by generate_batch().
@@ -249,7 +248,7 @@ def main():
     print("\nSelect generation mode:")
     print("1: Generate one district")
     print("2: Generate batch")
-    print("3: Generate Paper_3 (types ABCDEFHI, 20 districts per type, 30 buildings)")
+    print("3: Generate Paper_3 (types ABCDEFHI, 10 districts per type, 30 buildings)")
 
     mode = input("\nEnter mode 1, 2 or 3: ").strip()
 
@@ -262,9 +261,9 @@ def main():
     elif mode == "3":
         generate_batch(
             settlement_types="ABCDEFHI",
-            number_of_new_districts_per_type=20,
+            number_of_new_districts_per_type=10,
             number_of_buildings=30,
-            output_subdirectory="Paper_3",
+            output_subdirectory=os.path.join("Paper_3", "districts"),
         )
 
     else:
