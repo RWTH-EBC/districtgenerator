@@ -51,11 +51,14 @@ def digest(path):
 
 
 def scenario_folder():
-    return next((p.resolve() for p in (PAPER_ROOT / 'districts', PAPER_ROOT / 'Districts')
+    return next((p.resolve() for p in (PAPER_ROOT / 'districts' / 'Synthetic districts',
+                 PAPER_ROOT / 'Districts' / 'Synthetic districts', PAPER_ROOT / 'districts', PAPER_ROOT / 'Districts')
                  if p.is_dir()), PAPER_ROOT)
 
 
 def profile_folder(name):
+    if scenario_folder().name == 'Synthetic districts':
+        return PAPER_ROOT / 'load_profiles' / 'Synthetic load profiles' / name / 'demands'
     parent = 'load_profiles' if scenario_folder() != PAPER_ROOT else 'results'
     return PAPER_ROOT / parent / name / 'demands'
 

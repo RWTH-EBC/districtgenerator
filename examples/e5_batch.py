@@ -9,7 +9,11 @@ Generate profiles from the general scenarios folder:
 Generate profiles for the 80 active Paper_3 districts:
     python examples/e5_batch.py --paper-3
 
-Paper_3 reads Paper_3/districts and writes Paper_3/load_profiles/<scenario>.
+Generate profiles for the prepared real districts:
+    python examples/e5_batch.py --paper-3-real
+
+Paper_3 separates Synthetic districts / Real districts and their corresponding
+Synthetic load profiles / Real load profiles. Existing flat layouts remain readable.
 General mode reads districtgenerator/data/scenarios and writes
 districtgenerator/results/demands. Add --dry-run to preview either mode.
 One scenario runs at a time with up to eight apartment-level profile processes.
@@ -135,19 +139,36 @@ def missing_profile_tasks(scenario_name, scenario_file, demand_dir):
     """Count missing profiles, treating split mixed-use parts as one group."""
     missing = 0
     with Path(scenario_file).open(newline='', encoding='utf-8-sig') as stream:
-        for row in csv.DictReader(stream, delimiter=';'):
-            prefix = f"{scenario_name}_{row['id']}_"
-            if '+' in row['building']:
-                main, secondary = row['building'].split('+')
-                checks = [(prefix + main + '_Main', True),
-                          (prefix + secondary + '_Secondary', True),
-                          (prefix + row['building'], False)]
-                count = 2
-            else:
-                checks, count = [(prefix + row['building'], True)], 1
-            if not all(profile_workbook_is_complete(name, require_thermal=thermal, demand_dir=demand_dir)
-                       for name, thermal in checks):
-                missing += count
+        rows = list(csv.DictReader(stream, delimiter=';'))
+    native_groups = {}
+    for row in rows:
+        if str(row.get('is_mixed_part', '')).lower() == 'true' and '+' not in row['building']:
+            native_groups.setdefault(row['mixed_parent_id'], []).append(row)
+    for row in rows:
+        if str(row.get('is_mixed_part', '')).lower() == 'true' and '+' not in row['building']:
+            continue
+        prefix = f"{scenario_name}_{row['id']}_"
+        if '+' in row['building']:
+            main, secondary = row['building'].split('+')
+            checks = [(prefix + main + '_Main', True),
+                      (prefix + secondary + '_Secondary', True),
+                      (prefix + row['building'], False)]
+            count = 2
+        else:
+            checks, count = [(prefix + row['building'], True)], 1
+        if not all(profile_workbook_is_complete(name, require_thermal=thermal, demand_dir=demand_dir)
+                   for name, thermal in checks):
+            missing += count
+    for parent, group in native_groups.items():
+        main = [row for row in group if row['mixed_role'] == 'main']
+        secondary = [row for row in group if row['mixed_role'] == 'secondary']
+        if len(main) != 1 or len(secondary) != 1 or len(group) != 2:
+            raise ValueError(f'Expected one residential/business pair for {parent}.')
+        checks = [(f"{scenario_name}_{row['id']}_{row['building']}", True) for row in group]
+        checks.append((f"{scenario_name}_{parent}_{main[0]['building']}+{secondary[0]['building']}", False))
+        if not all(profile_workbook_is_complete(name, require_thermal=thermal, demand_dir=demand_dir)
+                   for name, thermal in checks):
+            missing += 2
     return missing
 
 
@@ -263,6 +284,10 @@ def generate_demands_for_scenario(scenario_name, max_threads=8, force=False,
         profile_seed=profile_seed,
     )
 
+    missing = missing_profile_tasks(scenario_name, scenario_file, demand_dir)
+    if missing:
+        raise RuntimeError(f'{scenario_name}: {missing} profile tasks are still missing or incomplete.')
+
     return scenario_name
 
 
@@ -309,7 +334,11 @@ def main():
     source_group.add_argument(
         "--paper-3",
         action="store_true",
-        help="Use Paper_3/districts and save under Paper_3/load_profiles/<scenario>.",
+        help="Generate synthetic Paper_3 profiles in the separate synthetic folders.",
+    )
+    source_group.add_argument(
+        "--paper-3-real", action="store_true",
+        help="Use Paper_3/districts/Real districts and write to load_profiles/Real load profiles.",
     )
     source_group.add_argument(
         "--general-scenarios",
@@ -366,20 +395,35 @@ def main():
         parser.error("Worker counts must be positive.")
     paper_root = SCENARIO_DIR / "Paper_3"
     if args.paper_3:
-        scenario_dir = next((p.resolve() for p in (paper_root / 'districts', paper_root / 'Districts')
+        scenario_dir = next((p.resolve() for p in (paper_root / 'districts' / 'Synthetic districts',
+                             paper_root / 'Districts' / 'Synthetic districts', paper_root / 'districts', paper_root / 'Districts')
                              if p.is_dir()), paper_root)
         organized = scenario_dir != paper_root
-        result_root = paper_root / ("load_profiles" if organized else "results")
+        result_root = paper_root / 'load_profiles' / 'Synthetic load profiles' if scenario_dir.name == 'Synthetic districts' else paper_root / ("load_profiles" if organized else "results")
+    elif args.paper_3_real:
+        scenario_dir = paper_root / 'districts' / 'Real districts'
+        result_root = paper_root / 'load_profiles' / 'Real load profiles'
     else:
         scenario_dir, result_root = SCENARIO_DIR, None
     if not scenario_dir.is_dir():
         parser.error(f"Scenario folder does not exist: {scenario_dir}")
-    if args.paper_3 and (args.districts != "ABCDEFHI" or args.buildings != 30 or args.seeds is not None):
+    if (args.paper_3 or args.paper_3_real) and (args.districts != "ABCDEFHI" or args.buildings != 30 or args.seeds is not None):
         parser.error("Paper_3 mode processes all active districts; do not combine it with district, building or seed filters.")
 
     districts = [district.strip().upper() for district in args.districts if district.strip()]
     seeds = parse_seed_list(args.seeds)
-    scenarios = find_scenarios(districts, args.buildings, seeds=seeds, scenario_dir=scenario_dir)
+    if args.paper_3_real:
+        with (scenario_dir / 'district_index.csv').open(newline='', encoding='utf-8-sig') as stream:
+            scenarios = [(row['selection_pool'], int(row['rank_within_type']), row['native_scenario'])
+                         for row in csv.DictReader(stream)]
+        if not scenarios or len({name for _, _, name in scenarios}) != len(scenarios):
+            parser.error('Real district index is empty or contains duplicate scenarios.')
+        missing_inputs = [name for _, _, name in scenarios
+                          if any(not (scenario_dir / f'{name}.{suffix}').is_file() for suffix in ('csv', 'json'))]
+        if missing_inputs:
+            parser.error(f'Missing real district inputs: {missing_inputs}')
+    else:
+        scenarios = find_scenarios(districts, args.buildings, seeds=seeds, scenario_dir=scenario_dir)
     if args.paper_3:
         for district in districts:
             count = sum(item[0] == district for item in scenarios)
@@ -397,7 +441,7 @@ def main():
         f"{args.max_threads} profile process(es) per scenario (flat-level generation)."
     )
     for _, seed, scenario_name in scenarios:
-        print(f"  seed {seed}: {scenario_name}")
+        print(f"  {scenario_name}" if args.paper_3_real else f"  seed {seed}: {scenario_name}")
 
     if args.dry_run:
         return
@@ -446,6 +490,7 @@ def main():
         print("Failed scenarios:")
         for scenario in failed_runs:
             print(f"- {scenario}")
+        raise SystemExit(1)
     else:
         print("All scenarios completed successfully.")
 

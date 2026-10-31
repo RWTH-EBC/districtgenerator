@@ -263,7 +263,7 @@ def main():
             settlement_types="ABCDEFHI",
             number_of_new_districts_per_type=10,
             number_of_buildings=30,
-            output_subdirectory=os.path.join("Paper_3", "districts"),
+            output_subdirectory=os.path.join("Paper_3", "districts", "Synthetic districts"),
         )
 
     else:
