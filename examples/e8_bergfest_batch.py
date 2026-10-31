@@ -31,7 +31,7 @@ from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
 PAPER_ROOT = ROOT / "districtgenerator" / "data" / "scenarios" / "Paper_3"
-RUNS_ROOT = PAPER_ROOT / "optimization_runs"
+RUNS_ROOT = PAPER_ROOT / "cluster_results"
 CONFIG = ROOT / "districtgenerator" / "data" / ".env.CONFIG.BERGFEST"
 TYPES = "ABCDEFHI"
 CASES = ("mean", "min", "max")
@@ -51,11 +51,12 @@ def digest(path):
 
 
 def scenario_folder():
-    return PAPER_ROOT / 'Districts' if (PAPER_ROOT / 'Districts').is_dir() else PAPER_ROOT
+    return next((p.resolve() for p in (PAPER_ROOT / 'districts', PAPER_ROOT / 'Districts')
+                 if p.is_dir()), PAPER_ROOT)
 
 
 def profile_folder(name):
-    parent = 'load_profiles' if (PAPER_ROOT / 'Districts').is_dir() else 'results'
+    parent = 'load_profiles' if scenario_folder() != PAPER_ROOT else 'results'
     return PAPER_ROOT / parent / name / 'demands'
 
 
@@ -147,8 +148,8 @@ def select_districts():
             if match:
                 found.append((int(match[1]), path))
         found.sort()
-        if len(found) != 20:
-            raise ValueError(f"Expected 20 original districts of type {district_type}; found {len(found)}.")
+        if len(found) < TARGET_PER_TYPE:
+            raise ValueError(f"Expected at least {TARGET_PER_TYPE} districts of type {district_type}; found {len(found)}.")
         for seed, path in found:
             selected.append({"type": district_type, "seed": seed, "name": path.stem,
                              "csv_sha256": digest(path), "json_sha256": digest(path.with_suffix('.json'))})
@@ -213,8 +214,9 @@ def write_json_new(path, payload):
 
 def load_manifest(run_dir):
     run_dir = run_dir.resolve()
-    if not run_dir.is_relative_to(RUNS_ROOT.resolve()):
-        raise ValueError("The resume folder must be inside Paper_3/optimization_runs.")
+    allowed_roots = (RUNS_ROOT, PAPER_ROOT / "optimization_runs")
+    if not any(run_dir.is_relative_to(path.resolve()) for path in allowed_roots):
+        raise ValueError("The resume folder must be inside Paper_3/cluster_results or the legacy optimization_runs folder.")
     manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
     if manifest["version"] not in (1, 2, 3, 4) or manifest["cases"] != list(CASES):
         raise ValueError("Unsupported batch manifest.")

@@ -12,8 +12,8 @@
 #SBATCH --time=24:00:00
 #SBATCH --mail-user=rawad.hamze@eonerc.rwth-aachen.de
 #SBATCH --mail-type=END,FAIL
-#SBATCH --output=districtgenerator/data/scenarios/Paper_3/optimization_runs/array_%A_%a.out
-#SBATCH --error=districtgenerator/data/scenarios/Paper_3/optimization_runs/array_%A_%a.err
+#SBATCH --output=districtgenerator/data/scenarios/Paper_3/cluster_results/array_%A_%a.out
+#SBATCH --error=districtgenerator/data/scenarios/Paper_3/cluster_results/array_%A_%a.err
 
 set -e
 if [[ $# -lt 1 || $# -gt 2 || ! -f "$1/manifest.json" ]]; then
