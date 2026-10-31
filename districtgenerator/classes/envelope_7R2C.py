@@ -450,11 +450,18 @@ class Envelope:
 
             comp = "groundfloor"
             # FLOOR: Materials and U-value
+            ground_construction = self.construction_data + "_1_" + self.usage_short
+            if not any("GroundFloor" in name
+                       and elem["building_age_group"][0] <= self.construction_year <= elem["building_age_group"][1]
+                       and elem["construction_data"] == ground_construction
+                       for name, elem in element_bind.items()):
+                # Some TABULA age/state combinations define only the second construction.
+                ground_construction = self.construction_data + "_2_" + self.usage_short
             for name, elem in element_bind.items():
                 if "GroundFloor" in name:
                     if elem["building_age_group"][0] <= self.construction_year <= \
                         elem["building_age_group"][1] and elem[
-                    "construction_data"] == self.construction_data + "_1_" + self.usage_short:
+                    "construction_data"] == ground_construction:
 
                         for lay in elem["layer"].items():
                             self.d["opaque"][comp] = np.append(self.d["opaque"][comp], lay[1]["thickness"])

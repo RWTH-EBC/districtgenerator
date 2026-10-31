@@ -224,6 +224,18 @@ def load_parameter_2leiter(data):
         tuple(node_info["pos"]): key
         for key, node_info in data.pipeline_nodes.items()}
 
+    substation_nodes, building_substations = {}, {}
+    for index, building in enumerate(data.district):
+        features = building["buildingFeatures"]
+        if features["heater"] not in ("heat_grid", "heat_grid_OEB", "heat_grid_BEB"):
+            continue
+        node = node_lookup.get(tuple(features["position"]))
+        if node is None:
+            raise ValueError(f"No physical network node for building {features.get('id', index)}.")
+        key = node if node not in substation_nodes else f"{node}:section{index}"
+        substation_nodes[key] = node
+        building_substations[index] = key
+
     # Calculate building heat demand connected to the district heating grid
     for building in data.district:
         if building["buildingFeatures"]["heater"] not in ["heat_grid", "heat_grid_OEB", "heat_grid_BEB"]:
@@ -263,16 +275,11 @@ def load_parameter_2leiter(data):
     UA_DHW_by_node = {}
     requires_heat_grid_standby_by_node = {}
 
-    for building in data.district:
+    for building_index, building in enumerate(data.district):
         if building["buildingFeatures"]["heater"] not in ["heat_grid", "heat_grid_OEB", "heat_grid_BEB"]:
             continue
 
-        pos_building = tuple(building["buildingFeatures"]["position"])
-
-        node_key = node_lookup.get(pos_building)
-
-        if node_key is None:
-            continue
+        node_key = building_substations[building_index]
 
         buildings_heating_curve = building["envelope"].heating_curve["unclustered"]
 
@@ -418,17 +425,13 @@ def load_parameter_2leiter(data):
     data.heat_grid_data["T_DHW_after_preheating"] = T_DHW_after_preheating
     data.heat_grid_data["dhw_grid_fraction"] = grid_fraction
 
-    for building in data.district:
+    for building_index, building in enumerate(data.district):
         heater = building["buildingFeatures"]["heater"]
 
         if heater not in ("heat_grid_OEB", "heat_grid_BEB"):
             continue
 
-        node_key = node_lookup.get(tuple(building["buildingFeatures"]["position"]))
-
-        if node_key is None:
-            print(f"WARNUNG: Gebäude mit node_key {node_key} konnte nicht gefunden werden und wurde übersprungen! [5]")
-            continue
+        node_key = building_substations[building_index]
 
         # Useful DHW demand without substation losses [kW]
         dhw_load = np.asarray(building["user"].dhw) / 1000.0
@@ -495,6 +498,23 @@ def load_parameter_2leiter(data):
 
     pump_lifetime = heat_grid_data["pump"]["pump_lifetime"]
     heat_grid_data["pump"]["pump_ann_factor"] = calc_annual_factor(data, pump_lifetime)
+
+    if len(set(substation_nodes.values())) < len(substation_nodes):
+        # Parallel sections retain their own HX and temperature calculations.
+        section_parameters = {key: dict(value) for key, value in param.items() if key.endswith("_by_node")}
+        param["section_parameters"] = section_parameters
+        param["substation_nodes"] = substation_nodes
+        for key, values in section_parameters.items():
+            combined = {}
+            for node in dict.fromkeys(substation_nodes.values()):
+                parts = [values[section] for section, parent in substation_nodes.items() if parent == node]
+                if key.startswith("T_"):
+                    combined[node] = np.maximum.reduce(parts)
+                elif key == "requires_heat_grid_standby_by_node":
+                    combined[node] = any(parts)
+                else:
+                    combined[node] = sum(parts)
+            param[key] = combined
 
     return data, param
 
@@ -611,22 +631,23 @@ def calc_flow_2leiter(data, param):
     param["T_return_SH_actual"] = {}
     param["T_return_DHW_actual"] = {}
 
-    for n in param["Q_by_node"].keys():
+    substation_param = param.get("section_parameters", param)
+    for n in substation_param["Q_by_node"].keys():
 
-        Q_SH = np.asarray(param["Q_SH_by_node"][n], dtype=float)
-        Q_DHW = np.asarray(param["Q_DHW_by_node"][n], dtype=float)
+        Q_SH = np.asarray(substation_param["Q_SH_by_node"][n], dtype=float)
+        Q_DHW = np.asarray(substation_param["Q_DHW_by_node"][n], dtype=float)
 
         Q_SH_eff = np.where(Q_SH < 0.01, 0.0, Q_SH)
         Q_DHW_eff = np.where(Q_DHW < 0.01, 0.0, Q_DHW)
 
-        Tsi_SH = np.asarray(param["T_sec_return_SH_by_node"][n], dtype=float)
-        Tso_SH = np.asarray(param["T_sec_supply_SH_by_node"][n], dtype=float)
+        Tsi_SH = np.asarray(substation_param["T_sec_return_SH_by_node"][n], dtype=float)
+        Tso_SH = np.asarray(substation_param["T_sec_supply_SH_by_node"][n], dtype=float)
 
-        Tsi_DHW = np.asarray(param["T_sec_return_DHW_by_node"][n], dtype=float)
-        Tso_DHW = np.asarray(param["T_sec_supply_DHW_by_node"][n], dtype=float)
+        Tsi_DHW = np.asarray(substation_param["T_sec_return_DHW_by_node"][n], dtype=float)
+        Tso_DHW = np.asarray(substation_param["T_sec_supply_DHW_by_node"][n], dtype=float)
 
-        UA_SH = float(param["UA_SH_by_node"][n])
-        UA_DHW = float(param["UA_DHW_by_node"][n])
+        UA_SH = float(substation_param["UA_SH_by_node"][n])
+        UA_DHW = float(substation_param["UA_DHW_by_node"][n])
 
         m_SH_raw = np.zeros(T_len, dtype=float)     # Empty array
         m_DHW_raw = np.zeros(T_len, dtype=float)    # Empty array
@@ -673,7 +694,7 @@ def calc_flow_2leiter(data, param):
 
         active_SH = Q_SH_eff > 0.0
         active_DHW = Q_DHW_eff > 0.0
-        requires_standby = bool(param.get("requires_heat_grid_standby_by_node", {}).get(n, True))
+        requires_standby = bool(substation_param.get("requires_heat_grid_standby_by_node", {}).get(n, True))
 
         if requires_standby:
             m_SH = np.maximum(m_SH_raw, alpha * m_SH_max)
@@ -713,6 +734,25 @@ def calc_flow_2leiter(data, param):
         param["building_massflow_max_HX"][n] = (float(np.max(m_HX)) if np.any(m_HX > 0.0) else 0.0)
         param["T_return_SH_actual"][n] = Tr_SH_actual
         param["T_return_DHW_actual"][n] = Tr_DHW_actual
+
+    if "substation_nodes" in param:
+        sections = param["substation_nodes"]
+        physical = dict.fromkeys(sections.values())
+        # Mix parallel returns by mass flow, not by averaging temperatures.
+        for circuit in ("SH", "DHW"):
+            flow_key, return_key = "building_massflow_" + circuit, "T_return_" + circuit + "_actual"
+            flows, returns = param[flow_key], param[return_key]
+            combined_flows, combined_returns = {}, {}
+            for node in physical:
+                parts = [section for section, parent in sections.items() if parent == node]
+                flow = sum(flows[section] for section in parts)
+                enthalpy = sum(flows[section] * returns[section] for section in parts)
+                combined_flows[node] = flow
+                combined_returns[node] = np.divide(enthalpy, flow, out=T_sup_EH.copy(), where=flow > 1e-12)
+            param[flow_key], param[return_key] = combined_flows, combined_returns
+            param["building_massflow_max_" + circuit] = {node: float(np.max(flow)) for node, flow in combined_flows.items()}
+        param["building_massflow_HX"] = {node: param["building_massflow_SH"][node] + param["building_massflow_DHW"][node] for node in physical}
+        param["building_massflow_max_HX"] = {node: float(np.max(flow)) for node, flow in param["building_massflow_HX"].items()}
 
     # Aggregate building flows into pipe flows
     pipe_massflows = aggregate_mass_flows(
@@ -1408,7 +1448,8 @@ def compute_and_save_network_costs_2leiter(data, param):
     substation_lifetime = data.heat_grid_data["lifetime_subst"]
     substation_ann_factor = calc_annual_factor(data, substation_lifetime)
     substation_ann_costs = C_substations * substation_ann_factor
-    substation_om_costs = len(buildings_connected) * data.heat_grid_data["cost_om_subst"]
+    physical_connections = {tuple(b["buildingFeatures"]["position"]) for b in buildings_connected}
+    substation_om_costs = len(physical_connections) * data.heat_grid_data["cost_om_subst"]
 
     inv_pipes = 0.0
     inv_construction = 0.0

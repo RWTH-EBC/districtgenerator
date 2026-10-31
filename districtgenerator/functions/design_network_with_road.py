@@ -33,7 +33,71 @@ def point_in_list(point, points_list, tol=1e-6):
     bool
         True: if point is in points_list
     """
-    return any(np.allclose(point, p, atol=tol) for p in points_list)
+    return any(np.allclose(point, p, atol=tol, rtol=0) for p in points_list)
+
+
+def choose_energy_hub_position(road_lines, buildings=None):
+    """Choose a highest-degree road node, breaking ties by geometry centrality."""
+    graph = nx.Graph()
+    for road in road_lines:
+        start = tuple(round(v, 6) for v in road.coords[0])
+        end = tuple(round(v, 6) for v in road.coords[-1])
+        graph.add_edge(start, end)
+    if not graph:
+        return (0, 0), 0
+    degrees = dict(graph.degree())
+    max_degree = max(degrees.values())
+    geometries = list(road_lines) + (list(buildings) if buildings else [])
+    xmin, ymin, xmax, ymax = shapely.union_all(geometries).bounds
+    center_x, center_y = (xmin + xmax) / 2, (ymin + ymax) / 2
+    hub = min((n for n, degree in degrees.items() if degree == max_degree),
+              key=lambda n: ((n[0] - center_x) ** 2 + (n[1] - center_y) ** 2, n[1], n[0]))
+    return hub, max_degree
+
+
+def plot_network_context(nodes, edges, buildings_path, roads_path, output_dir, label, title):
+    """Overlay a designed topology on real footprints and cached road geometry."""
+    import geopandas as gpd
+    from matplotlib.lines import Line2D
+
+    buildings = gpd.read_file(buildings_path).to_crs(25832)
+    roads = gpd.read_file(roads_path).to_crs(25832)
+    fig, ax = plt.subplots(figsize=(11, 8), layout="constrained")
+    buildings.plot(ax=ax, color="#E0E5E8", edgecolor="#8D979F", linewidth=.6)
+    roads.plot(ax=ax, color="#BABABA", linewidth=1.4)
+    length = 0.0
+    for parent, children in edges.items():
+        for child in children:
+            a, b = nodes[parent]["pos"], nodes[child]["pos"]
+            length += math.dist(a, b)
+            ax.plot([a[0], b[0]], [a[1], b[1]], color="#0072B2", zorder=3,
+                    linewidth=1.3 if nodes[child]["role"] == "bldg" else 2.)
+    connections = [n["pos"] for n in nodes.values() if n["role"] == "bldg"]
+    if connections:
+        x, y = zip(*connections)
+        ax.scatter(x, y, s=15, c="#202020", zorder=4)
+    for node_id, node in nodes.items():
+        if node["role"] == "EH":
+            ax.scatter(*node["pos"], s=210, marker="*", c="#C62828", edgecolor="white", linewidth=.5, zorder=5)
+            ax.annotate(node_id, node["pos"], xytext=(8, 8), textcoords="offset points",
+                        color="#A61D1D", weight="bold")
+    ax.set_title(f"{title}\n{len(connections)} physical connections | {length:,.0f} m route", fontsize=13)
+    ax.set_xlabel("Easting (m, EPSG:25832)")
+    ax.set_ylabel("Northing (m, EPSG:25832)")
+    ax.ticklabel_format(useOffset=False, style="plain")
+    ax.tick_params(labelsize=9)
+    ax.set_aspect("equal")
+    ax.legend(handles=[
+        Line2D([], [], color="#0072B2", lw=2, label="Designed network"),
+        Line2D([], [], color="#BABABA", lw=2, label="Cached roads"),
+        Line2D([], [], marker="o", ls="", color="#202020", label="Physical building connection"),
+        Line2D([], [], marker="*", ls="", color="#C62828", markersize=12, label="Assumed hub location"),
+    ], loc="upper right", fontsize=9)
+    try:
+        for extension in ("png", "svg", "pdf"):
+            fig.savefig(os.path.join(output_dir, f"{label}.{extension}"), dpi=180)
+    finally:
+        plt.close(fig)
 
 def closest_point_on_segment(P, A, B):
     """
@@ -225,7 +289,7 @@ def orient_network(G, plant):
     return directed_dict
 
 def run_pipeline_road(district_type, building_width, house_connection, buildings_info, lines_info, transformer_info,
-                      topology_label=None, output_dir=None):
+                      topology_label=None, output_dir=None, real_geometry=False):
     """
     Consider road constraints, ensuring all main pipelines are laid beneath roads.
     using Steiner Tree algorithm
@@ -251,7 +315,7 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
     """
     output_label = topology_label or f"{district_type}_buildings_{len(buildings_info)}"
 
-    if district_type != "F":
+    if district_type != "F" or real_geometry:
         # Due to the unique nature of Type F, pipeline network layouts will be planned separately.
 
         # %% STEP ONE: get all the nodes in the graph
@@ -289,7 +353,7 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
         transformer = tuple(transformer_info["position"])
 
         # add transformer(energy hub) node to heat_network_points
-        heat_network_points.insert(0, transformer)
+        heat_network_points = [transformer] + [p for p in heat_network_points if euclidean(p, transformer) > 1e-6]
         num_nodes = len(heat_network_points)
         # get the range of nodes that must be linked in the network
         terminal_nodes = range(num_nodes)
@@ -331,7 +395,7 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
                                     l1.coords[0], l1.coords[-1],
                                     l2.coords[0], l2.coords[-1]
                                 ]
-                                if not any(np.allclose(inter_pt.coords[0], ep, atol=1e-6) for ep in endpoints):
+                                if not any(np.allclose(inter_pt.coords[0], ep, atol=1e-6, rtol=0) for ep in endpoints):
                                     intersections.append(tuple(inter_pt.coords[0]))
                 heat_network_points.extend(intersections)
 
@@ -364,7 +428,12 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
         Avoids cycles and redundant connections.
         Ensures the shortest total length of pipes necessary to connect all terminal nodes.
         Terminal nodes constitute a subset of all nodes within the graph, including all building access points and energy hub node in this code."""
-        network = steiner_tree(weighted_graph, terminal_nodes, weight='weight', method="mehlhorn")
+        serving_nodes = nx.node_connected_component(weighted_graph, 0)
+        missing = set(terminal_nodes) - serving_nodes
+        if missing:
+            raise ValueError(f"Road network cannot connect {len(missing)} required terminals to the energy hub; no road links were invented.")
+        network = steiner_tree(weighted_graph.subgraph(serving_nodes).copy(), terminal_nodes,
+                               weight='weight', method="mehlhorn")
 
         # %% STEP FOUR: add all building connection pipes to the graph
         # get node positions (only EH and building connection points)
@@ -473,6 +542,7 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
         plot_filename_svg = os.path.join(save_dir, f"pipeline_layout_road_{output_label}.svg")
         plt.savefig(plot_filename_png, dpi=300)
         plt.savefig(plot_filename_svg, format="svg")
+        plt.close()
 
 #        plt.show()
 

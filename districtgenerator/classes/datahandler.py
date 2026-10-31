@@ -37,7 +37,7 @@ import districtgenerator.functions.heating_network_simple as heating_network_sim
 from districtgenerator.functions.heating_network_2leiter import network_2leiter_simple
 from districtgenerator.functions.heating_network_5g import network_5G
 from districtgenerator.functions.design_network_with_node import run_pipeline_node
-from districtgenerator.functions.design_network_with_road import run_pipeline_road
+from districtgenerator.functions.design_network_with_road import run_pipeline_road, plot_network_context
 from districtgenerator.functions.heating_network_simple import calculate_soil_temperature
 from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig, ReportConfig
 
@@ -2863,6 +2863,27 @@ class Datahandler:
         # Plot everything
 #        plot_all(self)
 
+    def _network_buildings(self):
+        """One network terminal per physical building, without merging thermal models."""
+        buildings, positions = {}, {}
+        for building in self.district:
+            features = building["buildingFeatures"]
+            if features["heater"] not in ("heat_grid", "heat_grid_OEB", "heat_grid_BEB"):
+                continue
+            position = tuple(features["position"])
+            physical_id = features.get("physical_building_id", position)
+            if physical_id in buildings:
+                if buildings[physical_id]["position"] != position:
+                    raise ValueError(f"Physical building {physical_id} has inconsistent connection positions.")
+                continue
+            if position in positions:
+                raise ValueError("Different physical buildings have the same network connection position.")
+            positions[position] = physical_id
+            buildings[physical_id] = dict(id=len(buildings), building=building["unique_name"], position=position)
+        if not buildings:
+            raise ValueError("No buildings are connected to the heat grid.")
+        return list(buildings.values())
+
     def designNetworkwithNode(self):
         """
         Ignore road restrictions and connect all building nodes and energy center nodes via the shortest path.
@@ -2877,13 +2898,7 @@ class Datahandler:
         json_path = os.path.join(self.scenario_file_path, f"{scenario_input_name}.json")
 
         # only get the position of buildings connected to the heat grid
-        buildings_info = []
-        for building in self.district:
-            if building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_OEB", "heat_grid_BEB"):
-                pos = building["buildingFeatures"]["position"]
-                building_dict = {"building": building["unique_name"],
-                                 "position": pos}
-                buildings_info.append(building_dict)
+        buildings_info = self._network_buildings()
 
         if os.path.exists(json_path):
             district_type = self.site["district_parameters"]["district_type"]
@@ -2924,26 +2939,20 @@ class Datahandler:
         """
         # get the input data for the optimizer
         district_type = self.site["district_parameters"]["district_type"]
-        building_width = self.site["district_parameters"]["building_width"]
-        house_connection = self.site["district_parameters"]["house_connection"]
 
         # only get the position of buildings connected to the heat grid
-        buildings_info = []
-        i = 0
-        for building in self.district:
-            if building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_OEB", "heat_grid_BEB"):
-                pos = building["buildingFeatures"]["position"]
-                building_dict = {"id": i,
-                                 "building": building["unique_name"],
-                                 "position": pos}
-                buildings_info.append(building_dict)
-                i += 1
+        buildings_info = self._network_buildings()
 
         scenario_input_name = self.input_scenario_name or self.scenario_name
         with open(os.path.join(self.scenario_file_path, f"{scenario_input_name}.json"), encoding="utf-8") as json_file:
             jsonData = json.load(json_file)
         lines_info = jsonData["values"]["lines_info"]
         transformer_info = jsonData["values"]["energy_hub"]
+
+        real_geometry = jsonData.get("metadata", {}).get("source") == "real"
+        parameters = self.site["district_parameters"]
+        building_width = 0.0 if real_geometry else parameters["building_width"]
+        house_connection = 0.0 if real_geometry else parameters["house_connection"]
 
         scenario_input_name = self.input_scenario_name or self.scenario_name
         run_pipeline_road(
@@ -2954,7 +2963,8 @@ class Datahandler:
             lines_info,
             transformer_info,
             topology_label=scenario_input_name,
-            output_dir=self.network_output_path
+            output_dir=self.network_output_path,
+            real_geometry=real_geometry
         )
 
     def generateNetwork(self, topology_option):
@@ -2996,10 +3006,7 @@ class Datahandler:
         else:
             # if JSON file not found
             district_type = "unknown"
-        connected_building_count = sum(
-            1 for building in self.district
-            if building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_OEB", "heat_grid_BEB")
-        )
+        connected_building_count = len(self._network_buildings())
         if topology_option == "road":
             topology_file = f"topology_{topology_option}_{scenario_input_name}.json"
         else:
@@ -3012,6 +3019,18 @@ class Datahandler:
 
         self.pipeline_nodes = jsonData.get("nodes", {})
         self.pipeline_topology = jsonData.get("edges", {})
+
+        parameters = self.site.get("district_parameters", {})
+        if parameters.get("source") == "real":
+            geometry_dir = os.path.join(self.scenario_file_path, parameters["district_id"])
+            footprints = os.path.join(geometry_dir, "buildings.geojson")
+            roads = os.path.join(geometry_dir, "roads.geojson")
+            if os.path.isfile(footprints) and os.path.isfile(roads):
+                plot_network_context(self.pipeline_nodes, self.pipeline_topology, footprints, roads,
+                    topology_dir, f"{topology_option}_network_context_{scenario_input_name}",
+                    f"Real district {district_type} / {parameters['district_id']} | {topology_option} network")
+            else:
+                print("Real network context map skipped: footprint or road GeoJSON is not available. Topology is unchanged.")
 
     def run_heatingnetwork(self):
         """

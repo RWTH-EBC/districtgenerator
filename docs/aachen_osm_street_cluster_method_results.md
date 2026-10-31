@@ -1740,6 +1740,26 @@ with the morphological criteria, not independent validation of the assigned
 type. Background map imagery is geographic context, not building-use evidence.
 
 
+### 9.1 Candidates for simulation-based evaluation
+
+Simulation candidates are selected separately from morphological classification.
+They must have residential or mixed-use evidence. A known non-residential or
+mixed use without a supported non-residential archetype excludes the district;
+unknown uses require clarification. NRW attributes are used only with accepted
+spatial matches. Types F and G form one evaluation pool.
+
+Within each pool, candidates are ranked by the fraction of buildings jointly
+having supported use, storeys, a construction period or year, and an NRW
+energy-condition code. Ties are resolved by the minimum coverage across these
+four attributes, then fewer utility-function flags and a stable district
+identifier. OSM--NRW use and storey disagreements are recorded but do not lower
+rank. Explicit OSM values take priority over supplementary NRW values.
+
+Up to ten candidates are shortlisted per pool. Information coverage is not
+simulation readiness: NRW efficiency codes do not uniquely identify a building
+envelope or renovation measures. A separate, justified mapping to the model's
+refurbishment states is required, together with resolution of missing inputs.
+
 ## 10. Candidate-generation results
 
 The following results describe the `full_staedteregion_aachen` analysis extent.

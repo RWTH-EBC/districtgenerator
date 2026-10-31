@@ -154,6 +154,7 @@ def run_pipeline_node(district_type, buildings_info, transformer_info, output_di
     plot_filename_svg = os.path.join(save_dir,f"pipeline_layout_node_{district_type}_buildings_{len(buildings_info)}.svg")
     plt.savefig(plot_filename_png, dpi=300)
     plt.savefig(plot_filename_svg, format="svg")
+    plt.close()
 
 #    plt.show()
 

@@ -4248,6 +4248,184 @@ def reassess_enriched_districts(analysis, enrichment, cache, source_cache, param
     print(f'Reassessment saved: {output}; changed assignments: {revised.old_type.ne(revised.typ).sum()}', flush=True)
 
 
+def refurbishment_u_value_reference(output):
+    """Export model component U-values; these are not inferred NRW U-values."""
+    from importlib.util import find_spec
+
+    source = ROOT / 'districtgenerator/data/non_residential/non_residential_envelope.json'
+    hashes = {str(source.resolve()): sha(source)}
+    rows = []
+    states = {'not retrofitted': 0, 'partially retrofitted': 1, 'completely retrofitted': 2}
+    for archetype, data in json.loads(source.read_text(encoding='utf-8')).items():
+        for years, variants in data['building_age_group'].items():
+            low, high = map(int, years.split(' - '))
+            for state, elements in variants.items():
+                for element, value in elements.items():
+                    if element.startswith('u_'):
+                        rows.append(dict(archetype=archetype, year_min=low, year_max=high,
+                            refurbishment_state=states[state], construction=state, element=element,
+                            u_value_W_m2K=value, source='project_non_residential_envelope'))
+    spec = find_spec('teaser')
+    if spec is not None:
+        folder = Path(spec.origin).parent / 'data/input/inputdata'
+        sources = [folder / 'TypeElements_TABULA_DE.json', folder / 'MaterialTemplates.json']
+        hashes.update({str(path.resolve()): sha(path) for path in sources})
+        elements, materials = [json.loads(path.read_text(encoding='utf-8')) for path in sources]
+        for key, data in elements.items():
+            construction = data['construction_data']
+            match = re.fullmatch(r'tabula_de_(standard|retrofit|adv_retrofit)_([12])_(SFH|TH|MFH|AB)', construction)
+            if not match:
+                continue
+            resistance = sum(layer['thickness'] / materials[layer['material']['material_id']]['thermal_conduc']
+                             for layer in data['layer'].values())
+            resistance += 1 / (data['inner_radiation'] + data['inner_convection'])
+            if data.get('outer_radiation') is not None and data.get('outer_convection') is not None:
+                resistance += 1 / (data['outer_radiation'] + data['outer_convection'])
+            low, high = data['building_age_group']
+            rows.append(dict(archetype=match[3], year_min=low, year_max=high,
+                refurbishment_state={'standard': 0, 'retrofit': 1, 'adv_retrofit': 2}[match[1]],
+                construction=construction, element=key.split('_[')[0], u_value_W_m2K=1 / resistance,
+                source='TEASER_TABULA_DE'))
+    pd.DataFrame(rows).to_csv(Path(output) / 'model_refurbishment_u_values.csv', index=False)
+    return hashes
+
+
+def select_real_districts(analysis, output):
+    """Shortlist supported real districts by joint use/storey/age/condition coverage."""
+    analysis, output = Path(analysis), Path(output)
+    inputs = [analysis / 'member_input_evidence.csv', analysis / 'candidate_metrics.csv']
+    hashes = {str(path.resolve()): sha(path) for path in inputs}
+    evidence = pd.read_csv(inputs[0], low_memory=False)
+    metrics = pd.read_csv(inputs[1]).set_index('district_id')
+    if evidence.osm_key.duplicated().any() or not metrics.index.is_unique:
+        raise ValueError('Real-district selection requires unique buildings and districts.')
+    if set(evidence.district_id) != set(metrics.index):
+        raise ValueError('Building evidence and district metrics do not describe the same candidates.')
+    counts = evidence.groupby('district_id').size()
+    if not counts.eq(metrics.building_count.reindex(counts.index)).all():
+        raise ValueError('Building evidence does not reproduce candidate membership counts.')
+
+    def flag(column):
+        return evidence[column].astype(str).str.lower().isin({'true', '1', '1.0'})
+
+    use_conflicts, storey_conflicts = flag('main_use_conflict'), flag('storey_conflict')
+    use = evidence.use_group.fillna('unknown')
+    category = evidence.nrb_category.fillna('')
+    evidence['supported_use'] = use.eq('residential') | (
+        use.isin(['nonres', 'mixed']) & category.isin(MODEL_CATEGORIES))
+    evidence['unsupported_use'] = use.isin(['nonres', 'mixed']) & ~category.isin(MODEL_CATEGORIES)
+    storeys = pd.to_numeric(evidence.effective_storeys, errors='coerce')
+    evidence['storey_input_available'] = storeys.between(0, 100, inclusive='right')
+    age_classes = {1900: (None, 1899), 1945: (1900, 1945), 1960: (1946, 1960),
+                   1970: (1961, 1970), 1980: (1971, 1980), 1985: (1981, 1985),
+                   1995: (1986, 1995), 2000: (1996, 2000), 2005: (2001, 2005),
+                   2010: (2006, 2010), 2015: (2011, 2015), 2022: (2016, None)}
+    years = pd.to_numeric(evidence.osm_year_evidence, errors='coerce')
+    age = pd.to_numeric(evidence.modelled_age_class, errors='coerce')
+    evidence['age_input_available'] = years.between(1000, datetime.now().year) | age.isin(age_classes)
+    condition = pd.to_numeric(evidence.modelled_condition, errors='coerce')
+    evidence['condition_input_available'] = condition.isin(range(1, 10))
+    evidence['nrw_efficiency_class'] = condition.map(dict(enumerate(
+        ['A+', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], 1)))
+    accepted_match = evidence.match_status.isin(['one_to_one', 'contained_parts'])
+    nrw_used = (evidence.use_source.eq('NRW_gap_fill')
+                | evidence.storeys_source.eq('NRW_calculated')
+                | (years.isna() & age.notna()) | condition.notna())
+    evidence['unaccepted_nrw_input'] = nrw_used & ~accepted_match
+    evidence['all_four_inputs_available'] = (evidence.supported_use & evidence.storey_input_available
+                                             & evidence.age_input_available & evidence.condition_input_available)
+    # Efficiency classes do not identify component U-values or renovation measures.
+    evidence['refurbishment_state'] = pd.Series(pd.NA, index=evidence.index, dtype='Int64')
+    evidence['refurbishment_mapping_status'] = np.where(
+        evidence.age_input_available & evidence.condition_input_available,
+        'unresolved_efficiency_class_not_envelope_state', 'missing_age_or_condition')
+    evidence['refurbishment_states_to_assess'] = np.where(
+        evidence.age_input_available & evidence.condition_input_available, '0;1;2', '')
+
+    records = []
+    for ident, group in evidence.groupby('district_id'):
+        typ = metrics.loc[ident, 'typ']
+        coverage = [100 * group[column].mean() for column in (
+            'supported_use', 'storey_input_available', 'age_input_available', 'condition_input_available')]
+        has_residential = group.use_group.isin(['residential', 'mixed']).any()
+        unsupported = int(group.unsupported_use.sum())
+        unsafe = int(group.unaccepted_nrw_input.sum())
+        reasons = []
+        if typ not in tuple('ABCDEFGHI'):
+            reasons.append('unclassified')
+        if not has_residential:
+            reasons.append('no_residential_or_mixed_use')
+        if unsupported:
+            reasons.append('unsupported_use')
+        if unsafe:
+            reasons.append('unaccepted_nrw_input')
+        missing = {name: int((~group[column]).sum()) for name, column in (
+            ('missing_storeys', 'storey_input_available'), ('missing_age_input', 'age_input_available'),
+            ('missing_condition_proxy', 'condition_input_available'))}
+        records.append(dict(district_id=ident, typ=typ, selection_pool='F/G' if typ in {'F', 'G'} else typ,
+            buildings=len(group), has_residential_evidence=bool(has_residential),
+            unknown_uses=int(group.use_group.fillna('unknown').eq('unknown').sum()), unsupported_uses=unsupported,
+            **missing, supported_use_pct=coverage[0], storey_coverage_pct=coverage[1],
+            age_input_coverage_pct=coverage[2], condition_coverage_pct=coverage[3],
+            joint_input_coverage_pct=100 * group.all_four_inputs_available.mean(),
+            minimum_coverage_pct=min(coverage),
+            utility_function_count=int(group.function_codes.fillna('').str.contains(r'31001_25\d\d').sum()),
+            geometry_review_count=int(group.match_status.eq('review').sum()),
+            main_use_conflict_count=int(use_conflicts.loc[group.index].sum()),
+            storey_conflict_count=int(storey_conflicts.loc[group.index].sum()),
+            unaccepted_nrw_input_count=unsafe, eligible_for_review=not reasons,
+            exclusion_reason=';'.join(reasons),
+            all_inputs_available=bool(group.all_four_inputs_available.all()),
+            unresolved_refurbishment_count=len(group), simulation_ready=False,
+            review_status='refurbishment_mapping_required' if not reasons else 'excluded'))
+    ranked = pd.DataFrame(records).sort_values(
+        ['eligible_for_review', 'joint_input_coverage_pct', 'minimum_coverage_pct',
+         'utility_function_count', 'district_id'], ascending=[False, False, False, True, True])
+    shortlisted = ranked[ranked.eligible_for_review].groupby('selection_pool', sort=False).head(10).copy()
+    shortlisted['selection_rank'] = shortlisted.groupby('selection_pool').cumcount() + 1
+    summary = []
+    for pool in ['A', 'B', 'C', 'D', 'E', 'F/G', 'H', 'I']:
+        candidates = ranked[ranked.selection_pool.eq(pool)]
+        selected = shortlisted[shortlisted.selection_pool.eq(pool)]
+        summary.append(dict(selection_pool=pool, candidates=len(candidates),
+            eligible_for_review=int(candidates.eligible_for_review.sum()), shortlisted=len(selected),
+            input_complete_available=int((candidates.eligible_for_review & candidates.all_inputs_available).sum()),
+            shortlisted_input_complete=int(selected.all_inputs_available.sum()),
+            buildings=int(selected.buildings.sum()), unknown_uses=int(selected.unknown_uses.sum()),
+            missing_storeys=int(selected.missing_storeys.sum()), missing_age_input=int(selected.missing_age_input.sum()),
+            missing_condition_proxy=int(selected.missing_condition_proxy.sum()), simulation_ready=0))
+    output.mkdir(parents=True, exist_ok=True)
+    ranked.to_csv(output / 'real_district_review_ranking.csv', index=False)
+    shortlisted.to_csv(output / 'ten_per_pool_review_shortlist.csv', index=False)
+    ranked[~ranked.eligible_for_review].to_csv(output / 'excluded_real_districts.csv', index=False)
+    pd.DataFrame(summary).to_csv(output / 'real_district_selection_summary.csv', index=False)
+    selected_evidence = evidence[evidence.district_id.isin(shortlisted.district_id)]
+    selected_evidence.to_csv(output / 'real_district_building_inputs.csv', index=False)
+    selected_evidence[~selected_evidence.all_four_inputs_available
+                      | use_conflicts.loc[selected_evidence.index]
+                      | storey_conflicts.loc[selected_evidence.index]
+                      | selected_evidence.match_status.eq('review')].to_csv(
+                          output / 'shortlist_remaining_building_gaps.csv', index=False)
+    selected_evidence[['district_id', 'osm_key', 'use_group', 'nrb_category', 'modelled_age_class',
+                       'nrw_efficiency_class', 'refurbishment_state', 'refurbishment_states_to_assess',
+                       'refurbishment_mapping_status']].to_csv(output / 'refurbishment_mapping_review.csv', index=False)
+    pd.DataFrame([dict(nrw_age_class=code, year_min=span[0], year_max=span[1])
+                  for code, span in age_classes.items()]).to_csv(output / 'nrw_age_class_ranges.csv', index=False)
+    envelope_hashes = refurbishment_u_value_reference(output)
+    if any(sha(Path(path)) != digest for path, digest in {**hashes, **envelope_hashes}.items()):
+        raise RuntimeError('Selection source evidence changed during ranking.')
+    (output / 'real_district_selection_manifest.json').write_text(json.dumps(dict(
+        source_hashes=hashes, envelope_source_hashes=envelope_hashes, script_sha256=sha(Path(__file__)),
+        required_inputs=['supported_use', 'storeys', 'age_class_or_year', 'condition_code'],
+        excluded_uses='Any known non-residential or mixed use without a supported NRB subtype.',
+        source_priority='Explicit OSM evidence, then accepted NRW gap fills.',
+        ranking=['joint_four_input_coverage_desc', 'minimum_four_input_coverage_desc',
+                 'utility_flags_asc', 'district_id_asc'], source_conflicts_used_for_ranking=False,
+        refurbishment_mapping='Unresolved: published NRW efficiency classes do not identify component U-values.',
+        suitability_not_yet_validated=True), indent=2), encoding='utf-8')
+    return ranked, shortlisted, pd.DataFrame(summary)
+
+
 def compare_full_enriched(reference, output, source_cache, parameters):
     """Compare memberships rather than IDs and shortlist ten review cases per pool."""
     old_metrics = pd.read_csv(reference / 'candidate_metrics.csv').set_index('district_id')
@@ -4364,46 +4542,7 @@ def compare_full_enriched(reference, output, source_cache, parameters):
     joined['supported_use'] = joined.use_group.ne('unknown') & joined.nrb_category.fillna('').ne('OTHER_NRB')
     joined['missing_use_or_archetype'] = ~joined.supported_use
     joined.to_csv(output / 'member_input_evidence.csv', index=False)
-    uses = pd.read_csv(output / 'osm_use_counts_by_district.csv').set_index('district_id')
-    ranking = []
-    for ident, group in joined.groupby('district_id'):
-        use = uses.loc[ident]
-        total = len(group)
-        known = total - int(use.unknown_building_split_count)
-        supported = known - int(use.nrb_OTHER_NRB_building_count)
-        has_residential = int(use.residential_building_split_count + use.mixed_building_split_count) > 0
-        utility = int(group.function_codes.fillna('').str.contains(r'31001_25\d\d').sum())
-        ranking.append(dict(district_id=ident, typ=metrics.loc[ident, 'typ'],
-                            selection_pool=('F/G' if metrics.loc[ident, 'typ'] in {'F', 'G'} else metrics.loc[ident, 'typ']),
-                            buildings=total, has_residential_evidence=has_residential,
-                            unknown_uses=total-known, unsupported_uses=known-supported,
-                            missing_storeys=int(group.effective_storeys.isna().sum()),
-                            observed_storeys_count=int(group.observed_storeys.notna().sum()),
-                            missing_age_input=int((~group.age_input_available).sum()),
-                            osm_year_evidence_count=int(group.osm_year_evidence.notna().sum()),
-                            missing_condition_proxy=int((~pd.to_numeric(group.modelled_condition, errors='coerce').between(1, 9)).sum()),
-                            geometry_review_count=int(group.match_status.eq('review').sum()),
-                            storey_conflict_count=int(group.storey_conflict.sum()),
-                            main_use_conflict_count=int(group.main_use_conflict.sum()),
-                            utility_function_count=utility,
-                            supported_use_pct=100*supported/total,
-                            joint_input_coverage_pct=100*(group.supported_use & group.effective_storeys.notna() & group.age_input_available).mean(),
-                            storey_coverage_pct=100*group.effective_storeys.notna().mean(),
-                            age_input_coverage_pct=100*group.age_input_available.mean(),
-                            review_status='review_required_not_simulation_ready'))
-    ranked = pd.DataFrame(ranking)
-    ranked['minimum_coverage_pct'] = ranked[['supported_use_pct', 'storey_coverage_pct', 'age_input_coverage_pct']].min(axis=1)
-    ranked = ranked.sort_values(['has_residential_evidence', 'joint_input_coverage_pct', 'minimum_coverage_pct', 'utility_function_count',
-                                 'geometry_review_count', 'main_use_conflict_count', 'storey_conflict_count', 'unknown_uses', 'district_id'],
-                                ascending=[False, False, False, True, True, True, True, True, True])
-    ranked.to_csv(output / 'real_district_review_ranking.csv', index=False)
-    shortlisted = ranked[ranked.selection_pool.ne('UNCLASSIFIED') & ranked.has_residential_evidence].groupby(
-        'selection_pool', sort=False).head(10)
-    shortlisted.to_csv(output / 'ten_per_pool_review_shortlist.csv', index=False)
-    joined[joined.district_id.isin(shortlisted.district_id) & (
-        joined.missing_use_or_archetype | joined.effective_storeys.isna() | ~joined.age_input_available
-        | joined.storey_conflict | joined.main_use_conflict
-    )].to_csv(output / 'shortlist_remaining_building_gaps.csv', index=False)
+    _, shortlisted, _ = select_real_districts(output, output)
     retained_sets = set(new_sets.values())
     summary = dict(reference_candidates=len(old_sets), enriched_candidates=len(new_sets),
                    exact_memberships=int(comparison.exact_membership.sum()),
@@ -4436,6 +4575,440 @@ def finish_use_workflow(analysis, use_results, args):
     print(f'Exported parameters: {exported}\nUpdated documentation: {documentation}\nHTML: {html}', flush=True)
 
 
+def investigate_evaluation_matches(evaluation, source_cache, nrw, output):
+    """Export local spatial evidence without accepting or changing a match."""
+    import pyogrio
+    from pyproj import Transformer
+
+    gaps_path = evaluation / 'provenance/input_baseline/building_gap_review.csv'
+    if not gaps_path.exists():
+        gaps_path = evaluation / 'building_gap_review.csv'
+    gaps = pd.read_csv(gaps_path)
+    gaps = gaps[gaps.review_category.ne('Composite-building source records')]
+    wanted = set(gaps.osm_key)
+    ways, nodes = {}, {}
+    files = sorted((source_cache / 'http_cache').glob('*.json'))
+
+    def retain_ways(obj):
+        if obj.get('type') in {'way', 'node', 'relation'} and 'id' in obj:
+            key = f"{obj['type']}/{obj['id']}"
+            if key in wanted:
+                ways[key] = obj
+            return None
+        return obj
+
+    for path in files:
+        with path.open(encoding='utf-8') as stream:
+            json.load(stream, object_hook=retain_ways)
+    if set(ways) != wanted:
+        raise ValueError('Missing evaluation footprints in the saved OSM source.')
+    needed = {node for way in ways.values() for node in way['nodes']}
+
+    def retain_nodes(obj):
+        if obj.get('type') in {'way', 'node', 'relation'} and 'id' in obj:
+            if obj['type'] == 'node' and obj['id'] in needed:
+                nodes[obj['id']] = (obj['lon'], obj['lat'])
+            return None
+        return obj
+
+    for path in files:
+        with path.open(encoding='utf-8') as stream:
+            json.load(stream, object_hook=retain_nodes)
+    transform = Transformer.from_crs(4326, 25832, always_xy=True)
+    footprints = {key: Polygon([transform.transform(*nodes[n]) for n in way['nodes']])
+                  for key, way in ways.items()}
+    mask = unary_union([geom.buffer(10) for geom in footprints.values()])
+    frames = []
+    columns = ['Fest_ID', 'Nutzung', 'beheizt', 'STKW', 'GEBAEUDETY', 'sanierungs',
+               'Strasse', 'HAUSNR', 'HAUSNR_Zus', 'Gemeinde', 'citygml_fu', 'GML_ID']
+    for package in sorted(nrw.glob('KWP-NRW_*_EPSG25832_Shape.zip')):
+        with zipfile.ZipFile(package) as archive:
+            layer = next(name for name in archive.namelist()
+                         if name.startswith('WBM-NRW_') and name.endswith('.shp'))
+        frame = pyogrio.read_dataframe(f'/vsizip/{package.as_posix()}/{layer}', mask=mask,
+                                      columns=columns)
+        frame.columns = frame.columns.str.lower()
+        frame['source_package'] = package.name
+        frames.append(frame)
+    official = gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), crs=25832)
+    rows = []
+    for gap in gaps.itertuples():
+        geom = footprints[gap.osm_key]
+        nearby = official[official.geometry.intersects(geom.buffer(10))]
+        for part in nearby.itertuples():
+            intersection = geom.intersection(part.geometry).area
+            if intersection < 0.01 and geom.distance(part.geometry) > 2:
+                continue
+            row = {c: getattr(part, c) for c in official.columns if c != 'geometry'}
+            row.update(district_id=gap.district_id, osm_key=gap.osm_key,
+                       osm_address=gap.address, osm_area_m2=geom.area,
+                       intersection_m2=intersection, osm_covered_pct=100 * intersection / geom.area,
+                       nrw_covered_pct=100 * intersection / part.geometry.area,
+                       nrw_area_m2=part.geometry.area, distance_m=geom.distance(part.geometry),
+                       geometry_wkt=part.geometry.wkt)
+            rows.append(row)
+    pd.DataFrame(rows).sort_values(['osm_key', 'intersection_m2'], ascending=[True, False]).to_csv(
+        output / 'spatial_candidates.csv', index=False)
+    pd.DataFrame([dict(district_id=row.district_id, osm_key=row.osm_key,
+                       geometry_wkt=footprints[row.osm_key].wkt,
+                       tags=json.dumps(ways[row.osm_key].get('tags', {}), ensure_ascii=True))
+                  for row in gaps.itertuples()]).to_csv(output / 'review_footprints.csv', index=False)
+    (output / 'spatial_review_manifest.json').write_text(json.dumps(dict(
+        evidence_only=True, automatic_acceptance=False,
+        sources={str(path): sha(path) for path in files + [gaps_path]},
+        footprint_count=len(footprints), candidate_records=len(rows)), indent=2), encoding='utf-8')
+    print(f'Spatial evidence exported for {len(footprints)} footprints: {output}', flush=True)
+
+
+def apply_evaluation_decisions(evaluation):
+    """Apply reviewed allocations to evaluation units, preserving source records."""
+    baseline = evaluation / 'provenance/input_baseline'
+    baseline.mkdir(parents=True, exist_ok=True)
+    for name in ['evaluation_buildings.csv', 'candidate_summary.csv', 'source_manifest.json',
+                 'building_gap_review.csv', 'building_gap_review.html', 'evaluation_exclusions.csv']:
+        if not (baseline / name).exists():
+            shutil.copy2(evaluation / name, baseline / name)
+    buildings = pd.read_csv(baseline / 'evaluation_buildings.csv', low_memory=False)
+    decisions_path = evaluation / 'composite_review/use_allocation_decisions.json'
+    decisions = json.loads(decisions_path.read_text(encoding='utf-8'))
+    allocation = {d['osm_key']: d for d in decisions['decisions']}
+    if len(allocation) != len(decisions['decisions']):
+        raise ValueError('Duplicate allocation decisions.')
+    mixed_rule = decisions.get('mixed_use_floor_rule', {})
+    for key in mixed_rule.get('approved_osm_keys', []):
+        allocation[key] = {**allocation.get(key, {}),
+                           'business_storeys': mixed_rule['business_storeys'],
+                           'remaining_review': ''}
+    if not set(allocation).issubset(set(buildings.osm_key)):
+        raise ValueError('Allocation decision refers to a building outside the source evaluation set.')
+    whole_exclusions = pd.read_csv(baseline / 'evaluation_exclusions.csv').to_dict('records')
+    excluded_keys = {key for key, decision in allocation.items() if decision.get('exclude_entire_building')}
+    for key in sorted(excluded_keys):
+        decision = allocation[key]
+        whole_exclusions.append(dict(district_id=decision['district_id'], osm_key=key,
+                                     nrw_use='', reason=decision['reason']))
+    buildings = buildings[~buildings.osm_key.isin(excluded_keys)].copy()
+    parts_path = evaluation / 'composite_review/part_assessment.csv'
+    parts = pd.read_csv(parts_path)
+    matching_path = evaluation / 'matching_review/review_decisions.json'
+    matching = json.loads(matching_path.read_text(encoding='utf-8'))
+    candidates_path = evaluation / 'matching_review/spatial_candidates.csv'
+    candidates = pd.read_csv(candidates_path)
+    matching_by_key = {d['osm_key']: d for d in matching['decisions']}
+    unit_rows, exclusions, reviews, geometry_overrides = [], [], [], []
+
+    def truth(value):
+        return str(value).lower() in {'true', '1', '1.0'}
+
+    age_codes = {1900, 1945, 1960, 1970, 1980, 1985, 1995, 2000, 2005, 2010, 2015, 2022}
+    for _, building in buildings.iterrows():
+        key = building.osm_key
+        local = parts[parts.osm_key.eq(key)]
+        decision = allocation.get(key, {})
+        review = matching_by_key.get(key, {})
+        if decision.get('geometry_part_ids'):
+            selected = candidates[candidates.osm_key.eq(key)
+                                  & candidates.fest_id.isin(decision['geometry_part_ids'])]
+            if not local.empty or len(selected) != len(decision['geometry_part_ids']):
+                raise ValueError(f'Missing or conflicting approved geometry parts: {key}.')
+            local_rows = []
+            for part in selected.itertuples():
+                heated = truth(part.beheizt)
+                if heated and (part.nutzung != 'Wohnhaus' or part.stkw <= 0):
+                    raise ValueError(f'Expected a residential part with usable storeys: {key}/{part.fest_id}.')
+                age_match = re.search(r'_(\d{4})$', str(part.gebaeudety))
+                local_rows.append(dict(part_id=int(part.fest_id), source_use=part.nutzung,
+                    use_group='RESIDENTIAL' if heated else 'UNHEATED', heated=heated,
+                    storeys=part.stkw, footprint_m2=part.nrw_area_m2,
+                    nrw_age_class=int(age_match[1]) if age_match else np.nan,
+                    nrw_condition_code=part.sanierungs, proposed_group=1))
+                geometry_overrides.append(dict(district_id=building.district_id, osm_key=key,
+                    nrw_part_id=int(part.fest_id), geometry_wkt=part.geometry_wkt,
+                    crs='EPSG:25832', source_package=part.source_package,
+                    included=heated and int(part.fest_id) not in decision.get('excluded_nrw_part_ids', []),
+                    basis=decision['area_method']))
+            local = pd.DataFrame(local_rows)
+        review_note = decision.get('remaining_review', review.get('remaining_review', ''))
+        if review_note:
+            reviews.append(dict(district_id=building.district_id, osm_key=key, issue=review_note))
+        if local.empty:
+            source = building.copy()
+            selected = candidates[candidates.osm_key.eq(key)
+                                  & candidates.fest_id.isin(review.get('attribute_part_ids', []))]
+            if review.get('attribute_part_ids') and len(selected) != len(review['attribute_part_ids']):
+                raise ValueError(f'Missing reviewed NRW parts for {key}.')
+            for field in review.get('apply_fields', []):
+                column = {'age': 'gebaeudety', 'condition': 'sanierungs', 'storeys': 'stkw'}[field]
+                values = selected[column].dropna().unique()
+                if field == 'age':
+                    values = {int(str(v).rsplit('_', 1)[1]) for v in values}
+                if len(values) != 1:
+                    raise ValueError(f'Conflicting {field} attributes in reviewed parts for {key}.')
+                value = next(iter(values))
+                if field == 'age' and pd.isna(source.osm_year_evidence):
+                    source['modelled_age_class'] = value
+                    source['age_input_available'] = value in age_codes
+                elif field == 'condition':
+                    source['modelled_condition'] = value
+                    source['condition_input_available'] = value in range(1, 10)
+                elif field == 'storeys' and pd.isna(source.observed_storeys):
+                    source['effective_storeys'] = value
+                    source['storey_input_available'] = value > 0
+            if review.get('year_min'):
+                source['age_input_available'] = True
+            if 'storeys_override' in decision:
+                count = float(decision['storeys_override'])
+                if not math.isfinite(count) or count <= 0:
+                    raise ValueError(f'Invalid approved floor count: {key}.')
+                source['effective_storeys'] = count
+                source['storey_input_available'] = True
+            use = ('MIXED_UNALLOCATED' if source.use_group == 'mixed' else
+                   'RESIDENTIAL' if source.use_group == 'residential' else
+                   source.nrb_category if truth(source.supported_use) else 'UNRESOLVED')
+            if decision.get('use_override'):
+                use = decision['use_override']
+                if use not in {'RESIDENTIAL', *MODEL_CATEGORIES}:
+                    raise ValueError(f'Unsupported approved use: {key}.')
+                source['supported_use'] = True
+            business_storeys = decision.get('business_storeys')
+            if business_storeys is not None:
+                if (source.use_group != 'mixed' or source.nrb_category not in MODEL_CATEGORIES
+                        or not math.isfinite(source.effective_storeys)
+                        or not 0 < business_storeys <= source.effective_storeys):
+                    raise ValueError(f'Invalid approved mixed-use floor allocation: {key}.')
+                use = source.nrb_category
+            if use == 'MIXED_UNALLOCATED' and not review_note:
+                reviews.append(dict(district_id=source.district_id, osm_key=key,
+                    issue=f'Known mixed use ({source.nrb_category}); residential/business floor allocation is not approved.'))
+            unit = dict(district_id=source.district_id, osm_key=key, unit_id=key,
+                simulation_group=key, nrw_part_id=np.nan, use=use,
+                footprint_m2=source.footprint_m2, allocated_storeys=source.effective_storeys,
+                gross_floor_proxy_m2=source.footprint_m2 * source.effective_storeys,
+                modelled_age_class=source.modelled_age_class,
+                observed_year=source.osm_year_evidence,
+                year_min=review.get('year_min'), year_max=review.get('year_max'),
+                condition_code=source.modelled_condition,
+                supported_use=truth(source.supported_use),
+                storey_input_available=truth(source.storey_input_available),
+                age_input_available=truth(source.age_input_available),
+                condition_input_available=truth(source.condition_input_available),
+                allocation_input_available=use != 'MIXED_UNALLOCATED',
+                known_nonres_archetype=source.nrb_category,
+                use_basis='user_assumption' if decision.get('use_override') else source.use_source,
+                attribute_basis=decision.get('area_method', review.get('basis', 'source_evidence')),
+                evidence_url=review.get('evidence_url', ''), physical_building_id=key)
+            if business_storeys is None:
+                unit_rows.append(unit)
+            else:
+                for portion_use, count in [(use, business_storeys),
+                                           ('RESIDENTIAL', source.effective_storeys - business_storeys)]:
+                    if count > 0:
+                        unit_rows.append({**unit, 'unit_id': f'{key}/{portion_use}',
+                            'simulation_group': f'{key}/{portion_use}', 'use': portion_use,
+                            'allocated_storeys': count,
+                            'gross_floor_proxy_m2': source.footprint_m2 * count,
+                            'allocation_input_available': True,
+                            'use_basis': 'user_assumption_one_business_floor',
+                            'known_nonres_archetype': portion_use if portion_use in MODEL_CATEGORIES else ''})
+            continue
+        retained_ids = set(local.part_id.astype(int))
+        excluded_ids = set(decision.get('excluded_nrw_part_ids', []))
+        explicit = {int(p['nrw_part_id']): p for p in decision.get('parts', [])}
+        if not (excluded_ids | set(explicit)).issubset(retained_ids):
+            raise ValueError(f'Allocation references an absent NRW part: {key}.')
+        for part in local.itertuples():
+            pid = int(part.part_id)
+            if pid in excluded_ids or not truth(part.heated):
+                exclusions.append(dict(district_id=building.district_id, osm_key=key,
+                    nrw_part_id=pid, source_use=part.source_use,
+                    footprint_m2=part.footprint_m2,
+                    reason='user_exclusion' if pid in excluded_ids else 'NRW_unheated'))
+                continue
+            split = explicit.get(pid)
+            portions = None
+            if split:
+                portions = [('OB', split.get('office_storeys', split.get('commercial_storeys', 0))),
+                            ('RESIDENTIAL', split['residential_storeys'])]
+                if split.get('commercial_storeys') and decision.get('non_residential_archetype') != 'OB':
+                    raise ValueError(f'Unresolved commercial archetype: {key}.')
+            elif 'office_storeys_per_part' in decision:
+                count = decision['office_storeys_per_part']
+                portions = [('OB', count), ('RESIDENTIAL', part.storeys - count)]
+            elif pid == decision.get('nrw_part_id'):
+                portions = [(p['use'], p['storeys']) for p in decision['allocations']]
+            if portions is None:
+                portions = [(part.use_group, part.storeys)]
+            if any(n < 0 for _, n in portions) or not math.isclose(sum(n for _, n in portions), part.storeys):
+                raise ValueError(f'Allocated floors do not conserve source storeys: {key}/{pid}.')
+            for use, count in portions:
+                if count == 0:
+                    continue
+                unit_rows.append(dict(district_id=building.district_id, osm_key=key,
+                    unit_id=f'{key}/{pid}/{use}',
+                    simulation_group=f'{key}/group{part.proposed_group}/{use}',
+                    nrw_part_id=pid, use=use, footprint_m2=part.footprint_m2,
+                    allocated_storeys=count, gross_floor_proxy_m2=part.footprint_m2 * count,
+                    modelled_age_class=part.nrw_age_class, observed_year=np.nan,
+                    condition_code=part.nrw_condition_code,
+                    supported_use=use in {'RESIDENTIAL', *MODEL_CATEGORIES},
+                    storey_input_available=count > 0,
+                    age_input_available=part.nrw_age_class in age_codes,
+                    condition_input_available=part.nrw_condition_code in range(1, 10),
+                    allocation_input_available=True, known_nonres_archetype=use if use in MODEL_CATEGORIES else '',
+                    use_basis='user_assumption' if portions != [(part.use_group, part.storeys)] else 'NRW_part',
+                    attribute_basis='reviewed_composite_parts', physical_building_id=key))
+    units = pd.DataFrame(unit_rows)
+    if units.unit_id.duplicated().any() or set(units.osm_key) != set(buildings.osm_key):
+        raise ValueError('Evaluation units must uniquely cover all retained physical buildings.')
+    flags = ['supported_use', 'storey_input_available', 'age_input_available', 'condition_input_available']
+    units['all_four_inputs_available'] = units[flags].all(axis=1)
+    age_ranges = {1900: (None, 1899), 1945: (1900, 1945), 1960: (1946, 1960),
+                  1970: (1961, 1970), 1980: (1971, 1980), 1985: (1981, 1985),
+                  1995: (1986, 1995), 2000: (1996, 2000), 2005: (2001, 2005),
+                  2010: (2006, 2010), 2015: (2011, 2015), 2022: (2016, None)}
+    for index, unit in units.iterrows():
+        if pd.notna(unit.observed_year):
+            low = high = unit.observed_year
+            basis = 'explicit_OSM_year'
+        elif pd.notna(unit.year_min):
+            low, high = unit.year_min, unit.year_max
+            basis = 'building_specific_public_evidence'
+        else:
+            low, high = age_ranges.get(unit.modelled_age_class, (None, None))
+            basis = 'NRW_modelled_age_class' if unit.modelled_age_class in age_ranges else 'unresolved'
+        units.loc[index, 'effective_year_min'] = low
+        units.loc[index, 'effective_year_max'] = high
+        units.loc[index, 'age_basis'] = basis
+    for key, decision in allocation.items():
+        if decision.get('age_method') != 'district_mean':
+            continue
+        target = units.osm_key.eq(key)
+        peers = units[units.district_id.eq(decision['district_id']) & ~target].copy()
+        bounded = peers.groupby('osm_key')[['effective_year_min', 'effective_year_max']].apply(
+            lambda group: group.notna().all().all())
+        peers = peers[peers.osm_key.isin(bounded[bounded].index)]
+        peers['representative_year'] = (peers.effective_year_min + peers.effective_year_max) / 2
+        donor_years = peers.groupby('osm_key').representative_year.mean()
+        if donor_years.empty:
+            raise ValueError(f'No bounded district age evidence for {key}.')
+        mean_year = float(donor_years.mean())
+        year = int(round(mean_year))
+        units.loc[target, ['effective_year_min', 'effective_year_max']] = year
+        units.loc[target, 'age_input_available'] = True
+        units.loc[target, 'age_basis'] = 'user_district_mean_of_age_range_midpoints'
+        units.loc[target, 'age_mean_unrounded'] = mean_year
+        units.loc[target, 'age_donor_buildings'] = ';'.join(donor_years.index)
+        units.loc[target, 'age_donor_count'] = len(donor_years)
+        units.loc[target, 'age_donors_excluded_unbounded'] = int((~bounded).sum())
+    units['all_four_inputs_available'] = units[flags].all(axis=1)
+    units['refurbishment_state'] = pd.NA
+    units['nrw_efficiency_class'] = units.condition_code.map(dict(enumerate(
+        ['A+', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], 1)))
+    units['refurbishment_mapping_status'] = np.where(
+        units.age_input_available & units.condition_input_available,
+        'unresolved_efficiency_class_not_envelope_state', 'missing_age_or_condition')
+    units['refurbishment_states_to_assess'] = np.where(
+        units.age_input_available & units.condition_input_available, '0;1;2', '')
+    units['simulation_ready'] = False
+    units['shared_building_envelope_required'] = units.groupby('osm_key').simulation_group.transform('nunique').gt(1)
+    groups = []
+    for ident, group in units.groupby('simulation_group', sort=True):
+        first = group.iloc[0]
+        groups.append(dict(simulation_group=ident, physical_building_id=first.osm_key,
+            district_id=first.district_id, use=first.use, constituent_units=len(group),
+            gross_floor_proxy_m2=group.gross_floor_proxy_m2.sum(min_count=1),
+            all_four_inputs_available=bool(group.all_four_inputs_available.all()),
+            allocation_input_available=bool(group.allocation_input_available.all()),
+            source_part_ids=';'.join(str(int(x)) for x in group.nrw_part_id.dropna()),
+            shared_building_envelope_required=bool(group.shared_building_envelope_required.any()),
+            simulation_ready=False))
+    reviewed = buildings.copy()
+    for index, building in reviewed.iterrows():
+        group = units[units.osm_key.eq(building.osm_key)]
+        for column in flags + ['all_four_inputs_available']:
+            reviewed.loc[index, column] = bool(group[column].all())
+        reviewed.loc[index, 'missing_use_or_archetype'] = not group.supported_use.all()
+        reviewed.loc[index, 'gross_floor_proxy_m2'] = group.gross_floor_proxy_m2.sum(min_count=1)
+        reviewed.loc[index, 'evaluation_unit_count'] = len(group)
+        reviewed.loc[index, 'additional_review_required'] = building.osm_key in {r['osm_key'] for r in reviews}
+        reviewed.loc[index, 'evaluation_area_basis'] = 'evaluation_units.csv'
+        reviewed.loc[index, 'evaluation_uses'] = ';'.join(sorted(group.use.unique()))
+        reviewed.loc[index, 'allocation_input_available'] = bool(group.allocation_input_available.all())
+        if group.nrw_part_id.notna().all():
+            reviewed.loc[index, 'evaluation_footprint_m2'] = group.drop_duplicates('nrw_part_id').footprint_m2.sum()
+        else:
+            reviewed.loc[index, 'evaluation_footprint_m2'] = building.footprint_m2
+    summary = pd.read_csv(baseline / 'candidate_summary.csv')[['selection_pool', 'rank_within_type', 'district_id']]
+    records = []
+    for row in summary.itertuples():
+        members = reviewed[reviewed.district_id.eq(row.district_id)]
+        subset = units[units.district_id.eq(row.district_id)]
+        records.append(dict(selection_pool=row.selection_pool, rank_within_type=row.rank_within_type,
+            district_id=row.district_id, buildings=len(members), evaluation_units=len(subset),
+            buildings_with_gaps=int((~members.all_four_inputs_available.astype(bool)).sum()),
+            unknown_uses=int((~members.supported_use.astype(bool)).sum()),
+            missing_storeys=int((~members.storey_input_available.astype(bool)).sum()),
+            missing_age_input=int((~members.age_input_available.astype(bool)).sum()),
+            missing_condition_proxy=int((~members.condition_input_available.astype(bool)).sum()),
+            additional_review_buildings=int(members.additional_review_required.astype(bool).sum()),
+            unallocated_mixed_buildings=int((~members.allocation_input_available.astype(bool)).sum()),
+            joint_input_coverage_pct=100 * members.all_four_inputs_available.astype(bool).mean(),
+            unresolved_refurbishment_units=len(subset), simulation_ready=False))
+    units.to_csv(evaluation / 'evaluation_units.csv', index=False)
+    pd.DataFrame(groups).to_csv(evaluation / 'evaluation_simulation_groups.csv', index=False)
+    units[['district_id', 'osm_key', 'unit_id', 'use', 'effective_year_min', 'effective_year_max',
+           'age_basis', 'condition_code', 'nrw_efficiency_class', 'refurbishment_state',
+           'refurbishment_states_to_assess', 'refurbishment_mapping_status']].to_csv(
+               evaluation / 'refurbishment_review.csv', index=False)
+    reviewed.to_csv(evaluation / 'evaluation_buildings.csv', index=False)
+    pd.DataFrame(whole_exclusions).to_csv(evaluation / 'evaluation_exclusions.csv', index=False)
+    pd.DataFrame(exclusions).to_csv(evaluation / 'excluded_parts.csv', index=False)
+    pd.DataFrame(geometry_overrides).to_csv(evaluation / 'evaluation_geometry_overrides.csv', index=False)
+    review_frame = pd.DataFrame(reviews, columns=['district_id', 'osm_key', 'issue'])
+    review_frame.to_csv(evaluation / 'additional_evidence_review.csv', index=False)
+    pd.DataFrame(records).to_csv(evaluation / 'candidate_summary.csv', index=False)
+    reviewed[~reviewed.all_four_inputs_available.astype(bool)].to_csv(evaluation / 'remaining_input_gaps.csv', index=False)
+    current_gaps = reviewed[~reviewed.all_four_inputs_available.astype(bool)
+                           | reviewed.additional_review_required.astype(bool)].copy()
+    issues = review_frame.groupby('osm_key').issue.agg('; '.join)
+    current_gaps['review_issue'] = current_gaps.osm_key.map(issues)
+    current_gaps.to_csv(evaluation / 'building_gap_review.csv', index=False)
+    display = current_gaps[['district_id', 'osm_key', *flags, 'allocation_input_available', 'review_issue']]
+    (evaluation / 'building_gap_review.html').write_text(
+        '<!doctype html><meta charset="utf-8"><title>Real district input review</title>'
+        '<h1>Real district input review</h1><p>Approved allocations are applied. '
+        'Four-input coverage does not imply a verified refurbishment state or simulation readiness.</p>'
+        + display.to_html(index=False, escape=True), encoding='utf-8')
+    manifest = json.loads((baseline / 'source_manifest.json').read_text(encoding='utf-8'))
+    manifest.pop('current_report', None)
+    manifest.pop('gap_building_categories', None)
+    manifest.update(gap_buildings=len(current_gaps), members=len(reviewed),
+        evaluation_exclusions=whole_exclusions,
+        gap_counts={name: int((~reviewed[column].astype(bool)).sum()) for name, column in
+                    [('missing_use', 'supported_use'), ('missing_storeys', 'storey_input_available'),
+                     ('missing_age', 'age_input_available'), ('missing_condition_code', 'condition_input_available'),
+                     ('missing_mixed_allocation', 'allocation_input_available')]},
+        current_completeness_table='candidate_summary.csv', unit_inputs='evaluation_units.csv',
+        current_gap_table='building_gap_review.csv', source_baseline='provenance/input_baseline',
+        source_records_modified=False, refurbishment_mapping='Unresolved',
+        evaluation_file_hashes={name: sha(evaluation / name) for name in
+                               ['evaluation_buildings.csv', 'evaluation_units.csv', 'candidate_summary.csv']})
+    (evaluation / 'source_manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
+    sources = [baseline / 'evaluation_buildings.csv', decisions_path, parts_path, matching_path, candidates_path]
+    (evaluation / 'evaluation_preparation_manifest.json').write_text(json.dumps(dict(
+        source_hashes={str(p): sha(p) for p in sources}, script_sha256=sha(Path(__file__)),
+        physical_buildings=len(reviewed), evaluation_units=len(units),
+        excluded_parts=len(exclusions), source_records_modified=False,
+        source_attributes_retained_in='provenance/input_baseline/evaluation_buildings.csv',
+        unit_input_authority='evaluation_units.csv',
+        unit_area_rule='Full source-part footprint times allocated storeys for composites; OSM footprint for single footprints.',
+        no_extra_network_connections=True, envelope_handling_required_before_profiles=True,
+        profiles_generated=False, refurbishment_mapping='unresolved',
+        output_hashes={p.name: sha(p) for p in [evaluation / 'evaluation_units.csv', evaluation / 'evaluation_buildings.csv', evaluation / 'candidate_summary.csv']}
+        ), indent=2), encoding='utf-8')
+    print(pd.DataFrame(records).to_string(index=False), flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--download', action='store_true',
@@ -4462,6 +5035,12 @@ def main():
                         help='Completed analysis folder whose district memberships will be reused for building-use calculations, without forming districts again.')
     parser.add_argument('--audit-inputs', type=Path,
                         help='Read-only input-completeness check of a saved analysis; bypass parameter/documentation exports.')
+    parser.add_argument('--select-real-districts', type=Path,
+                        help='Analysis folder with building evidence to shortlist real districts; requires an unused --output folder. Does not generate profiles or change parameters.')
+    parser.add_argument('--review-real-evaluation', type=Path,
+                        help='Evaluation folder whose unresolved spatial matches are inspected; requires --enrich-nrw and a new --output.')
+    parser.add_argument('--apply-evaluation-decisions', type=Path,
+                        help='Evaluation folder with reviewed allocations and matching decisions; updates evaluation tables only, preserving a source baseline.')
     parser.add_argument('--enrich-nrw', type=Path, help='Folder of downloaded NRW building packages for the optional completeness assessment; requires --audit-inputs and --input-audit.')
     parser.add_argument('--input-audit', type=Path, help='Folder containing saved building- and district-completeness tables to supplement with NRW evidence; input tables are not overwritten.')
     parser.add_argument('--reassess-enriched', type=Path, help='Folder containing matched building evidence for scoring fixed district memberships; requires --reuse-analysis and --enrich-nrw.')
@@ -4472,6 +5051,30 @@ def main():
     parser.add_argument('--verify-parameters', type=Path, help='Require exported cell values to match this workbook.')
     parser.add_argument('--documentation', type=Path, default=ROOT/'docs/aachen_osm_street_cluster_method_results.md')
     args = parser.parse_args()
+    if args.review_real_evaluation or args.apply_evaluation_decisions:
+        if sum(bool(x) for x in [args.review_real_evaluation, args.apply_evaluation_decisions,
+                args.select_real_districts, args.audit_inputs, args.reuse_analysis,
+                args.precluster_nrw, args.reassess_enriched, args.download]) != 1:
+            parser.error('Choose exactly one evaluation or analysis mode.')
+        if args.review_real_evaluation:
+            if not args.enrich_nrw or args.output is None:
+                parser.error('--review-real-evaluation requires --enrich-nrw and a new --output.')
+            args.output.mkdir(parents=True, exist_ok=False)
+            investigate_evaluation_matches(args.review_real_evaluation, args.source_cache,
+                                           args.enrich_nrw, args.output)
+        else:
+            if args.enrich_nrw or args.output:
+                parser.error('--apply-evaluation-decisions updates its evaluation folder; omit --output and --enrich-nrw.')
+            apply_evaluation_decisions(args.apply_evaluation_decisions)
+        return
+    if args.select_real_districts:
+        if args.output is None or any((args.download, args.reuse_analysis, args.audit_inputs,
+                args.enrich_nrw, args.input_audit, args.reassess_enriched, args.precluster_nrw, args.reference_analysis)):
+            parser.error('--select-real-districts requires an unused --output folder and no other analysis mode.')
+        args.output.mkdir(parents=True, exist_ok=False)
+        _, _, summary = select_real_districts(args.select_real_districts, args.output)
+        print(summary.to_string(index=False), flush=True)
+        return
     if args.precluster_nrw:
         if args.output is None or not args.reference_analysis or args.download or args.reuse_analysis or args.audit_inputs or args.reassess_enriched or args.enrich_nrw or args.input_audit:
             parser.error('--precluster-nrw requires a new --output and --reference-analysis, without other audit/reuse/download modes.')

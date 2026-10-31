@@ -6,6 +6,7 @@ from random import shuffle, uniform, choice, sample
 from math import sqrt, ceil, floor, atan2
 import numpy as np
 from districtgenerator.functions.typdistrict_preprocess import params, random_with_mean
+from districtgenerator.functions.design_network_with_road import choose_energy_hub_position
 
 def compute_inner_rectangle(district_type, num_buildings, building_density, width_length_ratio, building_width, house_connection):
     """
@@ -348,53 +349,6 @@ def cleanup_unused_road_tails(road_lines, buildings, transformer_pos, house_conn
             shortened_roads.append(road)
 
     return shortened_roads
-
-def choose_energy_hub_position(road_lines, buildings=None):
-    """
-    Choose the energy hub position.
-
-    The selected road node has the highest road degree. If several nodes have
-    the same degree, the node closest to the final district geometry center is
-    used.
-    """
-    graph = nx.Graph()
-
-    def endpoint_key(point):
-        return round(point[0], 6), round(point[1], 6)
-
-    for road in road_lines:
-        start_key = endpoint_key(road.coords[0])
-        end_key = endpoint_key(road.coords[-1])
-        graph.add_edge(start_key, end_key)
-
-    if graph.number_of_nodes() == 0:
-        return (0, 0), 0
-
-    degrees = dict(graph.degree())
-    max_degree = max(degrees.values())
-    hub_candidates = [
-        node for node, degree in degrees.items()
-        if degree == max_degree
-    ]
-
-    center_geometries = list(road_lines)
-    if buildings:
-        center_geometries.extend(buildings)
-
-    xmin, ymin, xmax, ymax = unary_union(center_geometries).bounds
-    center_x = (xmin + xmax) / 2
-    center_y = (ymin + ymax) / 2
-
-    hub_node = min(
-        hub_candidates,
-        key=lambda node: (
-            (node[0] - center_x) ** 2 + (node[1] - center_y) ** 2,
-            node[1],
-            node[0],
-        ),
-    )
-
-    return hub_node, max_degree
 
 def get_edges_in_quadrant(graph, quadrant, mid_x, mid_y):
     """
