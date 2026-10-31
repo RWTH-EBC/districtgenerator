@@ -26,6 +26,8 @@ errorfile.txt
 __pycache__/
 .codex_tmp/aachen_deps/
 examples/results/aachen_osm_pilot/http_cache/
+/examples/results/
+/docs/aachen_osm_street_cluster_method_results.html
 .idea/
 
 *.egg-info/

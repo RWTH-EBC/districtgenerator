@@ -1,14 +1,11 @@
-# Automated OSM district discovery and building-use analysis for StädteRegion Aachen
-
-## How to read this document
-
-This document distinguishes the implemented procedure from methodological
-decisions that still require validation.
+# Automated district discovery and OSM/NRW building-use analysis for StädteRegion Aachen
 
 The method combines settlement morphology, building-use classification and
-generation probabilities. Explicit sports halls and fitness centres supply
-the SPORT archetype. Observed OSM use counts are reported separately from the
-generation assumption that unknown-use footprints in type A are residential.
+generation probabilities using OSM geometry and supplementary NRW building evidence.
+Explicit sports halls and fitness centres supply
+the SPORT archetype. Generation probabilities use residential, mixed-use and
+supported non-residential buildings. Unknown uses and unsupported pure
+non-residential buildings are excluded from these probabilities for all types.
 
 
 
@@ -59,56 +56,75 @@ North Rhine-Westphalia, Germany. Data are obtained through OSMnx and Overpass.
 The query retains objects carrying any of the following attributes: `building`,
 `building:use`, `building:flats`, `highway`, `shop`, `amenity`, `office`,
 `craft`, `landuse`, `leisure`, `tourism`, `healthcare`, `industrial` and
-`sport`, `man_made`, `railway` and `public_transport`. The cached source contains 389,080 OSM features. A source cache created
-without the required attributes must be refreshed to support their analysis.
+`sport`, `man_made`, `railway` and `public_transport`. The source snapshot
+records the retrieval date, query attributes and source-feature counts.
 
 All metric geometric operations are performed in ETRS89 / UTM zone 32N
 (EPSG:25832). Map outputs are transformed to WGS 84 (EPSG:4326).
 
 ### 2.2 Parameter workbook and random seed
 
-To refresh the source dataset, open `examples/refresh_aachen_osm_data.py` and
-click Run. This downloads source data only. The existing source files are copied
-to a dated `cache_backups` directory before the replacement is installed. The
-shared source directory remains `examples/results/aachen_osm_pilot_v2`, which
-ordinary quick and full analysis runs reuse without downloading again.
-`download.json` records the retrieval date, query tags, retained columns and
-nonempty tag counts. Keep this dataset fixed during method comparisons.
-Refresh only when additional source attributes or a newer OSM snapshot are
-deliberately required. The pilot's explicit `--download` option also forces a
-refresh of this shared cache, then continues with analysis.
-
-The first worksheet of `typdistrict_parameters.xlsx` supplies the minimum and
+The literature-derived parameter table supplies the minimum and
 maximum BCR, building-density and FAR values for source settlement types A–I.
-The input workbook is not modified. Its SHA-256 hash is recorded and checked
-to protect the parameter input. Random ordering of road seeds uses seed 2026,
-making a run reproducible when the data, code and software versions remain
-unchanged.
+Source snapshots, parameter values and software versions are recorded for
+reproducibility. Content hashes identify the input datasets and parameter table.
+Random ordering of road seeds uses seed 2026.
 
 
 
-### 2.3 Full and quick-test run modes
+### 2.3 Analytical extent
 
-An interactive run without a `--scope` argument asks whether to process:
-
-1. a quick-test area within the configured radius of central Aachen
-   (currently 7 km); or
-2. the complete StädteRegion Aachen.
-
-Pressing Enter selects the quick test. The equivalent command-line arguments
-are `--scope quick` and `--scope full`. The quick-test source features are
-spatially filtered before reprojection, candidate construction, indicator
-calculation and map generation. This substantially reduces development time.
-Its results are written to
-`examples/results/aachen_osm_building_sections_compact_v7_quick`, while the
-full run uses `examples/results/aachen_osm_building_sections_compact_v7`.
-Consequently, testing cannot overwrite the complete regional results.
-
-The selected scope, quick-test centre, radius and retained source-feature count
-are recorded in the manifest. The review map automatically fits its initial
-view to the generated candidates.
+The regional analysis covers the complete administrative area of
+StädteRegion Aachen. Source geometries are spatially restricted to this study
+extent before candidate construction and indicator calculation.
 
 
+
+### 2.4 NRW building evidence and spatial matching
+
+The NRW municipal heat-planning building dataset (KWP-NRW) supplements missing
+OSM attributes for the ten municipalities of StaedteRegion Aachen. Downloaded
+municipality packages are identified by source and content hash. The source is
+[OpenGeodata NRW, municipal heat planning](https://www.opengeodata.nrw.de/produkte/umwelt_klima/energie/kwp/).
+
+Spatial matching uses projected footprints in EPSG:25832. OSM outlines and roads
+are retained; NRW outlines establish correspondence only. No NRW-only buildings
+are added. A one-to-one match requires at least 70% coverage of each footprint,
+intersection-over-union of at least 60%, and no alternative covering 20% or more
+of the OSM footprint. For contained parts, each selected NRW part must be at
+least 80% contained and their union must cover at least 85% of the OSM footprint.
+Rejected or absent correspondences remain unresolved; nearest-neighbour filling
+is not used. Overlapping alternative source representations can still require
+review even when a contained-parts match is accepted.
+
+Supplementary fields are supplied before eligibility filtering and clustering:
+
+| Attribute | Evidence priority and use |
+|---|---|
+| Main building use | Explicit OSM use and compatible contained POIs take priority; accepted NRW evidence fills unknown main use. |
+| NRB subtype | Specific supported OSM evidence is retained. Specific NRW functions can fill a missing supported subtype; broad functions remain OTHER_NRB. |
+| Storeys | Explicit OSM storeys take priority; NRW calculated storeys fill gaps for the FAR calculation and its coverage rule. |
+| Residential typology | Explicit OSM evidence precedes modelled NRW EFH/RH or MFH/GMFH labels; footprint-based inference is the final fallback. |
+| Construction period | NRW assigned age classes supplement provisional year evidence for later real-district evaluation, not clustering or type scoring. |
+| Energy condition | Modelled NRW condition classes support later evaluation; they are not verified renovation histories and do not enter type scoring. |
+
+NRW subtype mapping requires sufficiently specific function evidence. For
+example, `31001_2120` (Werkstatt) supports WORKSHOP, whereas generic factory,
+warehouse and commercial functions do not independently establish that
+archetype. Explicit sports-hall evidence supports SPORT; generic sports functions
+do not establish a heated hall. The OSM tag crosswalk in Section 7 includes
+industrial/warehouse WORKSHOP mapping. Source
+priority therefore does not make the two source crosswalks identical. Ordinary
+use and storey disagreements remain flagged rather than overwritten.
+
+The clustering algorithm uses OSM geometry and accepted supplementary NRW
+attributes. Literature ranges define settlement types; the run configuration
+specifies grouping settings and the random seed. Memberships and boundaries
+are calculated from the eligible building population.
+Assigned age and condition classes are model-derived inputs, not observations.
+
+Supplementary attributes are assigned only to accepted spatial matches.
+Source identifiers and matching decisions are recorded for traceability.
 
 ## 3. Eligible buildings and roads
 
@@ -125,15 +141,26 @@ An OSM object enters the building population when it:
 After duplicate removal, footprints smaller than $20\,\mathrm{m}^2$ are
 excluded before roads, blocks, candidate membership and morphology indicators
 are constructed. A footprint of exactly $20\,\mathrm{m}^2$ remains eligible.
-The number removed by this rule is recorded in the manifest and run report.
+The number of excluded footprints is reported with the analysis results.
 
 Generic `building=yes` footprints are retained. Their use may be unknown, but
 excluding them would distort building count, density and coverage.
 
+Accepted NRW evidence can identify generic OSM footprints as garages
+(`31001_2463`) or sheds (`31001_2723`), to which the same exclusions apply.
+Utility-only matches with exclusively `31001_25xx` functions are excluded for
+generic or explicitly technical OSM building tags only when no conflicting
+ordinary-use evidence exists. Residential tags, flat counts, ordinary
+non-residential uses and compatible contained POIs protect a footprint from
+automatic utility exclusion. Mixed NRW functions and source disagreements remain
+flagged for review. Modelled unheated status is not a general exclusion rule.
+Raw OSM tags are preserved as evidence; supplementary eligibility flags do not
+rewrite them. These rules apply before grouping to all settlement types.
+
 Exact duplicate geometries are removed. A smaller polygon is also removed when
 more than 98% of its area is covered by a polygon whose area is more than 1%
 larger. This is intended to remove duplicate OSM way/relation representations.
-The run-specific footprint count is recorded in the manifest and inserted into
+The eligible footprint count is recorded and included in
 the generated result section of this document.
 
 
@@ -168,9 +195,7 @@ cannot cover the excluded land.
 No additional buffer is placed around the OSM industrial polygon, and other
 land-use categories such as `commercial` and `retail` are not included in this
 mask. The number of source polygons, their union area, and the number of removed
-otherwise eligible buildings are recorded in the manifest and run report. The
-source polygons are exported to `industrial_exclusion_sites.geojson` and shown
-as an optional red layer in the review map.
+otherwise eligible buildings are recorded as exclusion diagnostics.
 
 This scope decision also applies to the use analysis. Consequently, the
 reported residential, mixed-use, non-residential and NRB shares describe
@@ -197,10 +222,9 @@ source data but do not form clustering edges. Road-block polygonization uses
 ordinary roads and excludes service and pedestrian roads so that small access
 roads do not create artificial closed blocks.
 
-The OSM `service` column must be present in the source cache to apply this
-selection safely. When a legacy slim cache lacks that column, all service roads
-remain excluded and the run prints a notice. Refreshing the OSM source cache
-activates the selective service-road rule.
+Selective service-road inclusion requires the OSM `service` attribute.
+If this attribute is unavailable, service roads are excluded because access
+roads cannot be distinguished reliably.
 
 
 
@@ -1084,7 +1108,7 @@ $$
 
 Residential typology contributes to the score for every type when
 $c_{\mathrm{typology}}\geq20\,\%$. The target MFH percentage is read directly
-from `MFH Anteil (%)` in the unchanged parameter workbook. The compatible
+from `MFH Anteil (%)` in the parameter workbook. The compatible
 interval extends 15 percentage points either side of that target, clipped to
 0–100%. Thus a 0% target accepts 0–15% MFH without penalty; a 100% target
 accepts 85–100%. Values outside the interval receive an ordinary normalized
@@ -1563,10 +1587,9 @@ intensity. The following evidence is insufficient for SPORT:
 | Swimming pool, riding hall, grandstand, stadium or pavilion | Unsupported sports uses, normally OTHER_NRB; not SPORT. Existing independently identified, higher-priority uses remain subject to the classifier's priority rules. |
 | Parking or ambiguous sports POI overlapping a footprint | Not SPORT. Without another informative building-use tag, use can remain unknown. |
 
-The cached source lacks `indoor`, `covered` and name attributes. No new OSM
-download or inference from unavailable tags was used to resolve ambiguous
-facilities. Removing a SPORT label does not remove the footprint from the
-geometry or morphology analysis.
+The source snapshot lacks `indoor`, `covered` and name attributes. Unavailable
+tags provide no classification evidence. SPORT eligibility is distinct from
+footprint eligibility for geometry and morphology analysis.
 
 
 
@@ -1639,37 +1662,37 @@ from the sums of category counts across all districts of that type. Larger
 districts therefore contribute more observations. The district-weighted result
 first calculates the percentage within every district and then reports the
 unweighted mean across districts of type $t$. Every district therefore
-contributes equally. The pooled results are written to the dedicated building-
-split and NRB summary files; the means of district-level percentages are
-included in `osm_use_summary_by_type.csv`.
+contributes equally. Both pooled shares and means of district-level
+percentages are reported separately.
 
-### 8.1 Generation probabilities and the type-A residential assumption
+### 8.1 Generation probabilities and unknown building uses
 
 Raw evidence tables retain all four main-use categories, including unknown.
-For generation, types B--I continue to use the known-use normalization above.
-For type A only, unknown-use footprints are assumed residential because the
-study treats scattered settlements as predominantly residential:
+For generation, all types A--I use the same represented-building denominator.
+Unknown-use footprints and pure non-residential buildings without a supported
+archetype are excluded from both the relevant numerator and the denominator:
 
 $$
-p_{\mathrm{res},A}^{\mathrm{gen}}=
-\frac{N_{\mathrm{res},A}+N_{\mathrm{unknown},A}}{N_{\mathrm{all},A}},
+p_{\mathrm{res},t}^{\mathrm{gen}}=
+\frac{N_{\mathrm{res},t}}{N_{\mathrm{gen},t}},
 \qquad
-p_{\mathrm{nonres},A}^{\mathrm{gen}}=
-\frac{N_{\mathrm{nonres},A}}{N_{\mathrm{all},A}},
+p_{\mathrm{nonres},t}^{\mathrm{gen}}=
+\frac{N_{\mathrm{nonres,supported},t}}{N_{\mathrm{gen},t}},
 \qquad
-p_{\mathrm{mix},A}^{\mathrm{gen}}=
-\frac{N_{\mathrm{mix},A}}{N_{\mathrm{all},A}}.
+p_{\mathrm{mix},t}^{\mathrm{gen}}=
+\frac{N_{\mathrm{mix},t}}{N_{\mathrm{gen},t}}.
 $$
 
-This is a type-specific modelling assumption, not an observed OSM residential
-classification. The type-A counts are 42 residential, 42
-non-residential, zero mixed and 234 unknown out of 318. Generation therefore
-uses 276/318 = 86.79% residential and 42/318 = 13.21% non-residential.
-Observed labels remain unchanged. No EFH/MFH, age, retrofit, footprint or
-floor-area parameter is inferred from the unknown-use tag; existing
-residential-archetype proportions are retained.
+Here, N_gen is the sum of residential, mixed-use and supported pure
+non-residential counts. Unsupported pure non-residential buildings remain
+OTHER_NRB in the raw analysis, but are not redistributed across generation
+archetypes. Mixed-use buildings remain included even when their non-residential
+activity is unsupported. Unknown buildings are not reclassified as residential
+or non-residential. No EFH/MFH, age, retrofit, footprint or floor-area
+parameter is inferred from the unknown-use tag. The ten supported NRB
+subtype weights retain their separate supported-use denominator.
 
-For all types, generator subtype weights retain the existing denominator:
+For all types, generator subtype weights use the supported-category denominator:
 
 $$
 w_k^{\mathrm{gen}}=
@@ -1682,24 +1705,13 @@ denominator. SPORT is excluded from
 mixed-use draws. Its marginal draw probability is the pure non-residential
 main-use share multiplied by its supported-subtype weight.
 
-For type A, 1 of the 22 supported NRB footprints is SPORT, giving 4.55% within
-supported NRB and approximately 0.60% among all generated buildings under the
-residential assumption. This does not prescribe an exact number per district.
-
-`examples/aachen_osm_pilot.py` integrates classification, generation parameters
-and documentation. Its `--reuse-analysis` option classifies the cached source
-using existing candidate geometries and memberships, without downloads or
-reclustering. The explicit
-`--type-a-unknown-residential` generation assumption is enabled by default;
-`--no-type-a-unknown-residential` disables it. Neither changes observed unknown
-labels. Every run exports a separate workbook, probability tables and an edit
-manifest, then updates this Markdown and its HTML rendering. The input workbook
-is never overwritten. The tables distinguish observed building uses from
-generation probabilities.
+These probabilities describe stochastic draws, not fixed category counts
+within each generated district. Observed building-use shares and generation
+probabilities have distinct denominators and are reported separately.
 
 
 
-## 9. Quality-control conditions and exported outputs
+## 9. Quality-control conditions
 
 The run checks that:
 
@@ -1708,171 +1720,123 @@ The run checks that:
   candidate;
 - a building occurs in at most one accepted candidate;
 - accepted candidate polygons do not overlap;
-- all exported candidate geometries are valid after GeoJSON serialization; and
-- the assigned-building layer in the review map reproduces the exported
-  building membership count for every candidate; and
-- the parameter workbook hash is unchanged.
+- candidate geometries are valid;
+- mapped building memberships agree with the analytical membership counts; and
+- the input parameter table is preserved during analysis.
 
 Each output candidate retains its identifier, membership method, building count,
 area, matching indicators, compatible types, nearest
 type, proposed type, final assigned type, assignment reason, classification
 quality, inclusion in type-specific results, total range and midpoint scores,
 indicator-specific penalties and midpoint distances, and unknown-use percentage.
-The map popup displays the final type, classification quality, assignment
-reason, context, compatible and eligible types, and total type scores. The
-residential-typology coverage, known SFH/MFH shares, conditional-typology flag,
-continuous frontage, row metrics, adaptive hull ratio, boundary method and
-unknown-use percentage remain available in `candidate_metrics.csv` but are
-omitted from the popup. It displays the final rural/urban context
-label but omits context area, context building count, context density and
-context BCR to keep the popup concise. The rural-influence-boundary flag and
-locally calculated rural-boundary reach are likewise omitted from the popup.
-Initial context density and initial context BCR are also omitted. These
-diagnostic values, together with the unrestricted assigned type and the flag
-showing whether context changed the assignment, remain available in
-`candidate_metrics.csv` for traceability. The popup also omits the separate
-context-allowed-type list and block-frontage pass/fail field because both are
-already reflected in `Eligible types`. Their underlying values remain in the
-candidate table for detailed checks. Indicator-specific range penalties and
-midpoint distances are also omitted from the popup to keep it readable; they
-remain fully available in `candidate_metrics.csv`. The complete all-type
-requirement-check string is likewise omitted from the popup. The all-type range
-and midpoint scores remain visible, with one settlement type shown per line so
-the values fit the popup more clearly. Building spacing, its calculation source
-and the number of same-road-side spacing pairs are also omitted from the popup;
-they remain in `candidate_metrics.csv` and continue to be used by the
-classification method. The counts of SFH-like, MFH-like, known, unknown and
-total residential-typology buildings are also omitted from the popup. They
-remain in the candidate table for analysis. Building membership
-is exported separately using OSM object identifiers. The review map draws the
-exact OSM footprints used in the analysis using the same classification-quality
-colors as their candidate. Eligible but
-unassigned footprints lying within 30 m of any candidate are available as an
-optional grey context layer. Roads retained for clustering are available as a
-separate optional layer. The excluded `landuse=industrial` polygons are shown
-by default in black. The layer can be hidden or restored through either the map
-legend or the layer control. Clicking a building reports its OSM identifier,
-footprint area and district membership. The Esri background is used only for
-geographic context and is not used to verify building presence or membership.
+Building memberships are traceable through OSM object identifiers. Diagnostic
+records distinguish source evidence, missing attributes, model-derived proxies
+and source conflicts. Indicator-level penalties and scores for all candidate
+types support inspection of the final assignment.
 
-The combined legend and filter distinguishes three classification qualities:
-
-- green: exact match with $D_t=0$;
-- blue: approximate match with $0<D_t\leq1$;
-- red: unclassified candidate with $D_t>1$; and
-- black: excluded OSM industrial land-use area.
-
-The settlement-type buttons A--I and `UNCLASSIFIED` filter both candidate
-polygons and their assigned-building footprints. The three quality buttons can
-be switched independently, and the industrial-area button independently shows
-or hides the black exclusion layer. When all types or quality categories are
-initially active, selecting one button isolates it; further buttons can then be
-added or removed. `All` restores all candidate types and quality categories,
-while `None` hides all candidates and assigned footprints. Nearby-unassigned,
-road and background layers remain independent context layers.
-
-The 30 m distance controls only which unassigned context buildings are included
-in the review map. It has no influence on candidate construction, indicators or
-classification.
+Classification quality is exact for $D_t=0$, approximate for
+$0<D_t\leq1$, and unclassified for $D_t>1$. These labels express compatibility
+with the morphological criteria, not independent validation of the assigned
+type. Background map imagery is geographic context, not building-use evidence.
 
 
 ## 10. Candidate-generation results
 
 The following results describe the `full_staedteregion_aachen` analysis extent.
 
-The run identified 4,271 non-overlapping candidates.
+The run identified 3,627 non-overlapping candidates.
 
 | Membership-selection procedure | Candidates |
 |---|---:|
-| Road-block clusters, including morphology splits | 2,135 |
-| Two-sided street clusters, including morphology splits | 2,120 |
-| Additional scattered-A candidates | 16 |
-| **Total** | **4,271** |
+| Road-block clusters, including morphology splits | 2,145 |
+| Two-sided street clusters, including morphology splits | 1,461 |
+| Additional scattered-A candidates | 21 |
+| **Total** | **3,627** |
 
-The candidates contain 115,353 unique building footprints, corresponding to 58.718% of the 196,452 eligible footprints.
+The candidates contain 95,830 unique building footprints, corresponding to 59.691% of the 160,543 eligible footprints.
 
 | Indicator | 25th percentile | Median | 75th percentile |
 |---|---:|---:|---:|
-| Buildings per candidate | 15 | 22 | 36 |
-| District area (ha) | 0.580 | 1.128 | 2.052 |
-| BCR | 0.163 | 0.243 | 0.323 |
-| Building density (buildings/ha) | 14.201 | 23.550 | 35.331 |
-| FAR, where available | 0.448 | 0.773 | 1.551 |
-| Active building spacing (m) | 4.757 | 7.009 | 9.498 |
-| Attached buildings (%) | 61.538 | 79.104 | 91.667 |
-| General row structure (%) | 0.000 | 51.667 | 70.833 |
-| Total range score $D_t$ | 0.031 | 0.167 | 0.991 |
-| Total midpoint score $C_t$ | 0.418 | 0.928 | 3.128 |
+| Buildings per candidate | 15 | 22 | 35 |
+| District area (ha) | 0.741 | 1.409 | 2.556 |
+| BCR | 0.142 | 0.215 | 0.299 |
+| Building density (buildings/ha) | 10.841 | 18.159 | 27.301 |
+| FAR, where available | 0.321 | 0.501 | 0.741 |
+| Active building spacing (m) | 5.459 | 8.344 | 13.621 |
+| Attached buildings (%) | 48.360 | 72.727 | 90.909 |
+| General row structure (%) | 0.000 | 40.741 | 63.415 |
+| Total range score $D_t$ | 0.034 | 0.127 | 0.352 |
+| Total midpoint score $C_t$ | 0.380 | 0.712 | 1.475 |
 
-Sections 12--15 describe observed OSM uses. Section 17 gives the generation weights, including the type-A residential assumption. Observations and generation assumptions are reported separately.
+Sections 12--15 describe building-use evidence, including accepted NRW gap fills when enrichment is enabled. Section 17 gives generation weights after excluding unknown and unsupported pure non-residential buildings. Evidence counts and generation denominators are reported separately.
 
-FAR is available for 166 candidates. The block-frontage requirement is met by 1,022 candidates. Rural influence boundaries are applied to 1,877 candidates.
+FAR is available for 2,673 candidates. The block-frontage requirement is met by 1,079 candidates. Rural influence boundaries are applied to 1,766 candidates.
 
-Candidate areas range from 0.093 to 35.586 ha.
+Candidate areas range from 0.093 to 48.005 ha.
 
 ## 11. Settlement-type assignment results
 
 | Type | Candidates | Buildings | Exact | Approximate | Unique compatible | Midpoint tie-break | Nearest outside ranges |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| A | 23 | 318 | 2 | 21 | 2 | 0 | 21 |
-| B | 253 | 6,724 | 6 | 247 | 6 | 0 | 247 |
-| C | 308 | 6,788 | 34 | 274 | 34 | 0 | 274 |
-| D | 379 | 9,675 | 9 | 370 | 9 | 0 | 370 |
-| E | 1,951 | 57,425 | 57 | 1,894 | 57 | 0 | 1,894 |
-| F | 5 | 142 | 0 | 5 | 0 | 0 | 5 |
-| G | 94 | 2,282 | 6 | 88 | 6 | 0 | 88 |
-| H | 59 | 2,097 | 0 | 59 | 0 | 0 | 59 |
-| I | 135 | 5,442 | 0 | 135 | 0 | 0 | 135 |
-| UNCLASSIFIED | 1,064 | 24,460 | 0 | 0 | 0 | 0 | 0 |
+| A | 44 | 641 | 3 | 41 | 3 | 0 | 41 |
+| B | 502 | 12,473 | 46 | 456 | 46 | 0 | 456 |
+| C | 267 | 6,111 | 17 | 250 | 17 | 0 | 250 |
+| D | 448 | 12,726 | 3 | 445 | 3 | 0 | 445 |
+| E | 1,663 | 46,899 | 15 | 1,648 | 15 | 0 | 1,648 |
+| F | 8 | 162 | 0 | 8 | 0 | 0 | 8 |
+| G | 55 | 1,235 | 2 | 53 | 2 | 0 | 53 |
+| H | 42 | 1,421 | 0 | 42 | 0 | 0 | 42 |
+| I | 90 | 3,551 | 1 | 89 | 1 | 0 | 89 |
+| UNCLASSIFIED | 508 | 10,611 | 0 | 0 | 0 | 0 | 0 |
 
-Classification quality is exact for 114, approximate for 3,093 and unclassified for 1,064 candidates. 3,207 candidates enter type-specific results.
+Classification quality is exact for 87, approximate for 3,032 and unclassified for 508 candidates. 3,119 candidates enter type-specific results.
 
-The final context classes contain URBAN=656, RURAL=3,615. Context changes 224 assignments relative to unrestricted scoring.
+The final context classes contain URBAN=330, RURAL=3,297. Context changes 87 assignments relative to unrestricted scoring.
 
 ## 12. Overall main building-use results
 
 | Main-use category | Buildings | Percentage of all | Percentage of known use |
 |---|---:|---:|---:|
-| Residential | 18,726 | 20.602% | 85.262% |
-| Mixed-use | 560 | 0.616% | 2.550% |
-| Non-residential | 2,677 | 2.945% | 12.189% |
-| Unknown | 68,930 | 75.836% | — |
-| **Total** | **90,893** | **100.000%** | — |
+| Residential | 62,080 | 72.848% | 86.595% |
+| Mixed-use | 2,709 | 3.179% | 3.779% |
+| Non-residential | 6,901 | 8.098% | 9.626% |
+| Unknown | 13,529 | 15.876% | — |
+| **Total** | **85,219** | **100.000%** | — |
 
-The known-use population contains 21,963 buildings; 75.836% have unknown main use.
+The known-use population contains 71,690 buildings; 15.876% have unknown main use.
 
 ## 13. Main-use results by assigned type
 
 | Type | Buildings | Residential, all | Mixed, all | Non-residential, all | Unknown | Known-use buildings | Residential, known | Mixed, known | Non-residential, known |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| A | 318 | 13.2% | 0.0% | 13.2% | 73.6% | 84 | 50.0% | 0.0% | 50.0% |
-| B | 6,724 | 27.6% | 0.3% | 3.4% | 68.6% | 2,109 | 88.1% | 0.9% | 10.9% |
-| C | 6,788 | 12.0% | 0.2% | 4.2% | 83.6% | 1,114 | 73.2% | 1.1% | 25.8% |
-| D | 9,675 | 21.6% | 0.3% | 6.2% | 71.9% | 2,716 | 76.8% | 1.1% | 22.1% |
-| E | 57,425 | 18.7% | 0.1% | 1.3% | 79.9% | 11,570 | 93.0% | 0.6% | 6.4% |
-| F | 142 | 19.0% | 0.0% | 5.6% | 75.4% | 35 | 77.1% | 0.0% | 22.9% |
-| G | 2,282 | 22.9% | 0.9% | 10.3% | 65.9% | 779 | 67.0% | 2.7% | 30.3% |
-| H | 2,097 | 40.9% | 4.5% | 11.3% | 43.4% | 1,187 | 72.2% | 7.9% | 19.9% |
-| I | 5,442 | 32.3% | 5.8% | 5.4% | 56.5% | 2,369 | 74.2% | 13.4% | 12.4% |
+| A | 641 | 55.9% | 0.9% | 22.6% | 20.6% | 509 | 70.3% | 1.2% | 28.5% |
+| B | 12,473 | 69.8% | 1.6% | 7.9% | 20.7% | 9,891 | 88.1% | 2.0% | 9.9% |
+| C | 6,111 | 62.5% | 1.8% | 12.4% | 23.3% | 4,686 | 81.5% | 2.3% | 16.2% |
+| D | 12,726 | 69.1% | 3.5% | 11.6% | 15.8% | 10,715 | 82.1% | 4.1% | 13.8% |
+| E | 46,899 | 78.2% | 2.5% | 5.2% | 14.1% | 40,272 | 91.1% | 2.9% | 6.0% |
+| F | 162 | 61.1% | 4.3% | 27.8% | 6.8% | 151 | 65.6% | 4.6% | 29.8% |
+| G | 1,235 | 50.9% | 3.3% | 19.6% | 26.2% | 911 | 68.9% | 4.5% | 26.6% |
+| H | 1,421 | 60.1% | 10.6% | 19.9% | 9.4% | 1,287 | 66.4% | 11.7% | 22.0% |
+| I | 3,551 | 60.0% | 16.9% | 15.2% | 8.0% | 3,268 | 65.2% | 18.4% | 16.5% |
 
 ## 14. Overall non-residential subtype results
 
-A total of 3,237 buildings receive a subtype: 1,970 from direct building evidence and 1,267 from contained POIs. 268 classified POIs have no containing eligible building.
+A total of 9,610 buildings receive a subtype: 1,996 from direct building evidence and 1,380 from contained POIs. 296 classified POIs have no containing eligible building.
 
 | NRB subtype | Buildings | Percentage of classified NRB | Percentage of all buildings |
 |---|---:|---:|---:|
-| Office (OB) | 255 | 7.878% | 0.281% |
-| School (SC) | 338 | 10.442% | 0.372% |
-| Restaurant (RE) | 350 | 10.812% | 0.385% |
-| Grocery (GS) | 166 | 5.128% | 0.183% |
-| University (UNI) | 93 | 2.873% | 0.102% |
-| Hospital/medical (HOSPITAL) | 151 | 4.665% | 0.166% |
-| Culture (CULTURE) | 64 | 1.977% | 0.070% |
-| Sport (SPORT) | 34 | 1.050% | 0.037% |
-| Other retail (RETAIL) | 681 | 21.038% | 0.749% |
-| Workshop/industrial (WORKSHOP) | 364 | 11.245% | 0.400% |
-| Other identified NRB (OTHER_NRB) | 741 | 22.892% | 0.815% |
-| **Total** | **3,237** | **100.000%** | **3.561%** |
+| Office (OB) | 391 | 4.069% | 0.459% |
+| School (SC) | 413 | 4.298% | 0.485% |
+| Restaurant (RE) | 394 | 4.100% | 0.462% |
+| Grocery (GS) | 187 | 1.946% | 0.219% |
+| University (UNI) | 97 | 1.009% | 0.114% |
+| Hospital/medical (HOSPITAL) | 146 | 1.519% | 0.171% |
+| Culture (CULTURE) | 73 | 0.760% | 0.086% |
+| Sport (SPORT) | 73 | 0.760% | 0.086% |
+| Other retail (RETAIL) | 783 | 8.148% | 0.919% |
+| Workshop/industrial (WORKSHOP) | 718 | 7.471% | 0.843% |
+| Other identified NRB (OTHER_NRB) | 6,335 | 65.921% | 7.434% |
+| **Total** | **9,610** | **100.000%** | **11.277%** |
 
 ## 15. Non-residential subtype results by assigned type
 
@@ -1880,77 +1844,77 @@ Percentages are conditional on subtype-classified NRB buildings within each assi
 
 | Type | NRB buildings | OB | SC | RE | GS | UNI | HOSPITAL | CULTURE | SPORT | RETAIL | WORKSHOP | OTHER_NRB |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| A | 42 | 21.4% | 0.0% | 7.1% | 2.4% | 0.0% | 0.0% | 7.1% | 2.4% | 7.1% | 4.8% | 47.6% |
-| B | 250 | 6.4% | 4.8% | 6.0% | 4.0% | 0.0% | 0.8% | 1.6% | 1.6% | 10.4% | 11.6% | 52.8% |
-| C | 299 | 5.0% | 10.4% | 4.3% | 3.7% | 0.7% | 2.7% | 2.3% | 1.0% | 13.0% | 15.4% | 41.5% |
-| D | 630 | 7.8% | 12.1% | 7.5% | 4.4% | 5.2% | 3.3% | 2.2% | 0.2% | 18.6% | 17.8% | 21.0% |
-| E | 810 | 4.6% | 14.0% | 14.4% | 6.3% | 0.0% | 6.0% | 1.9% | 0.9% | 19.9% | 9.8% | 22.3% |
-| F | 8 | 0.0% | 0.0% | 12.5% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 25.0% | 37.5% | 25.0% |
-| G | 257 | 8.9% | 16.0% | 5.8% | 2.3% | 10.1% | 4.3% | 1.9% | 2.3% | 10.1% | 16.7% | 21.4% |
-| H | 330 | 14.5% | 13.3% | 8.2% | 4.5% | 6.7% | 9.1% | 1.5% | 2.7% | 22.4% | 6.4% | 10.6% |
-| I | 611 | 9.5% | 3.4% | 18.3% | 7.2% | 1.6% | 4.9% | 1.8% | 0.5% | 38.1% | 4.7% | 9.8% |
+| A | 151 | 4.6% | 3.3% | 5.3% | 1.3% | 0.0% | 0.0% | 3.3% | 0.7% | 3.3% | 10.6% | 67.5% |
+| B | 1,179 | 2.9% | 2.7% | 3.2% | 1.7% | 0.3% | 1.0% | 0.7% | 0.4% | 3.6% | 7.5% | 76.1% |
+| C | 868 | 3.5% | 6.6% | 2.1% | 1.4% | 0.0% | 0.8% | 1.3% | 1.6% | 5.5% | 8.9% | 68.4% |
+| D | 1,919 | 5.7% | 6.9% | 3.6% | 2.2% | 0.7% | 1.5% | 0.6% | 1.3% | 10.2% | 10.0% | 57.4% |
+| E | 3,587 | 1.7% | 2.8% | 2.9% | 1.3% | 0.1% | 0.9% | 0.4% | 0.3% | 4.3% | 6.7% | 78.5% |
+| F | 52 | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 1.9% | 0.0% | 11.5% | 30.8% | 55.8% |
+| G | 283 | 5.3% | 10.2% | 5.3% | 1.8% | 16.3% | 3.5% | 1.1% | 2.5% | 10.2% | 4.6% | 39.2% |
+| H | 433 | 13.9% | 5.8% | 5.3% | 2.5% | 5.1% | 5.8% | 0.9% | 1.4% | 17.8% | 6.5% | 35.1% |
+| I | 1,138 | 6.4% | 2.7% | 10.4% | 4.3% | 1.0% | 2.7% | 1.3% | 0.3% | 19.9% | 4.1% | 46.9% |
 
-## 16. Result files
+## 16. Result interpretation and traceability
 
-The workflow exports the following result files:
-
-- `candidate_districts.geojson`: candidate geometries and indicators;
-- `candidate_metrics.csv`: morphology and matching results;
-- `building_membership.csv`: traceable OSM building membership;
-- `osm_use_counts_by_district.csv`: district-level use results;
-- `osm_building_split_percentages_by_type.csv`: pooled main-use shares;
-- `osm_nrb_building_percentages_by_type.csv`: pooled NRB subtype shares;
-- `osm_use_summary_by_type.csv`: extended type summary;
-- `review_map.html`: interactive review map;
-- `industrial_exclusion_sites.geojson`: excluded industrial areas; and
-- `manifest.json`: hashes, settings, versions and provenance.
-
-The review map is approximately 126.1 MB.
+The analysis reports candidate boundaries, building memberships, morphological indicators, type-assignment scores and building-use counts. Type-level summaries distinguish pooled building-weighted shares from district-weighted means. Source identifiers and input provenance support reproducibility; automated type labels require morphological review before treating candidates as validated real districts.
 
 OSM data attribution: © OpenStreetMap contributors, ODbL.
 
 ## 17. Generation parameters
 
-Generation weights distinguish observed building uses from modelling assumptions. The subtype weights are conditional on the ten supported NRB categories; OTHER_NRB is not part of this denominator.
+Generation weights distinguish observed building uses from modelling assumptions. The subtype weights are conditional on the ten supported NRB categories; OTHER_NRB is not part of this denominator. Unsupported pure non-residential buildings are also excluded from main-use generation shares; residential and mixed-use buildings are included. Raw evidence tables describe all observed uses.
 
 ### 17.1 SPORT weights
 
 | Type | SPORT buildings | SPORT among supported NRB |
 |---|---:|---:|
-| A | 1 | 4.55% |
-| B | 4 | 3.39% |
-| C | 3 | 1.71% |
-| D | 1 | 0.20% |
-| E | 7 | 1.11% |
+| A | 1 | 2.04% |
+| B | 5 | 1.77% |
+| C | 14 | 5.11% |
+| D | 25 | 3.06% |
+| E | 12 | 1.55% |
 | F | 0 | 0.00% |
-| G | 6 | 2.97% |
-| H | 9 | 3.05% |
-| I | 3 | 0.54% |
+| G | 7 | 4.07% |
+| H | 6 | 2.14% |
+| I | 3 | 0.50% |
 
 ### 17.2 Main-use generation weights
 
 | Type | Residential | Non-residential | Mixed | Unknown footprints assigned residential | Marginal SPORT probability |
 |---|---:|---:|---:|---:|---:|
-| A | 86.79% | 13.21% | 0.00% | 234 | 0.600% |
-| B | 88.15% | 10.91% | 0.95% | 0 | 0.370% |
-| C | 73.16% | 25.76% | 1.08% | 0 | 0.442% |
-| D | 76.80% | 22.09% | 1.10% | 0 | 0.044% |
-| E | 93.00% | 6.43% | 0.57% | 0 | 0.072% |
-| F | 77.14% | 22.86% | 0.00% | 0 | 0.000% |
-| G | 67.01% | 30.30% | 2.70% | 0 | 0.900% |
-| H | 72.20% | 19.88% | 7.92% | 0 | 0.607% |
-| I | 74.21% | 12.41% | 13.38% | 0 | 0.068% |
+| A | 86.68% | 11.86% | 1.45% | 0 | 0.242% |
+| B | 94.96% | 2.91% | 2.13% | 0 | 0.052% |
+| C | 91.14% | 6.23% | 2.63% | 0 | 0.318% |
+| D | 87.98% | 7.62% | 4.40% | 0 | 0.233% |
+| E | 95.13% | 1.86% | 3.01% | 0 | 0.029% |
+| F | 76.74% | 17.83% | 5.43% | 0 | 0.000% |
+| G | 76.40% | 18.61% | 4.99% | 0 | 0.758% |
+| H | 71.95% | 15.42% | 12.64% | 0 | 0.329% |
+| I | 70.39% | 9.78% | 19.83% | 0 | 0.049% |
 
-The default policy assigns unknown-use footprints to residential generation only for type A. Types B--I use known-use normalization. Raw OSM unknown labels are retained in the observed-use tables.
+All types A--I use the same represented-building denominator: residential plus mixed plus supported pure non-residential buildings. Unknown-use footprints remain unknown; unknowns and unsupported pure non-residential buildings are excluded from generation shares.
 
-### 17.3 Workflow and reproducibility
+### 17.3 Probability interpretation
 
-`aachen_osm_pilot.py` calculates classification counts, generation weights and documentation in one workflow. It exports `probabilities.csv`, a separate `typdistrict_parameters.xlsx` and `generation_parameters.json`. The manifest records the assumption, source hash and exported cell values. The input workbook is not overwritten.
+The main-use weights and supported subtype weights are distinct conditional distributions. Their product determines the marginal probability of a supported non-residential archetype in a stochastic district draw, subject to the mixed-use eligibility rules in Section 8. A weight does not prescribe an exact number of buildings in any individual district.
 
-The cached-analysis option reuses candidate geometries and memberships:
 
-```powershell
-python examples/aachen_osm_pilot.py --reuse-analysis "examples/results/aachen_osm_building_sections_compact_v7" --output "NEW_OUTPUT_DIR"
-```
+## 18. NRW enrichment evidence
 
-`--type-a-unknown-residential` enables the type-A assumption by default; `--no-type-a-unknown-residential` disables it. `--verify-parameters PATH` checks exported cell values against a reference workbook.
+OSM footprints and roads supply geometry. The NRW municipal building packages supply accepted supplementary attributes before clustering. Specific OSM evidence takes priority; model-derived attributes remain distinguishable from observations.
+
+| Indicator for final candidate members | Count |
+|---|---:|
+| Member footprints | 95,830 |
+| Known main use from OSM | 27,113 |
+| Known main use from combined OSM/NRW evidence | 81,076 |
+| Remaining unknown main use | 14,754 |
+| Explicit OSM storeys | 8,618 |
+| Effective storeys including calculated NRW gaps | 72,343 |
+| NRW residential-typology labels used | 49,268 |
+| Main-use conflict flags | 2,758 |
+| Storey conflict flags | 3,802 |
+
+The pre-clustering utility check flags 474 footprints, excludes 423 utility-only footprints, and retains 51 mixed/conflicting flags for review. These counts refer to the initial eligible population, not only final candidate members.
+
+Source identifiers and content hashes identify the building datasets. Age classes and energy-condition proxies are not used for clustering or settlement-type scoring. Model-derived attributes are proxies, not independently verified observations of individual buildings.

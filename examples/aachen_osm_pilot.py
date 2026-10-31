@@ -1,10 +1,18 @@
-"""Discover and analyse ~40-building OSM districts in StaedteRegion Aachen.
+"""Discover and analyse candidate districts in StaedteRegion Aachen.
 
-Requires osmnx, geopandas, shapely, scipy, pyproj, openpyxl and folium. Download once with
---download; cached GeoParquet/GeoJSON are reused for offline runs. The input
-workbook is preserved and verified by SHA-256 before/after each run. Generation
-probabilities, a separate workbook and documentation are exported together.
-Use --reuse-analysis to reuse saved candidate geometry and memberships.
+OSM supplies building footprints, roads and explicit building-use evidence.
+Accepted spatial matches to downloaded NRW building data supply missing
+attributes. Eligible buildings form road-block and street-network districts;
+literature-derived morphology ranges determine settlement-type assignments.
+The analysis calculates building-use shares and district-generation weights.
+
+Input datasets and the literature parameter workbook are read-only. Results
+include district geometries, indicators, use probabilities, a parameter
+workbook and method documentation. Input hashes support reproducibility.
+Optional modes check data completeness or analyse saved district memberships.
+Run with --help for input files, analysis modes and output options.
+
+Requires osmnx, geopandas, shapely, scipy, pyproj, openpyxl and folium.
 """
 from __future__ import annotations
 
@@ -16,8 +24,10 @@ import json
 import math
 import heapq
 import random
+import re
 import shutil
 import sys
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -41,7 +51,7 @@ except ModuleNotFoundError as exc:
         "The Aachen review map requires Folium. Install it in the selected "
         "Python environment with: python -m pip install folium"
     ) from exc
-from shapely.geometry import LineString, Point
+from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import polygonize, split, substring, unary_union
 
 
@@ -193,9 +203,9 @@ def _osm_tag(row, key):
 def classify_osm_object(row, sport_policy='indoor_hall'):
     """Map SPORT from explicit sports-hall or fitness-centre evidence.
 
-    Fitness centres use Turnhalle as an agreed modelling approximation.
+    Fitness centres use Turnhalle as a modelling approximation.
     Activity-only tags do not establish a building use.
-    The legacy policy exists solely to reproduce previously exported counts.
+    The optional 'legacy' policy accepts broad sports-activity tags.
     """
     if sport_policy not in {'indoor_hall', 'legacy'}:
         raise ValueError(f'Unknown SPORT policy: {sport_policy}')
@@ -301,6 +311,7 @@ def classify_nrb_buildings(features, sport_policy='indoor_hall', return_building
         'mixed_building_split_count': 0,
         'nonres_building_split_count': 0,
         'unknown_building_split_count': 0,
+        'unsupported_nonres_building_count': 0,
         'building_footprints_with_direct_nrb_tag_count': 0,
         'building_footprints_classified_from_poi_count': 0,
         'classified_poi_count': 0,
@@ -387,18 +398,42 @@ def classify_nrb_buildings(features, sport_policy='indoor_hall', return_building
         - diagnostics['building_footprints_with_direct_nrb_tag_count'])
     diagnostics['classified_poi_without_building_count'] = int(
         len(poi_features) - len(assigned_poi_indices))
-    classified = buildings.dropna(subset=['final_category'])
-    for category in ANALYSIS_CATEGORIES:
-        counts[category] = int((classified['final_category'] == category).sum())
-    diagnostics['classified_nrb_building_count'] = int(len(classified))
     buildings['building_split'] = buildings.apply(
         lambda row: classify_building_split(
             _osm_tag(row, 'building'), row['final_category'],
             _osm_tag(row, 'building:use'), _osm_tag(row, 'building:flats')),
         axis=1)
+    if 'nrw_main_use' in buildings:
+        buildings['osm_use_group'] = buildings.building_split
+        buildings['osm_nrb_category'] = buildings.final_category
+        buildings['use_source'] = 'OSM'
+        unknown = buildings.building_split.eq('unknown')
+        main = buildings.nrw_main_use.fillna('')
+        subtype = buildings.nrw_category.fillna('')
+        excluded_uses = {'grandstand', 'pavilion', 'riding_hall', 'parking', 'garage', 'garages', 'stadium'}
+        blocked = buildings.building.fillna('').isin(excluded_uses)
+        blocked |= buildings.get('building:use', pd.Series('', index=buildings.index)).fillna('').isin(excluded_uses)
+        blocked |= buildings.get('amenity', pd.Series('', index=buildings.index)).fillna('').eq('parking')
+        subtype = subtype.mask(blocked, '')
+        fill = unknown & main.isin(['residential', 'mixed', 'nonres'])
+        buildings.loc[fill, 'building_split'] = main[fill]
+        nonres_fill = fill & main.isin(['mixed', 'nonres'])
+        buildings.loc[nonres_fill, 'final_category'] = subtype[nonres_fill].replace('', 'OTHER_NRB')
+        refine = buildings.building_split.eq('nonres') & buildings.final_category.eq('OTHER_NRB') & subtype.isin(MODEL_CATEGORIES)
+        buildings.loc[refine, 'final_category'] = subtype[refine]
+        buildings.loc[fill | refine, 'use_source'] = 'NRW_gap_fill'
+        diagnostics['nrw_main_use_filled_count'] = int(fill.sum())
+        diagnostics['nrw_subtype_refined_count'] = int(refine.sum())
+    classified = buildings.dropna(subset=['final_category'])
+    for category in ANALYSIS_CATEGORIES:
+        counts[category] = int((classified['final_category'] == category).sum())
+    diagnostics['classified_nrb_building_count'] = int(len(classified))
     for split_name in ('residential', 'mixed', 'nonres', 'unknown'):
         diagnostics[f'{split_name}_building_split_count'] = int(
             (buildings['building_split'] == split_name).sum())
+    diagnostics['unsupported_nonres_building_count'] = int((
+        buildings.building_split.eq('nonres') &
+        ~buildings.final_category.isin(MODEL_CATEGORIES)).sum())
     return (counts, diagnostics, buildings) if return_buildings else (counts, diagnostics)
 
 
@@ -597,8 +632,14 @@ def extract(features, boundary):
         boundary.difference(industrial_mask))
 
     building_tags = features.get('building', pd.Series('', index=features.index)).fillna('').astype(str)
+    if 'nrw_building_tag' in features:
+        supplementary = features.nrw_building_tag.fillna('')
+        building_tags = building_tags.mask(building_tags.eq('yes') & supplementary.ne(''), supplementary)
     excluded = {'garage', 'garages', 'shed', 'roof', 'carport', 'greenhouse', 'construction', 'ruins', 'no'}
-    buildings = features[polygonal & (building_tags != '') & ~building_tags.isin(excluded)].copy()
+    utility_excluded = features.get(
+        'nrw_utility_excluded', pd.Series(False, index=features.index)).fillna(False)
+    buildings = features[polygonal & (building_tags != '') & ~building_tags.isin(excluded)
+                         & ~utility_excluded].copy()
     # Retain generic building=yes; missing use must not exclude a district.
     buildings = buildings[buildings.geometry.representative_point().within(boundary)].copy()
     buildings['osm_key'] = [f'{a}/{b}' for a, b in buildings.index]
@@ -804,8 +845,8 @@ def _clustering_road_mask(roads):
         'highway', pd.Series('', index=roads.index)).fillna('').astype(str)
     ordinary = ~highway.isin(['service', 'pedestrian'])
     if 'service' not in roads:
-        # A legacy slim cache does not retain the OSM service subtype. It is
-        # unsafe to interpret every cached service road as shared access.
+        # Without service subtypes, access roads cannot be distinguished from
+        # driveways or parking aisles, so service roads are excluded.
         return ordinary
     service_type = roads['service'].fillna('').astype(str).str.lower()
     shared_service = (
@@ -1520,12 +1561,12 @@ def _block_frontage_metrics(footprints, block_roads):
 
         merged = _merged_intervals(frontage_intervals)
         covered_length = min(sum(end - start for start, end in merged), perimeter)
-        coverage = 100.0 * covered_length / perimeter
+        coverage = min(100.0, max(0.0, 100.0 * covered_length / perimeter))
         if merged:
             uncovered_gaps = [merged[index + 1][0] - merged[index][1]
                               for index in range(len(merged) - 1)]
             uncovered_gaps.append(merged[0][0] + perimeter - merged[-1][1])
-            largest_gap_pct = 100.0 * max(uncovered_gaps) / perimeter
+            largest_gap_pct = min(100.0, max(0.0, 100.0 * max(uncovered_gaps) / perimeter))
         else:
             largest_gap_pct = 100.0
         structure = coverage if (
@@ -2016,9 +2057,7 @@ def _apply_rural_influence_boundaries(candidates, contexts, buildings,
             reach = (float(q3 + 1.5 * iqr) if iqr > 1e-9 else
                      float(1.5 * np.median(nearest_distances)))
         else:
-            # Production candidates contain at least the configured minimum
-            # number of buildings. Keep the helper defined for a one-building
-            # diagnostic fixture as well.
+            # A single building has no pairwise spacing to estimate.
             reach = 30.0
         reaches[candidate_index] = reach
         selected_footprints = unary_union(list(
@@ -2208,9 +2247,7 @@ def _additional_scattered_candidates(existing, buildings, roads, boundary, range
         block_roads = roads.iloc[road_tree.query(
             geometry.buffer(math.sqrt(geometry.area)), predicate='intersects')]
         metrics = geometry_metrics(selected, local_roads, geometry, block_roads)
-        levels = pd.to_numeric(selected.get(
-            'building:levels', pd.Series(index=selected.index, dtype=float)), errors='coerce')
-        levels = levels.where((levels > 0) & (levels <= 100))
+        levels = _classification_levels(selected)
         metrics.update({
             'bcr': float(selected.geometry.area.sum() / geometry.area),
             'density': len(selected) / geometry.area * 10000,
@@ -2228,6 +2265,14 @@ def _additional_scattered_candidates(existing, buildings, roads, boundary, range
         used.update(ids)
         registry.add(geometry)
     return accepted, accepted_initial, accepted_contexts, accepted_reaches
+
+
+def _classification_levels(buildings):
+    """Keep observed storeys; supplement missing classification inputs only."""
+    levels = pd.to_numeric(buildings.get('building:levels', pd.Series(np.nan, index=buildings.index)), errors='coerce')
+    levels = levels.where(levels.between(0, 100, inclusive='right'))
+    supplemental = pd.to_numeric(buildings.get('nrw_storeys', pd.Series(np.nan, index=buildings.index)), errors='coerce')
+    return levels.fillna(supplemental.where(supplemental.between(0, 100, inclusive='right')))
 
 
 def _residential_typology_metrics(buildings):
@@ -2264,6 +2309,12 @@ def _residential_typology_metrics(buildings):
 
     explicit_sfh = sfh_from_flats | sfh_from_use | sfh_from_tag
     explicit_mfh = mfh_from_flats | mfh_from_use | mfh_from_tag
+    nrw_type = buildings.get('nrw_residential_typology', pd.Series('', index=buildings.index)).fillna('')
+    nrw_main = buildings.get('nrw_main_use', pd.Series('', index=buildings.index)).fillna('')
+    nrw_eligible = ~resolved & ~tags.isin(NONRES_BUILDINGS)
+    nrw_sfh = nrw_eligible & nrw_main.eq('residential') & nrw_type.isin(['EFH', 'RH'])
+    nrw_mfh = nrw_eligible & nrw_main.eq('residential') & nrw_type.isin(['MFH', 'GMFH'])
+    resolved |= nrw_sfh | nrw_mfh
     ambiguous_residential = (~resolved) & (
         tags.isin(AMBIGUOUS_RESIDENTIAL_BUILDING_TAGS) |
         building_uses.isin(AMBIGUOUS_RESIDENTIAL_BUILDING_TAGS))
@@ -2277,11 +2328,11 @@ def _residential_typology_metrics(buildings):
     explicit_mfh_count = int(explicit_mfh.sum())
     inferred_sfh_count = int(inferred_sfh.sum())
     inferred_mfh_count = int(inferred_mfh.sum())
-    sfh_count = explicit_sfh_count + inferred_sfh_count
-    mfh_count = explicit_mfh_count + inferred_mfh_count
+    sfh_count = explicit_sfh_count + inferred_sfh_count + int(nrw_sfh.sum())
+    mfh_count = explicit_mfh_count + inferred_mfh_count + int(nrw_mfh.sum())
     known_count = sfh_count + mfh_count
     residential_population = (
-        explicit_sfh | explicit_mfh | ambiguous_residential)
+        explicit_sfh | explicit_mfh | ambiguous_residential | nrw_sfh | nrw_mfh)
     residential_count = int(residential_population.sum())
     coverage = (
         100.0 * known_count / residential_count
@@ -2291,6 +2342,7 @@ def _residential_typology_metrics(buildings):
     return {
         'sfh_like_count': sfh_count,
         'mfh_like_count': mfh_count,
+        'nrw_residential_typology_count': int(nrw_sfh.sum() + nrw_mfh.sum()),
         'explicit_sfh_like_count': explicit_sfh_count,
         'explicit_mfh_like_count': explicit_mfh_count,
         'inferred_sfh_like_count': inferred_sfh_count,
@@ -2643,6 +2695,17 @@ def analyse(out, boundary, features, ranges, target, seed, minimum=None, maximum
     groups.extend(additional)
     context_metrics.extend(additional_contexts)
     print(f'{len(additional)} additional scattered A candidates accepted', flush=True)
+    return _characterize_candidates(
+        out, features, area, buildings, roads, groups, context_metrics, ranges,
+        industrial_sites, industrial_exclusion, target, minimum, maximum,
+        candidate_method, analysis_scope, len(rural_boundary_indices), len(additional))
+
+
+def _characterize_candidates(out, features, area, buildings, roads, groups,
+                             context_metrics, ranges, industrial_sites, industrial_exclusion,
+                             target, minimum, maximum, candidate_method, analysis_scope,
+                             rural_boundary_count, additional_count):
+    """Score and export candidates independently of their geometric construction."""
     feature_tree = shapely.STRtree(features.geometry.to_numpy())
     road_tree = shapely.STRtree(roads.geometry.to_numpy())
     rows, geoms, use_rows, membership = [], [], [], []
@@ -2651,8 +2714,7 @@ def analyse(out, boundary, features, ranges, target, seed, minimum=None, maximum
             zip(groups, context_metrics), 1):
         identifier = f'AC{number:04d}'
         b = buildings.iloc[ids].copy()
-        levels = pd.to_numeric(b.get('building:levels', pd.Series(index=b.index, dtype=float)), errors='coerce')
-        levels = levels.where((levels > 0) & (levels <= 100))
+        levels = _classification_levels(b)
         coverage = float(levels.notna().mean())
         footprint_area = b.geometry.area
         far = float((footprint_area * levels.fillna(levels.mean())).sum()/geom.area) if coverage >= .66 else None
@@ -2764,8 +2826,8 @@ def analyse(out, boundary, features, ranges, target, seed, minimum=None, maximum
                'boundary_method': method, 'building_count': len(b), 'area_ha': geom.area/10000,
                **metrics, **context, 'levels_coverage_pct': coverage*100,
                **morphology}
-        # Preserve the existing use-classification implementation, but apply the
-        # same eligible-building population as the district-size calculation.
+        # Use the same eligible-building population for use classification and
+        # the district-size calculation.
         candidate_features = features.iloc[
             feature_tree.query(geom, predicate='intersects')].copy()
         tags = candidate_features.get(
@@ -2862,8 +2924,8 @@ def analyse(out, boundary, features, ranges, target, seed, minimum=None, maximum
                 r['assignment_reason'] for r in rows)),
             'settlement_contexts': dict(context_counts),
             'context_changed_assignments': int(context_changed_count),
-            'rural_influence_boundaries': int(len(rural_boundary_indices) + len(additional)),
-            'additional_scattered_a_candidates': len(additional),
+            'rural_influence_boundaries': int(rural_boundary_count + additional_count),
+            'additional_scattered_a_candidates': additional_count,
             **industrial_exclusion,
             'classification_common_scales': common_scales,
             'building_count_min': min(r['building_count'] for r in rows),
@@ -3288,8 +3350,10 @@ def write_map(out, districts, buildings, roads, membership,
     m.save(str(out/'review_map.html'))
 
 
-def probability_rows(frame, label='generation', unknown_residential_types=('A',)):
-    """Derive generation weights separately from observed, unmodified OSM uses."""
+def probability_rows(frame, label='generation', unknown_residential_types=()):
+    """Derive generation weights separately from observed building-use shares."""
+    if 'unsupported_nonres_building_count' not in frame:
+        raise ValueError('Regenerate use counts with the joint unsupported non-residential count; mixed uses must not be subtracted.')
     if not set(unknown_residential_types) <= {'A'}:
         raise ValueError('Only type A supports the unknown-as-residential assumption.')
     accepted = frame.query_success.astype(str).str.lower().isin(['true', '1'])
@@ -3300,18 +3364,26 @@ def probability_rows(frame, label='generation', unknown_residential_types=('A',)
                              for s in ['residential', 'mixed', 'nonres'])
         unknown = group.unknown_building_split_count.sum()
         assigned = unknown if typ in unknown_residential_types else 0
-        known = observed_known + assigned
+        excluded_nonres = group.unsupported_nonres_building_count.sum()
+        observed_nonres = group.nonres_building_split_count.sum()
+        if not 0 <= excluded_nonres <= observed_nonres:
+            raise ValueError(f'Invalid unsupported non-residential count for type {typ}.')
+        nonres = observed_nonres - excluded_nonres
+        known = observed_known - excluded_nonres + assigned
+        if known <= 0:
+            raise ValueError(f'No represented buildings remain for type {typ}.')
         residential = group.residential_building_split_count.sum() + assigned
         supported = sum(group[f'nrb_{c}_building_count'].sum() for c in MODEL_CATEGORIES)
         record = dict(typ=typ, policy=label, candidates=len(group),
                       footprints=int(group.building_footprint_count.sum()), known=int(known),
-                      nonres=int(group.nonres_building_split_count.sum()), supported_nrb=int(supported),
+                      nonres=int(nonres), observed_nonres=int(observed_nonres),
+                      excluded_unsupported_nonres=int(excluded_nonres), supported_nrb=int(supported),
                       sport=int(group.nrb_SPORT_building_count.sum()),
                       observed_known=int(observed_known), observed_unknown=int(unknown),
                       assumed_residential_from_unknown=int(assigned), effective_residential=int(residential),
                       residential_pct=100 * residential / known if known else 0,
                       mixed_pct=100 * group.mixed_building_split_count.sum() / known if known else 0,
-                      nonres_pct=100 * group.nonres_building_split_count.sum() / known if known else 0)
+                      nonres_pct=100 * nonres / known)
         for category in MODEL_CATEGORIES:
             record[f'{category}_conditional_pct'] = (
                 100 * group[f'nrb_{category}_building_count'].sum() / supported if supported else 0)
@@ -3320,7 +3392,7 @@ def probability_rows(frame, label='generation', unknown_residential_types=('A',)
     return pd.DataFrame(rows)
 
 
-def export_generation_parameters(counts, template, output, unknown_residential_types=('A',)):
+def export_generation_parameters(counts, template, output, unknown_residential_types=()):
     """Export a new workbook, changing only use probabilities; never edit the input."""
     output, template = Path(output), Path(template)
     destination = output / 'typdistrict_parameters.xlsx'
@@ -3357,7 +3429,7 @@ def export_generation_parameters(counts, template, output, unknown_residential_t
                   raw_unknown_labels_preserved=True,
                   updated_types=sorted(probabilities.typ),
                   types_retained_from_template=sorted(set('ABCDEFGHI') - set(probabilities.typ)),
-                  other_nrb_denominator_policy='unchanged_supported_subtypes_only',
+                  other_nrb_denominator_policy='exclude_unsupported_pure_nonres_from_main_shares; supported_subtypes_only',
                   source_workbook_sha256=before, workbook_sha256=sha(destination), edits=edits)
     (output / 'generation_parameters.json').write_text(json.dumps(policy, indent=2), encoding='utf-8')
     if sha(template) != before:
@@ -3389,11 +3461,31 @@ def recount_cached_uses(analysis, source_cache, output):
         raise ValueError('Source cache differs from the saved morphology analysis.')
     inputs = [cache, analysis / 'manifest.json', analysis / 'candidate_districts.geojson',
               analysis / 'building_membership.csv', analysis / 'osm_use_counts_by_district.csv']
+    nrw_evidence = analysis / 'precluster_building_evidence.csv'
+    nrw_manifest = analysis / 'precluster_enrichment_manifest.json'
+    enriched = nrw_evidence.exists() and nrw_manifest.exists()
+    if nrw_evidence.exists() != nrw_manifest.exists() or (
+            manifest.get('publication', {}).get('nrw_enriched') and not enriched):
+        raise ValueError('The saved NRW analysis is missing its matching evidence; refusing an OSM-only recount.')
+    if enriched:
+        inputs.extend([nrw_evidence, nrw_manifest])
     hashes = {str(p.resolve()): sha(p) for p in inputs}
     features = pd.read_pickle(cache).to_crs(25832)
     features.geometry = features.geometry.make_valid()
+    if enriched:
+        metadata = json.loads(nrw_manifest.read_text(encoding='utf-8'))
+        if metadata['source_feature_cache_sha256'] != sha(cache):
+            raise ValueError('Saved NRW matching refers to a different OSM source cache.')
+        evidence = pd.read_csv(nrw_evidence, index_col='osm_key', low_memory=False)
+        if not evidence.index.is_unique:
+            raise ValueError('Duplicate saved NRW matching keys.')
+        source_keys = [f'{kind}/{ident}' for kind, ident in features.index]
+        for column in ('nrw_main_use', 'nrw_category'):
+            features[column] = evidence[column].reindex(source_keys).to_numpy()
     saved_rows = pd.read_csv(analysis / 'osm_use_counts_by_district.csv')
     members = pd.read_csv(analysis / 'building_membership.csv')
+    if enriched and not set(members.osm_key).issubset(evidence.index):
+        raise ValueError('Saved NRW matching does not cover every district member.')
     candidates = gpd.read_file(analysis / 'candidate_districts.geojson').to_crs(features.crs).set_index('district_id')
     memberships = members.groupby('district_id').osm_key.apply(list).to_dict()
     tree = shapely.STRtree(features.geometry.to_numpy())
@@ -3423,8 +3515,910 @@ def recount_cached_uses(analysis, source_cache, output):
     (output / 'source_hashes.json').write_text(json.dumps(hashes, indent=2), encoding='utf-8')
     (output / 'manifest.json').write_text(json.dumps(dict(
         morphology_source=str(analysis.resolve()), source_feature_cache_sha256=sha(cache),
-        geometry_and_membership_reused=True, downloads=False,
+        geometry_and_membership_reused=True, nrw_enrichment_reused=enriched, downloads=False,
         sport_rule='explicit_hall_or_fitness_centre'), indent=2), encoding='utf-8')
+
+
+def _osm_positive_number(value):
+    """Accept one positive value, not ranges, lists or yes/no area tags."""
+    match = re.fullmatch(r'\s*(\d+(?:\.\d+)?)\s*(?:m|m2|m\u00b2)?\s*', str(value))
+    number = float(match[1]) if match else None
+    return number if number is not None and math.isfinite(number) and number > 0 else None
+
+
+def audit_cached_inputs(analysis, source_cache, output):
+    """Rank saved districts by observed input coverage; never impute missing data."""
+    cache = source_cache / 'osm_features_slim.pkl'
+    manifest = json.loads((analysis / 'manifest.json').read_text(encoding='utf-8'))
+    if sha(cache) != manifest['source_feature_cache_sha256']:
+        raise ValueError('Source cache differs from saved district memberships.')
+    inputs = [cache, analysis / 'manifest.json', analysis / 'candidate_metrics.csv',
+              analysis / 'building_membership.csv', analysis / 'candidate_districts.geojson']
+    before = {str(path.resolve()): sha(path) for path in inputs}
+    members = pd.read_csv(analysis / 'building_membership.csv')
+    wanted = set(members.osm_key)
+    tags, raw_sources = {}, []
+    for path in sorted((source_cache / 'http_cache').glob('*.json')):
+        raw = json.loads(path.read_text(encoding='utf-8'))
+        if not isinstance(raw, dict) or 'elements' not in raw:
+            continue
+        matched = 0
+        for item in raw['elements']:
+            key = f"{item['type']}/{item['id']}"
+            if key in wanted:
+                observed = item.get('tags', {})
+                if key in tags and tags[key] != observed:
+                    raise ValueError(f'Conflicting raw cached versions: {key}')
+                tags[key] = observed
+                matched += 1
+        if matched:
+            raw_sources.append(dict(path=str(path.resolve()), sha256=sha(path), matched=matched))
+        del raw
+    features = pd.read_pickle(cache).to_crs(25832)
+    features.geometry = features.geometry.make_valid()
+    features['osm_key'] = [f'{kind}/{ident}' for kind, ident in features.index]
+    tree = shapely.STRtree(features.geometry.to_numpy())
+    geometries = gpd.read_file(analysis / 'candidate_districts.geojson').to_crs(features.crs).set_index('district_id')
+    metrics = pd.read_csv(analysis / 'candidate_metrics.csv').set_index('district_id')
+    building_rows, district_rows = [], []
+    for number, (district_id, group) in enumerate(members.groupby('district_id'), 1):
+        geometry = geometries.loc[district_id].geometry
+        keys = [(key.split('/')[0], int(key.split('/')[1])) for key in group.osm_key]
+        selected = features.loc[keys].copy()
+        nearby = features.iloc[tree.query(geometry, predicate='intersects')]
+        is_building = nearby.building.fillna('').astype(str).ne('') & nearby.geometry.geom_type.isin(['Polygon', 'MultiPolygon'])
+        pois = nearby[~is_building & nearby.geometry.representative_point().within(geometry)]
+        subset = gpd.GeoDataFrame(pd.concat([selected, pois], ignore_index=True, sort=False),
+                                 geometry='geometry', crs=features.crs)
+        _, _, classified = classify_nrb_buildings(subset, return_buildings=True)
+        records = []
+        for _, building in classified.iterrows():
+            key = building.osm_key
+            if key not in set(group.osm_key):
+                continue
+            observed = tags.get(key, {})
+            levels = _osm_positive_number(observed.get('building:levels', building.get('building:levels')))
+            height = _osm_positive_number(observed.get('height'))
+            date_key = next((k for k in ('building:start_date', 'building:year_built',
+                            'construction_date', 'year_built', 'start_date') if observed.get(k)), '')
+            date = str(observed.get(date_key, ''))
+            date_match = re.fullmatch(r'(\d{4})(?:-\d{2}(?:-\d{2})?)?', date)
+            year = int(date_match[1]) if date_match and 1000 <= int(date_match[1]) <= 2026 else None
+            net_key = next((k for k in ('building:floor_area:net', 'building:usable_area',
+                           'usable_area', 'net_floor_area', 'living_area')
+                           if _osm_positive_number(observed.get(k))), '')
+            split = building.building_split
+            category = building.final_category if pd.notna(building.final_category) else ''
+            record = dict(district_id=district_id, osm_key=key,
+                          building_tag=_osm_tag(building, 'building'), use_group=split,
+                          nrb_category=category, usage_known=split != 'unknown',
+                          supported_usage=split != 'unknown' and category != 'OTHER_NRB',
+                          footprint_m2=float(building.geometry.area), levels=levels,
+                          height_m=height, date_tag=date_key, date_value=date, year_evidence=year,
+                          age_evidence=bool(date_key), precise_year_evidence=year is not None,
+                          building_specific_date=bool(date_key and date_key != 'start_date'),
+                          usable_area_tag=net_key, usable_area_value=observed.get(net_key, ''),
+                          raw_tags_found=key in tags, street=observed.get('addr:street', ''),
+                          city=observed.get('addr:city', ''), postcode=observed.get('addr:postcode', ''),
+                          gross_floor_proxy_m2=float(building.geometry.area) * levels if levels else None)
+            records.append(record)
+        table = pd.DataFrame(records)
+        if len(table) != len(group) or table.osm_key.duplicated().any():
+            raise ValueError(f'Membership mismatch: {district_id}')
+        known = table.usage_known
+        supported = table.supported_usage
+        levels_known = table.levels.notna()
+        age = table.precise_year_evidence
+        area = table.footprint_m2
+        gross = pd.to_numeric(table.gross_floor_proxy_m2, errors='raise').fillna(0)
+        metric = metrics.loc[district_id]
+        center = gpd.GeoSeries([geometry.centroid], crs=features.crs).to_crs(4326).iloc[0]
+        row = dict(district_id=district_id, typ=metric.typ,
+                   classification_quality=metric.classification_quality,
+                   included_in_type_results=metric.included_in_type_results,
+                   buildings=len(table), footprint_m2=float(area.sum()),
+                   longitude=center.x, latitude=center.y,
+                   streets='; '.join(sorted(set(table.street) - {''})[:4]),
+                   cities='; '.join(sorted(set(table.city) - {''})),
+                   age_tag_count=int(table.age_evidence.sum()),
+                   usable_area_tag_count=int(table.usable_area_tag.ne('').sum()),
+                   supported_usage_levels_count=int((supported & levels_known).sum()),
+                   usage_year_levels_count=int((known & age & levels_known).sum()),
+                   supported_usage_year_levels_count=int((supported & age & levels_known).sum()),
+                   unknown_usage_count=int((~known).sum()),
+                   unsupported_usage_count=int((known & ~supported).sum()),
+                   raw_missing_count=int((~table.raw_tags_found).sum()),
+                   gross_proxy_m2_available=float(gross.sum()))
+        for label, mask in dict(usage=known, supported_usage=supported, levels=levels_known,
+                                height=table.height_m.notna(), year=age,
+                                usage_year_levels=known & age & levels_known,
+                                supported_usage_levels=supported & levels_known).items():
+            row[label + '_count_pct'] = 100 * float(mask.mean())
+            row[label + '_footprint_pct'] = 100 * float(area[mask].sum() / area.sum())
+            row[label + '_known_gross_proxy_pct'] = 100 * float(gross[mask].sum() / gross.sum()) if gross.sum() else None
+        district_rows.append(row)
+        building_rows.extend(records)
+        if number % 250 == 0:
+            print(f'Audited observed inputs: {number}/{len(metrics)} districts', flush=True)
+    districts = pd.DataFrame(district_rows).sort_values(
+        ['supported_usage_levels_count_pct', 'supported_usage_count_pct',
+         'year_count_pct', 'buildings', 'district_id'],
+        ascending=[False, False, False, False, True])
+    districts.to_csv(output / 'district_input_completeness.csv', index=False)
+    pd.DataFrame(building_rows).to_csv(output / 'building_input_completeness.csv', index=False)
+    if any(sha(Path(path)) != digest for path, digest in before.items()):
+        raise RuntimeError('An audit source changed during execution.')
+    (output / 'audit_manifest.json').write_text(json.dumps(dict(
+        source_hashes=before, raw_sources=raw_sources, downloads=False,
+        candidate_count=len(districts), member_count=len(building_rows),
+        rules={'unknown_usage': 'Preserved, including type A; no residential imputation.',
+               'start_date': 'Provisional building-age evidence; may describe a co-tagged business.',
+               'floor_area': 'Footprint times explicit levels is gross proxy, never usable area.',
+               'gross_weighting': 'Only buildings with explicit levels; not whole-district coverage.',
+               'ranking': 'Lexicographic supported-use/levels coverage, supported use, provisional year coverage, size, ID.',
+               'readiness': 'Coverage is not validation of physical condition or archetype mapping.'}), indent=2), encoding='utf-8')
+    print(f'Input-completeness audit saved: {output}', flush=True)
+
+
+def match_official_footprint(geometry, official, tree):
+    """Accept clear one-to-one matches or contained parts; never nearest neighbours."""
+    candidates = []
+    for index in tree.query(geometry, predicate='intersects'):
+        other = official.geometry.iloc[index]
+        area = geometry.intersection(other).area
+        if area > 1.0 and other.area > 0:
+            candidates.append((area / geometry.area, area / other.area,
+                               area / (geometry.area + other.area - area), int(index)))
+    candidates.sort(reverse=True)
+    if not candidates:
+        return dict(match_status='unmatched', indices=[], coverage=0.0)
+    best = candidates[0]
+    if (best[0] >= .7 and best[1] >= .7 and best[2] >= .6
+            and (len(candidates) == 1 or candidates[1][0] < .2)):
+        return dict(match_status='one_to_one', indices=[best[3]], coverage=best[0])
+    contained = [item[3] for item in candidates if item[1] >= .8]
+    if contained:
+        merged = official.geometry.iloc[contained].union_all()
+        coverage = geometry.intersection(merged).area / geometry.area
+        if coverage >= .85:
+            return dict(match_status='contained_parts', indices=contained, coverage=coverage)
+    return dict(match_status='review', indices=[], coverage=best[0])
+
+
+def _official_supported_use(code):
+    """Map specific NRW functions; broad commercial and mixed uses stay unresolved."""
+    return {
+        '31001_1010': 'RESIDENTIAL', '31001_1210': 'RESIDENTIAL',
+        '31001_1221': 'RESIDENTIAL', '31001_1024': 'RESIDENTIAL',
+        '31001_2020': 'OB', '31001_3010': 'OB',
+        '31001_3021': 'SC', '31001_3022': 'SC', '31001_3065': 'SC',
+        '31001_3023': 'UNI', '31001_3051': 'HOSPITAL',
+        '31001_2054': 'RETAIL', '31001_2081': 'RE',
+        '31001_3211': 'SPORT', '31001_3030': 'CULTURE',
+        '31001_2120': 'WORKSHOP', '31001_2111': 'WORKSHOP',
+        '31001_2143': 'WORKSHOP',
+    }.get(str(code), '')
+
+
+def read_lod2_ground_surfaces(folder):
+    """Read CityGML 1/2 ground polygons; creationDate is never a construction year."""
+    import xml.etree.ElementTree as ET
+    records = []
+    for path in sorted(folder.glob('*.gml')):
+        for _, element in ET.iterparse(path, events=('end',)):
+            if not element.tag.endswith('}Building'):
+                continue
+            polygons = []
+            for surface in element.findall('.//{*}GroundSurface'):
+                for polygon in surface.findall('.//{http://www.opengis.net/gml}Polygon'):
+                    rings = []
+                    for boundary in ('exterior', 'interior'):
+                        for ring in polygon.findall('{http://www.opengis.net/gml}' + boundary):
+                            coords = ring.find('.//{http://www.opengis.net/gml}posList')
+                            if coords is not None and coords.text:
+                                values = np.fromstring(coords.text, sep=' ')
+                                dim = int(coords.get('srsDimension', '3'))
+                                rings.append(values.reshape(-1, dim)[:, :2])
+                    if rings:
+                        polygons.append(Polygon(rings[0], rings[1:]))
+            if polygons:
+                geometry = shapely.make_valid(unary_union(polygons))
+                if geometry.area > 0:
+                    floors = {value.text for value in element.findall('.//{*}storeysAboveGround') if value.text}
+                    records.append(dict(gml_id=element.get('{http://www.opengis.net/gml}id'),
+                        function=element.findtext('{*}function', default=''),
+                        storeys=_osm_positive_number(next(iter(floors))) if len(floors) == 1 else None,
+                        measured_height=_osm_positive_number(element.findtext('{*}measuredHeight')),
+                        geometry=geometry))
+            element.clear()
+        print(f'Read LoD2 tile: {path.name}', flush=True)
+    if not records:
+        return gpd.GeoDataFrame(columns=['gml_id', 'function', 'storeys', 'measured_height', 'geometry'],
+                                geometry='geometry', crs=25832)
+    return gpd.GeoDataFrame(records, geometry='geometry', crs=25832).drop_duplicates('gml_id').reset_index(drop=True)
+
+
+def enrich_cached_inputs(analysis, audit, cache, output, source_cache=None):
+    """Separate NRW evidence/model proxies from OSM observations and re-rank coverage."""
+    old = pd.read_csv(audit / 'building_input_completeness.csv')
+    districts = pd.read_csv(audit / 'district_input_completeness.csv')
+    source = (source_cache or ROOT / 'examples/results/aachen_osm_pilot_v2') / 'osm_features_slim.pkl'
+    saved = json.loads((analysis / 'manifest.json').read_text(encoding='utf-8'))
+    if sha(source) != saved['source_feature_cache_sha256']:
+        raise ValueError('OSM source differs from the saved analysis.')
+    inputs = [source, analysis / 'manifest.json', analysis / 'building_membership.csv',
+              audit / 'building_input_completeness.csv', audit / 'district_input_completeness.csv']
+    before = {str(path.resolve()): sha(path) for path in inputs}
+    features = pd.read_pickle(source).to_crs(25832)
+    keys = [(key.split('/')[0], int(key.split('/')[1])) for key in old.osm_key]
+    osm = features.loc[keys, ['geometry']].copy().reset_index(drop=True)
+    osm.geometry = osm.geometry.make_valid()
+    columns = ['Fest_ID', 'gml_id', 'citygml_fu', 'Nutzung', 'beheizt', 'STKW',
+               'GEBAEUDETY', 'WG_NWG', 'WG_Typ', 'sanierungs', 'Hoehe', 'RW_WW', 'NF']
+    packages = []
+    for path in sorted(cache.glob('KWP-NRW_05334*_Shape.zip')):
+        with zipfile.ZipFile(path) as archive:
+            layer = next(name for name in archive.namelist() if re.fullmatch(r'WBM-NRW_\d+_.+\.shp', name))
+        frame = gpd.read_file(f'/vsizip/{path.as_posix()}/{layer}', columns=columns).to_crs(25832)
+        frame.columns = [col.lower() for col in frame.columns]
+        packages.append(frame)
+        print(f'Loaded NRW building layer: {path.name} ({len(frame)} objects)', flush=True)
+    if len(packages) != 10:
+        raise ValueError('Expected all ten StaedteRegion Aachen municipality packages.')
+    official = gpd.GeoDataFrame(pd.concat(packages, ignore_index=True), crs=25832)
+    if official.fest_id.duplicated().any():
+        raise ValueError('Duplicate official object identifiers require review before matching.')
+    official.geometry = official.geometry.make_valid()
+    tree = shapely.STRtree(official.geometry.to_numpy())
+    lod = read_lod2_ground_surfaces(cache / 'lod2')
+    lod_tree = shapely.STRtree(lod.geometry.to_numpy()) if len(lod) else None
+    pilot_ids = set(json.loads((cache / 'pilot_district_ids.json').read_text()))
+    records = []
+    for index, row in enumerate(old.itertuples(index=False)):
+        geometry = osm.geometry.iloc[index]
+        match = match_official_footprint(geometry, official, tree)
+        parts = official.iloc[match['indices']]
+        def consensus(column, zero_missing=False):
+            values = parts[column].dropna().astype(str)
+            if len(values) != len(parts) or not len(parts):
+                return ''
+            if zero_missing and values.isin(['0', '0.0', '']).any():
+                return ''
+            return values.iloc[0] if values.nunique() == 1 else ''
+        ages = parts.gebaeudety.astype(str).str.extract(r'_(1900|1945|1960|1970|1980|1985|1995|2000|2005|2010|2015|2022)$')[0]
+        age_class = ages.iloc[0] if len(ages) and ages.notna().all() and ages.nunique() == 1 else ''
+        mapped = parts.citygml_fu.map(_official_supported_use)
+        mapped_use = mapped.iloc[0] if len(mapped) and mapped.ne('').all() and mapped.nunique() == 1 else ''
+        floors = _osm_positive_number(consensus('stkw', True))
+        condition = _osm_positive_number(consensus('sanierungs', True))
+        condition = condition if condition is not None and 1 <= condition <= 9 else None
+        heated = consensus('beheizt')
+        record = dict(district_id=row.district_id, osm_key=row.osm_key,
+                      kwp_match=match['match_status'], kwp_coverage=match['coverage'],
+                      kwp_parts=len(parts), kwp_ids=';'.join(parts.fest_id.astype(str)),
+                      kwp_function_codes=';'.join(sorted(set(parts.citygml_fu.astype(str)))),
+                      kwp_use_labels=';'.join(sorted(set(parts.nutzung.astype(str)))),
+                      kwp_supported_use=mapped_use, kwp_age_class_code=age_class,
+                      kwp_storeys_calculated=floors, kwp_condition_class_modelled=condition,
+                      kwp_heated=heated, kwp_storey_values=';'.join(sorted(set(parts.stkw.astype(str)))),
+                      kwp_age_values=';'.join(sorted(set(parts.gebaeudety.astype(str)))),
+                      kwp_heat_kwh_modelled=float(parts.rw_ww.sum()) if len(parts) else None,
+                      lod2_match='not_tested', lod2_ids='', lod2_storeys=None,
+                      lod2_function_codes='', lod2_height=None)
+        if row.district_id in pilot_ids and lod_tree is not None:
+            lm = match_official_footprint(geometry, lod, lod_tree)
+            lp = lod.iloc[lm['indices']]
+            record.update(lod2_match=lm['match_status'], lod2_ids=';'.join(lp.gml_id.astype(str)),
+                          lod2_function_codes=';'.join(sorted(set(lp.function.astype(str)))),
+                          lod2_storeys=float(lp.storeys.iloc[0]) if len(lp) and lp.storeys.notna().all() and lp.storeys.nunique() == 1 else None,
+                          lod2_height=float(lp.measured_height.max()) if len(lp) and lp.measured_height.notna().any() else None)
+        records.append(record)
+        if (index + 1) % 10000 == 0:
+            print(f'Matched NRW objects: {index + 1}/{len(old)} footprints', flush=True)
+    extra = pd.DataFrame(records)
+    joined = old.merge(extra, on=['district_id', 'osm_key'], validate='one_to_one')
+    joined['floor_conflict'] = joined.levels.notna() & joined.kwp_storeys_calculated.notna() & ((joined.levels - joined.kwp_storeys_calculated).abs() > .1)
+    original_category = joined.nrb_category.fillna('').where(joined.use_group.ne('residential'), 'RESIDENTIAL')
+    joined['use_conflict'] = (joined.supported_usage & joined.use_group.ne('mixed') &
+                              joined.kwp_supported_use.fillna('').ne('') &
+                              original_category.ne(joined.kwp_supported_use))
+    joined['unheated_flag'] = joined.kwp_heated.astype(str).isin(['0', '0.0'])
+    joined['external_use_available'] = joined.kwp_supported_use.fillna('').ne('') & ~joined.unheated_flag
+    joined['use_with_external_proxy'] = joined.supported_usage | joined.external_use_available
+    joined['floors_with_external_proxy'] = joined.levels.notna() | joined.kwp_storeys_calculated.notna() | joined.lod2_storeys.notna()
+    joined['age_class_proxy_available'] = joined.kwp_age_class_code.fillna('').astype(str).ne('')
+    joined['core_proxy_available'] = joined.use_with_external_proxy & joined.floors_with_external_proxy & joined.age_class_proxy_available & ~joined.unheated_flag
+    joined.to_csv(output / 'building_enrichment.csv', index=False)
+    additions = []
+    for ident, group in joined.groupby('district_id'):
+        record = dict(district_id=ident, kwp_match_count=int(group.kwp_parts.gt(0).sum()),
+                      kwp_review_count=int(group.kwp_match.eq('review').sum()),
+                      use_conflict_count=int(group.use_conflict.sum()),
+                      floor_conflict_count=int(group.floor_conflict.sum()),
+                      unheated_flag_count=int(group.unheated_flag.sum()))
+        for label in ['use_with_external_proxy', 'floors_with_external_proxy', 'age_class_proxy_available', 'core_proxy_available']:
+            mask = group[label]
+            record[label + '_pct'] = 100 * float(mask.mean())
+            record[label + '_footprint_pct'] = 100 * float(group.loc[mask, 'footprint_m2'].sum() / group.footprint_m2.sum())
+        additions.append(record)
+    ranked = districts.merge(pd.DataFrame(additions), on='district_id', validate='one_to_one')
+    ranked['selection_pool'] = ranked.typ.replace({'F': 'F/G', 'G': 'F/G'})
+    ranked = ranked.sort_values(['core_proxy_available_pct', 'unheated_flag_count', 'kwp_review_count',
+                                 'use_conflict_count', 'floor_conflict_count', 'use_with_external_proxy_pct', 'buildings', 'district_id'],
+                                ascending=[False, True, True, True, True, False, False, True])
+    ranked.to_csv(output / 'district_enrichment_ranking.csv', index=False)
+    if any(sha(Path(path)) != digest for path, digest in before.items()):
+        raise RuntimeError('An OSM/audit source changed during enrichment.')
+    (output / 'enrichment_manifest.json').write_text(json.dumps(dict(
+        source_hashes=before, kwp_sources=json.loads((cache / 'kwp_download_manifest.json').read_text()),
+        lod2_sources=json.loads((cache / 'lod2_download_manifest.json').read_text()),
+        pilot_districts=sorted(pilot_ids), osm_overwritten=False,
+        rules={'matching': 'One-to-one 70% bidirectional overlap and IoU 60%, or contained parts with 85% OSM coverage and 80% source coverage.',
+               'ambiguous': 'No nearest-neighbour filling; unresolved parts remain review cases.',
+               'ages': 'Model-assigned age classes; never exact construction years.',
+               'floors': 'KWP storeys are calculated; LoD2 storeys only where supplied.',
+               'condition': 'Modelled efficiency class, not an observed renovation measure.',
+               'floor_area': 'Source NF retained only in downloaded data; user floor-area assumption unchanged.',
+               'proxy_ranking': 'Data availability with model proxies, not validation of physical truth.'}), indent=2), encoding='utf-8')
+    print(f'NRW building evidence and completeness ranking saved: {output}', flush=True)
+
+
+def _utility_exclusion_flags(projected, eligible, evidence):
+    """Exclude only utility-only NRW matches without conflicting OSM use evidence."""
+    codes = evidence.function_codes.fillna('')
+    flagged = codes.str.contains(r'31001_25\d\d')
+    utility_only = codes.str.fullmatch(r'31001_25\d\d(?:;31001_25\d\d)*')
+    accepted = evidence.match_status.isin(['one_to_one', 'contained_parts'])
+    candidates = eligible[eligible.osm_key.isin(evidence.index[utility_only & accepted])].copy()
+    allowed_tags = {'yes', 'service', 'transformer_tower', 'substation',
+                    'pumping_station', 'water_works', 'utility'}
+    conflicts = set()
+    for _, row in candidates.iterrows():
+        category = classify_osm_object(row)
+        split = classify_building_split(
+            _osm_tag(row, 'building'), category,
+            _osm_tag(row, 'building:use'), _osm_tag(row, 'building:flats'))
+        if (split != 'unknown' or _osm_tag(row, 'building') not in allowed_tags
+                or _osm_tag(row, 'building:use') not in allowed_tags | {''}):
+            conflicts.add(row.osm_key)
+    if len(candidates):
+        building = projected.get('building', pd.Series('', index=projected.index)).fillna('')
+        pois = projected[~(building.ne('') & projected.geometry.geom_type.isin(
+            ['Polygon', 'MultiPolygon']))].copy()
+        poi_columns = [c for c in ('amenity', 'shop', 'office', 'craft', 'leisure',
+                                  'tourism', 'healthcare', 'industrial', 'sport',
+                                  'man_made', 'building:use', 'building:flats') if c in pois]
+        pois = pois[pois[poi_columns].fillna('').ne('').any(axis=1)].copy()
+        if len(pois):
+            pois = pois[pois.apply(lambda row: classify_building_split(
+                '', classify_osm_object(row), _osm_tag(row, 'building:use'),
+                _osm_tag(row, 'building:flats')) != 'unknown', axis=1)].copy()
+        if len(pois):
+            pois.geometry = pois.geometry.representative_point()
+            hits = gpd.sjoin(pois[['geometry']], candidates[['osm_key', 'geometry']],
+                             predicate='within')
+            conflicts.update(hits.osm_key)
+    excluded = utility_only & accepted & evidence.index.isin(candidates.osm_key) & ~evidence.index.isin(conflicts)
+    return pd.DataFrame({'nrw_utility_flag': flagged,
+                         'nrw_utility_excluded': excluded,
+                         'nrw_utility_review': flagged & ~excluded}, index=evidence.index)
+
+
+def _overlay_precluster_evidence(projected, eligible, evidence, output, metadata):
+    """Keep OSM tags and add accepted NRW attributes in separate columns."""
+    if set(evidence.index) != set(eligible.osm_key) or not evidence.index.is_unique:
+        raise ValueError('Prepared enrichment must cover exactly the original eligible population.')
+    structural = evidence.function_codes.map({'31001_2463': 'garage', '31001_2723': 'shed'}).fillna('')
+    candidate = eligible[eligible.building.eq('yes') & eligible.osm_key.map(structural).ne('')].copy()
+    specific = candidate.apply(classify_osm_object, axis=1).isin(MODEL_CATEGORIES)
+    specific |= candidate.get('building:use', pd.Series('', index=candidate.index)).fillna('').isin(RESIDENTIAL_BUILDINGS)
+    conflicts = set(candidate.loc[specific, 'osm_key'])
+    if len(candidate):
+        tags = projected.building.fillna('')
+        nonbuilding = projected[~(tags.ne('') & projected.geometry.geom_type.isin(['Polygon', 'MultiPolygon']))].copy()
+        poi_columns = [c for c in ('amenity', 'shop', 'office', 'craft', 'leisure', 'tourism', 'healthcare', 'industrial', 'sport', 'man_made') if c in nonbuilding]
+        relevant = nonbuilding[poi_columns].fillna('').ne('').any(axis=1)
+        pois = nonbuilding[relevant].copy()
+        if len(pois):
+            pois = pois[pois.apply(classify_osm_object, axis=1).isin(MODEL_CATEGORIES)]
+        if len(pois):
+            pois.geometry = pois.geometry.representative_point()
+            intersections = gpd.sjoin(pois[['geometry']], candidate[['osm_key', 'geometry']], predicate='within')
+            conflicts.update(intersections.osm_key)
+    evidence['nrw_building_tag'] = structural.mask(evidence.index.isin(conflicts), '')
+    evidence['structural_osm_evidence_conflict'] = evidence.index.isin(conflicts)
+    utility = _utility_exclusion_flags(projected, eligible, evidence)
+    for column in utility:
+        evidence[column] = utility[column]
+    keys = pd.Index([f'{kind}/{ident}' for kind, ident in projected.index])
+    for column in ('nrw_main_use', 'nrw_category', 'nrw_storeys', 'nrw_residential_typology',
+                   'nrw_building_tag', 'nrw_utility_excluded'):
+        if column in projected:
+            raise ValueError(f'Input already contains enrichment: {column}')
+        projected[column] = evidence[column].reindex(keys).to_numpy()
+    evidence.to_csv(output / 'precluster_building_evidence.csv')
+    metadata['existing_exclusions_applied_to_gap_filled_kind'] = {'31001_2463': 'garage', '31001_2723': 'shed'}
+    metadata['specific_osm_use_conflicts_preserved'] = len(conflicts)
+    metadata['utility_buildings'] = 'Utility-only accepted matches are excluded; mixed or conflicting evidence is retained for review.'
+    metadata['utility_eligibility'] = dict(
+        rule='Exclude accepted utility-only function 31001_25xx matches only for generic/technical OSM buildings without ordinary-use evidence, including contained POIs. Mixed or conflicting cases remain for review.',
+        flagged=int(utility.nrw_utility_flag.sum()),
+        excluded_flags=int(utility.nrw_utility_excluded.sum()),
+        retained_for_review=int(utility.nrw_utility_review.sum()),
+        other_nrb_denominator_policy='exclude_unsupported_pure_nonres_from_main_shares; supported_subtypes_only')
+    (output / 'precluster_enrichment_manifest.json').write_text(json.dumps(metadata, indent=2), encoding='utf-8')
+    return projected
+
+
+def enrich_before_clustering(features, boundary, cache, output, source_hash):
+    """Match downloaded NRW records and fill missing OSM building attributes.
+
+    The input folder contains municipal building ZIP files, or saved matching
+    records whose source hashes are checked before use. OSM footprints and
+    explicit use evidence take priority; unmatched attributes stay unresolved.
+    """
+    projected, _, eligible, _, _, _ = extract(features, boundary)
+    prepared = cache / 'precluster_building_evidence.csv'
+    if prepared.exists():
+        metadata = json.loads((cache / 'precluster_enrichment_manifest.json').read_text())
+        if metadata.get('source_feature_cache_sha256') != source_hash:
+            raise ValueError('Prepared matching does not have the expected OSM source hash.')
+        for package in metadata['packages']:
+            if sha(Path(package['file'])) != package['sha256']:
+                raise ValueError('A prepared NRW source package changed.')
+        evidence = pd.read_csv(prepared, index_col='osm_key', low_memory=False)
+        metadata['prepared_matching_source'] = str(prepared.resolve())
+        print(f'Reusing validated NRW matches for {len(evidence)} eligible footprints', flush=True)
+        return _overlay_precluster_evidence(projected, eligible, evidence, output, metadata)
+    official = []
+    packages = []
+    for package in sorted(cache.glob('KWP-NRW_05334*_Shape.zip')):
+        with zipfile.ZipFile(package) as archive:
+            layer = next(name for name in archive.namelist()
+                         if re.fullmatch(r'WBM-NRW_\d+_.+\.shp', name))
+        frame = gpd.read_file(f'/vsizip/{package.as_posix()}/{layer}', columns=[
+            'Fest_ID', 'citygml_fu', 'Nutzung', 'WG_NWG', 'WG_Typ', 'beheizt',
+            'STKW', 'GEBAEUDETY', 'sanierungs']).to_crs(25832)
+        frame.columns = frame.columns.str.lower()
+        official.append(frame)
+        packages.append(dict(file=str(package.resolve()), sha256=sha(package)))
+    if len(official) != 10:
+        raise ValueError('Pre-clustering enrichment requires all ten municipality packages.')
+    official = gpd.GeoDataFrame(pd.concat(official, ignore_index=True), crs=25832)
+    if official.fest_id.duplicated().any():
+        raise ValueError('Duplicate NRW IDs require review.')
+    official.geometry = official.geometry.make_valid()
+    tree = shapely.STRtree(official.geometry.to_numpy())
+    mixed_codes = {'31001_1100', '31001_1110', '31001_1120', '31001_1130',
+                   '31001_2310', '31001_2320', '31001_3100'}
+    records = []
+    for number, building in enumerate(eligible.itertuples(), 1):
+        match = match_official_footprint(building.geometry, official, tree)
+        parts = official.iloc[match['indices']]
+        def consensus(column):
+            values = parts[column].fillna('').astype(str).tolist()
+            return values[0] if values and all(values) and len(set(values)) == 1 else ''
+        heated = consensus('beheizt')
+        accepted = len(parts) > 0 and heated in {'1', '1.0'}
+        main_values = []
+        subtypes = []
+        for part in parts.itertuples():
+            subtype = _official_supported_use(part.citygml_fu)
+            if part.citygml_fu in {'31001_2111', '31001_2143'}:
+                subtype = ''  # Factories/warehouses are not workshop evidence.
+            subtypes.append(subtype)
+            main_values.append('mixed' if part.citygml_fu in mixed_codes else (
+                'residential' if part.wg_nwg == 'WG' else
+                'nonres' if part.wg_nwg == 'NWG' else ''))
+        main = main_values[0] if accepted and all(main_values) and len(set(main_values)) == 1 else ''
+        category = subtypes[0] if accepted and subtypes and all(subtypes) and len(set(subtypes)) == 1 else ''
+        if category == 'RESIDENTIAL':
+            category = ''
+        if _osm_tag(building._asdict(), 'building') in {
+                'grandstand', 'pavilion', 'riding_hall', 'parking', 'garage', 'garages', 'stadium'}:
+            category = ''
+        storeys = _osm_positive_number(consensus('stkw')) if accepted else None
+        if storeys is not None and storeys > 100:
+            storeys = None
+        typology = consensus('wg_typ') if accepted and main == 'residential' else ''
+        ages = parts.gebaeudety.astype(str).str.extract(r'_(1900|1945|1960|1970|1980|1985|1995|2000|2005|2010|2015|2022)$')[0]
+        age = ages.iloc[0] if accepted and len(ages) and ages.notna().all() and ages.nunique() == 1 else ''
+        records.append(dict(osm_key=building.osm_key, match_status=match['match_status'],
+                            coverage=match['coverage'], official_ids=';'.join(parts.fest_id.astype(str)),
+                            function_codes=';'.join(sorted(set(parts.citygml_fu.astype(str)))),
+                            function_labels=';'.join(sorted(set(parts.nutzung.astype(str)))),
+                            nrw_main_use=main, nrw_category=category, nrw_storeys=storeys,
+                            nrw_residential_typology=typology, modelled_age_class=age,
+                            modelled_condition=consensus('sanierungs') if accepted else '',
+                            modelled_heated=heated, footprint_m2=float(building.geometry.area)))
+        if number % 10000 == 0:
+            print(f'Pre-clustering NRW matching: {number}/{len(eligible)} footprints', flush=True)
+    evidence = pd.DataFrame(records).set_index('osm_key')
+    metadata = dict(
+        packages=packages, eligible_footprints=len(eligible), original_osm_columns_unchanged=True,
+        source_feature_cache_sha256=source_hash,
+        geometry_unchanged=True, matching='Existing conservative bidirectional/contained-parts rules.',
+        source_priority='Specific OSM including contained POIs precedes official gap-filling.',
+        unheated='No attribute filling unless all accepted parts agree modelled heated=1; membership exclusions unchanged.',
+        proxies='NRW storeys, residential typology, age and condition are model-derived.',
+        utility_buildings='Utility-only exclusion with explicit OSM and contained-POI conflict protection.',
+        downloads=False)
+    return _overlay_precluster_evidence(projected, eligible, evidence, output, metadata)
+
+
+def reassess_enriched_districts(analysis, enrichment, cache, source_cache, parameters, output):
+    """Score saved candidate memberships using supplementary building evidence."""
+    inputs = [analysis / name for name in (
+        'candidate_metrics.csv', 'building_membership.csv', 'morphological_ranges.json',
+        'candidate_districts.geojson')]
+    inputs += [enrichment / 'building_enrichment.csv', enrichment / 'enrichment_manifest.json',
+               source_cache / 'osm_features_slim.pkl', parameters]
+    hashes = {str(path.resolve()): sha(path) for path in inputs}
+    evidence_manifest = json.loads((enrichment / 'enrichment_manifest.json').read_text())
+    for path, digest in evidence_manifest['source_hashes'].items():
+        if sha(Path(path)) != digest:
+            raise ValueError(f'Enrichment source changed: {path}')
+    ranges = load_ranges(parameters)
+    saved_ranges = json.loads((analysis / 'morphological_ranges.json').read_text(encoding='utf-8'))
+    if {t: {k: v for k, v in r.items() if k != 'name'} for t, r in ranges.items()} != {
+            t: {k: v for k, v in r.items() if k != 'name'} for t, r in saved_ranges.items()}:
+        raise ValueError('Literature classification criteria differ from the saved analysis.')
+    buildings = pd.read_csv(enrichment / 'building_enrichment.csv', low_memory=False).fillna({
+        'nrb_category': '', 'kwp_supported_use': '', 'kwp_ids': ''})
+    membership = pd.read_csv(analysis / 'building_membership.csv')
+    if set(map(tuple, membership[['district_id', 'osm_key']].values)) != set(
+            map(tuple, buildings[['district_id', 'osm_key']].values)) or buildings.osm_key.duplicated().any():
+        raise ValueError('Enrichment must contain exactly the saved unique building memberships.')
+    # Read source attributes using the accepted spatial matches.
+    official = []
+    for package in sorted(cache.glob('KWP-NRW_05334*_Shape.zip')):
+        expected = next(item['sha256'] for item in evidence_manifest['kwp_sources']
+                        if Path(item['file']).name == package.name)
+        if sha(package) != expected:
+            raise ValueError(f'NRW package changed: {package}')
+        with zipfile.ZipFile(package) as archive:
+            layer = next(name for name in archive.namelist()
+                         if re.fullmatch(r'WBM-NRW_\d+_.+\.shp', name))
+        frame = gpd.read_file(f'/vsizip/{package.as_posix()}/{layer}',
+                              columns=['Fest_ID', 'WG_NWG', 'WG_Typ', 'citygml_fu'], ignore_geometry=True)
+        frame.columns = frame.columns.str.lower()
+        official.append(frame)
+    if len(official) != 10:
+        raise ValueError('Expected all ten cached municipality packages.')
+    attributes = pd.concat(official).set_index('fest_id')
+    attributes.index = attributes.index.astype(str)
+    mixed_codes = {'31001_1100', '31001_1110', '31001_1120', '31001_1130',
+                   '31001_2310', '31001_2320', '31001_3100'}
+    attributes['main_use'] = attributes.wg_nwg.where(
+        ~attributes.citygml_fu.isin(mixed_codes), 'MIXED')
+    attribute_lookup = {column: attributes[column].fillna('').astype(str).to_dict()
+                        for column in ('main_use', 'wg_typ')}
+    def matched_attribute(ids, column):
+        if not ids:
+            return ''
+        values = [attribute_lookup[column][ident] for ident in ids.split(';')]
+        return values[0] if all(values) and len(set(values)) == 1 else ''
+    buildings['kwp_main_use'] = buildings.kwp_ids.map(lambda ids: matched_attribute(ids, 'main_use'))
+    buildings['kwp_residential_typology'] = buildings.kwp_ids.map(lambda ids: matched_attribute(ids, 'wg_typ'))
+    def generation_subtype(codes):
+        values = [_official_supported_use(code) if code not in {'31001_2111', '31001_2143'} else ''
+                  for code in str(codes).split(';')]
+        return values[0] if values and values[0] and len(set(values)) == 1 else ''
+    buildings['nrw_use_for_generation'] = buildings.kwp_function_codes.map(generation_subtype)
+    buildings['enriched_use_group'] = buildings.use_group
+    buildings['enriched_nrb_category'] = buildings.nrb_category
+    buildings['use_source'] = 'OSM'
+    available = buildings.kwp_match.isin(['one_to_one', 'contained_parts']) & ~buildings.unheated_flag
+    unknown = buildings.use_group.eq('unknown') & available
+    residential = unknown & buildings.nrw_use_for_generation.eq('RESIDENTIAL')
+    nonres = unknown & buildings.nrw_use_for_generation.isin(MODEL_CATEGORIES)
+    # Broad official functions resolve only the main use, not an invented subtype.
+    residential |= unknown & buildings.kwp_main_use.eq('WG') & buildings.nrw_use_for_generation.eq('')
+    nonres |= unknown & buildings.kwp_main_use.eq('NWG') & buildings.nrw_use_for_generation.eq('')
+    mixed = unknown & buildings.kwp_main_use.eq('MIXED')
+    buildings.loc[mixed, 'enriched_use_group'] = 'mixed'
+    buildings.loc[mixed, 'enriched_nrb_category'] = 'OTHER_NRB'
+    buildings.loc[residential, 'enriched_use_group'] = 'residential'
+    buildings.loc[nonres, 'enriched_use_group'] = 'nonres'
+    buildings.loc[nonres, 'enriched_nrb_category'] = buildings.loc[nonres, 'nrw_use_for_generation'].replace('', 'OTHER_NRB')
+    refine = available & buildings.use_group.eq('nonres') & buildings.nrb_category.eq('OTHER_NRB') & buildings.nrw_use_for_generation.isin(MODEL_CATEGORIES)
+    refine &= ~buildings.building_tag.isin(['grandstand', 'pavilion', 'riding_hall', 'parking', 'garage', 'garages', 'stadium'])
+    buildings.loc[refine, 'enriched_nrb_category'] = buildings.loc[refine, 'nrw_use_for_generation']
+    buildings.loc[residential | nonres | mixed | refine, 'use_source'] = 'NRW_gap_fill'
+    buildings['effective_storeys'] = buildings.levels
+    fill = buildings.levels.isna() & available & buildings.kwp_storeys_calculated.between(1, 100)
+    buildings.loc[fill, 'effective_storeys'] = buildings.loc[fill, 'kwp_storeys_calculated']
+    buildings['storeys_source'] = np.where(fill, 'NRW_calculated', np.where(buildings.levels.notna(), 'OSM', 'unresolved'))
+    features = pd.read_pickle(source_cache / 'osm_features_slim.pkl').to_crs(25832)
+    old_metrics = pd.read_csv(analysis / 'candidate_metrics.csv')
+    assignments, counts, baseline_counts = [], [], []
+    # Check saved eligibility before comparing assignments on fixed memberships.
+    scoring_ranges = {typ: {key: value for key, value in config.items()
+                            if key not in {'requirements', 'exclusive_upper_requirements', 'conditional_requirements'}}
+                      for typ, config in ranges.items()}
+    grouped = buildings.groupby('district_id')
+    for old in old_metrics.to_dict('records'):
+        group = grouped.get_group(old['district_id'])
+        keys = [(key.split('/')[0], int(key.split('/')[1])) for key in group.osm_key]
+        footprint_records = features.loc[keys].copy().reset_index(drop=True)
+        # Preserve explicit OSM typology; official typology precedes footprint inference.
+        explicit = footprint_records.copy()
+        ambiguous = ~explicit.get('building', pd.Series('', index=explicit.index)).fillna('').isin(
+            SFH_LIKE_BUILDING_TAGS | MFH_LIKE_BUILDING_TAGS | NONRES_BUILDINGS)
+        uses = explicit.get('building:use', pd.Series('', index=explicit.index)).fillna('')
+        flats = pd.to_numeric(explicit.get('building:flats', pd.Series(np.nan, index=explicit.index)), errors='coerce')
+        ambiguous &= ~uses.isin(SFH_LIKE_BUILDING_TAGS | MFH_LIKE_BUILDING_TAGS | NONRES_BUILDINGS) & ~flats.ge(1)
+        typology_fill = ambiguous.to_numpy() & group.kwp_residential_typology.isin(['EFH', 'RH', 'MFH', 'GMFH']).to_numpy() & group.enriched_use_group.eq('residential').to_numpy() & available.loc[group.index].to_numpy()
+        mapped = group.kwp_residential_typology.map({'EFH': 'house', 'RH': 'house', 'MFH': 'apartments', 'GMFH': 'apartments'}).to_numpy()
+        explicit.loc[typology_fill, 'building:use'] = mapped[typology_fill]
+        typology = _residential_typology_metrics(explicit)
+        buildings.loc[group.index, 'typology_source'] = np.where(typology_fill, 'NRW_modelled', 'OSM_or_existing_inference')
+        metric = {key: (None if pd.isna(value) else value) for key, value in old.items()}
+        allowed = set(str(old['eligible_types']).split(';')) - {'nan', ''}
+        baseline_scores = range_scores(metric, scoring_ranges, allowed_types=allowed)
+        baseline_choice, _, _ = assign_type(baseline_scores)
+        baseline_type = baseline_choice['type'] if classification_quality(baseline_choice['range_score']) != 'unclassified' else 'UNCLASSIFIED'
+        if baseline_type != old['typ']:
+            raise ValueError(f"Original classification is not reproducible: {old['district_id']}")
+        coverage = group.effective_storeys.notna().mean()
+        metric['far'] = float((group.footprint_m2 * group.effective_storeys.fillna(group.effective_storeys.mean())).sum() / (old['area_ha'] * 10000)) if coverage >= .66 else None
+        if typology_fill.any():
+            metric.update(typology)
+        else:
+            typology = {key: metric[key] for key in typology}
+        scores = range_scores(metric, ranges, allowed_types=set(old['context_allowed_types'].split(';')))
+        chosen, compatible, reason = assign_type(scores)
+        quality = classification_quality(chosen['range_score'])
+        typ = chosen['type'] if quality != 'unclassified' else 'UNCLASSIFIED'
+        row = dict(district_id=old['district_id'], old_type=old['typ'], typ=typ,
+                   old_quality=old['classification_quality'], classification_quality=quality,
+                   proposed_source_type=chosen['type'], assignment_reason=reason,
+                   included_in_type_results=typ != 'UNCLASSIFIED', range_score=chosen['range_score'],
+                   compatible_types=';'.join(item['type'] for item in compatible),
+                   old_far=old['far'], far=metric['far'], old_levels_coverage_pct=old['levels_coverage_pct'],
+                   levels_coverage_pct=100 * coverage, nrw_storeys_count=int(fill.loc[group.index].sum()),
+                   nrw_typology_count=int(typology_fill.sum()), old_mfh_share_known_pct=old['mfh_share_known_pct'],
+                   mfh_share_known_pct=typology['mfh_share_known_pct'],
+                   geometry_eligibility_roundoff_corrected=set(item['type'] for item in scores if item['eligible']) != allowed,
+                   use_conflict_count=int(group.use_conflict.sum()), floor_conflict_count=int(group.floor_conflict.sum()),
+                   unheated_flag_count=int(group.unheated_flag.sum()),
+                   building_count=len(group), area_ha=old['area_ha'])
+        assignments.append(row)
+        use = {**row, 'query_success': True, 'building_footprint_count': len(group)}
+        for label in ('residential', 'mixed', 'nonres', 'unknown'):
+            use[f'{label}_building_split_count'] = int(group.enriched_use_group.eq(label).sum())
+        for category in ANALYSIS_CATEGORIES:
+            use[f'nrb_{category}_building_count'] = int(group.enriched_nrb_category.eq(category).sum())
+        use['unsupported_nonres_building_count'] = int((group.enriched_use_group.eq('nonres') &
+            ~group.enriched_nrb_category.isin(MODEL_CATEGORIES)).sum())
+        counts.append(use)
+        original_use = {**use, 'typ': old['typ'],
+                        'included_in_type_results': old['included_in_type_results']}
+        for label in ('residential', 'mixed', 'nonres', 'unknown'):
+            original_use[f'{label}_building_split_count'] = int(group.use_group.eq(label).sum())
+        for category in ANALYSIS_CATEGORIES:
+            original_use[f'nrb_{category}_building_count'] = int(group.nrb_category.eq(category).sum())
+        original_use['unsupported_nonres_building_count'] = int((group.use_group.eq('nonres') &
+            ~group.nrb_category.isin(MODEL_CATEGORIES)).sum())
+        baseline_counts.append(original_use)
+        if len(assignments) % 500 == 0:
+            print(f'Reassessed {len(assignments)}/{len(old_metrics)} candidates', flush=True)
+    revised = pd.DataFrame(assignments)
+    buildings['enriched_supported_use'] = buildings.enriched_use_group.ne('unknown') & buildings.enriched_nrb_category.ne('OTHER_NRB')
+    buildings['enriched_core_proxy'] = buildings.enriched_supported_use & buildings.effective_storeys.notna() & buildings.age_class_proxy_available & ~buildings.unheated_flag
+    coverage = buildings.groupby('district_id').agg(
+        supported_use_pct=('enriched_supported_use', lambda s: 100 * s.mean()),
+        core_proxy_pct=('enriched_core_proxy', lambda s: 100 * s.mean()),
+        known_use_pct=('enriched_use_group', lambda s: 100 * s.ne('unknown').mean()))
+    revised = revised.merge(coverage, on='district_id', validate='one_to_one')
+    revised.to_csv(output / 'district_assignments.csv', index=False)
+    candidates = gpd.read_file(analysis / 'candidate_districts.geojson')[['district_id', 'geometry']]
+    candidates.merge(revised, on='district_id', validate='one_to_one').to_file(
+        output / 'candidate_districts.geojson', driver='GeoJSON')
+    ranked = revised.assign(selection_pool=revised.typ.replace({'F': 'F/G', 'G': 'F/G'})).sort_values(
+        ['core_proxy_pct', 'unheated_flag_count', 'use_conflict_count', 'floor_conflict_count', 'district_id'],
+        ascending=[False, True, True, True, True])
+    ranked.to_csv(output / 'district_review_ranking.csv', index=False)
+    pd.crosstab(revised.old_type, revised.typ).to_csv(output / 'assignment_transitions.csv')
+    buildings.to_csv(output / 'building_evidence.csv', index=False)
+    counts = pd.DataFrame(counts)
+    counts.to_csv(output / 'osm_use_counts_by_district.csv', index=False)
+    export_generation_parameters(counts, parameters, output)
+    baseline = pd.DataFrame(baseline_counts)
+    probability_rows(baseline).to_csv(output / 'baseline_probabilities.csv', index=False)
+    # Separate the effects of assigning districts and filling their building uses.
+    old_uses = baseline.drop(columns=['typ', 'included_in_type_results']).merge(
+        revised[['district_id', 'typ', 'included_in_type_results']], on='district_id', validate='one_to_one')
+    probability_rows(old_uses).to_csv(output / 'reassignment_only_probabilities.csv', index=False)
+    pd.crosstab(revised.typ, revised.classification_quality).to_csv(output / 'assignment_quality.csv')
+    if any(sha(Path(path)) != digest for path, digest in hashes.items()):
+        raise RuntimeError('A source changed during reassessment.')
+    (output / 'manifest.json').write_text(json.dumps(dict(
+        source_hashes=hashes, literature_criteria_unchanged=True, fixed_geometry_and_membership=True,
+        fixed_geometry_context_eligibility='Baseline reproduced with saved eligibility; revised eligibility uses unchanged requirements and bounded percentages.',
+        geometry_roundoff_corrections=int(revised.geometry_eligibility_roundoff_corrected.sum()),
+        workbook_is_proposal=True, osm_specific_uses_preserved=True,
+        unheated_policy='Flags retained; no removal from the existing population; no use filling from unheated objects.',
+        floors='OSM preferred; missing storeys filled with accepted KWP calculated counts; original 66% FAR coverage rule.',
+        unresolved_type_A='Unknowns remain unknown; all types exclude unknown and unsupported pure non-residential buildings from generation shares.',
+        other_nrb_denominator_policy='exclude_unsupported_pure_nonres_from_main_shares; supported_subtypes_only',
+        matching_modelled_attributes_not_ground_truth=True,
+        changed_assignments=int(revised.old_type.ne(revised.typ).sum()),
+        nrw_use_fills=int(buildings.use_source.eq('NRW_gap_fill').sum())), indent=2), encoding='utf-8')
+    print(f'Reassessment saved: {output}; changed assignments: {revised.old_type.ne(revised.typ).sum()}', flush=True)
+
+
+def compare_full_enriched(reference, output, source_cache, parameters):
+    """Compare memberships rather than IDs and shortlist ten review cases per pool."""
+    old_metrics = pd.read_csv(reference / 'candidate_metrics.csv').set_index('district_id')
+    metrics = pd.read_csv(output / 'candidate_metrics.csv').set_index('district_id')
+    old_members = pd.read_csv(reference / 'building_membership.csv')
+    members = pd.read_csv(output / 'building_membership.csv')
+    if members.osm_key.duplicated().any():
+        raise ValueError('New candidate memberships overlap.')
+    old_sets = old_members.groupby('district_id').osm_key.agg(frozenset).to_dict()
+    new_sets = members.groupby('district_id').osm_key.agg(frozenset).to_dict()
+    exact = {keys: ident for ident, keys in old_sets.items()}
+    inverse = dict(zip(old_members.osm_key, old_members.district_id))
+    old_shapes = gpd.read_file(reference / 'candidate_districts.geojson').set_index('district_id')
+    shapes = gpd.read_file(output / 'candidate_districts.geojson').set_index('district_id')
+    comparisons = []
+    for ident, keys in new_sets.items():
+        overlaps = Counter(inverse[key] for key in keys if key in inverse)
+        best = exact.get(keys) or (max(overlaps, key=lambda other: (
+            overlaps[other] / len(keys | old_sets[other]), overlaps[other], other)) if overlaps else '')
+        same = best in old_sets and keys == old_sets[best]
+        comparisons.append(dict(district_id=ident, reference_id=best, exact_membership=same,
+                                reference_type=old_metrics.loc[best, 'typ'] if best else '',
+                                typ=metrics.loc[ident, 'typ'], overlap_count=overlaps.get(best, 0),
+                                membership_jaccard=(len(keys & old_sets[best]) / len(keys | old_sets[best])) if best else 0,
+                                same_boundary=(old_shapes.loc[best].geometry.equals(shapes.loc[ident].geometry) or
+                                               old_shapes.loc[best].geometry.equals_exact(
+                                                   shapes.loc[ident].geometry, 1e-8)) if best else False))
+    comparison = pd.DataFrame(comparisons)
+    comparison.to_csv(output / 'district_comparison.csv', index=False)
+    pd.crosstab(comparison.loc[comparison.exact_membership, 'reference_type'],
+                comparison.loc[comparison.exact_membership, 'typ']).to_csv(output / 'type_transitions_exact_memberships.csv')
+    probabilities = pd.read_csv(output / 'probabilities.csv').set_index('typ')
+    book = openpyxl.load_workbook(parameters, read_only=True, data_only=True)
+    headers = next(book.worksheets[0].values)
+    columns = {'OSM Wohnnutzung (%)': 'residential_pct', 'OSM Nichtwohnnutzung (%)': 'nonres_pct',
+               'OSM Mischnutzung (%)': 'mixed_pct',
+               **{f'OSM Anteil {c} an NRB (%)': f'{c}_conditional_pct' for c in MODEL_CATEGORIES}}
+    changes = []
+    for row in list(book.worksheets[0].values)[1:]:
+        if row[0] not in probabilities.index:
+            continue
+        values = dict(zip(headers, row))
+        for header, field in columns.items():
+            new = round(probabilities.loc[row[0], field], 2)
+            changes.append(dict(typ=row[0], parameter=header, current=values[header],
+                                proposed=new, change_percentage_points=round(new - values[header], 2)))
+    book.close()
+    pd.DataFrame(changes).to_csv(output / 'parameter_comparison.csv', index=False)
+    evidence = pd.read_csv(output / 'precluster_building_evidence.csv', low_memory=False)
+    raw = pd.read_pickle(source_cache / 'osm_features_slim.pkl')
+    original_levels = pd.to_numeric(raw.get('building:levels', pd.Series(np.nan, index=raw.index)), errors='coerce')
+    level_lookup = dict(zip([f'{kind}/{ident}' for kind, ident in raw.index], original_levels.where(original_levels.between(0, 100, inclusive='right'))))
+    evidence['observed_storeys'] = evidence.osm_key.map(level_lookup)
+    evidence['effective_storeys'] = evidence.observed_storeys.fillna(evidence.nrw_storeys)
+    evidence['storeys_source'] = np.where(evidence.observed_storeys.notna(), 'OSM',
+                                           np.where(evidence.nrw_storeys.notna(), 'NRW_calculated', 'unresolved'))
+    evidence['gross_floor_proxy_m2'] = evidence.footprint_m2 * evidence.effective_storeys
+    years = {}
+    wanted = set(members.osm_key)
+    for path in sorted((source_cache / 'http_cache').glob('*.json')):
+        payload = json.loads(path.read_text(encoding='utf-8'))
+        if not isinstance(payload, dict) or 'elements' not in payload:
+            continue
+        for item in payload['elements']:
+            key = f"{item['type']}/{item['id']}"
+            if key not in wanted:
+                continue
+            tags = item.get('tags', {})
+            date = next((str(tags[tag]) for tag in ('building:start_date', 'building:year_built',
+                        'construction_date', 'year_built', 'start_date') if tags.get(tag)), '')
+            match = re.fullmatch(r'(\d{4})(?:-\d{2}(?:-\d{2})?)?', date)
+            if match and 1000 <= int(match[1]) <= datetime.now().year:
+                years[key] = int(match[1])
+        del payload
+    evidence['osm_year_evidence'] = evidence.osm_key.map(years)
+    evidence['age_input_available'] = evidence.osm_year_evidence.notna() | evidence.modelled_age_class.notna()
+    joined = members.merge(evidence, on='osm_key', validate='one_to_one')
+    # Reproduce the actual use decisions, including contained OSM POIs, not merely
+    # the availability of official attributes. This also validates exported counts.
+    feature_frame = raw.to_crs(25832)
+    feature_frame.geometry = feature_frame.geometry.make_valid()
+    lookup = evidence.set_index('osm_key')
+    keys = pd.Index([f'{kind}/{ident}' for kind, ident in feature_frame.index])
+    for column in ('nrw_main_use', 'nrw_category', 'nrw_storeys', 'nrw_residential_typology'):
+        feature_frame[column] = lookup[column].reindex(keys).to_numpy()
+    feature_tree = shapely.STRtree(feature_frame.geometry.to_numpy())
+    projected_shapes = shapes.to_crs(25832)
+    use_records = []
+    use_counts = pd.read_csv(output / 'osm_use_counts_by_district.csv').set_index('district_id')
+    for number, (ident, group) in enumerate(members.groupby('district_id'), 1):
+        geometry = projected_shapes.loc[ident].geometry
+        ids = [(key.split('/')[0], int(key.split('/')[1])) for key in group.osm_key]
+        selected = feature_frame.loc[ids].copy()
+        selected['osm_key'] = group.osm_key.to_numpy()
+        nearby = feature_frame.iloc[feature_tree.query(geometry, predicate='intersects')]
+        building_mask = nearby.building.fillna('').ne('') & nearby.geometry.geom_type.isin(['Polygon', 'MultiPolygon'])
+        pois = nearby[~building_mask & nearby.geometry.representative_point().within(geometry)]
+        subset = gpd.GeoDataFrame(pd.concat([selected, pois], ignore_index=True, sort=False), geometry='geometry', crs=25832)
+        categories, diagnostics, decisions = classify_nrb_buildings(subset, return_buildings=True)
+        for name in ('residential', 'mixed', 'nonres', 'unknown'):
+            assert diagnostics[f'{name}_building_split_count'] == use_counts.loc[ident, f'{name}_building_split_count'], ident
+        for category, count in categories.items():
+            assert count == use_counts.loc[ident, f'nrb_{category}_building_count'], ident
+        for row in decisions.itertuples():
+            use_records.append(dict(district_id=ident, osm_key=row.osm_key,
+                                    use_group=row.building_split, nrb_category=row.final_category,
+                                    osm_use_group=row.osm_use_group, osm_nrb_category=row.osm_nrb_category,
+                                    use_source=row.use_source))
+        if number % 500 == 0:
+            print(f'Validated enriched use decisions: {number}/{len(metrics)} districts', flush=True)
+    joined = joined.merge(pd.DataFrame(use_records), on=['district_id', 'osm_key'], validate='one_to_one')
+    joined['storey_conflict'] = joined.observed_storeys.notna() & joined.nrw_storeys.notna() & ((joined.observed_storeys - joined.nrw_storeys).abs() > .1)
+    joined['main_use_conflict'] = joined.osm_use_group.ne('unknown') & joined.nrw_main_use.fillna('').ne('') & joined.osm_use_group.ne(joined.nrw_main_use)
+    joined['supported_use'] = joined.use_group.ne('unknown') & joined.nrb_category.fillna('').ne('OTHER_NRB')
+    joined['missing_use_or_archetype'] = ~joined.supported_use
+    joined.to_csv(output / 'member_input_evidence.csv', index=False)
+    uses = pd.read_csv(output / 'osm_use_counts_by_district.csv').set_index('district_id')
+    ranking = []
+    for ident, group in joined.groupby('district_id'):
+        use = uses.loc[ident]
+        total = len(group)
+        known = total - int(use.unknown_building_split_count)
+        supported = known - int(use.nrb_OTHER_NRB_building_count)
+        has_residential = int(use.residential_building_split_count + use.mixed_building_split_count) > 0
+        utility = int(group.function_codes.fillna('').str.contains(r'31001_25\d\d').sum())
+        ranking.append(dict(district_id=ident, typ=metrics.loc[ident, 'typ'],
+                            selection_pool=('F/G' if metrics.loc[ident, 'typ'] in {'F', 'G'} else metrics.loc[ident, 'typ']),
+                            buildings=total, has_residential_evidence=has_residential,
+                            unknown_uses=total-known, unsupported_uses=known-supported,
+                            missing_storeys=int(group.effective_storeys.isna().sum()),
+                            observed_storeys_count=int(group.observed_storeys.notna().sum()),
+                            missing_age_input=int((~group.age_input_available).sum()),
+                            osm_year_evidence_count=int(group.osm_year_evidence.notna().sum()),
+                            missing_condition_proxy=int((~pd.to_numeric(group.modelled_condition, errors='coerce').between(1, 9)).sum()),
+                            geometry_review_count=int(group.match_status.eq('review').sum()),
+                            storey_conflict_count=int(group.storey_conflict.sum()),
+                            main_use_conflict_count=int(group.main_use_conflict.sum()),
+                            utility_function_count=utility,
+                            supported_use_pct=100*supported/total,
+                            joint_input_coverage_pct=100*(group.supported_use & group.effective_storeys.notna() & group.age_input_available).mean(),
+                            storey_coverage_pct=100*group.effective_storeys.notna().mean(),
+                            age_input_coverage_pct=100*group.age_input_available.mean(),
+                            review_status='review_required_not_simulation_ready'))
+    ranked = pd.DataFrame(ranking)
+    ranked['minimum_coverage_pct'] = ranked[['supported_use_pct', 'storey_coverage_pct', 'age_input_coverage_pct']].min(axis=1)
+    ranked = ranked.sort_values(['has_residential_evidence', 'joint_input_coverage_pct', 'minimum_coverage_pct', 'utility_function_count',
+                                 'geometry_review_count', 'main_use_conflict_count', 'storey_conflict_count', 'unknown_uses', 'district_id'],
+                                ascending=[False, False, False, True, True, True, True, True, True])
+    ranked.to_csv(output / 'real_district_review_ranking.csv', index=False)
+    shortlisted = ranked[ranked.selection_pool.ne('UNCLASSIFIED') & ranked.has_residential_evidence].groupby(
+        'selection_pool', sort=False).head(10)
+    shortlisted.to_csv(output / 'ten_per_pool_review_shortlist.csv', index=False)
+    joined[joined.district_id.isin(shortlisted.district_id) & (
+        joined.missing_use_or_archetype | joined.effective_storeys.isna() | ~joined.age_input_available
+        | joined.storey_conflict | joined.main_use_conflict
+    )].to_csv(output / 'shortlist_remaining_building_gaps.csv', index=False)
+    retained_sets = set(new_sets.values())
+    summary = dict(reference_candidates=len(old_sets), enriched_candidates=len(new_sets),
+                   exact_memberships=int(comparison.exact_membership.sum()),
+                   exact_memberships_same_boundary=int((comparison.exact_membership & comparison.same_boundary).sum()),
+                   exact_memberships_changed_type=int((comparison.exact_membership & comparison.reference_type.ne(comparison.typ)).sum()),
+                   memberships_without_exact_reference=int((~comparison.exact_membership).sum()),
+                   reference_memberships_not_retained=sum(keys not in retained_sets for keys in old_sets.values()),
+                   type_counts=metrics.typ.value_counts().to_dict(),
+                   target_suitable_districts_per_pool=10,
+                   shortlisted_review_candidates=shortlisted.selection_pool.value_counts().to_dict(),
+                   suitability_not_yet_validated=True,
+                   active_workbook_unchanged=True)
+    (output / 'comparison_summary.json').write_text(json.dumps(summary, indent=2), encoding='utf-8')
+    print('Full-workflow comparison and ten-per-pool review shortlist exported.', flush=True)
+    return summary
 
 
 def finish_use_workflow(analysis, use_results, args):
@@ -3444,7 +4438,8 @@ def finish_use_workflow(analysis, use_results, args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--download', action='store_true')
+    parser.add_argument('--download', action='store_true',
+                        help='Download an OSM source snapshot, then run the analysis.')
     parser.add_argument('--target-buildings', type=int, default=40)
     parser.add_argument('--min-buildings', type=int, default=10)
     parser.add_argument('--max-buildings', type=int, default=70)
@@ -3458,18 +4453,61 @@ def main():
     parser.add_argument(
         '--output', type=Path,
         default=None,
-        help='Output directory; defaults to a separate directory per scope.')
+        help='Output directory; defaults to a scope-specific path. Existing results are never overwritten.')
     parser.add_argument('--source-cache', type=Path,
                         default=ROOT/'examples/results/aachen_osm_pilot_v2',
-                        help='Directory containing boundary.geojson and osm_features_slim.pkl.')
+                        help='Folder with downloaded OSM inputs: boundary.geojson and osm_features_slim.pkl. Reused without another download unless --download is set.')
     parser.add_argument('--parameters', type=Path, default=ROOT/'districtgenerator/data/typdistrict_parameters.xlsx')
     parser.add_argument('--reuse-analysis', type=Path,
-                        help='Reclassify saved memberships; no downloads or morphology regeneration.')
-    parser.add_argument('--type-a-unknown-residential', action=argparse.BooleanOptionalAction, default=True,
-                        help='Generation-only assumption for type A; raw OSM unknowns remain unknown.')
+                        help='Completed analysis folder whose district memberships will be reused for building-use calculations, without forming districts again.')
+    parser.add_argument('--audit-inputs', type=Path,
+                        help='Read-only input-completeness check of a saved analysis; bypass parameter/documentation exports.')
+    parser.add_argument('--enrich-nrw', type=Path, help='Folder of downloaded NRW building packages for the optional completeness assessment; requires --audit-inputs and --input-audit.')
+    parser.add_argument('--input-audit', type=Path, help='Folder containing saved building- and district-completeness tables to supplement with NRW evidence; input tables are not overwritten.')
+    parser.add_argument('--reassess-enriched', type=Path, help='Folder containing matched building evidence for scoring fixed district memberships; requires --reuse-analysis and --enrich-nrw.')
+    parser.add_argument('--precluster-nrw', type=Path, help='Folder of downloaded NRW municipal building ZIP files or saved matching records. Supplies missing building attributes before districts are formed; requires --scope full, --reference-analysis and an unused --output folder.')
+    parser.add_argument('--reference-analysis', type=Path, help='Completed analysis folder used to verify the OSM source, literature ranges and run settings, and produce comparison diagnostics. Required with --precluster-nrw; this is not the NRW building-data folder.')
+    parser.add_argument('--type-a-unknown-residential', action=argparse.BooleanOptionalAction, default=False,
+                        help='Optional type-A unknown-as-residential assignment; default: exclude unknown and unsupported pure non-residential buildings from generation shares.')
     parser.add_argument('--verify-parameters', type=Path, help='Require exported cell values to match this workbook.')
     parser.add_argument('--documentation', type=Path, default=ROOT/'docs/aachen_osm_street_cluster_method_results.md')
     args = parser.parse_args()
+    if args.precluster_nrw:
+        if args.output is None or not args.reference_analysis or args.download or args.reuse_analysis or args.audit_inputs or args.reassess_enriched or args.enrich_nrw or args.input_audit:
+            parser.error('--precluster-nrw requires a new --output and --reference-analysis, without other audit/reuse/download modes.')
+        reference = json.loads((args.reference_analysis / 'manifest.json').read_text(encoding='utf-8'))
+        expected = (reference['seed'], reference['target_buildings'], reference['minimum_buildings'],
+                    reference['maximum_buildings'], reference['candidate_method'])
+        if (args.seed, args.target_buildings, args.min_buildings, args.max_buildings, args.candidate_method) != expected or args.scope != 'full':
+            parser.error('Pre-clustering comparison requires the original full-region settings and seed.')
+        saved = json.loads((args.reference_analysis / 'morphological_ranges.json').read_text(encoding='utf-8'))
+        current = load_ranges(args.parameters)
+        without_names = lambda values: {t: {k: v for k, v in r.items() if k != 'name'} for t, r in values.items()}
+        if without_names(saved) != without_names(current) or sha(args.source_cache / 'osm_features_slim.pkl') != reference['source_feature_cache_sha256']:
+            parser.error('Literature criteria or OSM source differ from the reference.')
+        args.output.mkdir(parents=True, exist_ok=False)
+    elif args.reference_analysis:
+        parser.error('--reference-analysis requires --precluster-nrw.')
+    if args.reassess_enriched:
+        if not args.reuse_analysis or not args.enrich_nrw or args.output is None or args.download or args.audit_inputs or args.input_audit:
+            parser.error('--reassess-enriched requires --reuse-analysis, --enrich-nrw and a new --output only.')
+        args.output.mkdir(parents=True, exist_ok=False)
+        reassess_enriched_districts(args.reuse_analysis, args.reassess_enriched, args.enrich_nrw,
+                                   args.source_cache, args.parameters, args.output)
+        return
+    if args.audit_inputs:
+        if args.download or args.reuse_analysis or args.output is None:
+            parser.error('--audit-inputs requires --output and cannot be combined with download/reclassification.')
+        if bool(args.enrich_nrw) != bool(args.input_audit):
+            parser.error('--enrich-nrw and --input-audit must be supplied together.')
+        args.output.mkdir(parents=True, exist_ok=False)
+        if args.enrich_nrw:
+            enrich_cached_inputs(args.audit_inputs, args.input_audit, args.enrich_nrw, args.output, args.source_cache)
+        else:
+            audit_cached_inputs(args.audit_inputs, args.source_cache, args.output)
+        return
+    if args.enrich_nrw or args.input_audit:
+        parser.error('NRW enrichment options require --audit-inputs.')
     if args.reuse_analysis:
         if args.download or args.output is None:
             parser.error('--reuse-analysis requires --output and cannot be combined with --download.')
@@ -3485,6 +4523,8 @@ def main():
                        if args.scope == 'quick'
                        else 'aachen_osm_building_sections_compact_v7')
         args.output = ROOT / 'examples/results' / output_name
+    if args.output.is_dir() and any(args.output.iterdir()):
+        parser.error('Refusing to overwrite existing analysis results. Use a fresh --output directory; use --precluster-nrw and --reference-analysis to reproduce the enriched workflow.')
     args.output.mkdir(parents=True, exist_ok=True)
     before = sha(args.parameters)
     ranges = load_ranges(args.parameters)
@@ -3515,6 +4555,9 @@ def main():
         print(
             f"Analysis scope: {scope_metadata['analysis_scope']} "
             f"({len(features)} source features)", flush=True)
+        if args.precluster_nrw:
+            features = enrich_before_clustering(features, boundary, args.precluster_nrw, args.output,
+                                                sha(args.source_cache / 'osm_features_slim.pkl'))
         result = analyse(args.output, boundary, features, ranges, args.target_buildings, args.seed,
                          minimum=args.min_buildings, maximum=args.max_buildings,
                          candidate_method=args.candidate_method,
@@ -3841,7 +4884,14 @@ def main():
                     'packages': {name:importlib.metadata.version(name) for name in ['osmnx','geopandas','shapely','scipy','pyproj','openpyxl','folium']},
                     **result}
         (args.output/'manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
-        finish_use_workflow(args.output, args.output, args)
+        if args.precluster_nrw:
+            export_generation_parameters(pd.read_csv(args.output / 'osm_use_counts_by_district.csv'),
+                                         args.parameters, args.output,
+                                         ('A',) if args.type_a_unknown_residential else ())
+            compare_full_enriched(args.reference_analysis, args.output, args.source_cache, args.parameters)
+            print('Proposed workbook exported; active documentation and workbook untouched.', flush=True)
+        else:
+            finish_use_workflow(args.output, args.output, args)
         print(json.dumps(manifest, indent=2), flush=True)
     finally:
         if sha(args.parameters) != before:

@@ -89,9 +89,10 @@ def _result_text(output_dir, use_results=None, generator_parameters=None):
               _quantile(candidates, "row_structure_pct", "General row structure (%)"),
               _quantile(candidates, "range_score", "Total range score $D_t$"),
               _quantile(candidates, "midpoint_score", "Total midpoint score $C_t$"), ""]
-    lines += ["Sections 12--15 describe observed OSM uses. Section 17 gives the generation "
-              "weights, including the type-A residential assumption. Observations and generation "
-              "assumptions are reported separately.", ""]
+    lines += ["Sections 12--15 describe building-use evidence, including accepted NRW "
+              "gap fills when enrichment is enabled. Section 17 gives generation weights "
+              "after excluding unknown and unsupported pure non-residential buildings. "
+              "Evidence counts and generation denominators are reported separately.", ""]
     far_count = pd.to_numeric(candidates["far"], errors="coerce").notna().sum()
     block_count = (pd.to_numeric(candidates["block_frontage_structure_pct"],
                                  errors="coerce") >= 50).sum()
@@ -186,20 +187,13 @@ def _result_text(output_dir, use_results=None, generator_parameters=None):
         values = " | ".join(_pct(row[f"nrb_{code}_building_percentage"])
                             for code in codes)
         lines.append(f"| {row.typ} | {_int(row.classified_nrb_building_count)} | {values} |")
-    map_size = (output_dir / "review_map.html").stat().st_size / (1024 * 1024)
-    lines += ["", "## 16. Result files", "",
-              "The workflow exports the following result files:", "",
-              "- `candidate_districts.geojson`: candidate geometries and indicators;",
-              "- `candidate_metrics.csv`: morphology and matching results;",
-              "- `building_membership.csv`: traceable OSM building membership;",
-              "- `osm_use_counts_by_district.csv`: district-level use results;",
-              "- `osm_building_split_percentages_by_type.csv`: pooled main-use shares;",
-              "- `osm_nrb_building_percentages_by_type.csv`: pooled NRB subtype shares;",
-              "- `osm_use_summary_by_type.csv`: extended type summary;",
-              "- `review_map.html`: interactive review map;",
-              "- `industrial_exclusion_sites.geojson`: excluded industrial areas; and",
-              "- `manifest.json`: hashes, settings, versions and provenance.", "",
-              f"The review map is approximately {map_size:.1f} MB.", "",
+    lines += ["", "## 16. Result interpretation and traceability", "",
+              "The analysis reports candidate boundaries, building memberships, "
+              "morphological indicators, type-assignment scores and building-use "
+              "counts. Type-level summaries distinguish pooled building-weighted "
+              "shares from district-weighted means. Source identifiers and input "
+              "provenance support reproducibility; automated type labels require "
+              "morphological review before treating candidates as validated real districts.", "",
               "OSM data attribution: © OpenStreetMap contributors, ODbL.", ""]
     if generator_parameters:
         params = pd.read_csv(generator_parameters)
@@ -208,7 +202,9 @@ def _result_text(output_dir, use_results=None, generator_parameters=None):
         lines += ["## 17. Generation parameters", "",
                   "Generation weights distinguish observed building uses from modelling assumptions. "
                   "The subtype weights are conditional on the ten supported NRB categories; "
-                  "OTHER_NRB is not part of this denominator.", "",
+                  "OTHER_NRB is not part of this denominator. Unsupported pure non-residential "
+                  "buildings are also excluded from main-use generation shares; residential "
+                  "and mixed-use buildings are included. Raw evidence tables describe all observed uses.", "",
                   "### 17.1 SPORT weights", "",
                   "| Type | SPORT buildings | SPORT among supported NRB |",
                   "|---|---:|---:|"]
@@ -221,22 +217,54 @@ def _result_text(output_dir, use_results=None, generator_parameters=None):
             lines.append(f"| {typ} | {_pct(row.residential_pct, 2)} | {_pct(row.nonres_pct, 2)} | "
                          f"{_pct(row.mixed_pct, 2)} | {int(row.assumed_residential_from_unknown)} | "
                          f"{_pct(row.sport_all_buildings_probability_pct, 3)} |")
-        lines += ["", "The default policy assigns unknown-use footprints to residential generation "
-                  "only for type A. Types B--I use known-use normalization. Raw OSM unknown labels "
-                  "are retained in the observed-use tables.", "",
-                  "### 17.3 Workflow and reproducibility", "",
-                  "`aachen_osm_pilot.py` calculates classification counts, generation weights and "
-                  "documentation in one workflow. It exports `probabilities.csv`, a separate "
-                  "`typdistrict_parameters.xlsx` and `generation_parameters.json`. The manifest "
-                  "records the assumption, source hash and exported cell values. The input workbook "
-                  "is not overwritten.", "",
-                  "The cached-analysis option reuses candidate geometries and memberships:", "",
-                  "```powershell",
-                  'python examples/aachen_osm_pilot.py --reuse-analysis "examples/results/aachen_osm_building_sections_compact_v7" --output "NEW_OUTPUT_DIR"',
-                  "```", "",
-                  "`--type-a-unknown-residential` enables the type-A assumption by default; "
-                  "`--no-type-a-unknown-residential` disables it. "
-                  "`--verify-parameters PATH` checks exported cell values against a reference workbook.", ""]
+        assumed = int(params.assumed_residential_from_unknown.sum())
+        policy_text = (
+            "This export uses an explicit type-A unknown-as-residential modelling assumption. "
+            "Raw unknown labels are retained in the observed-use tables."
+            if assumed else
+            "All types A--I use the same represented-building denominator: residential plus mixed "
+            "plus supported pure non-residential buildings. Unknown-use footprints remain unknown; "
+            "unknowns and unsupported pure non-residential buildings are excluded from generation shares.")
+        lines += ["", policy_text, "",
+                  "### 17.3 Probability interpretation", "",
+                  "The main-use weights and supported subtype weights are distinct conditional "
+                  "distributions. Their product determines the marginal probability of a "
+                  "supported non-residential archetype in a stochastic district draw, subject "
+                  "to the mixed-use eligibility rules in Section 8. A weight does not prescribe "
+                  "an exact number of buildings in any individual district.", ""]
+    enrichment_path = output_dir / 'precluster_enrichment_manifest.json'
+    evidence_path = output_dir / 'member_input_evidence.csv'
+    if enrichment_path.exists() and evidence_path.exists():
+        enrichment = json.loads(enrichment_path.read_text(encoding='utf-8'))
+        evidence = pd.read_csv(evidence_path)
+        before_known = int(evidence.osm_use_group.ne('unknown').sum())
+        after_known = int(evidence.use_group.ne('unknown').sum())
+        lines += ["", "## 18. NRW enrichment evidence", "",
+                  "OSM footprints and roads supply geometry. The NRW municipal building "
+                  "packages supply accepted supplementary attributes before clustering. "
+                  "Specific OSM evidence takes priority; model-derived attributes remain "
+                  "distinguishable from observations.", "",
+                  "| Indicator for final candidate members | Count |", "|---|---:|",
+                  f"| Member footprints | {_int(len(evidence))} |",
+                  f"| Known main use from OSM | {_int(before_known)} |",
+                  f"| Known main use from combined OSM/NRW evidence | {_int(after_known)} |",
+                  f"| Remaining unknown main use | {_int(len(evidence)-after_known)} |",
+                  f"| Explicit OSM storeys | {_int(evidence.observed_storeys.notna().sum())} |",
+                  f"| Effective storeys including calculated NRW gaps | {_int(evidence.effective_storeys.notna().sum())} |",
+                  f"| NRW residential-typology labels used | {_int(_sum(candidates, 'nrw_residential_typology_count'))} |",
+                  f"| Main-use conflict flags | {_int(evidence.main_use_conflict.sum())} |",
+                  f"| Storey conflict flags | {_int(evidence.storey_conflict.sum())} |", ""]
+        utility = enrichment.get('utility_eligibility', {})
+        if utility:
+            lines += [f"The pre-clustering utility check flags {_int(utility['flagged'])} "
+                      f"footprints, excludes {_int(utility['excluded_flags'])} utility-only "
+                      f"footprints, and retains {_int(utility['retained_for_review'])} "
+                      "mixed/conflicting flags for review. These counts refer to the "
+                      "initial eligible population, not only final candidate members.", ""]
+        lines += ["Source identifiers and content hashes identify the building datasets. "
+                  "Age classes and energy-condition proxies are not used for clustering or "
+                  "settlement-type scoring. Model-derived attributes are proxies, not "
+                  "independently verified observations of individual buildings.", ""]
     return "\n".join(lines)
 
 
@@ -250,6 +278,10 @@ def update_documentation_results(output_dir, use_results=None, generator_paramet
         raise FileNotFoundError("Missing completed-run files: " + ", ".join(missing))
     use_results = Path(use_results).resolve() if use_results else None
     generator_parameters = Path(generator_parameters).resolve() if generator_parameters else None
+    if use_results is None and (output_dir / 'probabilities.csv').is_file():
+        use_results = output_dir
+    if generator_parameters is None and use_results is not None and (use_results / 'probabilities.csv').is_file():
+        generator_parameters = use_results / 'probabilities.csv'
     target = Path(documentation) if documentation is not None else DOCUMENTATION
     current = target.read_text(encoding="utf-8")
     if ('## 17. Corrected SPORT weights' in current or '## 17. Generation parameters' in current) and not (use_results and generator_parameters):

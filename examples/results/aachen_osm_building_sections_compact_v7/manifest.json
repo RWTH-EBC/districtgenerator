@@ -1,9 +1,9 @@
 {
-  "created_utc": "2026-09-30T17:00:56.482616+00:00",
-  "parameters_sha256": "7d7c4a0aa0bc358b84f7429545015f7b0676a83f1d244f0c8cabc877d05fc05a",
+  "created_utc": "2026-10-30T19:38:03.661119+00:00",
+  "parameters_sha256": "6aea53de06225acb5bc31197fbabf4b79ab3157c745c00b64fcf4eec365a2a9d",
   "parameters_unchanged": true,
   "source_feature_cache_sha256": "1a4bb85b4dddb20b58b3da1e3073fba2b913abd64e89628a0582f78e8f98918b",
-  "script_sha256": "3a8d861e83299259af01474047d8ffa8e272d76d4819427fd0340aedcc9c1a92",
+  "script_sha256": "1b3f8a60fc20c827fef095d2ff244ade04689cd8a39be0dd6847bac9b2c4f08a",
   "use_classifier": "embedded_in_aachen_osm_pilot",
   "seed": 2026,
   "target_buildings": 40,
@@ -246,71 +246,71 @@
     "openpyxl": "3.1.5",
     "folium": "0.20.0"
   },
-  "eligible_buildings": 196452,
-  "candidates": 4271,
+  "eligible_buildings": 160543,
+  "candidates": 3627,
   "source_type_proposals": {
-    "I": 135,
-    "D": 379,
-    "G": 94,
-    "UNCLASSIFIED": 1064,
-    "H": 59,
-    "E": 1951,
-    "B": 253,
-    "C": 308,
-    "F": 5,
-    "A": 23
+    "E": 1663,
+    "D": 448,
+    "G": 55,
+    "C": 267,
+    "UNCLASSIFIED": 508,
+    "I": 90,
+    "H": 42,
+    "B": 502,
+    "F": 8,
+    "A": 44
   },
   "nearest_source_type_proposals": {
-    "I": 148,
+    "E": 2035,
     "D": 519,
-    "G": 155,
-    "E": 2801,
-    "H": 59,
-    "B": 253,
-    "C": 308,
-    "F": 5,
-    "A": 23
+    "G": 117,
+    "C": 267,
+    "I": 92,
+    "H": 43,
+    "B": 502,
+    "F": 8,
+    "A": 44
   },
   "classification_quality": {
-    "approximate": 3093,
-    "unclassified": 1064,
-    "exact": 114
+    "approximate": 3032,
+    "unclassified": 508,
+    "exact": 87
   },
-  "included_in_type_results": 3207,
+  "included_in_type_results": 3119,
   "boundary_methods": {
-    "road_block_cluster": 1328,
-    "road_block_cluster_rural_influence_boundary": 649,
-    "road_block_cluster_morphology_row_split": 50,
-    "road_block_cluster_morphology_nonrow_split": 51,
-    "road_block_cluster_morphology_row_split_rural_influence_boundary": 29,
-    "road_block_cluster_morphology_nonrow_split_rural_influence_boundary": 28,
-    "two_sided_street_cluster_rural_influence_boundary": 1054,
-    "two_sided_street_cluster": 888,
-    "two_sided_street_cluster_morphology_nonrow_split": 37,
-    "two_sided_street_cluster_morphology_row_split": 40,
-    "two_sided_street_cluster_morphology_nonrow_split_rural_influence_boundary": 52,
-    "two_sided_street_cluster_morphology_row_split_rural_influence_boundary": 49,
-    "additional_scattered_A_rural_influence_boundary": 16
+    "road_block_cluster": 1189,
+    "road_block_cluster_rural_influence_boundary": 802,
+    "road_block_cluster_morphology_nonrow_split": 48,
+    "road_block_cluster_morphology_row_split_rural_influence_boundary": 33,
+    "road_block_cluster_morphology_nonrow_split_rural_influence_boundary": 29,
+    "road_block_cluster_morphology_row_split": 44,
+    "two_sided_street_cluster_rural_influence_boundary": 810,
+    "two_sided_street_cluster": 547,
+    "two_sided_street_cluster_morphology_row_split_rural_influence_boundary": 34,
+    "two_sided_street_cluster_morphology_nonrow_split": 15,
+    "two_sided_street_cluster_morphology_row_split": 18,
+    "two_sided_street_cluster_morphology_nonrow_split_rural_influence_boundary": 37,
+    "additional_scattered_A_rural_influence_boundary": 21
   },
   "assignment_reasons": {
-    "nearest_outside_ranges": 3093,
-    "range_score_above_threshold": 1064,
-    "unique_compatible": 114
+    "nearest_outside_ranges": 3032,
+    "range_score_above_threshold": 508,
+    "unique_compatible": 87
   },
   "settlement_contexts": {
-    "URBAN": 656,
-    "RURAL": 3615
+    "URBAN": 330,
+    "RURAL": 3297
   },
-  "context_changed_assignments": 224,
-  "rural_influence_boundaries": 1877,
-  "additional_scattered_a_candidates": 16,
+  "context_changed_assignments": 87,
+  "rural_influence_boundaries": 1766,
+  "additional_scattered_a_candidates": 21,
   "industrial_site_polygons": 276,
   "industrial_exclusion_area_ha": 1252.0664295446113,
   "industrial_excluded_buildings": 3237,
   "minimum_building_footprint_area_m2": 20.0,
   "small_footprint_excluded_buildings": 30130,
-  "eligible_buildings_before_footprint_filter": 229819,
-  "eligible_buildings_before_industrial_exclusion": 199689,
+  "eligible_buildings_before_footprint_filter": 193910,
+  "eligible_buildings_before_industrial_exclusion": 163780,
   "classification_common_scales": {
     "attached_building_pct": 50.0,
     "bcr": 0.1,
@@ -321,5 +321,15 @@
     "row_structure_pct": 60.0
   },
   "building_count_min": 10,
-  "building_count_max": 70
+  "building_count_max": 70,
+  "publication": {
+    "active_result_set": true,
+    "nrw_enriched": true,
+    "canonical_directory": "D:\\PycharmProjects\\districtgenerator\\examples\\results\\aachen_osm_building_sections_compact_v7",
+    "frozen_clustering_source": "D:\\ResearchArtifacts\\districtgenerator\\tmp\\osm_nrw_utility_eligibility_20261030_v1\\run",
+    "generation_policy": "Exclude unknown and unsupported pure non-residential buildings; retain mixed use; no type-A assumption.",
+    "active_parameter_workbook_sha256": "a09081ed16967b7daf778abf980ecccd8083793078e47c6fba45dfab7d1c5607",
+    "archived_previous_results": "D:\\PycharmProjects\\districtgenerator\\examples\\results\\archive\\superseded_osm_clustering_20261030_8c48368c",
+    "note": "Clustering input hashes describe the executed analysis. Current generation probabilities and workbook are published separately; literature ranges are unchanged."
+  }
 }
