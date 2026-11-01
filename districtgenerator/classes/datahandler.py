@@ -36,7 +36,8 @@ from districtgenerator.functions.design_network_with_node import run_pipeline_no
 from districtgenerator.functions.design_network_with_road import run_pipeline_road
 from districtgenerator.functions.heating_network_simple import calculate_soil_temperature
 from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig, ReportConfig
-
+from districtgenerator.functions.heating_network_2leiter_industrie import network_2leiter_industrie
+from districtgenerator.functions import industrie_optimierung_bridge as industrie_opt
 
 class Datahandler:
     """
@@ -158,6 +159,7 @@ class Datahandler:
         self.progress_file = os.path.join(self.resultPath, 'progress.json')
 
         self.pipeline = {}
+        self.industry_optimization = None  # optional: nur 4G mit WH1
 
     def get_progress(self):
         return {
@@ -2488,9 +2490,18 @@ class Datahandler:
         """
 
         if self.heat_grid_data["heatgrid_generation"] == "4G":
-            #_, param = network_design(self)
-            #network_operation(self, param)
-            _, param = network_2leiter_simple(self)
+            scenario_json = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
+            has_industrial_site = False
+            if os.path.isfile(scenario_json):
+                with open(scenario_json, encoding="utf-8") as fh:
+                    scenario_data = json.load(fh)
+                has_industrial_site = bool(scenario_data.get("values", {}).get("industrial_sites", []))
+
+            if has_industrial_site:
+                _, param = network_2leiter_industrie(self, hp_eta_carnot=None, hp_max_output_kw=None,direct_approach_K=5.0)
+                industrie_opt.load_industry_bridge(self)
+            else:
+                _, param = network_2leiter_simple(self)
 
         elif self.heat_grid_data["heatgrid_generation"] == "5G":
             _, param = network_5G(self)

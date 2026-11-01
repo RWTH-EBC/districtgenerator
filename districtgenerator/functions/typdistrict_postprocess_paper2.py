@@ -9,6 +9,7 @@ import shapely
 from matplotlib.backends.backend_pdf import PdfPages
 from districtgenerator.functions.typdistrict_preprocess import params, district_type
 from districtgenerator.functions.typdistrict import run_typdistrict_layout
+from districtgenerator.functions.pfa_industrie_integration import (ask_industry_request, create_industry_site, show_industry_on_plot,save_industry_site)
 
 '''
 use function scenario_generation to generate the district layout
@@ -55,6 +56,8 @@ def scenario_generation():
     np.random.seed(seed)
     # %% STEP ONE: set parameters for the model
     num_buildings = int(input("\nEnter the number of buildings: "))
+    # Optionale Industrieanlage konfigurieren
+    industry_request = ask_industry_request()
     building_density = params["gebaeude_pro_ha"]["value"]  # buildings per hectare
     # building_density = 5
     building_density_min = params["gebaeude_pro_ha"]["min"]  # buildings per hectare
@@ -670,11 +673,20 @@ def scenario_generation():
             "length": road_lines_scaled[j].length
         })
 
+    # Industrieanlage als separaten Abwärmestandort erzeugen
+    industry_site = create_industry_site(industry_request, road_lines_scaled, buildings_info)
+    # Eindeutiger Namenszusatz für Szenarien mit Industrieanlage
+    industry_suffix = (
+        f"_industrie_{industry_site['group_id']}"
+        if industry_site is not None else ""
+    )
+
     # %% STEP FOUR: Plot Buildings and Infrastructure
     current_dir = os.path.dirname(__file__)
     save_dir = os.path.join(current_dir, '..', 'data', 'scenarios')
+    os.makedirs(save_dir, exist_ok=True)
     plt.ion()  # enable interactive plotting
-    pdf_path = os.path.join(save_dir, f"district_layout_steps_{district_type}_seed_{seed}_buildings_{num_buildings}.pdf")
+    pdf_path = os.path.join(save_dir,f"district_layout_steps_{district_type}_seed_{seed}_buildings_{num_buildings}{industry_suffix}.pdf")
     pdf = PdfPages(pdf_path)
 
     fig, ax = plt.subplots(figsize=(12, 8))
@@ -692,6 +704,10 @@ def scenario_generation():
         ax.fill(x, y, alpha=0)
 
     ax.relim()
+    # Industrieposition in die Bildgrenzen einschließen
+    if industry_site is not None:
+        px, py = industry_site["position_data"]["position"]
+        ax.plot([px], [py], alpha=0)
     ax.autoscale_view()
 
     xlim = ax.get_xlim()
@@ -785,7 +801,7 @@ def scenario_generation():
     # STEP 4 — transformer
     if transformer_pos is not None:
         ax.plot(transformer_pos[0], transformer_pos[1], 'ro', markersize=8)
-
+    show_industry_on_plot(ax, industry_site)
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
     pdf.savefig(fig, bbox_inches='tight', pad_inches=0)
@@ -838,6 +854,17 @@ def scenario_generation():
     ]
 
     all_handles = [transformer_handle] + type_handles + retrofit_handles
+    if industry_site is not None:
+        all_handles.append(
+            plt.Line2D(
+                [], [],
+                marker="D",
+                color="darkorange",
+                linestyle="None",
+                markersize=10,
+                label="Industrie: externe Abwärmequelle"
+            )
+        )
 
     ax.legend(handles=all_handles,
               loc="upper left",
@@ -857,11 +884,12 @@ def scenario_generation():
 
     plot_filename_png = os.path.join(
         save_dir,
-        f"district_layout_{district_type}_seed_{seed}_buildings_{len(buildings)}.png"
+        f"district_layout_{district_type}_seed_{seed}_buildings_{len(buildings)}{industry_suffix}.png"
     )
+
     plot_filename_svg = os.path.join(
         save_dir,
-        f"district_layout_{district_type}_seed_{seed}_buildings_{len(buildings)}.svg"
+        f"district_layout_{district_type}_seed_{seed}_buildings_{len(buildings)}{industry_suffix}.svg"
     )
 
     plt.savefig(plot_filename_png, dpi=300, bbox_inches='tight', pad_inches=0)
@@ -889,23 +917,31 @@ def scenario_generation():
         })
 
     # Save parameters
-    params_filename = os.path.join(save_dir,
-                                   f"district_{district_type}_seed_{seed}_buildings_{len(buildings)}.json")
-    # params_filename = get_unique_filename(params_filename)
+    params_filename = os.path.join(
+        save_dir,
+        f"district_{district_type}_seed_{seed}_buildings_{len(buildings)}{industry_suffix}.json"
+    )
 
-    with open(params_filename, 'w') as f:
+    # Industrieprofile separat und szenariospezifisch speichern
+    scenario_stem = os.path.splitext(os.path.basename(params_filename))[0]
+    industry_metadata = save_industry_site(industry_site, save_dir, scenario_stem)
+    industrial_sites_json = [industry_metadata] if industry_metadata else []
+
+    with open(params_filename, 'w', encoding="utf-8") as f:
         json.dump({
             "metadata": {
                 "settlement_type": district_type,
                 "random_seed": seed,
-                "target_number_of_buildings": num_buildings
+                "target_number_of_buildings": num_buildings,
+                "number_of_industrial_sites": len(industrial_sites_json)
             },
             "parameters": run_results,
             "values": {
                 "numb_buildings": len(buildings),
                 "buildings_info": buildings_info_json,
                 "lines_info": lines_info,
-                "energy_hub": {"position": transformer_pos}
+                "energy_hub": {"position": transformer_pos},
+                "industrial_sites": industrial_sites_json
             }}, f, indent=4, default=convert_to_serializable)
 
     # Save Results as CSV

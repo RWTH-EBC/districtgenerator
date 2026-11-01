@@ -7,6 +7,8 @@ We reached the final step, to generate our first district: Generate demand profi
 # Import classes of the districtgenerator to be able to use the district generator.
 from districtgenerator.classes import *
 import warnings
+#from districtgenerator.functions.industrie_optimierung_diagnose import pruefe_industrie_optimierung
+from districtgenerator.functions import industrie_optimierung_bridge as wh_bridge
 
 
 
@@ -15,7 +17,7 @@ def example8_scenario_evaluation():
 
 
     # Initialize District
-    data = Datahandler(scenario_name = "district_F_seed_1_buildings_32", env_path=".env.CONFIG.PAPER")
+    data = Datahandler(scenario_name = "district_F_seed_1_buildings_30_industrie_G20", env_path=".env.CONFIG.PAPER")
 
     # We directly generate a complete district.
     # This includes the use of the EHDO tool to obtain an optimized energy central for neighborhoods.
@@ -32,10 +34,31 @@ def example8_scenario_evaluation():
 
     topology_option = data.heat_grid_data["topology_option"]
 
+    wh_bridge.WH_HP_TEST_FIXED_KW = 0.0
+
     data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False, topology_option = topology_option, gen_cars=True)
+
+    if getattr(data, "industry_optimization", None) is not None:
+        capacities = data.centralDevices.get("capacities", {})
+
+    print("\n[WH1-CHECK] Auslegung der Industrie-Wärmepumpe:")
+    print(
+        "  Ausgelegte Leistung [kW]:",
+        capacities.get("industry_hp_capacity_kW", "NICHT VORHANDEN")
+    )
+    print(
+        "  Jährliche Kapazitätskosten [EUR/a]:",
+        capacities.get("industry_hp_annuity_EUR_a", "NICHT VORHANDEN")
+    )
 
     # Calculation of the devices' optimal operation
     data.optimizationClusters()
+
+    #if (
+    #        data.heat_grid_data.get("heatgrid_generation") == "4G"
+    #        and getattr(data, "industry_optimization", None) is not None
+    #):
+    #    pruefe_industrie_optimierung(data)
 
     # Calculation of the key performance indicators using the devices' operation profiles of clustered time periods
     data.calculateKPIs()

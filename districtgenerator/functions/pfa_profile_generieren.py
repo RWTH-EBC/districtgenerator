@@ -7,153 +7,18 @@ import pandas as pd
 
 
 # =============================================================================
-# REALISTISCHEN STANDORT AUS EINER FERTIGEN PROFILGRUPPE GENERIEREN
+# REALISTISCHE 8760-STUNDEN-STANDORTPROFILE AUS EMPIRISCHEN PFA-DATEN
 # =============================================================================
-#
-# ZIEL
-# ----
-# NICHT alle Quellenblöcke einer Gruppe ausgeben.
-#
-# Stattdessen:
-#
-#   1. Einen real beobachteten Standort aus der fertigen Gruppe ziehen.
-#   2. Damit gemeinsam übernehmen:
-#        - Anzahl der Quellen
-#        - Q-Typen Q1 ... Q7
-#        - relative Größen der Quellen zueinander
-#   3. Für jede Quelle ein eigenes 8760-Stunden-Profil erzeugen.
-#   4. Zusätzlich alle Quellen zum 8760-Stunden-Standortprofil summieren.
-#
-#
-# Beispiel:
-#
-#   gezogener Standort:
-#
-#       Quelle 1: Q1, 25 %
-#       Quelle 2: Q4, 60 %
-#       Quelle 3: Q7, 15 %
-#
-#   Rückgabe:
-#
-#       source_profiles.shape == (3, 8760)
-#       q_types == ["Q1", "Q4", "Q7"]
-#       site_profile.shape == (8760,)
-#
-#
-# METHODISCH WICHTIG
-# ------------------
-# Der Standort wird standardmäßig GLEICHGEWICHTET aus den realen Standorten
-# gezogen.
-#
-# Dadurch entspricht:
-#
-#     1 realer Standort = 1 mögliche Standortstruktur
-#
-# Große Standorte werden also NICHT nur deshalb häufiger gezogen, weil sie
-# viel mehr Abwärme besitzen.
-#
-#
-# ABSOLUTE STANDORTGRÖSSE
-# ----------------------
-# Zwei Modi sind möglich:
-#
-# A) TARGET_SITE_ANNUAL_HEAT_KWH = None
-#
-#    -> Jahreswärmemenge des gezogenen realen Standorts verwenden.
-#
-# B) TARGET_SITE_ANNUAL_HEAT_KWH = z. B. 10_000_000
-#
-#    -> dieselbe empirische Quellenstruktur / dieselben relativen Anteile
-#       auf insgesamt 10 GWh/a skalieren.
-#
-#
-# ZEITLICHE PROFILE
-# -----------------
-# Jede Quelle wird aus:
-#
-#     Jahreswärmemenge
-#     + Betriebsprofil
-#     + vollständigem 12-Monats-Saisonalitätsvektor
-#
-# auf 8760 Stunden verteilt.
-#
-# Die gemeldete Maximalleistung wird NICHT zur Skalierung verwendet.
-#
-#
-# BETRIEBSSTUNDEN – MODELLANNAHME
-# -------------------------------
-# Die PFA-Daten geben typischerweise die Stunden pro Tag, aber nicht den
-# tatsächlichen Schichtbeginn an.
-#
-# Deshalb wird aktuell angenommen:
-#
-#      8 h -> 06:00–14:00
-#     12 h -> 06:00–18:00
-#     16 h -> 06:00–22:00
-#     20 h -> 02:00–22:00
-#     24 h -> 00:00–24:00
-#
-# Diese Annahme ist unten zentral änderbar und wird in der Konsole ausgegeben.
-#
-#
-# FEHLENDE BETRIEBSPROFILE / SAISONALITÄT
-# ----------------------------------------
-# Falls beim gezogenen Standort noch ein Attribut fehlt, wird ein realer
-# Donorblock derselben Experimentgruppe gezogen.
-#
-# Reihenfolge:
-#
-#     1. gleiche Q-Klasse + Größenklasse + Maschinenfamilie
-#     2. gleiche Q-Klasse + Größenklasse
-#     3. gleiche Q-Klasse
-#     4. gesamte Gruppe
-#
-# Kein Profil_WZ_Code wird als Bedingung verwendet.
-#
-#
-# AUSGABE
-# -------
-# Pro generiertem Standort:
-#
-#     source_profiles_8760.npy
-#         Matrix (n_Quellen, 8760)
-#
-#     site_profile_8760.npy
-#         aufsummiertes Standortprofil (8760,)
-#
-#     site_profiles.npz
-#         Quellenprofile + Q-Typen + IDs + Standortprofil
-#
-#     source_metadata.csv
-#         Metadaten pro Quelle
-#
-#     hourly_index.csv
-#
-#
-# PYTHON-RÜCKGABE
-# ---------------
-#
-# result = generate_realistic_site(...)
-#
-# result["source_profiles"]
-#     NumPy-Matrix (n_Quellen, 8760)
-#
-# result["q_types"]
-#     z. B. array(["Q1", "Q4", "Q7"])
-#
-# result["site_profile"]
-#     NumPy-Array (8760,)
-#
-# result["sources"]
-#     Liste mit einem Dictionary je Standortquelle
-#
-#
-# EXTERNE ÜBERGABE
-# ----------------
-# Der konkrete Übergabeblock an ein späteres anderes Modell ist ganz unten
-# ABSICHTLICH auskommentiert.
+# Zwei Auswahlarten:
+# (1) KI-Größenscore mit Scoretoleranz; optional erweiterbar um unbewertete
+#     Standorte mit ±2 % Wärme eines Score-Referenzstandorts UND Nähe zur
+#     robusten Regression log10(Jahreswärme) ~ KI-Score.
+# (2) Jahresabwärme mit absoluter Wärmetoleranz in kWh/a.
+# Eine weitere Funktion berichtet Größenkennzahlen für 0–10 und 90–100 Score.
+# Die tatsächliche Abwärmemenge und das Quellenportfolio werden empirisch
+# übernommen; je Quelle entsteht ein eigenes 8760-Stunden-Profil.
+# Zufallsziehungen nutzen bei jedem Aufruf frische Betriebssystementropie.
 # =============================================================================
-
 
 # =============================================================================
 # 1. KONFIGURATION
@@ -181,7 +46,7 @@ OUTPUT_BASE_DIR = (
 # HIER DIE FERTIGE GRUPPE EINTRAGEN
 # -----------------------------------------------------------------------------
 
-TARGET_GROUP = "G"
+TARGET_GROUP = "G62"
 
 
 # -----------------------------------------------------------------------------
@@ -226,12 +91,18 @@ FIXED_BASIS_SITE_ID = None
 TARGET_SITE_ANNUAL_HEAT_KWH = None
 
 
-# -----------------------------------------------------------------------------
-# Zufall reproduzierbar machen.
-# -----------------------------------------------------------------------------
+# KI-Dateien für Größenscore und externe Standortkennzahlen.
+SIZE_INFO_DIR = SOURCE_DIR / "KI_Standortgroesse_Recherche_v2" / "Einzelgruppen_fertig"
+SIZE_INFO_SHEET = "Standorte_KI"
+SIZE_SCORE_COL = "KI_Relativer_Groessenscore_0_100"
 
-RANDOM_SEED = 45
-
+HEAT_ASSOCIATION_RELATIVE_TOLERANCE = 0.02
+# Maximaler Abstand der Abwärme zur robusten Regressionsschätzung in log10.
+# 0,20 dex entspricht einem Faktor von etwa 1,58 nach oben/unten.
+REGRESSION_ASSOCIATION_LOG10_HALF_WIDTH = 0.20
+# Optionale Ausreißerfilterung: Tukey 1,5 * IQR von log10(Wärme);
+# für bewertete Standorte zusätzlich stark auffällige Regressionsresiduen.
+OUTLIER_MIN_SAMPLE_SIZE = 8
 
 # =============================================================================
 # 2. REFERENZJAHR
@@ -283,21 +154,8 @@ ALLOW_FLAT_SEASONALITY_LAST_RESORT = True
 # =============================================================================
 # 5. KONSOLE
 # =============================================================================
-
 PRINT_SITE_SUMMARY = True
 PRINT_EACH_SOURCE = True
-
-# Bei einem einzelnen Standort ist die vollständige Ausgabe meist noch
-# handhabbar. Falls die Konsole zu groß wird:
-#
-#     PRINT_FULL_8760_ARRAYS = False
-#
-PRINT_FULL_8760_ARRAYS = False
-
-# Bei False werden trotzdem die ersten und letzten Werte ausfgegeben.
-PRINT_FIRST_N_HOURS = 48
-PRINT_LAST_N_HOURS = 24
-
 
 # =============================================================================
 # 6. DATEIAUSGABE
@@ -600,81 +458,382 @@ def build_reference_time_index(
 # 11. EINEN REALISTISCHEN STANDORT ZIEHEN
 # =============================================================================
 
-def choose_basis_site(
-        sites,
-        rng,
-        used_site_ids=None,
-):
-    """
-    Standardmäßig gleichgewichtete Ziehung über reale Standorte.
+def load_ki_size_table(group_id: str):
+    """Liest die vollständige KI-Standorttabelle einer Profilgruppe."""
+    if not SIZE_INFO_DIR.is_dir():
+        raise FileNotFoundError(f"KI-Rechercheordner fehlt: {SIZE_INFO_DIR}")
+    paths = sorted({
+        path for path in SIZE_INFO_DIR.glob(f"KI_Standortgroesse_{group_id}*.xlsx")
+        if path.is_file() and not path.name.startswith("~$")
+           and re.match(rf"^KI_Standortgroesse_{re.escape(group_id)}(?:_|\.)", path.name, re.I)
+    }, key=lambda path: ("score" in path.stem.casefold(), path.stat().st_mtime),
+        reverse=True)
+    if not paths:
+        raise FileNotFoundError(f"Keine KI-Datei für {group_id} in {SIZE_INFO_DIR}")
+    path = paths[0]
+    df = pd.read_excel(path, sheet_name=SIZE_INFO_SHEET,
+                       dtype={"Standortverbund_ID": str})
+    required = {"Standortverbund_ID", SIZE_SCORE_COL}
+    if not required.issubset(df.columns):
+        raise ValueError(f"{path.name}: Pflichtspalten fehlen: {required - set(df.columns)}")
+    if "Experiment_Gruppe" in df.columns:
+        df = df.loc[df["Experiment_Gruppe"].map(clean_string).str.upper()
+        .eq(group_id.upper())].copy()
+    df["Standortverbund_ID"] = df["Standortverbund_ID"].map(clean_string)
+    df[SIZE_SCORE_COL] = df[SIZE_SCORE_COL].map(numeric_value)
+    df = df.loc[df["Standortverbund_ID"].ne("")].copy()
+    df.loc[~df[SIZE_SCORE_COL].between(0, 100), SIZE_SCORE_COL] = np.nan
+    if df["Standortverbund_ID"].duplicated().any():
+        raise ValueError(f"{path.name}: doppelte Standortverbund_ID")
+    return df, path
 
-    Dadurch wird die Wahrscheinlichkeit NICHT mit der Wärmemenge gewichtet.
-    """
 
+def load_ki_size_scores(group_id: str):
+    """Kompatibilität: Nur ID und validierter Score zur Standorteauswahl."""
+    df, path = load_ki_size_table(group_id)
+    return df[["Standortverbund_ID", SIZE_SCORE_COL]].copy(), path
+
+
+def build_site_heat_table(blocks: pd.DataFrame):
+    """Standortwärme ausschließlich aus gültigen Q1–Q7-Blöcken (kWh/a)."""
+    required = {"Standortverbund_ID", "Quellklasse_Code", "Waermemenge_Block_kWh_a"}
+    if not required.issubset(blocks.columns):
+        raise ValueError(f"source_blocks fehlen Spalten: {required - set(blocks.columns)}")
+    b = blocks.loc[blocks["Quellklasse_Code"].map(clean_string).isin(VALID_Q_TYPES)].copy()
+    b["Standortverbund_ID"] = b["Standortverbund_ID"].map(clean_string)
+    b["_heat"] = b["Waermemenge_Block_kWh_a"].map(numeric_value)
+    b = b.loc[(b["_heat"] > 0) & np.isfinite(b["_heat"]) &
+              b["Standortverbund_ID"].ne("")]
+    return b.groupby("Standortverbund_ID", as_index=False)["_heat"].sum().rename(
+        columns={"_heat": "_Auswahl_Waermemenge_kWh_a"})
+
+
+def fit_robust_heat_regression(scored: pd.DataFrame):
+    """Robuste Huber-IRLS-Regressionsgerade log10(kWh/a) auf Score.
+
+    Keine Normalverteilungsannahme und keine exponentiell großen Residuen:
+    Kleinste-Quadrate-Startwert, dann Begrenzung des Einflusses extremer
+    Residuen. Bei zu wenigen Messungen: robuste konstante Medianschätzung.
+    """
+    x = scored[SIZE_SCORE_COL].to_numpy(dtype=float)
+    q = scored["_Auswahl_Waermemenge_kWh_a"].to_numpy(dtype=float)
+    valid = np.isfinite(x) & np.isfinite(q) & (q > 0)
+    x, y = x[valid], np.log10(q[valid])
+    if not len(x):
+        raise ValueError("Keine Score-Wärme-Paare zur Regression vorhanden.")
+    if len(x) < 5 or np.ptp(x) < 5:
+        return {"intercept": float(np.median(y)), "slope": 0.0,
+                "method": "MEDIAN_BEI_WENIG_DATEN", "n": int(len(x))}
+    # Skalierter x-Wert vermeidet schlechte Kondition; slope bleibt pro Scorepunkt.
+    xm = float(np.median(x))
+    a = np.column_stack((np.ones(len(x)), x - xm))
+    beta = np.linalg.lstsq(a, y, rcond=None)[0]
+    for _ in range(40):
+        residual = y - a @ beta
+        center = float(np.median(residual))
+        mad = float(np.median(np.abs(residual - center)))
+        scale = max(1.4826 * mad, 0.08)
+        abs_r = np.abs(residual - center)
+        weights = np.minimum(1., (1.345 * scale) / np.maximum(abs_r, 1e-12))
+        new = np.linalg.lstsq(a * np.sqrt(weights[:, None]),
+                              y * np.sqrt(weights), rcond=None)[0]
+        if np.max(np.abs(new - beta)) < 1e-8:
+            beta = new
+            break
+        beta = new
+    # Der unabhängige KI-Größenscore soll keine negative Größenrelation bewirken.
+    slope = max(0.0, float(beta[1]))
+    intercept = float(beta[0] - slope * xm) if slope else float(np.median(y))
+    return {"intercept": intercept, "slope": slope,
+            "method": "HUBER_IRLS_LOG10" if slope else "ROBUSTER_MEDIAN_FALLBACK",
+            "n": int(len(x))}
+
+
+def predict_log10_heat(model, scores):
+    return model["intercept"] + model["slope"] * np.asarray(scores, dtype=float)
+
+
+def heat_outlier_mask_log_iqr(available: pd.DataFrame):
+    """Hohe UND niedrige globale Wärmeausreißer, 1.5 IQR in Log10-Einheiten."""
+    heat = available["_Auswahl_Waermemenge_kWh_a"].to_numpy(dtype=float)
+    if len(heat) < OUTLIER_MIN_SAMPLE_SIZE:
+        return np.zeros(len(available), dtype=bool)
+    logs = np.log10(heat)
+    q1, q3 = np.percentile(logs, [25, 75])
+    iqr = float(q3 - q1)
+    if iqr < 1e-6:
+        return np.abs(logs - float(np.median(logs))) > 0.7
+    return (logs < q1 - 1.5 * iqr) | (logs > q3 + 1.5 * iqr)
+
+
+def score_residual_outlier_mask(scored: pd.DataFrame, model):
+    """
+    Entfernt Standorte mit vorhandenem KI-Score, deren Jahresabwärme
+    nicht zum erwarteten Score-Wärme-Verhältnis passt.
+
+    Verwendet den doppelten Regressionskorridor wie die Zuordnung
+    von Standorten ohne KI-Score.
+    """
+    if len(scored) < OUTLIER_MIN_SAMPLE_SIZE:
+        return np.zeros(len(scored), dtype=bool)
+
+    scores = scored[SIZE_SCORE_COL].to_numpy(dtype=float)
+    heat_kwh = scored["_Auswahl_Waermemenge_kWh_a"].to_numpy(dtype=float)
+
+    residual = (
+            np.log10(heat_kwh)
+            - predict_log10_heat(model, scores)
+    )
+
+    return np.abs(residual) > REGRESSION_ASSOCIATION_LOG10_HALF_WIDTH * 2
+
+def find_heat_associated_sites(unscored_sites: pd.DataFrame,
+                               score_references: pd.DataFrame,
+                               relative_tolerance=HEAT_ASSOCIATION_RELATIVE_TOLERANCE):
+    """Findet unbewertete Standorte mit Abwärme innerhalb ±r EINER Referenz.
+
+    Beide Tabellen müssen auf Grundlage der Q1-Q7-Quellenwärme desselben
+    Generator-Datenpakets gebildet sein. Kein Standort wird mehrfach gezählt,
+    auch wenn er mehrere Score-Referenzen trifft. Die mathematische Bedingung
+    lautet: |Q_unbewertet - Q_referenz| <= r * Q_referenz.
+    """
+    if not 0 <= relative_tolerance < 1:
+        raise ValueError("Die relative Abwärmetoleranz muss zwischen 0 und 1 liegen.")
+    if unscored_sites.empty or score_references.empty:
+        return unscored_sites.iloc[0:0].copy()
+
+    heat_col = "_Auswahl_Waermemenge_kWh_a"
+    reference = score_references.sort_values(heat_col, kind="stable").reset_index(drop=True)
+    ref_heats = reference[heat_col].to_numpy(dtype=float)
+    ref_ids = reference["Standortverbund_ID"].to_numpy(dtype=str)
+    unscored = unscored_sites.copy().reset_index(drop=True)
+    heats = unscored[heat_col].to_numpy(dtype=float)
+
+    # Aus |q - r| <= t*r ergibt sich r in [q/(1+t), q/(1-t)].
+    # Suchen im sortierten Referenzfeld statt kartesischer Kreuzverknüpfung.
+    left = np.searchsorted(ref_heats, heats / (1.0 + relative_tolerance), side="left")
+    right = np.searchsorted(ref_heats, heats / (1.0 - relative_tolerance), side="right")
+    associated_mask = left < right
+    matched = unscored.loc[associated_mask].copy()
+    if matched.empty:
+        return matched
+
+    # Für jede Trefferzeile einen (ggf. von mehreren) Referenzstandorten
+    # auditierbar dokumentieren. Die Auswahrscheinlichkeit wird dadurch NICHT
+    # gewichtet: Ein Standort bleibt immer ein Kandidat.
+    indices = np.flatnonzero(associated_mask)
+    matched_refs = []
+    matched_ref_heats = []
+    relative_diffs = []
+    reference_counts = []
+    for i in indices:
+        indices_in_range = np.arange(left[i], right[i])
+        deviations = np.abs(heats[i] - ref_heats[indices_in_range]) / ref_heats[indices_in_range]
+        best = indices_in_range[int(np.argmin(deviations))]
+        matched_refs.append(ref_ids[best])
+        matched_ref_heats.append(float(ref_heats[best]))
+        relative_diffs.append(float(np.min(deviations)))
+        reference_counts.append(int(len(indices_in_range)))
+
+    matched["_Assoziation_Referenz_Standort_ID"] = matched_refs
+    matched["_Assoziation_Referenzwaerme_kWh_a"] = matched_ref_heats
+    matched["_Assoziation_Relative_Waermeabweichung"] = relative_diffs
+    matched["_Assoziation_Anzahl_passender_Referenzen"] = reference_counts
+    return matched.reset_index(drop=True)
+
+
+def build_selection_candidates(
+        group_id, sites, blocks, *, size_score=None, score_tolerance=None,
+        annual_heat_kwh=None, heat_tolerance_kwh=None,
+        use_heat_association=True, exclude_heat_outliers=False):
+    """Ein Standort = eine gleichgewichtete Ziehungsoption.
+
+    Modus Score: direkte Treffer plus optional unbewertete Standorte,
+    die sowohl ±2 % Wärme einer Referenz haben ALS AUCH innerhalb eines
+    robusten Regressionskorridors von ±0.20 dex liegen.
+    """
+    if not isinstance(use_heat_association, (bool, np.bool_)):
+        raise ValueError("use_heat_association muss True oder False sein.")
+    if not isinstance(exclude_heat_outliers, (bool, np.bool_)):
+        raise ValueError("exclude_heat_outliers muss True oder False sein.")
+    score_mode = size_score is not None
+    if score_mode == (annual_heat_kwh is not None):
+        raise ValueError("Genau EIN Ziel angeben: size_score ODER annual_heat_kwh.")
+    if score_mode:
+        target, tolerance = numeric_value(size_score), numeric_value(score_tolerance)
+        if not np.isfinite(target) or not 0 <= target <= 100:
+            raise ValueError("size_score muss zwischen 0 und 100 liegen.")
+        if not np.isfinite(tolerance) or tolerance < 0:
+            raise ValueError("score_tolerance muss nichtnegativ sein.")
+        mode, value_column = "KI_GROESSENSCORE", SIZE_SCORE_COL
+    else:
+        target, tolerance = numeric_value(annual_heat_kwh), numeric_value(heat_tolerance_kwh)
+        if not np.isfinite(target) or target <= 0:
+            raise ValueError("annual_heat_kwh muss positiv sein.")
+        if not np.isfinite(tolerance) or tolerance < 0:
+            raise ValueError("heat_tolerance_kwh muss nichtnegativ sein.")
+        mode, value_column = "JAHRESABWAERME", "_Auswahl_Waermemenge_kWh_a"
+
+    heat_table = build_site_heat_table(blocks)
+    available = sites.copy()
+    available["Standortverbund_ID"] = available["Standortverbund_ID"].map(clean_string)
+    if available["Standortverbund_ID"].duplicated().any():
+        raise ValueError("sites enthält doppelte Standortverbund_ID-Werte.")
+    available = available.merge(heat_table, on="Standortverbund_ID",
+                                how="inner", validate="one_to_one")
+    if available.empty:
+        raise ValueError(f"{group_id}: keine Standorte mit positiver Q1–Q7-Wärme.")
+    total_before_filter = len(available)
+    score_file = None
+    associated_count = 0
+    score_reference_count = 0
+    regression = None
+    corridor = None
+    available_scored_count = 0
+    available_unscored_count = 0
+    removed_global = 0
+    removed_residual = 0
+    removed_global_mask = heat_outlier_mask_log_iqr(available) if exclude_heat_outliers \
+        else np.zeros(len(available), dtype=bool)
+    removed_global = int(removed_global_mask.sum())
+    available = available.loc[~removed_global_mask].copy()
+    if available.empty:
+        raise ValueError("Alle Standorte wurden als Wärmeausreißer ausgeschlossen.")
+
+    if score_mode:
+        scores, score_file = load_ki_size_scores(group_id)
+        available = available.merge(scores, on="Standortverbund_ID", how="left",
+                                    validate="one_to_one")
+        available[SIZE_SCORE_COL] = pd.to_numeric(available[SIZE_SCORE_COL], errors="coerce")
+        has_score = available[SIZE_SCORE_COL].between(0, 100)
+        scored = available.loc[has_score].copy()
+        if scored.empty:
+            raise ValueError(f"{group_id}: keine gültigen KI-Scores vorhanden.")
+        if exclude_heat_outliers:
+            preliminary = fit_robust_heat_regression(scored)
+            residual_mask = score_residual_outlier_mask(scored, preliminary)
+            # Genügend Score-Referenzen zur Neuberechnung bewahren.
+            remaining_scored = int((~residual_mask).sum())
+
+        if remaining_scored < 3:
+            raise ValueError(
+                f"{group_id}: Nach dem Score-Wärme-Ausreißerfilter verbleiben "
+                f"nur {remaining_scored} Score-Standorte. "
+                "Filtergrenze prüfen statt Ausreißer erneut freizugeben."
+            )
+
+        removed_residual = int(residual_mask.sum())
+
+        available = available.loc[
+            ~available["Standortverbund_ID"].isin(
+                scored.loc[residual_mask, "Standortverbund_ID"]
+            )
+        ].copy()
+
+        scored = scored.loc[~residual_mask].copy()
+        unscored = available.loc[~available[SIZE_SCORE_COL].between(0, 100)].copy()
+        available_scored_count, available_unscored_count = len(scored), len(unscored)
+        scored["_Auswahl_Abstand"] = (scored[SIZE_SCORE_COL] - target).abs()
+        inside = scored["_Auswahl_Abstand"] <= tolerance + 1e-10
+        within_count = int(inside.sum())
+        fallback = within_count == 0
+        if fallback:
+            distance = float(scored["_Auswahl_Abstand"].min())
+            refs = scored.loc[np.isclose(scored["_Auswahl_Abstand"], distance,
+                                         atol=1e-9, rtol=1e-12)].copy()
+        else:
+            refs = scored.loc[inside].copy()
+        score_reference_count = len(refs)
+        refs["_Auswahl_Herkunft"] = "MIT_KI_SCORE"
+        candidates = refs.copy()
+        if use_heat_association and not unscored.empty:
+            regression = fit_robust_heat_regression(scored)
+            expected = predict_log10_heat(regression,
+                                          refs[SIZE_SCORE_COL].to_numpy(dtype=float))
+            lo_log = float(np.min(expected) - REGRESSION_ASSOCIATION_LOG10_HALF_WIDTH)
+            hi_log = float(np.max(expected) + REGRESSION_ASSOCIATION_LOG10_HALF_WIDTH)
+            corridor = (10.0 ** lo_log, 10.0 ** hi_log)
+            matched = find_heat_associated_sites(unscored, refs,
+                                                 HEAT_ASSOCIATION_RELATIVE_TOLERANCE)
+            matched = matched.loc[matched["_Auswahl_Waermemenge_kWh_a"].between(
+                corridor[0], corridor[1])].copy()
+            associated_count = len(matched)
+            if associated_count:
+                matched["_Auswahl_Herkunft"] = "ABWAERMEASSOZIATION_OHNE_SCORE"
+                candidates = pd.concat([refs, matched], ignore_index=True)
+        available_valid_count = available_scored_count
+    else:
+        if exclude_heat_outliers and len(available) == 0:
+            raise ValueError("Keine Standorte nach Wärmeausreißerfilter vorhanden.")
+        available[value_column] = pd.to_numeric(available[value_column], errors="coerce")
+        available = available.loc[np.isfinite(available[value_column])].copy()
+        available["_Auswahl_Abstand"] = (available[value_column] - target).abs()
+        inside = available["_Auswahl_Abstand"] <= tolerance + 1e-10
+        within_count = int(inside.sum())
+        fallback = within_count == 0
+        if fallback:
+            distance = float(available["_Auswahl_Abstand"].min())
+            candidates = available.loc[np.isclose(available["_Auswahl_Abstand"],
+                                                  distance, atol=1e-9, rtol=1e-12)].copy()
+        else:
+            candidates = available.loc[inside].copy()
+        candidates["_Auswahl_Herkunft"] = "JAHRESABWAERME"
+        available_valid_count = len(available)
+
+    if candidates.empty or candidates["Standortverbund_ID"].duplicated().any():
+        raise RuntimeError("Ungültiger Kandidatenpool (leer oder doppelte IDs).")
+    candidates = candidates.reset_index(drop=True)
+    return candidates, {
+        "selection_mode": mode,
+        "selection_target": float(target),
+        "selection_tolerance": float(tolerance),
+        "matching_sites_in_window": int(within_count),
+        "selection_candidate_count": int(len(candidates)),
+        "available_sites_with_valid_value": int(available_valid_count),
+        "fallback_to_nearest": bool(fallback),
+        "score_file": str(score_file) if score_file else None,
+        "score_reference_site_count": int(score_reference_count),
+        "associated_sites_by_heat": int(associated_count),
+        "heat_association_relative_tolerance": (
+            HEAT_ASSOCIATION_RELATIVE_TOLERANCE if score_mode and use_heat_association else None),
+        "available_sites_without_score": (int(available_unscored_count) if score_mode else None),
+        "use_heat_association": bool(use_heat_association) if score_mode else False,
+        "exclude_heat_outliers": bool(exclude_heat_outliers),
+        "outliers_removed_global": int(removed_global),
+        "outliers_removed_score_residual": int(removed_residual),
+        "available_sites_before_outlier_filter": int(total_before_filter),
+        "regression_method": regression["method"] if regression else None,
+        "regression_n": regression["n"] if regression else None,
+        "regression_intercept_log10": regression["intercept"] if regression else None,
+        "regression_slope_log10_per_score": regression["slope"] if regression else None,
+        "association_regression_corridor_kwh_a": list(corridor) if corridor else None,
+    }
+
+def choose_basis_site(sites, rng, used_site_ids=None):
+    """Zieht einen realen Standort gleichwahrscheinlich aus den Kandidaten."""
     if used_site_ids is None:
         used_site_ids = set()
 
-    if (
-            FIXED_BASIS_SITE_ID
-            is not None
-    ):
-
-        candidates = sites[
-            sites[
-                "Standortverbund_ID"
-            ]
-            .map(clean_string)
-            .eq(
-                clean_string(
-                    FIXED_BASIS_SITE_ID
-                )
-            )
-        ]
-
+    candidates = sites.copy()
+    if FIXED_BASIS_SITE_ID is not None:
+        candidates = candidates[candidates["Standortverbund_ID"].map(clean_string).eq(
+            clean_string(FIXED_BASIS_SITE_ID)
+        )]
         if candidates.empty:
-
             raise ValueError(
-                "FIXED_BASIS_SITE_ID wurde in sites nicht gefunden:\n"
+                "FIXED_BASIS_SITE_ID ist nicht unter den passenden Standorten: "
                 f"{FIXED_BASIS_SITE_ID}"
             )
 
-        return candidates.iloc[0]
-
-    candidates = sites.copy()
-
-    if (
-            N_SITES_TO_GENERATE
-            <=
-            len(
-                candidates
-            )
-    ):
-
-        not_used = candidates[
-            ~candidates[
-                "Standortverbund_ID"
-            ]
-            .map(clean_string)
-            .isin(
-                used_site_ids
-            )
-        ]
-
-        if not not_used.empty:
-            candidates = not_used
-
-    chosen_position = int(
-        rng.integers(
-            0,
-            len(
-                candidates
-            ),
-        )
-    )
-
-    return candidates.iloc[
-        chosen_position
+    not_used = candidates[
+        ~candidates["Standortverbund_ID"].map(clean_string).isin(used_site_ids)
     ]
+    if not not_used.empty:
+        candidates = not_used
+    # Bei mehr gewünschten Profilen als passenden Standorten können Standorte
+    # erst nach Ausschöpfen des Pools erneut auftreten.
+    position = int(rng.integers(0, len(candidates)))
+    return candidates.iloc[position]
 
 
 # =============================================================================
@@ -1966,341 +2125,28 @@ def generate_single_source_profile(
 # =============================================================================
 
 def print_model_assumptions():
-    print()
-    print("=" * 100)
-    print(
-        "MODELLANNAHMEN FÜR DIE 8760-STANDORTPROFILE"
-    )
-    print("=" * 100)
-
-    print(
-        f"Referenzjahr: {REFERENCE_YEAR}"
-    )
-
-    print(
-        "Zeitauflösung: 1 Stunde"
-    )
-
-    print(
-        "Einheit der Zeitreihen: kWh pro Stunde"
-    )
-
-    print()
-    print(
-        "Betriebsfenster:"
-    )
-
-    for hours, start in (
-            STANDARD_START_HOUR_BY_DAILY_HOURS.items()
-    ):
-
-        end = (
-                start
-                +
-                int(
-                    hours
-                )
-        )
-
-        if end > 24:
-            end -= 24
-
-        print(
-            f"  {int(hours):>2} h/Tag "
-            f"-> {start:02d}:00 bis {end:02d}:00"
-        )
-
-    print(
-        f"  Sonderprofile starten standardmäßig um "
-        f"{SPECIAL_PROFILE_DEFAULT_START_HOUR:02d}:00"
-    )
-
-    print()
-    print(
-        "5 Tage/Woche = Montag-Freitag"
-    )
-
-    print(
-        "6 Tage/Woche = Montag-Samstag"
-    )
-
-    print(
-        "7 Tage/Woche = Montag-Sonntag"
-    )
-
-    print()
-    print(
-        "Saisonalität: vollständiger empirischer 12-Monats-Vektor"
-    )
-
-    print(
-        "Skalierung: ausschließlich über Jahreswärmemenge"
-    )
-
-    print(
-        "Gemeldete Maximalleistung: nicht zur Profilskalierung verwendet"
-    )
-
-    print("=" * 100)
+    print(f"Profilmodell: {REFERENCE_YEAR} (8760 h), kWh je Stunde; "
+          "Jahreswärme statt Maximalleistung als Skalierungsbasis.")
+    print("Betriebsfenster und Saisonalität: empirische Betriebsdaten, "
+          "12 Monatsfaktoren; fehlende Angaben ggf. per Donor ergänzt.")
 
 
-def print_site_summary(
-        generated_site_id,
-        structure,
-        source_rows,
-):
-    if not PRINT_SITE_SUMMARY:
-        return
-
-    print()
-    print("=" * 100)
-
-    print(
-        f"GENERIERTER STANDORT: {generated_site_id}"
-    )
-
-    print("=" * 100)
-
-    print(
-        f"Empirische Strukturvorlage: "
-        f"{structure['basis_site_id']}"
-    )
-
-    print(
-        f"Anzahl Quellenblöcke:       "
-        f"{len(source_rows)}"
-    )
-
-    print(
-        f"Empirische Jahreswärme:     "
-        f"{structure['empirical_total_heat']:,.2f} kWh/a"
-    )
-
-    print(
-        f"Generierte Jahreswärme:     "
-        f"{structure['generated_total_heat']:,.2f} kWh/a"
-    )
-
-    print()
-    print(
-        "Quellenstruktur:"
-    )
-
-    for source_number, (_, row) in enumerate(
-            source_rows.iterrows(),
-            start=1,
-    ):
-
-        print(
-            f"  Quelle {source_number:>2}: "
-            f"{clean_string(row['Quellklasse_Code']):>2} | "
-            f"Anteil {float(row['_empirical_share']):7.2%} | "
-            f"Q_Jahr {float(row['_generated_heat']):,.2f} kWh/a"
-        )
-
-    print("=" * 100)
+def print_site_summary(generated_site_id, structure, source_rows):
+    if PRINT_SITE_SUMMARY:
+        print(f"\n{generated_site_id} | Vorlage {structure['basis_site_id']} | "
+              f"{len(source_rows)} Quellen | "
+              f"{structure['generated_total_heat'] / 1e6:.3f} GWh/a")
 
 
-def print_source_profile(
-        number,
-        total,
-        source,
-):
+def print_source_profile(number, total, source):
     if not PRINT_EACH_SOURCE:
         return
-
-    profile = source[
-        "profile_kWh"
-    ]
-
-    print()
-    print("-" * 100)
-
-    print(
-        f"STANDORTQUELLE {number}/{total}"
-    )
-
-    print(
-        f"Q-Typ:                   "
-        f"{source['Quellklasse_Code']}"
-    )
-
-    print(
-        f"Generator_Block_ID:       "
-        f"{source['Basis_Generator_Block_ID']}"
-    )
-
-    print(
-        f"Anteil am Standort:       "
-        f"{source['Anteil_am_Standort']:.2%}"
-    )
-
-    print(
-        f"Jahreswärmemenge:         "
-        f"{source['Waermemenge_kWh_a']:,.2f} kWh/a"
-    )
-
-    print(
-        f"Temperatur:               "
-        f"{source['Temperatur_C']} °C"
-    )
-
-    print(
-        f"Betriebsprofil:           "
-        f"{source['Betriebsprofil_Code']}"
-    )
-
-    print(
-        f"Stunden/Tag:              "
-        f"{source['Betriebsprofil_h_pro_Tag']}"
-    )
-
-    print(
-        f"Tage/Woche:               "
-        f"{source['Betriebsprofil_Tage_pro_Woche']}"
-    )
-
-    print(
-        f"Startstunde:              "
-        f"{source['Startstunde_Tag']:02d}:00"
-    )
-
-    print(
-        f"Aktive Stunden/Jahr:      "
-        f"{source['Aktive_Stunden_Jahr']:,}"
-    )
-
-    print(
-        f"Sommerfaktor:             "
-        f"{source['Saisonfaktor_Sommer']}"
-    )
-
-    print(
-        f"Winterfaktor:             "
-        f"{source['Saisonfaktor_Winter']}"
-    )
-
-    print(
-        f"Saison aktive Monate:     "
-        f"{source['Saison_Aktive_Monate']}"
-    )
-
-    print(
-        f"Saisonkonzentration 0..1: "
-        f"{source['Saison_Konzentration_0_1']}"
-    )
-
-    print(
-        f"Betriebsprofil imputiert: "
-        f"{source['Betriebsprofil_imputiert']}"
-    )
-
-    print(
-        f"Saisonalität imputiert:   "
-        f"{source['Saisonalitaet_imputiert']}"
-    )
-
-    if source[
-        "Betriebsprofil_imputiert"
-    ]:
-
-        print(
-            f"Betriebsprofil-Donor:     "
-            f"{source['Betriebsprofil_Donor_ID']}"
-        )
-
-        print(
-            f"Betriebsprofil-Donorlevel:"
-            f" {source['Betriebsprofil_Donor_Ebene']}"
-        )
-
-    if source[
-        "Saisonalitaet_imputiert"
-    ]:
-
-        print(
-            f"Saisonalitäts-Donor:      "
-            f"{source['Saisonalitaet_Donor_ID']}"
-        )
-
-        print(
-            f"Saisonalitäts-Donorlevel: "
-            f"{source['Saisonalitaet_Donor_Ebene']}"
-        )
-
-    print()
-    print(
-        "12 Monatsfaktoren:"
-    )
-
-    for month in MONTH_CODES:
-
-        print(
-            f"  {month}: "
-            f"{source['Saisonfaktoren'][month]:.6f}"
-        )
-
-    print()
-    print(
-        "Zeitreihe der Quelle:"
-    )
-
-    print(
-        f"  Form:        {profile.shape}"
-    )
-
-    print(
-        f"  Summe:       {profile.sum():,.6f} kWh"
-    )
-
-    print(
-        f"  Maximum:     {profile.max():,.6f} kWh/h"
-    )
-
-    print(
-        f"  aktive h:    {int((profile > 0).sum()):,}"
-    )
-
-    with np.printoptions(
-            threshold=(
-                    np.inf
-                    if PRINT_FULL_8760_ARRAYS
-                    else 100
-            ),
-            edgeitems=12,
-            linewidth=200,
-            precision=4,
-            suppress=True,
-    ):
-
-        print(
-            profile
-        )
-
-    if not PRINT_FULL_8760_ARRAYS:
-
-        print()
-        print(
-            f"Erste {PRINT_FIRST_N_HOURS} Stunden:"
-        )
-
-        print(
-            profile[
-            :PRINT_FIRST_N_HOURS
-            ]
-        )
-
-        print()
-        print(
-            f"Letzte {PRINT_LAST_N_HOURS} Stunden:"
-        )
-
-        print(
-            profile[
-            -PRINT_LAST_N_HOURS:
-            ]
-        )
-
+    print(f"  Quelle {number}/{total}: {source['Quellklasse_Code']} | "
+          f"{source['Waermemenge_kWh_a'] / 1e6:.3f} GWh/a | "
+          f"{source['Anteil_am_Standort']:.1%} | "
+          f"{source['Betriebsprofil_Code']} | "
+          f"Betrieb ergänzt: {source['Betriebsprofil_imputiert']}, "
+          f"Saison ergänzt: {source['Saisonalitaet_imputiert']}")
 
 # =============================================================================
 # 20. EINEN REALISTISCHEN STANDORT GENERIEREN
@@ -2315,6 +2161,7 @@ def generate_one_site(
         time_index,
         rng,
         used_site_ids,
+        selection_info,
 ):
     basis_site = choose_basis_site(
         sites=
@@ -2683,57 +2530,9 @@ def generate_one_site(
     # Standortprofil in Konsole.
     # -------------------------------------------------------------------------
 
-    print()
-    print("=" * 100)
-
-    print(
-        f"GESAMTPROFIL STANDORT {generated_site_id}"
-    )
-
-    print("=" * 100)
-
-    print(
-        f"Q-Typen:              {q_types.tolist()}"
-    )
-
-    print(
-        f"Quellenmatrix:         {source_profiles.shape}"
-    )
-
-    print(
-        f"Standortprofil:        {site_profile.shape}"
-    )
-
-    print(
-        f"Jahreswärme Standort:  {site_profile.sum():,.6f} kWh"
-    )
-
-    print(
-        f"Max. Stundenwert:      {site_profile.max():,.6f} kWh/h"
-    )
-
-    print()
-    print(
-        "8760-Zeitreihe des gesamten Standorts:"
-    )
-
-    with np.printoptions(
-            threshold=(
-                    np.inf
-                    if PRINT_FULL_8760_ARRAYS
-                    else 100
-            ),
-            edgeitems=12,
-            linewidth=200,
-            precision=4,
-            suppress=True,
-    ):
-
-        print(
-            site_profile
-        )
-
-    print("=" * 100)
+    print(f"  Standortprofil: {site_profile.shape}, "
+          f"Jahreswärme {site_profile.sum() / 1e6:.3f} GWh/a; "
+          f"Q-Typen: {', '.join(q_types)}")
 
     return {
         "generated_site_id":
@@ -2769,6 +2568,55 @@ def generate_one_site(
 
         "source_metadata":
             source_metadata,
+
+        # Umfang des Kandidatenpools und tatsächliches Auswahlverfahren.
+        "selection_mode": selection_info["selection_mode"],
+        "selection_target": selection_info["selection_target"],
+        "selection_tolerance": selection_info["selection_tolerance"],
+        "matching_sites_in_window": selection_info["matching_sites_in_window"],
+        "selection_candidate_count": selection_info["selection_candidate_count"],
+        "available_sites_with_valid_value": selection_info["available_sites_with_valid_value"],
+        "fallback_to_nearest": selection_info["fallback_to_nearest"],
+        "score_file": selection_info["score_file"],
+        "score_reference_site_count": selection_info["score_reference_site_count"],
+        "associated_sites_by_heat": selection_info["associated_sites_by_heat"],
+        "heat_association_relative_tolerance": selection_info["heat_association_relative_tolerance"],
+        "available_sites_without_score": selection_info["available_sites_without_score"],
+        **{key: selection_info[key] for key in (
+            "use_heat_association", "exclude_heat_outliers",
+            "outliers_removed_global", "outliers_removed_score_residual",
+            "available_sites_before_outlier_filter", "regression_method",
+            "regression_n", "regression_intercept_log10",
+            "regression_slope_log10_per_score",
+            "association_regression_corridor_kwh_a")},
+        "selected_site_selection_origin": clean_string(basis_site.get("_Auswahl_Herkunft", "")),
+        "selected_site_has_valid_score": bool(
+            pd.notna(basis_site.get(SIZE_SCORE_COL))
+            if selection_info["selection_mode"] == "KI_GROESSENSCORE"
+            else False
+        ),
+        "selected_site_selection_value": (
+            float(basis_site[SIZE_SCORE_COL])
+            if selection_info["selection_mode"] == "KI_GROESSENSCORE"
+               and pd.notna(basis_site.get(SIZE_SCORE_COL))
+            else (
+                float(basis_site["_Auswahl_Waermemenge_kWh_a"])
+                if selection_info["selection_mode"] == "JAHRESABWAERME"
+                else None
+            )
+        ),
+        "selected_site_heat_kwh_a": float(basis_site["_Auswahl_Waermemenge_kWh_a"]),
+        "association_reference_site_id": clean_string(
+            basis_site.get("_Assoziation_Referenz_Standort_ID", "")
+        ),
+        "association_reference_heat_kwh_a": (
+            float(basis_site["_Assoziation_Referenzwaerme_kWh_a"])
+            if pd.notna(basis_site.get("_Assoziation_Referenzwaerme_kWh_a")) else None
+        ),
+        "association_relative_heat_difference": (
+            float(basis_site["_Assoziation_Relative_Waermeabweichung"])
+            if pd.notna(basis_site.get("_Assoziation_Relative_Waermeabweichung")) else None
+        ),
     }
 
 
@@ -2937,8 +2785,33 @@ def save_site_result(
         "target_site_annual_heat_kWh_a":
             TARGET_SITE_ANNUAL_HEAT_KWH,
 
-        "random_seed":
-            RANDOM_SEED,
+        "random_seed": None,  # Jeder Aufruf verwendet frische Systementropie.
+        "selection_mode": result["selection_mode"],
+        "selection_target": result["selection_target"],
+        "selection_tolerance": result["selection_tolerance"],
+        "matching_sites_in_window": result["matching_sites_in_window"],
+        "selection_candidate_count": result["selection_candidate_count"],
+        "available_sites_with_valid_value": result["available_sites_with_valid_value"],
+        "fallback_to_nearest": result["fallback_to_nearest"],
+        "selected_site_selection_value": result["selected_site_selection_value"],
+        "score_file": result["score_file"],
+        "score_reference_site_count": result["score_reference_site_count"],
+        "associated_sites_by_heat": result["associated_sites_by_heat"],
+        "heat_association_relative_tolerance": result["heat_association_relative_tolerance"],
+        "available_sites_without_score": result["available_sites_without_score"],
+        **{key: result[key] for key in (
+            "use_heat_association", "exclude_heat_outliers",
+            "outliers_removed_global", "outliers_removed_score_residual",
+            "available_sites_before_outlier_filter", "regression_method",
+            "regression_n", "regression_intercept_log10",
+            "regression_slope_log10_per_score",
+            "association_regression_corridor_kwh_a")},
+        "selected_site_selection_origin": result["selected_site_selection_origin"],
+        "selected_site_has_valid_score": result["selected_site_has_valid_score"],
+        "selected_site_heat_kwh_a": result["selected_site_heat_kwh_a"],
+        "association_reference_site_id": result["association_reference_site_id"],
+        "association_reference_heat_kwh_a": result["association_reference_heat_kwh_a"],
+        "association_relative_heat_difference": result["association_relative_heat_difference"],
 
         "standard_start_hours":
             {
@@ -2972,227 +2845,379 @@ def save_site_result(
 # =============================================================================
 
 def generate_realistic_sites(
-        group_id,
-):
-    (
-        input_folder,
-        sites,
-        blocks,
-        donors,
-    ) = load_group_data(
-        group_id
-    )
+        group_id, *, size_score=None, score_tolerance=None,
+        annual_heat_kwh=None, heat_tolerance_kwh=None,
+        use_heat_association=True, exclude_heat_outliers=False, n_sites=None):
+    """Erzeugt zufällige reale Standortstrukturen mit 8760h-Profilen.
 
-    if sites.empty:
-        raise ValueError(
-            f"{group_id}: sites ist leer."
-        )
-
+    use_heat_association gilt nur für den Score-Modus; bei False werden
+    ausschließlich direkt passende bewertete Standorte gezogen.
+    exclude_heat_outliers entfernt Wärme-IQR-Ausreißer (beide Modi) sowie
+    extreme Regressionsresiduen bewerteter Standorte (Score-Modus).
+    """
+    group_id = clean_string(group_id).upper()
+    if not re.fullmatch(r"G\d+", group_id):
+        raise ValueError("group_id muss z. B. 'G62' lauten.")
+    n_to_generate = N_SITES_TO_GENERATE if n_sites is None else n_sites
+    if not isinstance(n_to_generate, (int, np.integer)) or n_to_generate < 1:
+        raise ValueError("n_sites muss eine positive ganze Zahl sein.")
+    input_folder, sites, blocks, donors = load_group_data(group_id)
+    if sites.empty or blocks.empty:
+        raise ValueError(f"{group_id}: sites oder source_blocks ist leer.")
+    if "Standortverbund_ID" not in sites.columns:
+        raise ValueError("sites enthält keine Standortverbund_ID.")
+    required = {"Generator_Block_ID", "Standortverbund_ID",
+                "Quellklasse_Code", "Waermemenge_Block_kWh_a"}
+    if not required.issubset(blocks.columns):
+        raise ValueError(f"source_blocks fehlen Spalten: {required - set(blocks.columns)}")
+    blocks = blocks.loc[blocks["Quellklasse_Code"].map(clean_string).isin(VALID_Q_TYPES)].copy()
     if blocks.empty:
-        raise ValueError(
-            f"{group_id}: source_blocks ist leer."
-        )
-
-    # Nur gültige Standorte.
-    sites = sites.copy()
-
-    if (
-            "Standortverbund_ID"
-            not in sites.columns
-    ):
-        raise ValueError(
-            "sites enthält keine Spalte Standortverbund_ID."
-        )
-
-    required_block_columns = [
-        "Generator_Block_ID",
-        "Standortverbund_ID",
-        "Quellklasse_Code",
-        "Waermemenge_Block_kWh_a",
-    ]
-
-    missing_columns = [
-        column
-        for column
-        in required_block_columns
-        if column not in blocks.columns
-    ]
-
-    if missing_columns:
-        raise ValueError(
-            "source_blocks fehlen Pflichtspalten:\n"
-            + "\n".join(
-                missing_columns
-            )
-        )
-
-    blocks = blocks[
-        blocks[
-            "Quellklasse_Code"
-        ]
-        .map(clean_string)
-        .isin(
-            VALID_Q_TYPES
-        )
-    ].copy()
-
-    time_index = build_reference_time_index(
-        REFERENCE_YEAR
-    )
-
-    rng = np.random.default_rng(
-        RANDOM_SEED
-    )
-
+        raise ValueError(f"{group_id}: keine Q1–Q7-Quellenblöcke.")
+    candidates, selection_info = build_selection_candidates(
+        group_id, sites, blocks, size_score=size_score, score_tolerance=score_tolerance,
+        annual_heat_kwh=annual_heat_kwh, heat_tolerance_kwh=heat_tolerance_kwh,
+        use_heat_association=use_heat_association,
+        exclude_heat_outliers=exclude_heat_outliers)
+    time_index = build_reference_time_index(REFERENCE_YEAR)
+    rng = np.random.default_rng()
     print_model_assumptions()
-
-    results = []
-    used_site_ids = set()
-
-    for site_number in range(
-            1,
-            N_SITES_TO_GENERATE + 1,
-    ):
-
+    print(f"\nAUSWAHL | {group_id} | {selection_info['selection_mode']} | "
+          f"{selection_info['selection_target']:,.3g} ± "
+          f"{selection_info['selection_tolerance']:,.3g}")
+    print(f"  Direkte Treffer im Fenster: {selection_info['matching_sites_in_window']} | "
+          f"Score-Referenzen: {selection_info['score_reference_site_count']} | "
+          f"Fallback: {selection_info['fallback_to_nearest']}")
+    if selection_info['selection_mode'] == 'KI_GROESSENSCORE':
+        print(f"  Abwärmeassoziation aktiviert: {selection_info['use_heat_association']} | "
+              f"NEU ohne Score (±2 % und Regressionskorridor): "
+              f"{selection_info['associated_sites_by_heat']}")
+        if selection_info['association_regression_corridor_kwh_a']:
+            lo, hi = selection_info['association_regression_corridor_kwh_a']
+            print(f"  Regressionskorridor: {lo / 1e6:.3f}–{hi / 1e6:.3f} GWh/a "
+                  f"({selection_info['regression_method']}, "
+                  f"n={selection_info['regression_n']})")
+    print(f"  Wärmeausreißer ausgeschlossen: {selection_info['exclude_heat_outliers']} | "
+          f"entfernt: {selection_info['outliers_removed_global']} global + "
+          f"{selection_info['outliers_removed_score_residual']} Score-Residuen")
+    print(f"  Tatsächlicher Zufallspool: {selection_info['selection_candidate_count']} "
+          "unterschiedliche Standorte")
+    results, used_site_ids = [], set()
+    for site_number in range(1, n_to_generate + 1):
         result = generate_one_site(
-            group_id=
-            group_id,
+            group_id=group_id, site_number=site_number, sites=candidates, blocks=blocks,
+            donors=donors, time_index=time_index, rng=rng,
+            used_site_ids=used_site_ids, selection_info=selection_info)
+        print(f"  Auswahlherkunft: {result['selected_site_selection_origin']}")
+        save_site_result(group_id=group_id, result=result, time_index=time_index)
+        results.append(result)
+    return {"group_id": group_id, "time_index": time_index,
+            "sites": results, **selection_info}
 
-            site_number=
-            site_number,
 
-            sites=
-            sites,
+def generate_realistic_site(
+        group_id, *, size_score=None, score_tolerance=None,
+        annual_heat_kwh=None, heat_tolerance_kwh=None,
+        use_heat_association=True, exclude_heat_outliers=False):
+    """Ein zufällig gewählter Standort mit Quellen- und Standortprofil."""
+    results = generate_realistic_sites(
+        group_id, size_score=size_score, score_tolerance=score_tolerance,
+        annual_heat_kwh=annual_heat_kwh, heat_tolerance_kwh=heat_tolerance_kwh,
+        use_heat_association=use_heat_association,
+        exclude_heat_outliers=exclude_heat_outliers, n_sites=1)
+    site = results["sites"][0]
+    site["group_id"] = results["group_id"]
+    site["time_index"] = results["time_index"]
+    return site
 
-            blocks=
-            blocks,
 
-            donors=
-            donors,
+# Parameter nur für die Größenorientierung, nicht für die Standortziehung.
+MIN_SIZE_METRIC_SITE_SHARE = 0.05  # Strikt MEHR als 5 % aller Gruppenstandorte.
+LOW_SCORE_REFERENCE_MAX = 25.0
+HIGH_SCORE_REFERENCE_MIN = 75.0
 
-            time_index=
-            time_index,
 
-            rng=
-            rng,
+def _normalized_size_unit(raw_unit):
+    """Vergleichbare Einheiten zusammenfassen, ohne Einheiten umzurechnen.
 
-            used_site_ids=
-            used_site_ids,
-        )
+    Beispiele: 'Flaschen pro Tag' und 'Flaschen/Tag' -> 'Flaschen/Tag'.
+    Unterschiedliche Zeiteinheiten (Tag/Jahr) werden NICHT vermischt.
+    """
+    value = clean_string(raw_unit)
+    if not value:
+        return None
+    text = re.sub(r"\s+", " ", value).strip()
+    normalized = text.casefold().replace("³", "3").replace("²", "2")
+    normalized = re.sub(r"\s+(?:pro|je)\s+", "/", normalized)
+    normalized = re.sub(r"\s*/\s*", "/", normalized)
+    normalized = normalized.replace("/jahr", "/a").replace("/year", "/a")
+    normalized = normalized.replace("/day", "/tag")
+    if normalized in {"mitarbeiter", "mitarbeitende", "beschäftigte", "beschaeftigte",
+                      "personen", "person", "ma", "anzahl mitarbeiter"}:
+        return ("personen", "Personen")
+    if normalized in {"stück", "stueck", "stk.", "stk", "anzahl", "einheiten"}:
+        return ("anzahl", "Anzahl")
+    if normalized in {"flaschen/tag", "flaschen/d"}:
+        return ("flaschen/tag", "Flaschen/Tag")
+    if normalized in {"flaschen/a", "flaschen/jahr"}:
+        return ("flaschen/a", "Flaschen/a")
+    if normalized in {"abfülllinien", "abfuelllinien", "abfülllinie", "abfuelllinie"}:
+        return ("abfuelllinien", "Abfülllinien")
+    if normalized in {"m3/a", "m³/a"}:
+        return ("m3/a", "m³/a")
+    if normalized in {"m3/tag", "m³/tag"}:
+        return ("m3/tag", "m³/Tag")
+    return (normalized, text)
 
-        save_site_result(
-            group_id=
-            group_id,
 
-            result=
-            result,
+def _size_metric_description(raw_type, raw_label, raw_unit):
+    """Liefert (Priorität, eindeutiger Vergleichsschlüssel, Anzeigetext, Einheit).
 
-            time_index=
-            time_index,
-        )
+    Es werden niemals Standort-/Firmennamen aus freien KI-Bezeichnungen
+    ausgegeben. Allgemeine Zähleinheiten (z.B. 'Anzahl') werden nur bei
+    eindeutig erkennbarer Geräte-/Anlagenart verglichen.
+    """
+    kind = clean_string(raw_type).strip().upper().replace("-", "_").replace(" ", "_")
+    label = clean_string(raw_label)
+    standardized = _normalized_size_unit(raw_unit)
+    if standardized is None:
+        return None
+    unit_key, display_unit = standardized
+    label_normalized = label.casefold()
 
-        results.append(
-            result
-        )
+    # Konzern-/Umsatzkennzahlen sind keine standortspezifischen physikalischen Größen.
+    if kind in {"UNTERNEHMENSWERT_FALLBACK", "UMSATZ_STANDORT"}:
+        return None
+    if ("eur" in unit_key or "euro" in unit_key or unit_key in {"€", "%"}):
+        return None
 
-    print()
-    print("=" * 100)
-    print(
-        "STANDORTGENERIERUNG ABGESCHLOSSEN"
+    employee_terms = r"mitarbeiter|mitarbeitende|beschäftigt|beschaeftigt|personal|employee"
+    if (kind in {"MITARBEITER_STANDORT", "MITARBEITER"}
+            or (unit_key == "personen" and re.search(employee_terms, label_normalized))):
+        return (1, "MITARBEITER|personen", "Mitarbeiter", "Personen")
+
+    kind_titles = {
+        "PRODUKTIONSMENGE": "Produktionsmenge",
+        "PRODUKTIONSKAPAZITAET": "Produktionskapazität",
+        "DURCHSATZ": "Durchsatz",
+        "ANLAGENKAPAZITAET": "Anlagenkapazität",
+        "SEKTORALE_PHYSISCHE_KENNZAHL": "Branchenspezifische Kennzahl",
+        "SONSTIGE_STANDORTKENNZAHL": "Weitere Standortkennzahl",
+    }
+    if kind not in kind_titles or unit_key == "personen":
+        return None
+
+    # Bei 'Anzahl/Stück' müssen z. B. Abfülllinien, Anlagen und Betten
+    # unterschieden werden: Andernfalls wären die Mittelwerte inhaltslos.
+    count_descriptors = (
+        (r"abfülllin|abfuelllin|abfüllanlage|abfuellanlage", "Abfülllinien"),
+        (r"produktionslin|fertigungslin", "Produktionslinien"),
+        (r"\bbetten\b|\bbett\b", "Betten"),
+        (r"\bzimmer\b", "Zimmer"),
+        (r"\bmaschinen\b|\bmaschine\b", "Maschinen"),
+        (r"\banlagen\b|\banlage\b", "Anlagen"),
+        (r"\bstandorte\b|\bstandort\b", "Standorte"),
+        (r"\bfahrzeuge\b|\bfahrzeug\b", "Fahrzeuge"),
+        (r"\btanks\b|\btank\b", "Tanks"),
+        (r"\bsilos\b|\bsilo\b", "Silos"),
     )
-    print("=" * 100)
+    if unit_key == "anzahl":
+        descriptor = next((title for pattern, title in count_descriptors
+                           if re.search(pattern, label_normalized)), None)
+        if descriptor is None:
+            return None  # Keine Zusammenfassung inkompatibler 'Anzahl'-Werte.
+        unit_key = "anzahl:" + descriptor.casefold()
+        display_unit = descriptor
 
-    print(
-        f"Gruppe:                {group_id}"
-    )
+    # 'Flaschen/Tag' kann über verschiedene Bezeichnungen hinweg verglichen
+    # werden, solange Kennzahltyp und normierte Einheit übereinstimmen.
+    title = kind_titles[kind]
+    key = f"{kind}|{unit_key}"
+    return (2, key, title, display_unit)
 
-    print(
-        f"Generierte Standorte:  {len(results)}"
-    )
 
-    for result in results:
+def summarize_group_size_extremes(group_id):
+    """Größenorientierung: Abwärme, Mitarbeiter, häufige Branchenkennzahlen.
 
-        print()
-        print(
-            f"{result['generated_site_id']}: "
-            f"{len(result['q_types'])} Quellen | "
-            f"Q-Typen {result['q_types'].tolist()} | "
-            f"{result['generated_site_heat_kWh_a']:,.2f} kWh/a"
-        )
+    Vergleichsgruppen: Score 0–10 sowie 90–100. Wenn für eine Kennzahl
+    in der jeweiligen Randgruppe kein Wert vorliegt, Mittelwert nur aus
+    der erweiterten Randgruppe 0–25 bzw. 75–100. Keine Daten der
+    Scoremitte und keine Einzelstandortnamen oder -IDs in der Ausgabe.
 
-    print("=" * 100)
+    Externe Kenngrößen werden NUR gezeigt, wenn sie bei strikt mehr als 5 %
+    ALLER unterschiedlichen Standorte der Gruppe einen positiven numerischen
+    Wert aufweisen. Die Häufigkeit zählt Standorte statt einzelner KI-Slots.
+    Vergleichbare Größen sind nach Kennzahltyp + normierter Einheit getrennt.
+    """
+    group_id = clean_string(group_id).upper()
+    if not re.fullmatch(r"G\d+", group_id):
+        raise ValueError("group_id muss z. B. 'G62' lauten.")
+    _, sites, blocks, _ = load_group_data(group_id)
+    ki, ki_path = load_ki_size_table(group_id)
+    heat = build_site_heat_table(blocks)
 
+    site_ids = set(sites["Standortverbund_ID"].map(clean_string)) - {""}
+    population = len(site_ids)
+    if population == 0:
+        raise ValueError(f"{group_id}: keine gültigen Standorte im Datenpaket.")
+    ki = ki.loc[ki["Standortverbund_ID"].isin(site_ids)].copy()
+    ki = ki.merge(heat, on="Standortverbund_ID", how="left", validate="one_to_one")
+    ki = ki.loc[ki[SIZE_SCORE_COL].between(0, 100)].copy()
+    if ki.empty:
+        raise ValueError(f"{group_id}: keine bewerteten Standorte für die Statistik.")
+
+    records = []
+    # Jahresabwärme wird immer zuerst angezeigt, unabhängig von der
+    # Häufigkeitsregel für externe Größenindikatoren.
+    for _, row in ki.iterrows():
+        q_heat = numeric_value(row.get("_Auswahl_Waermemenge_kWh_a"))
+        if np.isfinite(q_heat) and q_heat > 0:
+            records.append({
+                "site_id": row["Standortverbund_ID"], "score": float(row[SIZE_SCORE_COL]),
+                "priority": 0, "key": "ABWAERME_Q1_Q7|kwh/a",
+                "type": "ABWAERMEMENGE_Q1_Q7", "title": "Jahresabwärme Q1–Q7",
+                "unit": "kWh/a", "value": float(q_heat),
+            })
+
+    for _, row in ki.iterrows():
+        for slot in range(1, 6):
+            prefix = f"KI_Kennzahl_{slot}_"
+            if prefix + "Wert" not in ki.columns:
+                continue
+            number = numeric_value(row.get(prefix + "Wert"))
+            if not np.isfinite(number) or number <= 0:
+                continue
+            descriptor = _size_metric_description(
+                row.get(prefix + "Typ"),
+                row.get(prefix + "Bezeichnung"),
+                row.get(prefix + "Einheit"),
+            )
+            if descriptor is None:
+                continue
+            priority, key, title, unit = descriptor
+            records.append({
+                "site_id": row["Standortverbund_ID"], "score": float(row[SIZE_SCORE_COL]),
+                "priority": priority, "key": key, "type": "MITARBEITER" if priority == 1 else "INDUSTRIE",
+                "title": title, "unit": unit, "value": float(number),
+            })
+
+    columns = ["Scorebereich", "Kennzahltyp", "Kennzahl", "Einheit",
+               "Mittelwert_oder_Ersatzwert", "Anzahl_Werte", "Anzahl_Standorte",
+               "Status", "Ersatz_Score", "Verwendeter_Scorebereich",
+               "Haeufigkeit_Standorte", "Haeufigkeit_Prozent", "Vergleichsschluessel"]
+    if records:
+        long = pd.DataFrame.from_records(records)
+        # Eine physikalische Größe pro Standort wird höchstens einmal
+        # gezählt, selbst wenn sie in mehreren KI_Kennzahl-Slots steht.
+        long = long.groupby(
+            ["site_id", "score", "priority", "key", "type", "title", "unit"],
+            as_index=False, sort=False,
+        )["value"].mean()
+    else:
+        long = pd.DataFrame(columns=["site_id", "score", "priority", "key",
+                                     "type", "title", "unit", "value"])
+
+    entries = []
+    for (priority, key, kind, label, unit), metric in long.groupby(
+            ["priority", "key", "type", "title", "unit"], sort=False):
+        support = int(metric["site_id"].nunique())
+        share = support / population
+        if priority > 0 and not share > MIN_SIZE_METRIC_SITE_SHARE:
+            continue
+        entries.append((priority, key, kind, label, unit, metric, support, share))
+
+    entries.sort(key=lambda item: (item[0], -item[6], item[3].casefold(), item[4].casefold()))
+    result_rows = []
+    for priority, key, kind, label, unit, metric, support, share in entries:
+        # Keine Mittelpunktswerte zur Überbrückung fehlender Randkennzahlen.
+        for region, primary_min, primary_max, extended_min, extended_max in (
+                ("UNTEN_0_10", 0.0, 10.0, 0.0, LOW_SCORE_REFERENCE_MAX),
+                ("OBEN_90_100", 90.0, 100.0, HIGH_SCORE_REFERENCE_MIN, 100.0)):
+            primary = metric.loc[metric["score"].between(primary_min, primary_max)]
+            if not primary.empty:
+                chosen = primary
+                status = "MITTELWERT_IM_SCOREBEREICH"
+                used_band = "0–10" if region == "UNTEN_0_10" else "90–100"
+            else:
+                chosen = metric.loc[metric["score"].between(extended_min, extended_max)]
+                status = "ERSATZ_MITTELWERT_IM_ERWEITERTEN_RANDBEREICH" if not chosen.empty else "KEINE_WERTE_IM_ZULAESSIGEN_RANDBEREICH"
+                used_band = ("0–25" if region == "UNTEN_0_10" else "75–100") if not chosen.empty else None
+            result_rows.append({
+                "Scorebereich": region,
+                "Kennzahltyp": kind,
+                "Kennzahl": label,
+                "Einheit": unit,
+                "Mittelwert_oder_Ersatzwert": float(chosen["value"].mean()) if not chosen.empty else None,
+                "Anzahl_Werte": int(len(chosen)),
+                "Anzahl_Standorte": int(chosen["site_id"].nunique()),
+                "Status": status,
+                "Ersatz_Score": None,  # Kein einzelner Standort als Ersatz.
+                "Verwendeter_Scorebereich": used_band,
+                "Haeufigkeit_Standorte": support,
+                "Haeufigkeit_Prozent": round(share * 100, 3),
+                "Vergleichsschluessel": key,
+            })
+
+    table = pd.DataFrame(result_rows, columns=columns)
+    # Abwärme bleibt immer zuerst; Industriekennzahlen ohne Werte in BEIDEN
+    # erlaubten Randbereichen werden nicht als bedeutungslose k.A.-Paare gezeigt.
+    if not table.empty:
+        visible_keys = set(table.loc[table["Mittelwert_oder_Ersatzwert"].notna(), "Vergleichsschluessel"])
+        table = table.loc[table["Vergleichsschluessel"].isin(visible_keys)].reset_index(drop=True)
+
+    low_count = int(ki[SIZE_SCORE_COL].between(0, 10).sum())
+    high_count = int(ki[SIZE_SCORE_COL].between(90, 100).sum())
+    print(f"\nGRÖSSENVERGLEICH {group_id}: Score 0–10 / 90–100")
+    print(f"  Gruppe: {population} Standorte | mit Score: {len(ki)} "
+          f"| Score 0–10: {low_count} | Score 90–100: {high_count}")
+    print(f"  Zusatzkennzahlen: nur bei >{MIN_SIZE_METRIC_SITE_SHARE:.0%} ALLER "
+          "Gruppenstandorte vorhanden; je Standort einmal gezählt.")
+    print("  Ersatzmittelwerte nur innerhalb Score 0–25 bzw. 75–100; "
+          "keine Standortnamen/IDs.")
+    for (kind, label, unit), group in table.groupby(
+            ["Kennzahltyp", "Kennzahl", "Einheit"], sort=False, dropna=False):
+        print(f"  {label} [{unit}]")
+        for region in ("UNTEN_0_10", "OBEN_90_100"):
+            row = group.loc[group["Scorebereich"].eq(region)].iloc[0]
+            val = row["Mittelwert_oder_Ersatzwert"]
+            value = f"{val:,.3g}" if val is not None and np.isfinite(val) else "k. A."
+            band = row["Verwendeter_Scorebereich"]
+            note = f" (Ersatz aus Score {band})" if row["Status"].startswith("ERSATZ_") else ""
+            print(f"    {'Score 0–10' if region == 'UNTEN_0_10' else 'Score 90–100':<13}: "
+                  f"{value} [n={row['Anzahl_Standorte']}]{note}")
     return {
-        "group_id":
-            group_id,
-
-        "time_index":
-            time_index,
-
-        "sites":
-            results,
+        "group_id": group_id,
+        "source_file": str(ki_path),
+        "total_group_site_count": population,
+        "metric_minimum_site_share": MIN_SIZE_METRIC_SITE_SHARE,
+        "scored_site_count": int(len(ki)),
+        "low_score_site_count": low_count,
+        "high_score_site_count": high_count,
+        "table": table,
+        "rows": table.to_dict(orient="records"),
     }
 
-
-# =============================================================================
-# 23. HAUPTPROGRAMM
-# =============================================================================
-
 def main():
-
-    result = generate_realistic_sites(
-        TARGET_GROUP
+    # Modus 1 – KI-Score: Abwärmeassoziation und Ausreißerfilter einzeln steuerbar.
+    result = generate_realistic_site(
+        group_id=TARGET_GROUP,
+        size_score=65,
+        score_tolerance=10,
+        use_heat_association=True,
+        exclude_heat_outliers=True,
     )
-
-    # ========================================================================
-    # BEQUEMER ZUGRIFF BEI N_SITES_TO_GENERATE = 1
-    # ========================================================================
-
-    if len(
-            result[
-                "sites"
-            ]
-    ) == 1:
-
-        site = result[
-            "sites"
-        ][0]
-
-        source_profiles = site[
-            "source_profiles"
-        ]
-
-        q_types = site[
-            "q_types"
-        ]
-
-        site_profile = site[
-            "site_profile"
-        ]
-
-        source_ids = site[
-            "source_ids"
-        ]
-
-        # --------------------------------------------------------------------
-        # SPÄTERE ÜBERGABE AN DAS NÄCHSTE MODELL / DEN EXTERNEN GENERATOR
-        #
-        # ABSICHTLICH NOCH AUSKOMMENTIERT.
-        # --------------------------------------------------------------------
-        #
-        # generator_payload = {
-        #     "source_profiles_8760": source_profiles,
-        #     "source_types": q_types,
-        #     "source_ids": source_ids,
-        #     "site_profile_8760": site_profile,
-        # }
-        #
-        # external_generator.receive_site(
-        #     generator_payload
-        # )
-        #
-        # --------------------------------------------------------------------
-
+    # Modus 2 – alternativ, Jahresabwärme in kWh/a:
+    # result = generate_realistic_site(
+    #     group_id=TARGET_GROUP,
+    #     annual_heat_kwh=10_000_000,
+    #     heat_tolerance_kwh=2_000_000,
+    #     exclude_heat_outliers=True,
+    # )
+    print(f"\nRückgabe: {result['source_profiles'].shape[0]} Quellen, "
+          f"Standortprofil {result['site_profile'].shape}, "
+          f"{result['selection_candidate_count']} mögliche Standortvorlagen.")
+    # Separater Aufruf für Randbereiche 0–10 und 90–100:
+    # extremes = summarize_group_size_extremes(TARGET_GROUP)
+    # print(extremes["table"])
 
 if __name__ == "__main__":
     main()

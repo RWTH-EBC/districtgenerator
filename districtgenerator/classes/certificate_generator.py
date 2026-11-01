@@ -3901,6 +3901,10 @@ class DataExtractor(ReportComponent):
             "HP_5G": "W<sub>th</sub>"
         }
 
+        if dev == "Industry_HP":
+            language = self.data.report_config.get("language", "de")
+            name = "Industrial heat pump" if language == "en" else "Industrie-Wärmepumpe"
+            return name, "W<sub>th</sub>"
         name = self.translate(f"device_{dev}")
         unit = device_unit_map.get(dev, "W")
 
@@ -4100,6 +4104,61 @@ class CertificateBuilder(ReportComponent):
         story.extend(self.layout.get_story())
         self.layout.reset_story()
         story.append(PageBreak())
+
+        # Separate Industrie-Seite nur beim speziellen 4G-Industriemodell.
+        if getattr(self.data_object.kpis, "industry_kpis_enabled", False):
+            kpis = self.data_object.kpis
+            years = sorted(kpis.industry_kpis_year)
+            k = kpis.industry_kpis_static
+
+            def cell(value):
+                if value is None:
+                    return "-"
+                return f"{float(value):.1f}"
+
+            rows = [["Kennzahl"] + [f"Jahr {year}" for year in years]]
+            static_items = [
+                ("Rohabwärme verfügbar [MWh/a]", "source_available_MWh_a"),
+                ("Industrie-WP installiert [kW]", "hp_capacity_kW"),
+                ("Industrie-WP Kapazitätskosten [EUR/a]", "hp_annual_cost_EUR_a"),
+            ]
+            for label, key in static_items:
+                rows.append([label] + [cell(k[key])] * len(years))
+
+            year_items = [
+                ("Direkte Abwärme [MWh/a]", "direct_MWh_a"),
+                ("Industrie-WP Wärme [MWh/a]", "hp_heat_MWh_a"),
+                ("Industrie Bruttowärme [MWh/a]", "gross_MWh_a"),
+                ("Anschlussverlust [MWh/a]", "loss_MWh_a"),
+                ("Am Quartier [MWh/a]", "net_MWh_a"),
+                ("WP-Strom [MWh/a]", "hp_el_MWh_a"),
+                ("Genutzte Quellenwärme [MWh/a]", "source_used_MWh_a"),
+                ("Industrie-WP COP [-]", "hp_cop"),
+                ("Gewichtete Modellstunden [h/a]", "modelled_h_a"),
+            ]
+            for label, key in year_items:
+                rows.append([label] + [
+                    cell(kpis.industry_kpis_year[y][key]) for y in years
+                ])
+
+            frame_width, _ = self.doc.get_Framesize("EnergyhubDevicesFrame")
+            pad = self.style.get_padding()
+            line = self.style.get_line_width("medium")
+            width = frame_width - 2 * pad - 2 * line
+            col_widths = [width * 0.48] + [width * 0.52 / len(years)] * len(years)
+            table = Table(rows, colWidths=col_widths, repeatRows=1)
+            table.setStyle(self.style.get_table_styles()["standard"])
+
+            box = FrameBox(title="Industrieabwärme – Optimierungsergebnis")
+            box.set_content(table)
+            story.append(box)
+            story.append(Spacer(1, 12))
+            note = ("Clustergewichtete Jahreswerte aus repräsentativen Wochen; "
+                    "keine physikalisch validierte 8760-h-Jahresrechnung. "
+                    "Industrie-WP-Strom und -Kosten sind bereits in den "
+                    "Systembilanzen berücksichtigt, nicht zusätzlich addiert.")
+            story.append(Paragraph(note, self.style.get_paragraph_styles()["Small"]))
+            story.append(PageBreak())
 
         self.layout.create_energyhub_profiles(data_profiles=self.data_object.get_energyhub_profiles(),
                                               kpi_data=self.data_object.get_kennwerte(),

@@ -8,6 +8,7 @@ import os
 from io import StringIO
 import time
 import districtgenerator.functions.solver_config as solver_config
+from districtgenerator.functions import industrie_optimierung_bridge as industrie_opt
 from datetime import datetime
 import logging
 from contextlib import redirect_stdout
@@ -166,6 +167,9 @@ def build_model(model, data, year, cluster, sim_ecoData):
         network_pump_power = _cluster_profile("pump_power_cluster", factor=1000.0)
 
     network_losses_heating = _cluster_profile("total_losses_heating_network_cluster")
+    wh_op_window = industrie_opt.operating_window(data, cluster, len(T_e))
+    if wh_op_window is not None:
+        network_losses_heating = np.asarray(wh_op_window["base_losses"], dtype=float) * 1000
     network_losses_cooling = _cluster_profile("total_losses_cooling_network_cluster")
 
     if is_5g_fixed:
@@ -314,6 +318,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     ################################################################################
 
     model.t = pyo.Set(initialize=time_steps, doc="")
+    wh_op = industrie_opt.add_operational_source(model, data, cluster, len(time_steps))
     model.n = pyo.Set(initialize=range(nbuildings), doc="Buildings in the neighborhood")
     model.days = pyo.Set(initialize=[0, 1, 2, 3, 4, 5, 6], doc="")
 
@@ -1441,7 +1446,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
                 + model.eh_power_BCHP[t] + model.eh_power_WCHP[t] + model.eh_power_FC[t] + model.eh_dch_BAT[t] +
                 model.eh_power_from_grid[t]
                 == model.eh_power_HP[t] + model.eh_power_GroundHP[t] + model.eh_power_EB[t] + model.eh_power_CC[t]
-                + model.eh_power_ELYZ[t] + model.eh_ch_BAT[t] + model.network_pump_power[t] + model.eh_power_to_grid[t] + model.decentral_hp_power_5g[t])               #Der Stromverbrauch der dezentralen WP wird aktuell dem EnergyHub zugeschlagen. #Todo: Absprechen ob so okay für 5G
+                + model.eh_power_ELYZ[t] + model.eh_ch_BAT[t] + model.network_pump_power[t] + model.eh_power_to_grid[t] + model.decentral_hp_power_5g[t] + (model.wh_hp_el[t] if wh_op is not None else 0))               #Der Stromverbrauch der dezentralen WP wird aktuell dem EnergyHub zugeschlagen. #Todo: Absprechen ob so okay für 5G
 
     # Cooling balance
     def eh_cooling_balance_rule(model, t):
@@ -1518,6 +1523,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
         #return model.eh_heat_to_grid[t] == (model.heat_grid_demand[t] + model.network_losses_heating[t])
         if is_5g_fixed:
             return model.eh_heat_to_grid[t] == model.heat_5g_from_eh[t]
+        if wh_op is not None:
+            return model.eh_heat_to_grid[t] + model.wh_net[t] == (model.heat_grid_demand[t] + model.network_losses_heating[t])
         return model.eh_heat_to_grid[t] == (model.heat_grid_demand[t] + model.network_losses_heating[t])
 
     # The EH must supply the cooling demand of the buildings connected to the grid
@@ -2087,6 +2094,8 @@ def solve_model_and_extract_results(model, data, year, cluster):
     results_dict["daily_peak"] = {}
     for d in [0, 1, 2, 3, 4, 5, 6]:
         results_dict["daily_peak"][d] = pyo.value(model.daily_peak[d])
+    if hasattr(model, "wh_sources"):
+        results_dict["industrial_wh"] = industrie_opt.operating_result(model)
 
     return results_dict
 

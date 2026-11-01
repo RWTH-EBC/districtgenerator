@@ -100,6 +100,7 @@ class KPIs:
         self.calculateLCOH_EH(data)
         self.calculateOperationCosts(data)
         self.calculateCO2emissions(data)
+        self.calculateIndustryKPIs(data)
         self.calculateGasolineCosts(data)
 
     def prepareData(self, data):
@@ -535,6 +536,24 @@ class KPIs:
                         "unsubsidized_annual_cost": hp_5g_total_cost
                     }
 
+                # Industrie-WP als Einzelgerät anzeigen. Die Kosten sind über EHDO
+                # bereits in total_ann_inv_cost / total_om_cost enthalten.
+                grid = getattr(data, "heat_grid_data", None)
+                ind = getattr(data, "industry_optimization", None)
+                if (isinstance(grid, dict) and grid.get("heatgrid_generation") == "4G"
+                        and isinstance(ind, dict)):
+                    caps = getattr(data, "centralDevices", {}).get("capacities", {})
+                    hp_cap = float(caps.get("industry_hp_capacity_kW", 0.0))
+                    hp_ann_cost = float(caps.get("industry_hp_annuity_EUR_a", 0.0))
+                    if hp_cap > 0.0:
+                        if hp_ann_cost <= 0.0:
+                            raise ValueError("Industrie-WP-Kosten fehlen in EHDO-Ergebnis")
+                        self.central_individual_devices_annualized_cost["Industry_HP"] = {
+                            "cap": hp_cap,
+                            "subsidized_annual_cost": hp_ann_cost,
+                            "unsubsidized_annual_cost": hp_ann_cost,
+                        }
+
         except KeyError:
             self.annual_fixed_costs_central = 0
             self.annual_fixed_costs_central_unsubsidized = 0
@@ -944,7 +963,7 @@ class KPIs:
             el_cost_heat = 0.0
             fixed_cost_heat = 0.0
 
-            heat_devices = {"TES", "EB", "FC", "WBOI", "WCHP", "BBOI", "BCHP", "HP", "GHP", "BOI", "CHP", "STC"}
+            heat_devices = {"TES", "EB", "FC", "WBOI", "WCHP", "BBOI", "BCHP", "HP", "GHP", "BOI", "CHP", "STC", "Industry_HP"}
 
             # Central heat-producing devices only
             for dev, info in self.central_individual_devices_annualized_cost.items():
@@ -1056,12 +1075,20 @@ class KPIs:
                     fuel_cost_heat += cw * share_heat * fuel_kWh * price_h2
 
                 # Electricity cost for HP + EB
+                # Der Industrie-WP-Strom ist bereits in der EH-Strombilanz.
+                # Für die Wärmegestehungskosten wird er der Wärmeerzeugung zugeordnet.
+                industry_wh = cluster.get("industrial_wh") or {}
+                industry_el = np.asarray(
+                    industry_wh.get("hp_electric_W", np.zeros(T)), dtype=float
+                )
+                if industry_el.shape != (T,):
+                    raise ValueError("Industrie-WP-Stromprofil hat falsche Länge")
                 el_heat_from_grid_cluster = 0.0
                 for t in range(T):
                     hp_t = eh_power.get("HP", [0] * T)[t]
                     eb_t = eh_power.get("EB", [0] * T)[t]
                     grid_t =eh_power.get("from_grid", [0] * T)[t]
-                    el_heat_t = (hp_t + eb_t) * dt / 3600 / 1000
+                    el_heat_t = (hp_t + eb_t + industry_el[t]) * dt / 3600 / 1000
                     grid_kWh = grid_t * dt / 3600 / 1000
                     el_heat_from_grid_cluster += min(el_heat_t, grid_kWh)
                 el_cost_heat += cw * el_heat_from_grid_cluster * price_el
@@ -1267,6 +1294,90 @@ class KPIs:
             price_per_liter = data.all_sim_ecoData[year]["price_gasoline_liter"]  # €/liter
             self.gasoline_costs[year] = float(self.total_ICE_fuel_liters) * float(price_per_liter)
 
+
+
+    def calculateIndustryKPIs(self, data):
+        """Industrieabwärme: getrennte Informations-KPIs; keine Kostenaddition.
+
+        Einheiten: Quellenprofil kW, Cluster-Ergebnisse W, Ausgaben MWh/a.
+        Die Jahreswerte sind clustergewichtet, NICHT 8760h-validiert.
+        """
+        self.industry_kpis_enabled = False
+        self.industry_kpis_static = {}
+        self.industry_kpis_year = {}
+
+        grid = getattr(data, "heat_grid_data", None)
+        ind = getattr(data, "industry_optimization", None)
+        if not (isinstance(grid, dict) and grid.get("heatgrid_generation") == "4G" and isinstance(ind, dict)):
+            return
+
+        source = np.asarray(ind["source_input"], dtype=float)  # kW, (Quelle, 8760)
+        if source.ndim != 2 or source.shape[1] != 8760:
+            raise ValueError("Industrie-KPI: Quellenprofil muss (n, 8760) haben")
+        if not np.isfinite(source).all():
+            raise ValueError("Industrie-KPI: ungültiges Quellenprofil")
+
+        dt_h = float(data.time["timeResolution"]) / 3600.0
+        caps = getattr(data, "centralDevices", {}).get("capacities", {})
+        self.industry_kpis_static = {
+            "source_available_MWh_a": float(source.sum() * dt_h / 1000.0),
+            "hp_capacity_kW": float(caps.get("industry_hp_capacity_kW", 0.0)),
+            "hp_investment_EUR": float(caps.get("industry_hp_investment_EUR", 0.0)),
+            "hp_annual_cost_EUR_a": float(caps.get("industry_hp_annuity_EUR_a", 0.0)),
+            "hp_om_EUR_a": float(caps.get("industry_hp_annual_om_EUR_a", 0.0)),
+        }
+
+        heat_total_MWh = (float(self.total_heating_demand) + float(self.total_dhw_demand)) * dt_h / 1000000.0
+
+        keys = ("direct_MWh_a", "hp_heat_MWh_a", "gross_MWh_a",
+                "net_MWh_a", "loss_MWh_a", "hp_el_MWh_a")
+        for year in self.inputData["simulated_years"]:
+            values = {key: 0.0 for key in keys}
+            values["modelled_h_a"] = 0.0
+
+            for c, cluster_id in enumerate(self.inputData["clusters"]):
+                weight = float(self.inputData["clusterWeights"][cluster_id])
+                wh = self.inputData["resultsOptimization"][year][c].get("industrial_wh")
+                if wh is None:
+                    raise ValueError(
+                        f"Industrie-KPI: industrial_wh fehlt in Jahr {year}, Cluster {c}"
+                    )
+
+                def to_MWh(field):
+                    arr = np.asarray(wh[field], dtype=float)
+                    if not np.isfinite(arr).all():
+                        raise ValueError(f"Industrie-KPI: ungültige Werte in {field}")
+                    return float(arr.sum() * dt_h / 1000000.0)
+
+                values["direct_MWh_a"] += weight * to_MWh("direct_W")
+                values["hp_heat_MWh_a"] += weight * to_MWh("hp_output_W")
+                values["gross_MWh_a"] += weight * to_MWh("gross_W")
+                values["net_MWh_a"] += weight * to_MWh("net_W")
+                values["loss_MWh_a"] += weight * to_MWh("connection_loss_W")
+                values["hp_el_MWh_a"] += weight * to_MWh("hp_electric_W")
+                values["modelled_h_a"] += (
+                        weight * np.asarray(wh["gross_W"]).size * dt_h
+                )
+
+            # Quellenwärme = direkte Nutzung + WP-Wärme - Verdichterstrom.
+            values["source_used_MWh_a"] = (
+                    values["gross_MWh_a"] - values["hp_el_MWh_a"]
+            )
+            values["hp_cop"] = (
+                values["hp_heat_MWh_a"] / values["hp_el_MWh_a"]
+                if values["hp_el_MWh_a"] > 1e-9 else None
+            )
+            # Anteil am gesamten Gebäude-Wärmebedarf inkl. TWW.
+            # Dies ist NICHT der exakte Deckungsgrad nur der Netzgebäude.
+            values["district_heat_share_pct"] = (
+                100.0 * values["net_MWh_a"] / heat_total_MWh
+                if heat_total_MWh > 0.0 else None
+            )
+            self.industry_kpis_year[year] = values
+
+        self.industry_kpis_enabled = True
+
+
     def calculateAllKPIs(self, data):
         """
         Calculate all KPIs.
@@ -1284,6 +1395,7 @@ class KPIs:
         self.calculateCoverFactors(data)
         self.calculateOperationCosts(data)
         self.calculateCO2emissions(data)
+        self.calculateIndustryKPIs(data)
         self.calculateAutonomy()
         self.calc_annual_cost_total(data)
         self.calc_total_areas_and_demands(data)
@@ -1345,6 +1457,24 @@ class KPIs:
         kpi_data_yearly["Hydrogen Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("hydrogen", None) for year in years}
         kpi_data_yearly["Revenue from Electricity Feed-in (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("revenue_feed_in_el", None) for year in years}
 
+        if self.industry_kpis_enabled:
+            industry_rows = {
+                "Industry Direct Heat (MWh/a)": "direct_MWh_a",
+                "Industry HP Heat Output (MWh/a)": "hp_heat_MWh_a",
+                "Industry Gross Heat (MWh/a)": "gross_MWh_a",
+                "Industry Connection Heat Loss (MWh/a)": "loss_MWh_a",
+                "Industry Net Heat to District (MWh/a)": "net_MWh_a",
+                "Industry HP Electricity (MWh/a)": "hp_el_MWh_a",
+                "Industry Waste Heat Actually Used (MWh/a)": "source_used_MWh_a",
+                "Industry HP Seasonal COP (-)": "hp_cop",
+                "Industry Share of Total Building Heat + DHW (%)": "district_heat_share_pct",
+                "Industry Cluster-Represented Hours (h/a)": "modelled_h_a",
+            }
+            for label, key in industry_rows.items():
+                kpi_data_yearly[label] = {
+                    year: self.industry_kpis_year[year][key] for year in years
+                }
+
         kpi_data_yearly["Autonomy (Time Fraction)"] = {year: self.energy_autonomy_year.get(year, None) for year in years}
         kpi_data_yearly["Gasoline Costs (€/a)"] = {year: self.gasoline_costs.get(year, None) for year in years}
         # kpi_data_yearly["CO2 Emissions Gasoline "] = #* Should this be considered, as emissions from EV are considered through electricity consumption? This makes it look EVs are worse for emissions.
@@ -1373,6 +1503,14 @@ class KPIs:
         kpi_data_static["Annualized Fixed Costs Decentral Unsubsidized (€/a)"] = self.annual_fixed_costs_decentral_unsubsidized
         kpi_data_static["Annualized Fixed Costs Central (€/a)"] = self.annual_fixed_costs_central
         kpi_data_static["Annualized Fixed Costs Central Unsubsidized (€/a)"] = self.annual_fixed_costs_central_unsubsidized
+        if self.industry_kpis_enabled:
+            ind_static = self.industry_kpis_static
+            kpi_data_static["Industry Waste Heat Available (MWh/a)"] = ind_static["source_available_MWh_a"]
+            kpi_data_static["Industry HP Installed Capacity (kW)"] = ind_static["hp_capacity_kW"]
+            kpi_data_static["Industry HP Initial Investment (EUR)"] = ind_static["hp_investment_EUR"]
+            kpi_data_static["Industry HP Annual Capacity Cost (EUR/a)"] = ind_static["hp_annual_cost_EUR_a"]
+            kpi_data_static["Industry HP Annual O&M (EUR/a), already in capacity cost"] = ind_static["hp_om_EUR_a"]
+            kpi_data_static["Industry KPI Basis"] = "Gewichtete repräsentative Wochen; nicht 8760h-validiert"
         kpi_data_static["Residential Area (m²)"] = self.totalarea_residential
         kpi_data_static["Non-Residential Area (m²)"] = self.totalarea_non_residential
         kpi_data_static["Number of Flats in district (-)"] = self.totalnumberflats

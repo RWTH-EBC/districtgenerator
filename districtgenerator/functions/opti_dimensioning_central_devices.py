@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 import textwrap
 import json
 import districtgenerator.functions.solver_config as solver_config
+from districtgenerator.functions import industrie_optimierung_bridge as industrie_opt
 from contextlib import redirect_stdout
 
 EH_HEAT_PRODUCERS = ("STC", "HP", "GroundHP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
@@ -220,6 +221,8 @@ def build_model(model, data, devs, param, dem):
     # Define maximum Capacity of devices Constraints
     ################################################################################
     model.constraints = pyo.ConstraintList()
+    # Quellenspezifische WH1-Variablen nur bei 4G mit Industrieszenario.
+    wh = industrie_opt.add_design_source(model, data, param, cluster_horizon)
 
     is_5g_fixed = data.heat_grid_data["heatgrid_generation"] == "5G"
 
@@ -350,14 +353,20 @@ def build_model(model, data, devs, param, dem):
                 heat_supply = sum(model.heat[dev, y, d, t] for dev in
                                   ["STC", "HP", "GroundHP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"])
                 heat_demand = dem["heat"][y][d][t] + model.heat["AC", y, d, t] + model.ch["TES", y, d, t]
-                model.constraints.add(heat_supply == heat_demand)
+                if wh is not None:
+                    model.constraints.add(heat_supply + model.wh_net[y,d,t] == heat_demand)
+                else:
+                    model.constraints.add(heat_supply == heat_demand)
 
                 # Electric power supply and demand balance
                 power_supply = sum(
                     model.power[dev, y, d, t] for dev in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "FC", "from_grid"])
                 power_demand = dem["power"][y][d][t] + sum(
                     model.power[dev, y, d, t] for dev in ["HP", "GroundHP", "EB", "CC", "ELYZ", "to_grid"]) + model.ch["BAT", y, d, t]
-                model.constraints.add(power_supply == power_demand)
+                if wh is not None:
+                    model.constraints.add(power_supply == power_demand + model.wh_hp_el[y,d,t])
+                else:
+                    model.constraints.add(power_supply == power_demand)
 
                 # Cooling supply and demand balance
                 cool_supply = model.cool["AC", y, d, t] + model.cool["CC", y, d, t]
@@ -654,7 +663,7 @@ def build_model(model, data, devs, param, dem):
 
 
     # Combined total annualized investment and O&M costs for all devices
-    model.constraints.add(model.total_annual_costs_devices == sum(model.c_total[dev] for dev in model.all_devs))
+    model.constraints.add(model.total_annual_costs_devices == sum(model.c_total[dev] for dev in model.all_devs) + (model.wh_annual_capex if wh is not None else 0))
 
     # Heat grid costs
     model.constraints.add(model.heat_grid_costs == data.heat_grid_data["ann_costs"] + data.heat_grid_data["om_costs"])
@@ -813,6 +822,9 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
 
     # --- Complete and original filling of the result_dict ---
     result_dict["devs"] = devs
+    if hasattr(model, "wh_hp_cap"):
+        result_dict["industry_hp_capacity_kW"] = float(pyo.value(model.wh_hp_cap))
+        result_dict["industry_hp_annuity_EUR_a"] = float(pyo.value(model.wh_annual_capex))
     result_dict["tac"] = int(safe_value_single(model.obj_tac))  # EUR/a
     result_dict["co2"] = int(safe_value_single(model.obj_co2))  #  kg over full horizon
 
@@ -844,6 +856,20 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     result_dict["total_ann_inv_cost_unsubsidized"] = int(
         sum(safe_value(model.c_inv_base, k) for k in model.all_devs) + heat_grid_ann_costs)
     result_dict["total_om_cost"] = int(sum(safe_value(model.c_om, k) for k in model.all_devs) + heat_grid_om_costs)
+
+    if hasattr(model, "wh_hp_cap"):
+        # Korrekte Zuordnung des Industrie-WP-Investments in die Summen-KPIs.
+        wh_cap_kW = float(pyo.value(model.wh_hp_cap))
+        wh_investment = wh_cap_kW * industrie_opt.WH_HP_INV_EUR_PER_KW
+        wh_om = wh_investment * industrie_opt.WH_HP_OM_FRACTION
+        wh_ann_inv = float(pyo.value(model.wh_annual_capex)) - wh_om
+        result_dict["industry_hp_investment_EUR"] = wh_investment
+        result_dict["industry_hp_annual_om_EUR_a"] = wh_om
+        result_dict["total_inv_cost"] += int(round(wh_investment))
+        result_dict["total_inv_cost_unsubsidized"] += int(round(wh_investment))
+        result_dict["total_ann_inv_cost"] += int(round(wh_ann_inv))
+        result_dict["total_ann_inv_cost_unsubsidized"] += int(round(wh_ann_inv))
+        result_dict["total_om_cost"] += int(round(wh_om))
 
     # Total energy imports and exports - per support year
     result_dict["from_el_grid_total_by_year"] = {y: int(safe_value(model.from_el_grid_total, y) / 1000) for y in model.support_years} #MWh

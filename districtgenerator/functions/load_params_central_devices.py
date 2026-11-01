@@ -17,6 +17,7 @@ Contact:        Marco Wirtz
 import numpy as np
 import math
 import districtgenerator.functions.clustering_medoid as clustering
+from districtgenerator.functions import industrie_optimierung_bridge as industrie_opt
 import time
 import os
 import copy
@@ -151,7 +152,12 @@ def load_params(data):
     #        electricityEV += data.district[b]["user"].EV_carcharging_ondemand / 1000 # kW
     #        generationPV += data.district[b]["generationPV"] / 1000 # kW
 
-        heating_total = net_heat_demand + heat_grid_data["total_losses_heating_network"]
+        if industrie_opt.enabled(data):
+            # Verlust der WH1-Leitung erst bei WH1-Einspeisung.
+            base = data.industry_optimization["base_losses"]
+            heating_total = net_heat_demand + base
+        else:
+            heating_total = net_heat_demand + heat_grid_data["total_losses_heating_network"]
 
         if "total_losses_cooling_network" not in heat_grid_data:
             data.heat_grid_data["total_losses_cooling_network"] = np.zeros_like(cooling)
