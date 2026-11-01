@@ -5,6 +5,7 @@ import pyomo.environ as pyo
 from pyomo.util.infeasible import log_infeasible_constraints
 import sys
 import os
+import math
 from io import StringIO
 import time
 import districtgenerator.functions.solver_config as solver_config
@@ -396,6 +397,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     # activation variable for trafo load
     model.yTrafo = pyo.Var(model.t, within=pyo.Binary)
+    model.yHub = pyo.Var(model.t, within=pyo.Binary)
 
     ################################################################################
     # Energyhub variables
@@ -1441,6 +1443,23 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     model.eh_heating_balance = pyo.Constraint(model.t, rule=eh_heating_balance_rule, doc="EnergyHub_heat_balance")
     model.eh_electricity_balance = pyo.Constraint(model.t, rule=eh_electricity_balance_rule, doc="EnergyHub_electricity_balance")
+    # One net electricity direction across the shared hub connection; limits are W.
+    capacities = energyHubData.get("capacities", {})
+    hub_import_limit = float(capacities.get("from_grid", {}).get("cap", 0.0)) * 1000.0
+    hub_export_limit = float(capacities.get("to_grid", {}).get("cap", 0.0)) * 1000.0
+    if not math.isfinite(hub_import_limit):
+        hub_import_limit = BIG_M
+    if not math.isfinite(hub_export_limit):
+        hub_export_limit = BIG_M
+
+    def hub_binary1_rule(model, t):
+        return model.eh_power_from_grid[t] <= model.yHub[t] * hub_import_limit
+
+    def hub_binary2_rule(model, t):
+        return model.eh_power_to_grid[t] <= (1 - model.yHub[t]) * hub_export_limit
+
+    model.hub_binary1 = pyo.Constraint(model.t, rule=hub_binary1_rule)
+    model.hub_binary2 = pyo.Constraint(model.t, rule=hub_binary2_rule)
     model.eh_cooling_balance = pyo.Constraint(model.t, rule=eh_cooling_balance_rule, doc="EnergyHub_cooling_balance")
     model.eh_gas_balance = pyo.Constraint(model.t, rule=eh_gas_balance_rule, doc="EnergyHub_gas_balance")
     model.eh_biomethane_balance = pyo.Constraint(model.t, rule=eh_biomethane_balance_rule, doc="EnergyHub_biomethane_balance")

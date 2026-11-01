@@ -17,6 +17,7 @@ from districtgenerator.functions.bew_funding import (add_investment_funding, fun
 
 EH_HEAT_PRODUCERS = ("STC", "HP", "WaterHP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
 EH_RENEWABLE_HEAT = ("STC", "HP", "WaterHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
+BIG_M_EL = 1e5  # kW; 100 MW upper bound for an otherwise unlimited hub connection.
 
 
 def add_thermal_installation_constraints(model, devs, param):
@@ -225,6 +226,7 @@ def build_model(model, data, devs, param, dem):
     # Grid limits (same for all years - infrastructure decision)
     model.grid_limit_el = pyo.Var(within=pyo.NonNegativeReals)
     model.grid_limit_gas = pyo.Var(within=pyo.NonNegativeReals)
+    model.yHub = pyo.Var(model.support_years, model.clusters, model.time_steps, within=pyo.Binary)
 
     # Yearly totals - indexed by support year
     model.from_el_grid_total = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
@@ -336,6 +338,18 @@ def build_model(model, data, devs, param, dem):
                 model.constraints.add(model.power["to_grid", y, d, t] <= model.grid_limit_el)
                 model.constraints.add(model.gas["from_grid", y, d, t] <= model.grid_limit_gas)
                 model.constraints.add(model.gas["to_grid", y, d, t] <= model.grid_limit_gas)
+
+    # The shared hub connection has one net electricity direction per time step.
+    hub_exchange_limit = float(param["cap_limit_el"]) if param["enable_cap_limit_el"] else BIG_M_EL
+
+    def hub_binary1_rule(model, y, d, t):
+        return model.power["from_grid", y, d, t] <= model.yHub[y, d, t] * hub_exchange_limit
+
+    def hub_binary2_rule(model, y, d, t):
+        return model.power["to_grid", y, d, t] <= (1 - model.yHub[y, d, t]) * hub_exchange_limit
+
+    model.hub_binary1 = pyo.Constraint(model.support_years, model.clusters, model.time_steps, rule=hub_binary1_rule)
+    model.hub_binary2 = pyo.Constraint(model.support_years, model.clusters, model.time_steps, rule=hub_binary2_rule)
 
     # Correlation to translate area to capacity for PV and STC
     model.constraints.add(model.cap["PV"] == model.area["PV"] * devs["PV"]["G_stc"] * devs["PV"]["eta"])
