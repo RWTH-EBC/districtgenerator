@@ -907,12 +907,12 @@ def residential_reference(typology, year, state):
 
 
 def export_real_network_geometry(source, source_cache, output):
-    """Export cached metric roads and the shared synthetic/real hub heuristic."""
+    """Export metric roads and central-building road-connection hubs for real inputs."""
     import ast
     import geopandas as gpd
     import networkx as nx
     import shapely
-    from districtgenerator.functions.design_network_with_road import choose_energy_hub_position
+    from districtgenerator.functions.design_network_with_road import choose_central_building_hub_position
 
     cache = source_cache / "osm_features_slim.pkl"
     source_hash = hashlib.sha256(cache.read_bytes()).hexdigest()
@@ -962,7 +962,8 @@ def export_real_network_geometry(source, source_cache, output):
             continue
         serving_nodes = components[next(iter(serving))]
         segments = [line for line in segments if tuple(line.coords[0]) in serving_nodes]
-        hub, degree = choose_energy_hub_position(segments, points)
+        hub, building_index = choose_central_building_hub_position(segments, points)
+        degree = graph.degree[hub] if hub in graph else 2
         lines = [dict(id=i, start=list(line.coords[0]), end=list(line.coords[-1]), length=line.length)
                  for i, line in enumerate(segments)]
         if not (backup / json_path.name).exists():
@@ -970,7 +971,9 @@ def export_real_network_geometry(source, source_cache, output):
         metadata["values"] = dict(lines_info=lines, energy_hub=dict(position=hub))
         metadata["metadata"].update(network_geometry_exported=True,
             network_geometry=dict(crs="EPSG:25832", source_feature_cache_sha256=source_hash,
-                road_buffer_m=100.0, hub_rule="highest road degree; geometry-center tie break",
+                road_buffer_m=100.0,
+                hub_rule="road connection of physical building nearest unweighted building centroid",
+                hub_reference_physical_building=str(frame.iloc[building_index].physical_building_id),
                 hub_road_degree=degree, hub_site_verified=False, recommended_topology="road"))
         json_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
         gpd.GeoDataFrame({"id": range(len(segments))}, geometry=segments, crs=25832).to_file(
@@ -988,6 +991,55 @@ def export_real_network_geometry(source, source_cache, output):
         raise ValueError("Some required road connections are unresolved; see network_geometry_checks.csv. No road bridges were invented.")
 
 
+def update_real_hub_locations(source, output, apply=False):
+    """Reposition real hubs using existing roads, preserving geometry and profiles."""
+    import ast
+    import shapely
+    from districtgenerator.functions.design_network_with_road import choose_central_building_hub_position
+
+    proposals, reports = [], []
+    for district in pd.read_csv(source / "district_index.csv").itertuples():
+        path = source / f"{district.native_scenario}.json"
+        original = path.read_bytes()
+        metadata = json.loads(original)
+        if metadata.get("metadata", {}).get("source") != "real":
+            raise ValueError(f"Not a real scenario: {path}")
+        frame = pd.read_csv(path.with_suffix(".csv"), sep=";").drop_duplicates("physical_building_id")
+        points = [shapely.Point(ast.literal_eval(p)) for p in frame.position]
+        roads = [shapely.LineString([line["start"], line["end"]]) for line in metadata["values"]["lines_info"]]
+        hub, index = choose_central_building_hub_position(roads, points)
+        old = metadata["values"]["energy_hub"]["position"]
+        metadata["values"]["energy_hub"]["position"] = hub
+        network = metadata["metadata"].setdefault("network_geometry", {})
+        network.update(hub_rule="road connection of physical building nearest unweighted building centroid",
+                       hub_reference_physical_building=str(frame.iloc[index].physical_building_id),
+                       hub_site_verified=False)
+        network.pop("hub_road_degree", None)
+        reports.append(dict(scenario=district.native_scenario, old_hub=old, new_hub=hub,
+                            displacement_m=shapely.Point(old).distance(shapely.Point(hub)),
+                            physical_building=str(frame.iloc[index].physical_building_id)))
+        proposals.append((path, original, json.dumps(metadata, indent=2).encode("utf-8")))
+    manifest_path = source / "dataset_manifest.json"
+    if manifest_path.exists():
+        original = manifest_path.read_bytes()
+        manifest = json.loads(original)
+        manifest.setdefault("network_geometry", {}).update(
+            hub_rule="road connection of physical building nearest unweighted building centroid",
+            hub_site_verified=False)
+        proposals.append((manifest_path, original, json.dumps(manifest, indent=2).encode("utf-8")))
+    if apply:
+        backup = output / "hub_input_backup"
+        backup.mkdir(parents=True, exist_ok=False)
+        for path, original, _ in proposals:
+            (backup / path.name).write_bytes(original)
+        for path, _, updated in proposals:
+            path.write_bytes(updated)
+    (output / "hub_location_changes.json").write_text(json.dumps(dict(
+        applied=apply, districts=reports, profiles_changed=False, roads_changed=False), indent=2), encoding="utf-8")
+    print(f"{'Applied' if apply else 'Planned'} central-building hub placement for {len(reports)} real districts; "
+          "roads, building CSVs and load profiles unchanged.")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--inputs", type=Path, default=ROOT / "examples/results/"
@@ -998,6 +1050,8 @@ def main():
     parser.add_argument("--plot-floor-areas", type=Path, help="Plot physical-building areas for all complete-input evaluation pools.")
     parser.add_argument("--native-scenarios", type=Path, help="Export a prepared real-district dataset in the native scenario format.")
     parser.add_argument("--network-geometry", type=Path, help="With --apply, add cached roads and hub coordinates to real scenarios; no profiles are generated.")
+    parser.add_argument("--hub-locations", type=Path,
+                        help="Plan real hub positions using existing roads; --apply updates only hub metadata after backup.")
     parser.add_argument("--check-models", action="store_true", help="Build models only; never generate annual profiles.")
     parser.add_argument("--evaluation", type=Path, help="Apply the general rule to reviewed evaluation units.")
     parser.add_argument("--complete-pools", action="store_true", help="Include all other shortlisted candidates with complete basic inputs.")
@@ -1013,6 +1067,9 @@ def main():
                         help="Use the MFH archetype when no AB reference covers the NRW age interval.")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
+    if args.hub_locations:
+        update_real_hub_locations(args.hub_locations, args.output, args.apply)
+        return
     if args.network_geometry:
         if not args.apply:
             parser.error("--network-geometry requires --apply")

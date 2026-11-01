@@ -55,6 +55,26 @@ def choose_energy_hub_position(road_lines, buildings=None):
     return hub, max_degree
 
 
+def choose_central_building_hub_position(road_lines, buildings):
+    """Project the building nearest the unweighted building centroid onto a road.
+
+    Supply one point per physical building, not one per thermal section. The
+    returned index identifies that building in the supplied sequence.
+    """
+    points = list(buildings)
+    roads = list(road_lines)
+    if not points or not roads:
+        raise ValueError("Central-building hub placement requires buildings and roads")
+    if any(p.geom_type != "Point" or p.is_empty for p in points):
+        raise ValueError("Expected nonempty physical-building points")
+    center = shapely.Point(np.mean([p.x for p in points]), np.mean([p.y for p in points]))
+    index = min(range(len(points)), key=lambda i: (points[i].distance(center), points[i].x, points[i].y, i))
+    point = points[index]
+    projections = [road.interpolate(road.project(point)) for road in roads]
+    nearest = min(projections, key=lambda p: (point.distance(p), p.x, p.y))
+    return (float(nearest.x), float(nearest.y)), index
+
+
 def plot_network_context(nodes, edges, buildings_path, roads_path, output_dir, label, title):
     """Overlay a designed topology on real footprints and cached road geometry."""
     import geopandas as gpd
