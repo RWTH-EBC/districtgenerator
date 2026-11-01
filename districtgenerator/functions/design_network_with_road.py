@@ -321,6 +321,7 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
         # %% STEP ONE: get all the nodes in the graph
         # first get the connection points for all buildings
         connection_points = []
+        transformer = tuple(transformer_info["position"])
 
         for building in buildings_info:
             closest_points = []
@@ -335,6 +336,9 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
 
             # Merge points that are “almost overlapping” here.
             merged_point = merge_close_point(raw_point, connection_points, tol=0.1)
+            # Use the hub's exact coordinates when its duplicate terminal is removed.
+            if euclidean(merged_point, transformer) <= 1e-6:
+                merged_point = transformer
 
             connection_points.append(merged_point)
             building["connection_point"] = merged_point
@@ -348,9 +352,6 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
             if pt not in seen:
                 heat_network_points.append(pt)
                 seen.add(pt)
-
-        # get the coordinate of the transformer(energy hub)
-        transformer = tuple(transformer_info["position"])
 
         # add transformer(energy hub) node to heat_network_points
         heat_network_points = [transformer] + [p for p in heat_network_points if euclidean(p, transformer) > 1e-6]
