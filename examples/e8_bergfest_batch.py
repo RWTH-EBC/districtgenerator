@@ -1,4 +1,4 @@
-"""Obtain ten successful districts per Paper_3 type with BERGFEST settings.
+"""Run Paper_3 districts with BERGFEST settings.
 
 Try up to twenty numeric seeds per type until ten pass all three cost cases.
 Failed districts remain recorded and are skipped on resume. Use --dry-run to check
@@ -6,6 +6,8 @@ inputs without optimization, --pilot for the first district's three cases, or
 --resume <run-folder> to continue a saved run. Existing results are never reused
 as writable workspaces: retries receive a new attempt directory.
 For Slurm arrays, use --resume <run-folder> --type A (one task per type).
+Use --real-districts for the indexed real inputs and all selected districts per
+pool. F/G uses the F array task. Real runs use separate input and result folders.
 """
 
 import argparse
@@ -50,13 +52,17 @@ def digest(path):
     return sha256(Path(path).read_bytes()).hexdigest()
 
 
-def scenario_folder():
+def scenario_folder(dataset="synthetic"):
+    if dataset == "real":
+        return PAPER_ROOT / 'districts' / 'Real districts'
     return next((p.resolve() for p in (PAPER_ROOT / 'districts' / 'Synthetic districts',
                  PAPER_ROOT / 'Districts' / 'Synthetic districts', PAPER_ROOT / 'districts', PAPER_ROOT / 'Districts')
                  if p.is_dir()), PAPER_ROOT)
 
 
-def profile_folder(name):
+def profile_folder(name, dataset="synthetic"):
+    if dataset == "real":
+        return PAPER_ROOT / 'load_profiles' / 'Real load profiles' / name / 'demands'
     if scenario_folder().name == 'Synthetic districts':
         return PAPER_ROOT / 'load_profiles' / 'Synthetic load profiles' / name / 'demands'
     parent = 'load_profiles' if scenario_folder() != PAPER_ROOT else 'results'
@@ -159,6 +165,45 @@ def select_districts():
     return selected
 
 
+def select_real_districts():
+    folder = scenario_folder("real")
+    with (folder / 'district_index.csv').open(newline='', encoding='utf-8-sig') as stream:
+        rows = list(csv.DictReader(stream))
+    selected, names, ranks = [], set(), set()
+    for row in rows:
+        pool = row['selection_pool']
+        kind = 'F' if pool == 'F/G' else pool
+        name, rank = row['native_scenario'], int(row['rank_within_type'])
+        if (kind not in TYPES or rank < 1 or not re.fullmatch(r'real_district_[A-Z_]+_AC\d+', name)
+                or row['raw_settlement_type'] not in (('F', 'G') if kind == 'F' else (kind,))
+                or name in names or (kind, rank) in ranks):
+            raise ValueError(f'Invalid or duplicate real district index entry: {row}')
+        names.add(name)
+        ranks.add((kind, rank))
+        path = folder / f'{name}.csv'
+        geometry = json.loads(path.with_suffix('.json').read_text(encoding='utf-8'))
+        with path.open(newline='', encoding='utf-8-sig') as stream:
+            count = sum(1 for _ in csv.DictReader(stream, delimiter=';'))
+        if (geometry['metadata'].get('source') != 'real' or count == 0
+                or geometry['parameters']['district_type'] != row['raw_settlement_type']
+                or not geometry['values'].get('lines_info') or not geometry['values'].get('energy_hub')):
+            raise ValueError(f'Invalid real district geometry: {name}')
+        selected.append(dict(type=kind, pool=pool, rank=rank, name=name, dataset='real',
+                             seed=int.from_bytes(sha256(name.encode('utf-8')).digest()[:4], 'little'),
+                             row_count=count, physical_buildings=int(geometry['metadata']['physical_buildings']),
+                             csv_sha256=digest(path), json_sha256=digest(path.with_suffix('.json'))))
+    for kind in TYPES:
+        if not any(item['type'] == kind for item in selected):
+            raise ValueError(f'No indexed real districts in pool {kind}.')
+    return sorted(selected, key=lambda item: (item['type'], item['rank']))
+
+
+def targets_by_type(manifest):
+    if manifest.get('dataset', 'synthetic') == 'real':
+        return {kind: sum(item['type'] == kind for item in manifest['districts']) for kind in TYPES}
+    return {kind: TARGET_PER_TYPE for kind in TYPES}
+
+
 def validate_config(path):
     from districtgenerator.data_handling.config import load_global_config
 
@@ -174,7 +219,7 @@ def validate_config(path):
 
 def validate_source(item):
     for suffix in ("csv", "json"):
-        path = scenario_folder() / f"{item['name']}.{suffix}"
+        path = scenario_folder(item.get('dataset', 'synthetic')) / f"{item['name']}.{suffix}"
         if digest(path) != item[f"{suffix}_sha256"]:
             raise ValueError(f"Original scenario changed since this run was prepared: {path}")
 
@@ -182,19 +227,25 @@ def validate_source(item):
 def preflight(items, config_path):
     from districtgenerator.classes.datahandler import Datahandler
 
-    validate_config(config_path)
+    config = validate_config(config_path)
     checked = 0
     for item in items:
         validate_source(item)
-        profile_dir = profile_folder(item['name'])
+        dataset = item.get('dataset', 'synthetic')
+        if dataset == 'real' and config.heatgrid.topology_option != 'road':
+            raise ValueError('Real district evaluation requires road routing.')
+        profile_dir = profile_folder(item['name'], dataset)
         # Initialization also resolves mixed-use split names, without generating demands.
         with redirect_stdout(io.StringIO()):
             data = Datahandler(scenario_name=item["name"], env_path=str(config_path),
-                               scenario_file_path=str(scenario_folder()), resultPath=str(profile_dir.parent))
-            if len(data.scenario) != 30:
-                raise ValueError(f"Expected 30 scenario rows: {item['name']}")
+                               scenario_file_path=str(scenario_folder(dataset)), resultPath=str(profile_dir.parent))
+            expected_rows = item['row_count'] if dataset == 'real' else 30
+            if len(data.scenario) != expected_rows:
+                raise ValueError(f"Expected {expected_rows} scenario rows: {item['name']}")
             data.scenario["heater"] = "heat_grid"
             data.initializeBuildings()
+            if dataset == 'real' and len(data._network_buildings()) != item['physical_buildings']:
+                raise ValueError(f"Physical building connections do not match geometry: {item['name']}")
         for building in data.district:
             path = profile_dir / f"{building['unique_name']}.xlsx"
             with ZipFile(path) as archive:
@@ -225,6 +276,10 @@ def load_manifest(run_dir):
         raise ValueError("Unsupported batch manifest.")
     if digest(run_dir / ".env.CONFIG.BERGFEST") != manifest["config_sha256"]:
         raise ValueError("The saved run configuration was modified; start a new run instead.")
+    dataset = manifest.get('dataset', 'synthetic')
+    if dataset not in {'synthetic', 'real'} or any(
+            item.get('dataset', 'synthetic') != dataset for item in manifest['districts']):
+        raise ValueError('Batch dataset and district sources do not agree.')
     output_policy(manifest)
     if manifest["version"] == 4:
         validate_comparison(run_dir, manifest)
@@ -246,6 +301,7 @@ def validate_comparison(run_dir, manifest):
         child = load_manifest(run_dir / variant)
         if (child["version"] != 3 or child.get("comparison_parent") != ".."
                 or child["districts"] != manifest["districts"]
+                or child.get('dataset', 'synthetic') != manifest.get('dataset', 'synthetic')
                 or child["config_sha256"] != manifest["variant_config_sha256"][variant]
                 or output_policy(child) != output_policy(manifest)):
             raise ValueError(f"Comparison variant was modified: {variant}")
@@ -276,6 +332,8 @@ def create_comparison_variants(run_dir, manifest):
         shutil.copyfile(run_dir / ".env.CONFIG.BERGFEST", config_path)
         set_key(str(config_path), "FUNDING_ENABLED", str(variant == "funding_on"), quote_mode="never")
         child = {key: manifest[key] for key in ("districts", "cases", "output_policy", "created")}
+        if 'dataset' in manifest:
+            child['dataset'] = manifest['dataset']
         child.update(version=3, comparison_parent="..", config_sha256=digest(config_path))
         manifest["variant_config_sha256"][variant] = child["config_sha256"]
         write_json_new(child_dir / "manifest.json", child)
@@ -322,6 +380,9 @@ def worker(run_dir, scenario, case, attempt):
         raise ValueError(f"Unknown investment case: {case}")
     validate_source(item)
     config = validate_config(run_dir / ".env.CONFIG.BERGFEST")
+    dataset = item.get('dataset', 'synthetic')
+    if dataset == 'real' and config.heatgrid.topology_option != 'road':
+        raise ValueError('Real district evaluation requires road routing.')
     expected_parent = (run_dir / scenario / case).resolve()
     attempt = attempt.resolve()
     if attempt.parent != expected_parent or not re.fullmatch(r"attempt_\d{3}", attempt.name):
@@ -338,8 +399,8 @@ def worker(run_dir, scenario, case, attempt):
         data = Datahandler(
             scenario_name=scenario, output_scenario_name=f"{scenario}_central_4G_inv_{case}",
             investment_sensitivity_case=case, env_path=str(run_dir / ".env.CONFIG.BERGFEST"),
-            resultPath=str(attempt), scenario_file_path=str(scenario_folder()),
-            profile_input_path=str(profile_folder(scenario)),
+            resultPath=str(attempt), scenario_file_path=str(scenario_folder(dataset)),
+            profile_input_path=str(profile_folder(scenario, dataset)),
             network_output_path=str(attempt / "network" / "topology"))
         policy = output_policy(manifest)
         data.pyomo_config.update({key: value for key, value in policy.items() if key.startswith("solver_")})
@@ -347,9 +408,10 @@ def worker(run_dir, scenario, case, attempt):
         if not config.report.batch_building_pv_enabled:
             data.scenario[["f_PV1", "f_PV2"]] = 0.0
         data.scenario.to_csv(attempt / "scenario_heat_grid.csv", sep=";", index=False)
+        generation_options = {'combine_mixed_profiles': False} if dataset == 'real' else {}
         data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False,
                                       topology_option=data.heat_grid_data["topology_option"],
-                                      gen_cars=None)
+                                      gen_cars=None, **generation_options)
         if not all(b["buildingFeatures"]["heater"] == "heat_grid" for b in data.district):
             raise ValueError("Not all buildings are connected to heat_grid.")
         if not config.report.batch_building_pv_enabled:
@@ -408,7 +470,8 @@ def run_batch(run_dir, manifest, pilot, district_type=None, retry_failed=False):
 
 
 def run_selected_types(run_dir, manifest, pilot, kinds, retry_failed=False):
-    candidates = sorted(manifest["districts"], key=lambda item: (item["type"], item["seed"]))
+    targets = targets_by_type(manifest)
+    candidates = sorted(manifest["districts"], key=lambda item: (item["type"], item.get('rank', item['seed'])))
     candidates = [item for item in candidates if item["type"] in kinds]
     items = candidates[:1] if pilot else candidates
     successful = {kind: [] for kind in kinds}
@@ -417,14 +480,14 @@ def run_selected_types(run_dir, manifest, pilot, kinds, retry_failed=False):
                    for variant_dir, variant in evaluation_runs(run_dir, manifest) for case in CASES]
     for item in items:
         kind = item["type"]
-        if len(successful[kind]) >= TARGET_PER_TYPE:
+        if len(successful[kind]) >= targets[kind]:
             continue
         district_dir = run_dir / item["name"]
         all_complete = all(any((variant_dir / item["name"] / case).glob("attempt_*/completed.json"))
                            for variant_dir, _, case in evaluations)
         if (district_dir / "district_failed.json").exists() and not all_complete and not retry_failed:
             failed[kind].append(item["name"])
-            print(f"Previously failed district: {item['name']}; trying next seed.", flush=True)
+            print(f"Previously failed district: {item['name']}; trying next district.", flush=True)
             continue
         district_failed = False
         if manifest.get("version") == 4:
@@ -469,13 +532,15 @@ def run_selected_types(run_dir, manifest, pilot, kinds, retry_failed=False):
             print(f"Completed {item['name']} / {label}", flush=True)
         if not district_failed:
             successful[kind].append(item["name"])
-            print(f"Type {kind}: {len(successful[kind])}/{TARGET_PER_TYPE} successful districts.", flush=True)
-    shortfalls = {kind: TARGET_PER_TYPE - len(names) for kind, names in successful.items()
-                  if len(names) < TARGET_PER_TYPE}
+            print(f"Type {kind}: {len(successful[kind])}/{targets[kind]} successful districts.", flush=True)
+    shortfalls = {kind: targets[kind] - len(names) for kind, names in successful.items()
+                  if len(names) < targets[kind]}
     report = {"pilot": pilot, "types": kinds, "retry_failed": retry_failed,
               "variants": [variant for _, variant in evaluation_runs(run_dir, manifest)],
               "successful": successful, "failed": failed,
               "shortfalls": shortfalls, "target_per_type": TARGET_PER_TYPE}
+    if manifest.get('dataset') == 'real':
+        report['target_per_type'] = {kind: targets[kind] for kind in kinds}
     report_path = run_dir / f"batch_summary_{datetime.now():%Y%m%d-%H%M%S}_{uuid4().hex[:6]}.json"
     write_json_new(report_path, report)
     print(f"Summary: {report_path}", flush=True)
@@ -486,7 +551,7 @@ def run_selected_types(run_dir, manifest, pilot, kinds, retry_failed=False):
     elif shortfalls:
         raise RuntimeError(f"Candidates exhausted; missing successful districts by type: {shortfalls}")
     else:
-        print(f"Target reached: {TARGET_PER_TYPE} successful districts per selected type {kinds}, "
+        print(f"Target reached: {dict((kind, targets[kind]) for kind in kinds)} successful districts, "
               f"all {len(evaluations)} evaluations per district complete.", flush=True)
 
 
@@ -516,14 +581,15 @@ def package_results(run_dir, destination=None, dry_run=False):
             raise ValueError("Saved code provenance is missing or modified.")
         files.add(run_dir / name)
     known = {item["name"]: item for item in manifest["districts"]}
+    targets = targets_by_type(manifest)
     for kind in TYPES:
         if kind not in latest:
             raise ValueError(f"No final summary for type {kind}.")
         path, summary = latest[kind]
         names = summary["successful"][kind]
-        if (summary["shortfalls"].get(kind, 0) or len(names) != TARGET_PER_TYPE
-                or len(set(names)) != TARGET_PER_TYPE):
-            raise ValueError(f"Type {kind} has not reached ten successful districts.")
+        if (summary["shortfalls"].get(kind, 0) or len(names) != targets[kind]
+                or len(set(names)) != targets[kind]):
+            raise ValueError(f"Type {kind} has not reached {targets[kind]} successful districts.")
         files.add(path)
         for name in names:
             if name not in known or known[name]["type"] != kind:
@@ -584,6 +650,8 @@ def package_results(run_dir, destination=None, dry_run=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--real-districts', action='store_true',
+                        help='Create a run for every indexed real district, with F/G pooled in array task F.')
     parser.add_argument("--dry-run", action="store_true", help="Check all selected input profiles without optimization or output creation.")
     parser.add_argument("--pilot", action="store_true", help="Run the first selected district's three cases (six for paired funding); resume later for the rest.")
     parser.add_argument("--resume", type=Path, help="Continue a saved run using its immutable configuration snapshot.")
@@ -600,6 +668,9 @@ def main():
     parser.add_argument('--plan-only', action='store_true', help='Report reuse/rerun counts without reading unfinished profiles or executing optimization.')
     parser.add_argument('--plan-output', type=Path, help='New JSON file for the read-only plan.')
     args = parser.parse_args()
+    if args.real_districts and (args.resume or args.worker or args.package or args.reuse_from
+                               or args.plan_only or args.plan_output):
+        parser.error('--real-districts selects new inputs; resume/package infer the dataset from the saved manifest. Synthetic reuse/planning is not available in real mode.')
     if (args.reuse_from or args.plan_only or args.plan_output) and (
             not args.paired_funding or args.resume or args.worker or args.package or args.pilot):
         parser.error('Reuse/planning options require a new --paired-funding comparison.')
@@ -639,7 +710,7 @@ def main():
         config_path = run_dir / ".env.CONFIG.BERGFEST"
         items = manifest["districts"]
     else:
-        items = select_districts()
+        items = select_real_districts() if args.real_districts else select_districts()
         config_path = CONFIG
     paired = args.paired_funding or (args.resume and manifest["version"] == 4)
     if paired and validate_config(config_path).central.EB["feasible"]:
@@ -651,10 +722,14 @@ def main():
     for district_type in TYPES:
         seeds = [item["seed"] for item in selected if item["type"] == district_type]
         if seeds:
-            print(f"Type {district_type}: seeds {seeds}")
+            if selected[0].get('dataset') == 'real':
+                print(f"Pool {district_type}: {[item['name'] for item in selected if item['type'] == district_type]}")
+            else:
+                print(f"Type {district_type}: seeds {seeds}")
     per_district = 6 if paired else 3
     print(f"Available: {len(selected)} candidates, up to {len(selected) * per_district} case evaluations. "
-          f"Target: {TARGET_PER_TYPE} successful districts per type (all {per_district} evaluations).", flush=True)
+          + (f"Target: all indexed real districts (all {per_district} evaluations)." if selected[0].get('dataset') == 'real'
+             else f"Target: {TARGET_PER_TYPE} successful districts per type (all {per_district} evaluations)."), flush=True)
     reuse = reusable_results(args.reuse_from, items) if args.reuse_from else None
     if args.plan_only:
         report = {'optimization_executed': False, 'profiles_must_still_pass_preflight': True,
@@ -674,6 +749,8 @@ def main():
     if not args.resume:
         RUNS_ROOT.mkdir(parents=True, exist_ok=True)
         prefix = "COMPARISON" if paired else "BERGFEST"
+        if args.real_districts:
+            prefix = 'REAL_' + prefix
         run_dir = RUNS_ROOT / f"{prefix}_{datetime.now():%Y%m%d-%H%M%S}_{uuid4().hex[:6]}"
         run_dir.mkdir()
         shutil.copyfile(CONFIG, run_dir / ".env.CONFIG.BERGFEST")
@@ -685,6 +762,8 @@ def main():
                     "code_provenance": save_code_provenance(run_dir),
                     "config_sha256": digest(run_dir / ".env.CONFIG.BERGFEST"),
                     "created": datetime.now().astimezone().isoformat()}
+        if args.real_districts:
+            manifest['dataset'] = 'real'
         output_policy(manifest)
         if paired:
             create_comparison_variants(run_dir, manifest)

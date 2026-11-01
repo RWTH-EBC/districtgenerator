@@ -1245,7 +1245,8 @@ class Datahandler:
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8, gen_cars=None,
-                        parallelization="multiprocessing", task_level=None, profile_seed=None):
+                        parallelization="multiprocessing", task_level=None, profile_seed=None,
+                        combine_mixed_profiles=True):
         """Generate or load demands, choosing car modelling from the district by default.
 
         With gen_cars=None, include cars for every building if any building has
@@ -1267,6 +1268,8 @@ class Datahandler:
         profile_seed=None retains legacy random streams. An explicit nonnegative
         seed gives each unique building name a stable multiprocessing stream,
         independent of which completed buildings have been filtered out.
+        Set combine_mixed_profiles=False to retain separate thermal sections for
+        network sizing; sections at the same physical building share a connection.
         """
         started = time.perf_counter()
         if gen_cars is None:
@@ -1372,7 +1375,8 @@ class Datahandler:
         print(f"Finished generating demands with {parallelization}!")
 
         # Combine demand profiles for mixed-use buildings
-        self.combine_mixed_building_demands(saveUserProfiles)
+        if combine_mixed_profiles:
+            self.combine_mixed_building_demands(saveUserProfiles)
 
         self.demand_timings = {result["unique_name"]: result["timings"] for result in results}
         self.demand_generation_seconds = time.perf_counter() - started
@@ -1506,7 +1510,7 @@ class Datahandler:
         return timings
 
     def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, topology_option="road", gen_cars=None,
-                                parallelization="multiprocessing", task_level=None):
+                                parallelization="multiprocessing", task_level=None, combine_mixed_profiles=True):
         """
         All in one solution for district and demand generation.
         Within a clustered time series, data points are aggregated across different time periods
@@ -1525,6 +1529,9 @@ class Datahandler:
         saveUserProfiles: bool, optional
             True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
             The default is True.
+        combine_mixed_profiles : bool, optional
+            False retains separate mixed-use thermal sections and their temperature
+            requirements for shared physical network connections. Default: True.
         fileName_centralSystems : string, optional
             File name of the CSV-file that will be loaded. The default is "central_devices_test".
         saveGenProfiles: bool, optional
@@ -1545,7 +1552,8 @@ class Datahandler:
         self.initializeBuildings()
         self.generateBuildings()
         self.generateDemands(calcUserProfiles, saveUserProfiles, gen_cars=gen_cars,
-                             parallelization=parallelization, task_level=task_level)
+                             parallelization=parallelization, task_level=task_level,
+                             combine_mixed_profiles=combine_mixed_profiles)
         self.designDecentralDevices(saveGenerationProfiles=True)
 
         # Check if district uses central energy supply (heat grid)
