@@ -1038,8 +1038,10 @@ class Datahandler:
         for idx, building in enumerate(self.district):
             if "original_bldg_id" in building["buildingFeatures"]:
                 original_id = building["buildingFeatures"]["original_bldg_id"]
-                # Only map the main building for mixed types, or all regular buildings
-                if building["buildingFeatures"].get("mixed_role") == "main" or not building["buildingFeatures"].get("is_mixed_part", False):
+                # Native sections have distinct input IDs; generated splits share the parent ID.
+                if (building["buildingFeatures"].get("mixed_role") == "main"
+                        or not building["buildingFeatures"].get("is_mixed_part", False)
+                        or original_id != building["buildingFeatures"].get("mixed_parent_id")):
                     self.building_dict[original_id] = idx
 
     # Helper function to get floor area range for residential building types based on TABULA typology
