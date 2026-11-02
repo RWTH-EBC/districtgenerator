@@ -31,6 +31,8 @@ from districtgenerator.functions.heating_network_simple import calculate_soil_te
 from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig
 import multiprocessing as mp
 import threading
+import hashlib
+from collections import Counter
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 class Datahandler:
@@ -66,7 +68,8 @@ class Datahandler:
                  run_name: str = None,
                  demand_variant: str = "base", # changes regarding demand
                  system_variant: str = "default_run", # changes regarding system design
-                 project_data_path: str = None
+                 project_data_path: str = None,
+                 global_config: GlobalConfig = None
                  ):
         """
         Constructor of Datahandler class.
@@ -85,12 +88,16 @@ class Datahandler:
             Path to the data directory. If None, it defaults to 'srcPath/data'.
         env_path : str, optional
             Path to the environment configuration file. If None, it defaults to the global configuration file.
+        global_config : GlobalConfig, optional
+            Already loaded configuration. If given, env_path is not parsed again (parsing is slow).
+            The object is used directly; pass a copy if it is shared with other instances.
 
         Returns
         -------
         None.
         """
-        global_config: GlobalConfig = load_global_config(env_file=env_path)
+        if global_config is None:
+            global_config = load_global_config(env_file=env_path)
 
         srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         filePath = os.path.join(srcPath, 'data')
@@ -142,7 +149,7 @@ class Datahandler:
         else:
             self.resultPath = os.path.join(self.srcPath, 'results')
 
-        self.load_all_data(env_path=env_path, scenario_name=scenario_name)
+        self.load_all_data(env_path=env_path, scenario_name=scenario_name, global_config=global_config)
 
         # 1. Demands liegen unter: results/demands/<demand_variant>/<scenario> (szenario-zentriert!)
         self.demands_path = os.path.join(self.resultPath, 'demands', self.demand_variant, self.scenario_name)
@@ -180,7 +187,7 @@ class Datahandler:
             except Exception as e:
                 print(f"Couldn't save calculation progress: {e}")
 
-    def load_all_data(self, env_path, scenario_name):
+    def load_all_data(self, env_path, scenario_name, global_config=None):
         """
         Load all data needed for district generation from configuration files.
 
@@ -190,6 +197,8 @@ class Datahandler:
             Path to the environment configuration file. If None, it defaults to the global configuration file.
         scenario_name : str, optional
             Name of the scenario file
+        global_config : GlobalConfig, optional
+            Already loaded configuration. If None, it is loaded from env_path.
 
         Returns
         -------
@@ -197,7 +206,8 @@ class Datahandler:
         """
         # --- 1. Load all Configs ---
 
-        global_config: GlobalConfig = load_global_config(env_file=env_path)
+        if global_config is None:
+            global_config = load_global_config(env_file=env_path)
 
         # %% load information about of the site under consideration (used in generateEnvironment)
         # important for weather conditions
@@ -686,27 +696,30 @@ class Datahandler:
 
                 height = building["buildingFeatures"].get("height", 0)
                 number_of_floors = building["buildingFeatures"].get("number_of_floors", 0)
-                if number_of_floors == 0:
+                if not number_of_floors or pd.isna(number_of_floors):
                     # Determining the number of floors in a building based on its type.
                     # The method estimates the number of floors by:
                     # - Assigning a range of possible floor areas per level based on building type.
                     # - Randomly selecting a value within the assigned range using the TABULA German Building Typology.
                     # - Calculating the total number of floors by dividing the building’s total floor area
                     #   by the selected single-floor area.
+                    # The draw is deterministic per building (local generator seeded from gmlId), so all
+                    # runs/variants get the same geometry; the global random state is not touched.
+                    floor_rng = _building_rng(building["buildingFeatures"])
 
                     if building_type == "single_family_house":
-                        one_floor_area = rd.randint(62, 115)  # Source: TABULA German Building Typology
+                        one_floor_area = floor_rng.randint(62, 115)  # Source: TABULA German Building Typology
                         # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
                         number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
 
                     elif building_type == "terraced_house":
-                        one_floor_area = rd.randint(50, 73)  # Source: TABULA German Building Typology
+                        one_floor_area = floor_rng.randint(50, 73)  # Source: TABULA German Building Typology
                         # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
                         number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
 
                     elif building_type == "multi_family_house":
                         # Generate a valid one-floor area and number of floors in one step
-                        one_floor_area = rd.randint(102, 971)  # Source: TABULA German Building Typology
+                        one_floor_area = floor_rng.randint(102, 971)  # Source: TABULA German Building Typology
                         # Calculate the number of floors, rounding to the nearest integer and ensuring at least 2
                         number_of_floors = max(2, round(building["buildingFeatures"]["area"] / one_floor_area))
                         # Cap the number of floors to a maximum of 8
@@ -714,7 +727,7 @@ class Datahandler:
                             number_of_floors = 8
 
                     elif building_type == "apartment_block":
-                        one_floor_area = rd.randint(350, 540)  # Source: TABULA German Building Typology
+                        one_floor_area = floor_rng.randint(350, 540)  # Source: TABULA German Building Typology
                         # Calculate the number of floors, rounding to the nearest integer and ensuring at least 3
                         number_of_floors = max(3, round(building["buildingFeatures"]["area"] / one_floor_area))
 
@@ -723,7 +736,8 @@ class Datahandler:
                 # Older buildings (constructed before 1960) generally have higher ceilings, while newer buildings
                 # (built from 1960 onwards) tend to have lower ceilings.
                 # Source: https://www.wohnung.com/ratgeber/418/alt-und-neubau-deckenhoehe
-                if height_of_floors < 2.5 or height_of_floors > 4.0:
+                # NaN (missing height) fails every comparison, so it is checked explicitly
+                if pd.isna(height_of_floors) or height_of_floors < 2.5 or height_of_floors > 4.0:
                     if building["buildingFeatures"]["year"] < 1960:
                         height_of_floors = 3.3  # m
                     elif building["buildingFeatures"]["year"] >= 1960:
@@ -841,7 +855,7 @@ class Datahandler:
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=10, gen_cars=True, allow_hybrid=False,
-                        parallelization="multiprocessing"):
+                        parallelization="multiprocessing", user_profiles_path=None):
         """
                 Generate occupancy profile, heat demand, domestic hot water demand and heating demand.
 
@@ -860,6 +874,11 @@ class Datahandler:
                     "multiprocessing": one task per building in a spawned process pool (default).
                     "none": buildings are calculated one after another in the calling process, without
                     process pool and pickling (e.g. if the caller already parallelizes over districts).
+                user_profiles_path: str, optional
+                    Demand folder of a base run (e.g. another demand variant of the same district). If given and
+                    calcUserProfiles is True, the user profiles (occupancy, electricity, DHW, gains, cars) of
+                    residential buildings are taken from there, matched via gmlId; only heating/cooling is
+                    calculated with the current envelope. Buildings without a match are calculated as usual.
 
                 Returns
                 -------
@@ -873,6 +892,11 @@ class Datahandler:
         self.buildings_completed = 0
         self.save_progress()
 
+        # Base run profiles: map gmlId -> profile name once per district (the names depend on the input order)
+        user_profiles_map = _map_profiles_by_gml_id(user_profiles_path) if user_profiles_path else {}
+        if user_profiles_path:
+            print(f"Base user profiles: {len(user_profiles_map)} buildings found in {user_profiles_path}")
+
         # Minimal, picklable context passed to each worker process.
         context = {
             "site": self.site,
@@ -881,6 +905,9 @@ class Datahandler:
             "decentral_device_data": self.decentral_device_data,
             "resultPath": self.resultPath,
             "demandsPath": self.demands_path,
+            "scenarioName": self.scenario_name,
+            "userProfilesPath": user_profiles_path,
+            "userProfilesMap": user_profiles_map,
             "initial_day": self.initial_day,
             "design_building_data": self.design_building_data,
         }
@@ -947,6 +974,9 @@ class Datahandler:
 
         self.save_progress()
 
+        sources = Counter(result.get("user_profiles_source") for result in results)
+        print(f"User profiles of {self.scenario_name}: {sources['calculated']} calculated, "
+              f"{sources['base']} taken from base run, {sources['loaded']} loaded from own results.")
         print(f"Finished generating demands (parallelization={parallelization})!")
 
     def _report_building_done(self, unique_name):
@@ -958,7 +988,7 @@ class Datahandler:
 
     def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, designEnergyhub=False,
                                  gen_cars=True, pv_standard=True, max_threads=8, allow_hybrid = False,
-                                 parallelization="multiprocessing"):
+                                 parallelization="multiprocessing", user_profiles_path=None):
         """
         All in one solution for district and demand generation.
         Within a clustered time series, data points are aggregated across different time periods
@@ -983,6 +1013,8 @@ class Datahandler:
             parallelization="multiprocessing"). The default is 8.
         parallelization: str, optional
             "multiprocessing" (default) or "none" (serial, no process pool). See generateDemands.
+        user_profiles_path: str, optional
+            Demand folder of a base run whose user profiles are reused. See generateDemands.
 
         Returns
         -------
@@ -992,7 +1024,8 @@ class Datahandler:
         self.initializeBuildings()
         self.generateBuildings()
         self.generateDemands(calcUserProfiles, saveUserProfiles, gen_cars=gen_cars, max_threads=max_threads,
-                             allow_hybrid=allow_hybrid, parallelization=parallelization)
+                             allow_hybrid=allow_hybrid, parallelization=parallelization,
+                             user_profiles_path=user_profiles_path)
         self.designDecentralDevices(saveGenerationProfiles=True, pv_standard=pv_standard)
 
         # Check if district uses central energy supply (heat grid)
@@ -1710,26 +1743,49 @@ def _run_demand_worker(context, building, calcUserProfiles, saveUserProfiles, ge
     initial_day = context["initial_day"]
     design_building_data = context["design_building_data"]
     demands_path = context["demandsPath"]
+    user_profiles_path = context.get("userProfilesPath")
+    gml_id = _building_gml_id(building)
 
     # --- HYBRID LOGIK ---
     check_file = os.path.join(demands_path, f"{building['unique_name']}_static.csv")
     skip_calculation = False
     if calcUserProfiles and allow_hybrid and os.path.exists(check_file):
-        skip_calculation = True
-        print(f"Files found for {building['unique_name']}. Switching to LOAD mode for this building.")
+        cached_gml_id = _read_static_gml_id(check_file)
+        if cached_gml_id is not None and cached_gml_id != gml_id:
+            # unique_name depends on the input order, which is not guaranteed: never load another building's files
+            print(f"Files of {building['unique_name']} belong to gmlId {cached_gml_id}, not {gml_id}. "
+                  f"Recalculating this building.")
+        else:
+            skip_calculation = True
+            print(f"Files found for {building['unique_name']}. Switching to LOAD mode for this building.")
+
+    # --- USER PROFILES OF A BASE RUN (residential only, matched via gmlId) ---
+    base_name = None
+    if calcUserProfiles and not skip_calculation and user_profiles_path:
+        # Non-residential lighting/appliances depend on the retrofit level, so they are always recalculated
+        if building["user"].building in {"SFH", "TH", "MFH", "AB"}:
+            base_name = context["userProfilesMap"].get(gml_id)
+            if base_name is None:
+                print(f"No base user profiles for {building['unique_name']} (gmlId {gml_id}). Calculating them.")
+
+    user_profiles_source = "calculated" if (calcUserProfiles and not skip_calculation) else "loaded"
 
     # --- 1. USER PROFILES (Calculate or Load) ---
     if calcUserProfiles and not skip_calculation:
-        building["user"].calcProfiles(site=site,
-                                      holidays=calendar["holidays"],
-                                      time_resolution=time_cfg["timeResolution"],
-                                      time_horizon=time_cfg["dataLength"],
-                                      building_devices_data=decentral_device_data,
-                                      building=building,
-                                      path=demands_path,
-                                      initial_day=initial_day,
-                                      gen_cars=gen_cars,
-                                      gen_lock_occ=worker_lock)  # Nutzung des Prozess-Locks!
+        if base_name is not None and _take_base_user_profiles(building, base_name, user_profiles_path,
+                                                                time_cfg, gen_cars):
+            user_profiles_source = "base"
+        else:
+            building["user"].calcProfiles(site=site,
+                                          holidays=calendar["holidays"],
+                                          time_resolution=time_cfg["timeResolution"],
+                                          time_horizon=time_cfg["dataLength"],
+                                          building_devices_data=decentral_device_data,
+                                          building=building,
+                                          path=demands_path,
+                                          initial_day=initial_day,
+                                          gen_cars=gen_cars,
+                                          gen_lock_occ=worker_lock)  # Nutzung des Prozess-Locks!
 
         if saveUserProfiles:
             _save_profiles_worker(name=building["unique_name"],
@@ -1753,6 +1809,14 @@ def _run_demand_worker(context, building, calcUserProfiles, saveUserProfiles, ge
                                   individual_car_profiles=building["user"].individual_car_profiles)
     else:
         # Läuft hier rein, wenn calcUserProfiles=False ODER skip_calculation=True (Hybrid)
+        if not calcUserProfiles:
+            # Pure load mode has no calculation fallback: refuse files of another building
+            # (unique_name depends on the input order, which is not guaranteed). Hybrid was checked above.
+            cached_gml_id = _read_static_gml_id(check_file)
+            if cached_gml_id is not None and cached_gml_id != gml_id:
+                raise ValueError(f"District {context.get('scenarioName')}: files of building "
+                                 f"{building['unique_name']} belong to gmlId {cached_gml_id}, "
+                                 f"but the current building has gmlId {gml_id}.")
         (building["user"].elec, building["user"].dhw, # building["user"].dhw_minutely,
          building["user"].occ, building["user"].gains,
          building["user"].EV_carcharging_ondemand, building["user"].EV_carprofile,
@@ -1825,7 +1889,75 @@ def _run_demand_worker(context, building, calcUserProfiles, saveUserProfiles, ge
         "individual_car_profiles": getattr(building["user"], "individual_car_profiles", []),
         "envelope": building["envelope"],
         "night_setback": building["buildingFeatures"]["night_setback"],
+        "user_profiles_source": user_profiles_source,
     }
+
+
+def _building_gml_id(building):
+    """Building identity as stored in the gmlId column of <name>_static.csv."""
+    features = building["buildingFeatures"]
+    return str(features.get("gmlId", features.get("id")))
+
+
+def _read_static_gml_id(static_path):
+    """Return the gmlId stored in a <name>_static.csv, or None if it is missing/unreadable."""
+    try:
+        df = pd.read_csv(static_path, sep=";", dtype=str)
+    except Exception:
+        return None
+    if "gmlId" not in df.columns or df.empty or pd.isna(df["gmlId"].iloc[0]):
+        return None
+    return df["gmlId"].iloc[0]
+
+
+def _map_profiles_by_gml_id(path):
+    """Map gmlId -> profile name for all <name>_static.csv files in path (empty if path is missing)."""
+    mapping = {}
+    if not path or not os.path.isdir(path):
+        return mapping
+    suffix = "_static.csv"
+    for file_name in os.listdir(path):
+        if file_name.endswith(suffix):
+            gml_id = _read_static_gml_id(os.path.join(path, file_name))
+            if gml_id is not None:
+                mapping[gml_id] = file_name[:-len(suffix)]
+    return mapping
+
+
+def _take_base_user_profiles(building, base_name, path, time_cfg, gen_cars):
+    """
+    Take over the user profiles of a base run (occupancy, electricity, DHW, gains, cars, flats, occupants).
+    Envelope values (heatload, bivalent, heatlimit) of the current building are kept.
+    Returns False (caller calculates instead) if the profiles do not fit the current time resolution.
+    """
+    (elec, dhw, occ, gains, ev_ondemand, ev_profile, ice_profile, nb_flats, nb_main_rooms, nb_occ,
+     ev_capacity, _heatload, _bivalent, _heatlimit, car_profiles) = _load_profiles_worker(
+        base_name, path, time_cfg, gen_cars=gen_cars)
+
+    expected_steps = int(time_cfg["dataLength"] / time_cfg["timeResolution"])
+    if len(elec) != expected_steps:
+        print(f"Base user profiles {base_name} have {len(elec)} time steps instead of {expected_steps}. "
+              f"Calculating {building['unique_name']} instead.")
+        return False
+
+    user = building["user"]
+    user.elec, user.dhw, user.occ, user.gains = elec, dhw, occ, gains
+    user.EV_carcharging_ondemand, user.EV_carprofile, user.ice_carprofile = ev_ondemand, ev_profile, ice_profile
+    user.nb_flats, user.nb_main_rooms = nb_flats, nb_main_rooms
+    # Plain Python types, so that _save_profiles_worker can serialize them to JSON
+    user.nb_occ = [int(x) for x in nb_occ]
+    user.ev_capacity = [float(x) for x in ev_capacity]
+    user.individual_car_profiles = car_profiles
+    print(f"User profiles of {building['unique_name']} taken from base run ({base_name}).")
+    return True
+
+
+def _building_rng(features):
+    """Local random generator seeded from the building's gmlId (or id); the global random state is untouched."""
+    key = str(features.get("gmlId", features.get("id")))
+    seed = int.from_bytes(hashlib.sha256(key.encode("utf-8")).digest()[:8], "little")
+    return rd.Random(seed)
+
 
 def _set_solar_areas(building, area_roof, devices, f_pv, f_stc):
     """
