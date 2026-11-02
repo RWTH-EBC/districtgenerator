@@ -30,6 +30,7 @@ import districtgenerator.functions.heating_network_simple as heating_network_sim
 from districtgenerator.functions.heating_network_simple import calculate_soil_temperature
 from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig
 import multiprocessing as mp
+import threading
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 class Datahandler:
@@ -839,7 +840,8 @@ class Datahandler:
             building["buildingFeatures"] = building["buildingFeatures"].copy()
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
-    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=10, gen_cars=True, allow_hybrid=False):
+    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=10, gen_cars=True, allow_hybrid=False,
+                        parallelization="multiprocessing"):
         """
                 Generate occupancy profile, heat demand, domestic hot water demand and heating demand.
 
@@ -852,11 +854,20 @@ class Datahandler:
                 saveUserProfiles: bool, optional
                     True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
                     The default is True.
+                max_threads: int, optional
+                    Number of worker processes (only used for parallelization="multiprocessing"). The default is 10.
+                parallelization: str, optional
+                    "multiprocessing": one task per building in a spawned process pool (default).
+                    "none": buildings are calculated one after another in the calling process, without
+                    process pool and pickling (e.g. if the caller already parallelizes over districts).
 
                 Returns
                 -------
                 None.
                 """
+
+        if parallelization not in ("multiprocessing", "none"):
+            raise ValueError(f"parallelization must be 'multiprocessing' or 'none', got {parallelization!r}")
 
         self.buildings_total = len(self.district)
         self.buildings_completed = 0
@@ -876,34 +887,37 @@ class Datahandler:
 
         results = []
 
-        # mp_context "spawn" is required on Windows and safest cross-platform.
-        mp_ctx = mp.get_context("spawn")
-        lock = mp_ctx.Lock()
-
-        with ProcessPoolExecutor(max_workers=max_threads,
-                                 mp_context=mp_ctx,
-                                 initializer=_init_worker,
-                                 initargs=(lock,)) as ex:
-            future_map = {
-                ex.submit(_run_demand_worker, context, building, calcUserProfiles, saveUserProfiles, gen_cars, allow_hybrid):
-                    building["unique_name"]
-                for building in self.district
-            }
-
-            for fut in as_completed(future_map):
-                unique_name = future_map[fut]
-                result = fut.result()
-
-                self.buildings_completed += 1
+        if parallelization == "none":
+            # Serial mode: run the worker in this process. Users.calcProfiles uses the
+            # module-level worker_lock as a context manager (occ_prof.csv), so it must be set.
+            _init_worker(threading.Lock())
+            for building in self.district:
+                result = _run_demand_worker(context, building, calcUserProfiles, saveUserProfiles, gen_cars, allow_hybrid)
                 results.append(result)
-                self.save_progress()
+                self._report_building_done(result["unique_name"])
+        else:
+            # mp_context "spawn" is required on Windows and safest cross-platform.
+            mp_ctx = mp.get_context("spawn")
+            lock = mp_ctx.Lock()
 
-                print(f"building {self.buildings_completed}/{self.buildings_total} calculated "
-                      f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): {unique_name}")
+            with ProcessPoolExecutor(max_workers=max_threads,
+                                     mp_context=mp_ctx,
+                                     initializer=_init_worker,
+                                     initargs=(lock,)) as ex:
+                future_map = {
+                    ex.submit(_run_demand_worker, context, building, calcUserProfiles, saveUserProfiles, gen_cars, allow_hybrid):
+                        building["unique_name"]
+                    for building in self.district
+                }
 
-        # Write results back to district objects
+                for fut in as_completed(future_map):
+                    results.append(fut.result())
+                    self._report_building_done(future_map[fut])
+
+        # Write results back to district objects (dict lookup instead of a linear search per result)
+        buildings_by_name = {b["unique_name"]: b for b in self.district}
         for result in results:
-            building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
+            building = buildings_by_name[result["unique_name"]]
             building["user"].elec = result["elec"]
             building["user"].dhw = result["dhw"]
             # building["user"].dhw_minutely = result.get("dhw_minutely")
@@ -933,10 +947,18 @@ class Datahandler:
 
         self.save_progress()
 
-        print("Finished generating demands with threading!")
+        print(f"Finished generating demands (parallelization={parallelization})!")
+
+    def _report_building_done(self, unique_name):
+        """Update and print the progress after one building has been calculated."""
+        self.buildings_completed += 1
+        self.save_progress()
+        print(f"building {self.buildings_completed}/{self.buildings_total} calculated "
+              f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): {unique_name}")
 
     def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, designEnergyhub=False,
-                                 gen_cars=True, pv_standard=True, max_threads=8, allow_hybrid = False):
+                                 gen_cars=True, pv_standard=True, max_threads=8, allow_hybrid = False,
+                                 parallelization="multiprocessing"):
         """
         All in one solution for district and demand generation.
         Within a clustered time series, data points are aggregated across different time periods
@@ -956,6 +978,11 @@ class Datahandler:
             True for generating car profiles, False to skip this step (Only taken into account if calcUserProfile is True).
         designEnergyhub: bool, optional
             Decision if energy hub will be designed. The default is False.
+        max_threads: int, optional
+            Number of worker processes for the demand generation (only used for
+            parallelization="multiprocessing"). The default is 8.
+        parallelization: str, optional
+            "multiprocessing" (default) or "none" (serial, no process pool). See generateDemands.
 
         Returns
         -------
@@ -964,7 +991,8 @@ class Datahandler:
         self.generateEnvironment()
         self.initializeBuildings()
         self.generateBuildings()
-        self.generateDemands(calcUserProfiles, saveUserProfiles, gen_cars=gen_cars, max_threads=max_threads, allow_hybrid=allow_hybrid)
+        self.generateDemands(calcUserProfiles, saveUserProfiles, gen_cars=gen_cars, max_threads=max_threads,
+                             allow_hybrid=allow_hybrid, parallelization=parallelization)
         self.designDecentralDevices(saveGenerationProfiles=True, pv_standard=pv_standard)
 
         # Check if district uses central energy supply (heat grid)
