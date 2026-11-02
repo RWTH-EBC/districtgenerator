@@ -613,6 +613,8 @@ class ScenarioName(BaseSettings):
 class flags(BaseSettings):
     calcThick: bool = False
     save_occ_prof: bool = False
+    # numba-compiled household electricity simulation (functions/fast_richardson.py), env FAST_EL_PROFILES
+    fast_el_profiles: bool = False
     model_config = SettingsConfigDict(
         extra="ignore"
     )

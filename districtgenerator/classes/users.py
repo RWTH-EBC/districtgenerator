@@ -14,10 +14,31 @@ import richardsonpy
 import richardsonpy.classes.stochastic_el_load_wrapper as wrap
 import richardsonpy.classes.appliance as app_model
 import richardsonpy.classes.lighting as light_model
+import logging
+import warnings
+import districtgenerator.functions.fast_richardson as fast_richardson
 import districtgenerator.functions._5R1C as heating_5R1C
 import districtgenerator.functions._7R2C as heating_7R2C
 
 RES_BUILDINGS = {"SFH", "TH", "MFH", "AB"}
+
+_fast_fallback_warned = False
+
+
+def _electricity_profile_class(fast):
+    """Return the ElectricityProfile class to use; warn once per process if the fast one is unavailable."""
+    global _fast_fallback_warned
+    if fast:
+        if fast_richardson.FAST_AVAILABLE:
+            return fast_richardson.FastElectricityProfile
+        if not _fast_fallback_warned:
+            _fast_fallback_warned = True
+            msg = (f"fast_el_profiles requested, but not available ({fast_richardson.FAST_UNAVAILABLE_REASON}); "
+                   f"using richardsonpy.")
+            logging.getLogger(__name__).warning(msg)
+            warnings.warn(msg, RuntimeWarning)
+    return wrap.ElectricityProfile
+
 
 class Users:
     """
@@ -84,9 +105,17 @@ class Users:
         else:
             self.nb_main_rooms = int(value)
 
-    def __init__(self, building, area, year_of_construction, retrofit, scenario_name, nb_occ = None, nb_flats = None, saveOccProf = True, SIA2024=None):
+    def __init__(self, building, area, year_of_construction, retrofit, scenario_name, nb_occ = None, nb_flats = None, saveOccProf = True, SIA2024=None,
+                 fast_el_profiles=False):
         """
         Constructor of Users class.
+
+        Parameters
+        ----------
+        fast_el_profiles : bool, optional
+            Use the numba-compiled household electricity simulation (functions/fast_richardson.py) for
+            residential buildings. Falls back to richardsonpy with a warning if it is not available.
+            The default is False.
 
         Returns
         -------
@@ -118,6 +147,7 @@ class Users:
         self.EV_carcharging_ondemand = None
         self.ev_capacity = None
         self.saveOccProf = saveOccProf
+        self.fast_el_profiles = fast_el_profiles
         self.ice_carprofile = None
         self.individual_car_profiles = []
 
@@ -632,7 +662,7 @@ class Users:
                                                            index=self.lighting_index[j])
 
                 #  Create wrapper object
-                self.el_wrapper.append(wrap.ElectricityProfile(appliances, lights))
+                self.el_wrapper.append(_electricity_profile_class(self.fast_el_profiles)(appliances, lights))
 
         else:
 

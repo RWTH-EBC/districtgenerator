@@ -16,6 +16,8 @@ setuptools.setup(name='districtgenerator',
                  packages=setuptools.find_packages(),
                  include_package_data=True,
                  install_requires=requirements,
+                 # Optional: numba-compiled household electricity simulation (FAST_EL_PROFILES)
+                 extras_require={"fast": ["numba>=0.59"]},
                  classifiers=("Programming Language :: Python :: 3", ),
                  )
 

@@ -131,6 +131,7 @@ class Datahandler:
         self.counter = {}
         self.calcThick = global_config.flags.calcThick
         self.saveOccProf = global_config.flags.save_occ_prof
+        self.fastElProfiles = global_config.flags.fast_el_profiles
         self.building_dict = {} # Dictionary to store Residential Building IDs
         self.demand_variant = demand_variant
         self.system_variant = system_variant
@@ -834,7 +835,8 @@ class Datahandler:
                                      nb_occ=building["buildingFeatures"]["nb_occ"] if ("nb_occ" in building["buildingFeatures"] and not pd.isna(building["buildingFeatures"]["nb_occ"])) else None,
                                      nb_flats=int(float(building["buildingFeatures"]["nb_flats"])) if "nb_flats" in building["buildingFeatures"] else None,
                                      scenario_name=self.scenario_name,
-                                     saveOccProf = self.saveOccProf)
+                                     saveOccProf = self.saveOccProf,
+                                     fast_el_profiles=self.fastElProfiles)
 
             night_setback = building["buildingFeatures"]["night_setback"]
             # %% calculate design heat loads in W
