@@ -248,4 +248,5 @@ def generate_demands(data, calcUserProfiles=True, saveUserProfiles=True, max_wor
     data.save_progress()
     print(f"Finished generating demands with "f"{parallelization_method}!")
     # Combine demand profiles for mixed-use buildings
+    # TODO: Werden die kombinierten Profile in data (nur Input, kein Output) gespeichert?
     mixed_use.combine_mixed_building_demands(data, saveUserProfiles)

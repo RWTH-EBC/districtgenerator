@@ -246,6 +246,7 @@ class Datahandler:
         # calculate the soil temperature profile
         dt = self.time["timeResolution"] / self.time["dataResolution"]
         soil.calculate_soil_temperature(self, dt)
+        # TODO: fehlt hier return bzw. bei Funktionen ...=...???
 
     def is_mixed_building(self, building_type):
         """
