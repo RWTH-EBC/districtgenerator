@@ -453,8 +453,12 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
         missing = set(terminal_nodes) - serving_nodes
         if missing:
             raise ValueError(f"Road network cannot connect {len(missing)} required terminals to the energy hub; no road links were invented.")
-        network = steiner_tree(weighted_graph.subgraph(serving_nodes).copy(), terminal_nodes,
-                               weight='weight', method="mehlhorn")
+        if num_nodes == 1:
+            # A hub shared by every road connection needs no inter-terminal road edges.
+            network = weighted_graph.subgraph(terminal_nodes).copy()
+        else:
+            network = steiner_tree(weighted_graph.subgraph(serving_nodes).copy(), terminal_nodes,
+                                   weight='weight', method="mehlhorn")
 
         # %% STEP FOUR: add all building connection pipes to the graph
         # get node positions (only EH and building connection points)
