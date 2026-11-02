@@ -18,6 +18,7 @@ from districtgenerator.functions.bew_funding import (add_investment_funding, fun
 EH_HEAT_PRODUCERS = ("STC", "HP", "WaterHP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
 EH_RENEWABLE_HEAT = ("STC", "HP", "WaterHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
 BIG_M_EL = 1e5  # kW; 100 MW upper bound for an otherwise unlimited hub connection.
+BIG_M_THERMAL_INSTALLATION = 1e5  # kW thermal; ceiling for generator installation gates.
 
 
 def add_thermal_installation_constraints(model, devs, param):
@@ -54,6 +55,7 @@ def add_thermal_installation_constraints(model, devs, param):
             upper = float(specs["max_cap"])
         if not (math.isfinite(upper) and upper >= 0 and math.isfinite(lower) and lower >= 0):
             raise ValueError(f"Finite nonnegative capacity bounds are required for optional {dev}.")
+        upper = min(upper, BIG_M_THERMAL_INSTALLATION / factor)
         model.thermal_installation.add(model.cap[dev] >= lower * model.thermal_installed[dev])
         model.thermal_installation.add(model.cap[dev] <= upper * model.thermal_installed[dev])
     if exclusive and all(dev in selected for dev in ("HP", "WaterHP")):
