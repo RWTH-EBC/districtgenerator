@@ -10,31 +10,31 @@ import districtgenerator.optimization.central.parameters as get_params_central_d
 
 
 class CES:
-    """
-    Abstract class for design of the central energy system.
-    """
+    """Optimize the district energy hub using prepared demands and technology data."""
 
     def __init__(self):
-        """
-        Constructor of central energy system (CES) class.
+        """Create an energy-hub sizing interface.
 
         Returns
         -------
-        None.
+        None
+            No optimization is run until ``designCES`` is called.
         """
 
 
     def designCES(self, data):
-        """
-        Dimensioning of central devices with EHDO
+        """Optimize central device capacities and energy-hub operation.
 
         Parameters
         ----------
+        data : Prepared district with clustered demands, site/weather profiles, central
+            technology settings, economics, and solver configuration required by the
+            central parameter builder and dimensioning model.
 
         Returns
         -------
-        capacities_centralDevices : dictionary
-            The capacities of the central devices.
+        dict
+            Energy-hub optimization results.
         """
 
         # Load parameters of the energy hub
@@ -47,20 +47,23 @@ class CES:
 
 
 def design_central_devices(data, saveGenerationProfiles):
-    """
-    Calculate capacities and generation profiles of renewable energies for central devices.
+    """Optimize the energy hub and expose its renewable generation profiles.
 
     Parameters
     ----------
-    saveGenerationProfiles : bool, optional
-        True: save central PV, STC and WT profiles as CSV-file.
-        False: don't save central PV, STC and WT profiles as CSV-file.
-        The default is True.
-
+    data : District prepared for central sizing, including demands, clustering,
+        economics, device data, and ``resultPath``. For CSV export the
+        ``generation`` output directory must already exist.
+    saveGenerationProfiles : bool
+        Write PV, STC, and wind profiles to ``centralPV.csv``, ``centralSTC.csv``,
+        and ``centralWind.csv`` under ``data.resultPath/generation`` when True.
 
     Returns
     -------
-    None.
+    None
+        Replaces ``data.centralDevices`` with the CES object, optimization
+        results under ``capacities``, and unclustered generation profiles under
+        ``generation`` (``PV``, ``STC``, ``Wind``), in kW.
     """
     # initialization
     data.centralDevices = {}

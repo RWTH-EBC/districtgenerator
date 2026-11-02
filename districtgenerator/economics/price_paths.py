@@ -4,37 +4,42 @@ Price and CO2 paths over the observation period.
 
 
 def calculate_eco_data_per_simulated_year(eco_data):
-    """
-    Effective prices and CO2 factors for each simulated year of the observation period.
+    """Calculate representative energy prices and CO2 factors for simulated years.
 
-    The observation period is divided into segments that start at the interpolation points.
-    Prices of a segment are discounted to an effective yearly value with the interest rate.
-    CO2 factors are averaged without discounting.
+    The optimization does not simulate every year of the analysis period.
+    Instead, each selected year represents a group of consecutive years.
+    This function replaces the annual values in each group with one value
+    that the optimization can use for that representative year.
+
+    For example, an analysis period of 10 years with selected years ``[0, 5]``
+    has two groups: year 0 represents years 0–4, and year 5 represents years
+    5–9. These numbers count from the start of the analysis, not calendar years.
 
     Parameters
     ----------
     eco_data : dict
-        Economic data of the Datahandler with yearly price paths.
+        Economic data containing ``observation_time``, ``interpolation_points``,
+        ``interest_rate`` and ``num_interpolation_points``.
 
     Returns
     -------
-    dict
-        Effective economic data per simulated year.
+    dict of int to dict
+        One economic-data dictionary per representative year.
     """
     ecoData = eco_data
     simulated_years = eco_data["interpolation_points"]
     observation_time = eco_data["observation_time"]
 
-    # select the relevant subset of ecoData for optimization
+    # Separate analysis settings from the annual price and emission-factor lists.
     single_value_keys = ['num_interpolation_points','interpolation_points', 'observation_time','interest_rate', 'optimization_focus']
     ecoData = {k: v for k, v in eco_data.copy().items() if k not in single_value_keys}
 
-    # All keys that have co2 in name are undiscounted
+    # Emission factors use ordinary averages; monetary values use discount weights.
     undiscounted_keys = set()
     co2_keys = set([k for k in ecoData.keys() if 'co2' in k.lower()])
     undiscounted_keys.update(co2_keys)
 
-    # Identify the years that belong to each interpolation segment
+    # Assign each year to the preceding representative year, e.g. 0: [0, 1], 2: [2, 3].
     year_segments = {k: [] for k in simulated_years}
 
 
@@ -61,6 +66,7 @@ def calculate_eco_data_per_simulated_year(eco_data):
 
         n = len(relevant_years)
 
+        # Sum the discount weights so a constant annual price stays unchanged.
         if q!=1:
             denom = sum(1/(q**idx) for idx in range(n))
         elif q==1:
@@ -69,17 +75,18 @@ def calculate_eco_data_per_simulated_year(eco_data):
         for key in ecoData.keys():
             subset_values = [ecoData[key][i] for i in relevant_years if i < len(ecoData[key])]
 
-            # Calculate present value (PV) of the subset values
+            # Combine only the annual values belonging to this representative year.
             if key in undiscounted_keys:
-                pv = sum(subset_values)  # No discounting for these keys
-                effective_price = pv / n  # For undiscounted values, the effective value is just the average over the years in the segment
+                pv = sum(subset_values)  # CO2 emissions are not discounted.
+                effective_price = pv / n  # Average emission factor over the group.
             else:
+                # idx starts at zero within this group, rather than the analysis year.
                 pv = sum(val / (q ** idx) for idx, val in enumerate(subset_values))
-                effective_price = pv/denom
+                effective_price = pv/denom  # Constant price with the same discounted cost.
 
             all_sim_ecoData[year][key] = effective_price
 
-        # Add the values in single_value_keys to each year's ecoData
+        # Retain the analysis settings alongside the representative prices and factors.
         for key in single_value_keys:
             all_sim_ecoData[year][key] = eco_data[key]
 

@@ -10,7 +10,20 @@ HEATING_CONCEPTS = ("HP", "GHP", "BHP", "H2HP", "OHP", "BOI", "BBOI", "OBOI", "H
 
 
 def get_heating_candidates(heater):
-    """Return candidate concepts for opt/list inputs, or None for a manual heater."""
+    """Parse a scenario heater selection into optimization candidates.
+
+    Parameters
+    ----------
+    heater : str
+        ``"opt"`` for all ``HEATING_CONCEPTS``, or a comma-separated list such
+        as ``"HP,BOI"``, ``"[HP,BOI]"``, or ``"opt:HP,BOI"``. A single manual
+        concept, such as ``"HP"`` or ``"heat_grid"``, bypasses optimization.
+
+    Returns
+    -------
+    tuple of str
+        Uppercase candidate codes in input order.
+    """
     specification = str(heater).strip()
     if specification.lower() == "opt":
         return HEATING_CONCEPTS
@@ -32,10 +45,21 @@ def get_heating_candidates(heater):
 
 
 def get_cooling_supply(building_features):
-    """
-    Missing/empty cooler values preserve the default: network
-    cooling with heater='heat_grid', otherwise a local CC. Return None
-    when active cooling is disabled.
+    """Resolve a building's local or network cooling supply.
+
+    Parameters
+    ----------
+    building_features : dict
+        Scenario features with ``cooling`` (enable flag), ``heater``, and optional
+        ``cooler`` (``"CC"`` or ``"cooling_grid"``). Missing, empty, or NaN cooler
+        values default to network cooling for ``heater="heat_grid"`` and to a
+        local compression chiller otherwise.
+
+    Returns
+    -------
+    str or None
+        ``"CC"`` for a local chiller, ``"cooling_grid"`` for network supply,
+        or None if active cooling is disabled.
     """
     cooler = building_features.get("cooler")
     if cooler is None or cooler == "" or (isinstance(cooler, Real) and math.isnan(cooler)):
@@ -46,48 +70,61 @@ def get_cooling_supply(building_features):
 
 
 def compression_chiller_cop(ambient_temperature, grade):
-    """Air-to-water CC model"""
+    """Estimate an air-to-water chiller's coefficient of performance.
+
+    Parameters
+    ----------
+    ambient_temperature : float or array_like
+        Outdoor air temperature in °C; chilled-water temperature is fixed at 5 °C.
+    grade : float
+        Dimensionless efficiency relative to the ideal Carnot cooling cycle.
+
+    Returns
+    -------
+    numpy scalar or numpy.ndarray
+        Dimensionless cooling COP with the input temperature's shape.
+    """
     return grade * (273.15 + 5) / np.maximum(np.asarray(ambient_temperature) - 5, 0.1)
 
 
 def calc_pv_and_stc_profile(sun, time, site, devices, area_roof, beta=35, gamma=0, usageFactorPV1=0.4, usageFactorPV2=0,
                         usageFactorSTC=0.2):
-    """
-    Computation of power profiles for photovoltaic (PV) collectors and solar thermal collectors (STC).
+    """Calculate rooftop PV electrical and solar-thermal heat output.
 
     Parameters
     ----------
-    time : dictionary
-        Time information from the Datahandler class.
-    site : dictionary
-        Site information from the Datahandler class.
+    sun : districtgenerator.environment.solar.Sun
+        Solar model providing irradiance on tilted surfaces via ``getSolarGains``.
+    time : dict
+        ``timeResolution`` in seconds, and number of samples ``timeSteps``.
+    site : dict
+        Weather and location: ``T_e`` (°C), ``SunDirect`` and ``SunDiffuse``
+        (W/m²), ``timeZone``, ``location``, ``altitude`` (m), and ``albedo``.
+    devices : dict
+        ``PV`` efficiency, temperature, and loss coefficients and ``STC``
+        efficiency/loss coefficients and collector flow temperature ``T_flow``.
     area_roof : float
-        Area of the building's roof.
-        The unit is [m²].
-    devicesType : string, optional
-        Possible options are "central" and "decentral". The default entry is "decentral".
-    beta : list, optional
-        Slope, the angle (in degree) between the plane of the surface of the photovoltaic collectors (PV) / solar
-        thermal collectors (STCs) and the horizontal. 0 <= beta <= 180. If beta > 90, the surface faces downwards.
-        Just one entry is reasonable. The default entry is 35. The unit is [°].
-    gamma : list, optional
-        Surface azimuth angle of roof side 1. The deviation of the projection on a horizontal plane of the normal
-        to the surface of the PV collectors / STCs from the local meridian, with zero due south, east negative, and
-        west positive. -180 <= gamma <= 180. Just one entry is reasonable. The default entry is 0. The unit is [°].
-        gamma for roof side 2 is being calculated (while calling the function "getSolarGains" for side 2) as opposite
-        to side 1.
-    usageFactorPV1/usageFactorPV2 : float, optional
-        Ratio between area of all PV collectors on side 1/side 2 of the roof and the roof surface area.
-        The default is 0.4 for side 1 and 0 for side 2.
+        Reference roof area in m² to which all installation fractions apply.
+    beta : float or list of float, optional
+        Surface tilt from horizontal in degrees; default 35. Use one surface
+        angle (or a one-element list) for this two-sided roof model.
+    gamma : float or list of float, optional
+        First roof side's azimuth in degrees: south 0, east negative, west
+        positive; default 0. The second PV side faces the opposite direction.
+    usageFactorPV1 : float, optional
+        Fraction of reference roof area occupied by PV on side 1; default 0.4.
+    usageFactorPV2 : float, optional
+        PV fraction on the opposite side; default 0. The two PV fractions must
+        sum to at most 1.
     usageFactorSTC : float, optional
-        Ratio between area of all STCs and the surface of the roof. The default is 0.2.
+        Roof fraction occupied by solar thermal collectors on side 1; default 0.2.
 
     Returns
     -------
-    generation_PV : array_like
-        Power profiles of PV collectors. With given weather data as input the unit is [W].
-    generation_STC : array_like
-        Power profiles of STCs. With given weather data as input the unit is [W].
+    generation_PV : numpy.ndarray
+        Electrical output in W, shape ``(timeSteps,)``, summed over both PV sides.
+    generation_STC : numpy.ndarray
+        Thermal output in W, shape ``(timeSteps,)``.
     """
 
     # Input validation
@@ -200,6 +237,32 @@ def calc_pv_and_stc_profile(sun, time, site, devices, area_roof, beta=35, gamma=
 def calc_COP(data, clusterHorizon, devs, device, temperatures):
 
     # get temperature parameters
+    """Estimate clustered ammonia heat-pump or compression-chiller COP.
+
+    Parameters
+    ----------
+    data : districtgenerator.datahandler.Datahandler
+        Time configuration with ``time["clusterNumber"]`` representative periods.
+    clusterHorizon : int
+        Number of time steps per representative period.
+    devs : dict
+        Parameters for ``device``: ``dT_pinch_cond`` and ``dT_pinch_evap`` (K),
+        ``eta_compr`` and ``heatloss_compr`` (fractions), and ``COP_max``.
+    device : str
+        Technology key in ``devs``; ``"CC"`` switches the result from heating
+        COP to cooling COP by subtracting one.
+    temperatures : sequence of numpy.ndarray
+        Cold inlet temperature (K), cold-side temperature drop (K), hot inlet
+        temperature (K), and hot-side temperature rise (K), in that order.
+        Arrays must support shape ``(clusterNumber, clusterHorizon)``; absolute
+        temperatures must be positive and temperature changes nonzero for
+        the logarithmic mean calculation.
+
+    Returns
+    -------
+    numpy.ndarray
+        Dimensionless COP, shape ``(clusterNumber, clusterHorizon)``.
+    """
     t_c_in = temperatures[0]
     dt_c = temperatures[1]
     t_h_in = temperatures[2]

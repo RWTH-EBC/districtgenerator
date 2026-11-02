@@ -5,20 +5,20 @@ import math
 
 
 def capital_recovery_factor(observation_time, interest_rate):
-    """
-    Capital recovery factor of the observation period.
+    """Convert a present value into equal annual payments.
 
     Parameters
     ----------
-    observation_time : int
-        Observation period [a].
+    observation_time : int or float
+        Positive analysis period in years over which the present value is recovered.
     interest_rate : float
-        Interest rate [-].
+        Annual discount rate as a fraction, for example 0.05 for 5 percent.
+        Zero gives straight-line recovery over the analysis period.
 
     Returns
     -------
     float
-        Capital recovery factor [1/a].
+        Capital recovery factor in 1/year.
     """
     if interest_rate == 0:
         return 1 / observation_time
@@ -27,22 +27,24 @@ def capital_recovery_factor(observation_time, interest_rate):
 
 
 def annuity_factor(life_time, observation_time, interest_rate):
-    """
-    Annuity factor of an investment including replacements and the residual value (VDI 2067-1, pages 16-17).
+    """Annualize investment with replacements and a remaining-life credit.
+
+    Uses the replacement and residual-value approach of VDI 2067-1.
 
     Parameters
     ----------
     life_time : float
-        Technical life time of the device [a].
-    observation_time : int
-        Observation period [a].
+        Positive technical service life in years. Replacements are assumed at
+        multiples of this lifetime and at the same undiscounted investment cost.
+    observation_time : int or float
+        Positive analysis period in years, shared with other compared technologies.
     interest_rate : float
-        Interest rate [-].
+        Annual discount rate as a fraction, for example 0.05 for 5 percent.
 
     Returns
     -------
     float
-        Factor that converts the investment into annual costs [1/a].
+        Investment annuity factor in 1/year.
     """
     q = 1 + interest_rate
     CRF = capital_recovery_factor(observation_time, interest_rate)

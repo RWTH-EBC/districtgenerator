@@ -95,28 +95,25 @@ def heating_network(data):
     return data
 
 def calc_costs(data):
-    """
-    Calculates pipe dimensions and specific annualized costs for a district heating and cooling network
+    """Estimate network pipe sizes and investment from connected demand.
 
-    Methodology:
-    - Based on empirical formulas derived from statistical analysis of Danish district heating networks
-      as described in Luis Sánchez-García et al. (2023), "Understanding effective width for district heating."
-    - Pipe lengths and diameters are estimated using fitting formulas dependent on building density.
-
-    Source:
-    - Luis Sánchez-García et al. (2023), "Understanding effective width for district heating," Energy journal.
+    Uses empirical length and diameter relations for distribution and service
+    pipes, following Sánchez-García et al. (2023), "Understanding effective
+    width for district heating". Heating and cooling connections are sized
+    separately; substation investment uses the larger connected peak per building.
 
     Parameters
     ----------
-    data : object
-        DistrictGenerator data object.
+    data : District with connection features, envelope heating/DHW peaks in W,
+        user cooling profiles in W, and ``site["district_area"]`` in hectares.
+        ``pipe_data`` is a catalogue with nominal diameter, pipe/case outer
+        diameters, and pipe thickness in mm.
 
     Returns
     -------
-    data : object
-        The same ``data`` object, updated in place with network lengths,
-        selected nominal diameters, pipe dimensions, and total investment
-        costs in ``data.heat_grid_data``.
+    Same object, updated in place. ``heat_grid_data`` receives distribution
+        and service lengths in m, selected nominal and physical diameters in mm,
+        and ``costs`` (pipe plus substation investment in EUR).
     """
 
     grid = data.heat_grid_data
@@ -313,19 +310,20 @@ def calculate_thermal_losses(data):
     return data
 
 def calc_annual_investment(data):
-    """
-    Calculation of total investment costs including replacements (based on VDI 2067-1, pages 16-17).
+    """Annualize network investment and calculate demand-based maintenance.
 
     Parameters
     ----------
-    dev : dictionary
-        technology parameter
-    param : dictionary
-        economic parameters
+    data : ``ecoData`` supplies ``observation_time`` in years and ``interest_rate``
+        as an annual fraction. ``heat_grid_data`` supplies ``life_time`` (years),
+        ``costs`` (EUR), ``C_OM`` (EUR/MWh), and annual heating/cooling demands
+        ``net_sum_heating_demand`` and ``net_sum_cooling_demand`` (kWh).
 
     Returns
     -------
-    annualized fix and variable investment
+    Same object, updated in place with ``ann_factor`` and ``CRF`` (1/year),
+        ``ann_costs`` (EUR/year, including replacements and residual value),
+        and ``om_costs`` (EUR/year) in ``heat_grid_data``.
     """
 
     observation_time = data.ecoData["observation_time"]
@@ -452,23 +450,23 @@ def get_heating_network_temperatures(data, T_e=None):
 
 
 def load_pipe_data(generation, pipe_file_path):
-    """
-    Load the pipe catalogue of the selected heat grid generation.
-
-    KMR pipes are used for the 3rd generation, PMR pipes for the 4th generation with KMR
-    pipes above DN 150, and PE pipes for the 5th generation.
+    """Load pipe dimensions for a district-heating network generation.
 
     Parameters
     ----------
-    generation : str
-        Heat grid generation, "3rd", "4th" or "5th".
-    pipe_file_path : str
-        Folder of the pipe specification files.
+    generation : {"3rd", "4th", "5th"}
+        Third generation uses KMR pipes, fourth uses PMR plus KMR above DN 150,
+        and fifth uses PE pipes.
+    pipe_file_path : str or os.PathLike
+        Directory containing ``pipe_specifications_KMR.csv``,
+        ``pipe_specifications_PMR.csv``, and/or ``pipe_specifications_PE.csv``
+        as required by the chosen generation.
 
     Returns
     -------
     pandas.DataFrame or dict
-        Pipe specifications, or an empty dict for an unknown generation.
+        Catalogue with nominal diameter, pipe/case outer diameters, and pipe
+        thickness in mm, as read from the CSV files.
     """
     pipe_data = {}
 
@@ -497,18 +495,19 @@ def load_pipe_data(generation, pipe_file_path):
 
 
 def has_thermal_grid(district):
-    """
-    Check whether any building of the district is supplied by a heat grid or a cooling grid.
+    """Check whether any building requires network heating or cooling.
 
     Parameters
     ----------
     district : list of dict
-        Buildings of the district.
+        Building records with ``buildingFeatures`` containing ``heater``,
+        ``cooling``, and optional ``cooler``.
 
     Returns
     -------
     bool
-        True if a thermal network is needed.
+        True if any building has ``heater="heat_grid"`` or enabled cooling
+        supplied by ``"cooling_grid"``.
     """
     # Check if district uses central energy supply (heat grid)
     has_heat_grid = any(
@@ -521,20 +520,22 @@ def has_thermal_grid(district):
 
 
 def design_thermal_network(data):
-    """
-    Design the thermal network of the district with the simple network model.
+    """Populate network losses and costs using the empirical network model.
 
-    If no building is connected to a thermal network, for example when only an energy
-    hub is designed, the network losses, pump power and costs are set to zero.
+    The current model estimates pipe lengths from district area and connection
+    counts, including when explicit building positions are available.
 
     Parameters
     ----------
-    data : Datahandler
-        Datahandler of the district after the demand generation.
+    data : Nonempty district with generated demands, building supply choices,
+        scenario table, weather, network/economic settings, and pipe catalogue.
+        Connected-network calculations require the inputs of ``heating_network``.
 
     Returns
     -------
-    None.
+    None
+        Updates ``data.heat_grid_data`` in place. Connected districts receive
+        network dimensions, temperatures, losses, and annualized costs.
     """
     # Verify geometry data (district_parameters)
 

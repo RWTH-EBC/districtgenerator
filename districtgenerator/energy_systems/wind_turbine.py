@@ -2,6 +2,11 @@
 
 # based on code from EHDO - ENERGY HUB DESIGN OPTIMIZATION Tool
 
+"""Wind-height correction and turbine power curves for generation profiles.
+
+The central-hub model returns dimensionless output relative to a 500 kW
+Enercon E40 reference turbine so it can scale to the optimized capacity.
+"""
 import sys
 import pandas as pd
 import numpy as np
@@ -10,24 +15,23 @@ from districtgenerator.utilities.paths import PACKAGE_DIR
 
 
 def windSpeed_h(windSpeed_ref, h_ref, h, exponent):
-    """
-    Calculation of wind speed in another height.
+    """Extrapolate reference wind speed to a target height with Hellmann's law.
 
     Parameters
     ----------
-    windSpeed_ref : float
-        speed of the wind at height h_ref in [m/s].
+    windSpeed_ref : float or numpy.ndarray
+        Wind speed at the measurement height in m/s.
     h_ref : float
-        height h_ref in [m].
+        Measurement height above ground in m.
     h : float
-        height  h in [m].
+        Target height, typically turbine hub height, in m.
     exponent : float
-        Hellmann exponent.
+        Dimensionless wind-shear exponent representing terrain roughness.
 
     Returns
     -------
-    windSpeed_h : float
-        speed of the wind at height h in [m/s].
+    float or numpy.ndarray
+        Wind speed in m/s at the target height, with the input speed's shape.
     """
     
     windSpeed_h = windSpeed_ref * (h / h_ref) ** exponent
@@ -36,18 +40,19 @@ def windSpeed_h(windSpeed_ref, h_ref, h, exponent):
 
 
 def factor_windSpeed(coreData_central_WT):
-    """
-    Calculation of ratio between wind speeds in different heights.
+    """Calculate the height correction applied to measured wind speed.
 
     Parameters
     ----------
-    coreData_central_WT : dictionary
-        Data of the wind turbine.
+    coreData_central_WT : dict
+        Turbine settings: hub height ``H`` and reference measurement height
+        ``H_ref`` in m (both positive), and Hellmann exponent ``alfa``.
 
     Returns
     -------
-    factor_WS : float
-        ratio of wind speed in height h and wind speed in height h_ref [-].
+    float
+        Dimensionless multiplier converting reference-height wind speed to
+        hub-height wind speed.
     """
 
     h = coreData_central_WT["H"]  # tower height of wind turbine [m]
@@ -61,23 +66,20 @@ def factor_windSpeed(coreData_central_WT):
 
 
 def get_turbine_power(wind_speed, power_curve):
-    """
-    Calculate power of wind turbine for a wind speed value.
+    """Interpolate a turbine's power output for one wind speed.
 
     Parameters
     ----------
     wind_speed : float
-        Wind speed value [m/s].
-    power_curve : pandas DataFrame
-        DataFrame with entries for each supporting point of the power curve.
-        For each supporting point a tuple exists:
-        first tuple entry : wind speed [m/s]
-        second tuple entry : power of wind turbine [kW]
+        Hub-height wind speed in m/s.
+    power_curve : pandas.DataFrame
+        Wind speed in m/s in column 0 and electrical power in kW in column 1,
+        sorted by increasing speed, with a first point at zero speed.
 
     Returns
     -------
-    power : float
-        Generated wind turbine power [kW].
+    float
+        Interpolated electrical output in kW.
     """
 
     if wind_speed <= 0:
@@ -96,21 +98,19 @@ def get_turbine_power(wind_speed, power_curve):
 
 
 def powerCurve(wind_turbine_model):
-    """
-    Function returns power curve of (different) wind turbine models.
+    """Read a packaged turbine power curve by model identifier.
 
     Parameters
     ----------
-    wind_turbine_model : string
-        Model name of the wind turbine.
+    wind_turbine_model : str
+        Model identifier used in ``data/wind_turbine_models/WT_<model>.csv``,
+        for example ``"Enercon_E40"``.
 
     Returns
     -------
-    power_curve : pandas DataFrame
-        DataFrame with entries for each supporting point of the power curve.
-        For each supporting point a tuple exists:
-        first tuple entry : wind speed [m/s] 
-        second tuple entry : power of wind turbine [kW]
+    pandas.DataFrame
+        Power-curve table read from the semicolon-separated CSV, with wind
+        speed in m/s in the first column and electrical output in kW.
     """
 
     # information source for Enercon E40: https://www.wind-turbine-models.com/turbines/67-enercon-e-40-5.40
@@ -159,23 +159,20 @@ def powerCurve(wind_turbine_model):
 
 
 def WT_generation(array_windSpeed):
-    """
-    Calculate wind power generation for all given values of wind speed.
+    """Calculate an Enercon E40 electrical generation time series.
 
     Parameters
     ----------
-    array_windSpeed : array
-        Multiple wind speed values in a 1D-array [m/s].
-    powerCurve : pandas DataFrame
-        DataFrame with entries for each supporting point of the power curve.
-        For each supporting point a tuple exists:
-        first tuple entry : wind speed [m/s]
-        second tuple entry : power of wind turbine [kW]
+    array_windSpeed : array_like
+        One-dimensional sequence of hub-height wind speeds in m/s, ordered
+        by time. Positive speeds must be below the curve's final table speed.
 
     Returns
     -------
-    array_WT_power : array
-        Generated power of wind turbine [W].
+    numpy.ndarray
+        Electrical power in W at each input time step, shape ``(n_steps,)``.
+        The model is fixed to the packaged ``Enercon_E40`` curve; no height
+        correction is applied here.
     """
     # initialize list for results
     array_WT_power = []
@@ -194,8 +191,24 @@ def WT_generation(array_windSpeed):
 # %% Enercon E-40 power curve used for the central energy hub
 
 def calc_WT_power(devs, param, data):
-    """
-    According to data sheet of wind turbine Enercon E40.
+    """Calculate normalized Enercon E40 output for full and clustered weather.
+
+    Parameters
+    ----------
+    devs : dict
+        ``WT`` settings: ``hub_h`` and ``ref_h`` (positive heights in m), and
+        ``h_coeff`` (dimensionless Hellmann wind-shear exponent).
+    param : dict
+        Clustered reference-height wind speeds in m/s under ``wind_speed``,
+        shape ``(clusterNumber, steps_per_cluster)``.
+
+    Returns
+    -------
+    WT_power_norm : numpy.ndarray
+        Full-series electrical output divided by the curve's 500 kW rating;
+        dimensionless.
+    WT_power_norm_clustered : numpy.ndarray
+        Dimensionless representative-period output.
     """
 
     power_curve = {0:  (0.0,    0.00),
@@ -247,20 +260,22 @@ def calc_WT_power(devs, param, data):
 
 
 def interpolate_power_curve(wind_speed, power_curve):
-    """
-    Power of a wind turbine at a wind speed, by linear interpolation of a power curve dictionary.
+    """Interpolate wind-turbine output from indexed supporting points.
 
     Parameters
     ----------
     wind_speed : float
-        Wind speed at hub height [m/s].
+        Hub-height speed in m/s. Positive inputs must be strictly below the
+        final tabulated speed.
     power_curve : dict
-        Supporting points ``{index: (wind speed [m/s], power [kW])}``, sorted by wind speed.
+        Contiguous integer keys starting at 0, in increasing wind-speed order,
+        mapped to ``(wind speed in m/s, electrical power in kW)``. The first
+        supporting point must be at zero speed.
 
     Returns
     -------
     float
-        Power of the wind turbine [kW].
+        Electrical output in kW.
     """
     if wind_speed <= 0:
         return 0

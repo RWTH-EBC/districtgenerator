@@ -23,22 +23,11 @@ from districtgenerator.utilities.paths import PACKAGE_DIR
 
 # This Class is responsible for non-residential envelope generation
 class NonResidential(object):
-    """Base class for each non-residential archetype.
+    """Represent a non-residential envelope with use- and age-specific properties.
 
-    This is the base class for all non-residential archetype buildings.
-    The setup is similiar to TEASER, considering that there are no information about layers and 
-    details about material available. The class provides the necessary information for the districtgenerator.
-
-    Teaser uses typical layers and material for the build environment according to MASEA ( https://www.masea-ensan.de/ ).
-    Currently, the gathering and combinatory selection of this is not feasible. 
-
-    Several parameters are obligatory: name, year_of_construction, net_leased_area, type.
-
-    In accordance with TEASER it is assumed, that each building has four orientations of outer walls and windows (north,
-    east, south and west)
-
-    In TEASER it is assumed,  that the surface is the product of the given net_leased_area and specific estimation factors. These
-    estimation factors where build by dividing the given 'surface area' by the 'reference floor area' in TABULA. The same approach is followed here.
+    Surface areas are estimated from floor area and packaged archetype factors;
+    walls and windows are distributed equally across four cardinal directions.
+    The model supplies aggregate U-values and geometry rather than material layers.
 
     Parameters
     ----------
@@ -72,9 +61,36 @@ class NonResidential(object):
 
     def __init__(self, name, year_of_construction, net_leased_area, total_building_area, usage,
                  construction_type, retrofit_level, number_of_floors = None, is_mixed_part = False):
-        """
-        Constructor of NonResidential class.
+        """Initialize envelope data and generate the archetype surfaces.
 
+        Parameters
+        ----------
+        name : str
+            Identifier for this building or building part.
+        year_of_construction : int
+            Construction year within an age interval in the packaged archetype data.
+        net_leased_area : float
+            Net floor area of the represented use in m²; for mixed use, only this part.
+        total_building_area : float
+            Net floor area of the entire building in m², used to estimate its footprint.
+        usage : str
+            Use code in the packaged envelope and surface data, for example ``"OB"``
+            (office) or ``"SC"`` (school).
+        construction_type : {"Light", "Medium", "Heavy", "Tabula"}
+            Thermal-mass category passed to the downstream thermal model.
+        retrofit_level : str
+            Envelope state: ``"not retrofitted"``, ``"partially retrofitted"``,
+            or ``"completely retrofitted"``.
+        number_of_floors : int or None, optional
+            Positive floor count. If None, estimate the footprint from archetype data.
+        is_mixed_part : bool, optional
+            Set True for a non-residential part below another use; its exposed roof
+            area is then zero.
+
+        Returns
+        -------
+        None
+            Sets envelope parameters and surface dictionaries on this instance.
         """
         self.name = name 
         self.year_of_construction = year_of_construction
@@ -201,6 +217,7 @@ class NonResidential(object):
             Surface-estimation factors for the matching building-age
             interval. Expected entries include ``rt1`` (roof), ``ow1``
             (outer wall), ``gf1`` (ground floor), and ``win1`` (window).
+            Factors are dimensionless surface-area-to-net-floor-area ratios.
             ``None`` is returned implicitly if the archetype exists but no
             configured age interval contains ``year_of_construction``.
         """
@@ -224,17 +241,14 @@ class NonResidential(object):
 
     
     def load_building_data(self):
-        """
-        Load envelope parameters for the selected archetype.
-        Read ``data/non_residential/non_residential_envelope.json`` and
-        select parameters matching ``usage``, ``year_of_construction``,
-        and ``retrofit_level``.
+        """Select envelope properties for this use, construction year, and retrofit.
 
         Returns
         -------
         dict
-            Envelope-parameter mapping for the matching archetype,
-            building-age interval, and retrofit level.
+            U-values in W/(m² K): ``u_aw`` (wall), ``u_fen`` (window), ``u_d_opak``
+            (roof), and ``u_ug`` (ground floor); plus the dimensionless window solar
+            transmittance ``g_gl_fen``.
         """
         DATA_DIR_PATH = PACKAGE_DIR
         DATA_PATH = os.path.join(DATA_DIR_PATH, 'data', 'non_residential', 'non_residential_envelope.json')
@@ -260,7 +274,14 @@ class NonResidential(object):
         raise ValueError(f"Year of construction '{self.year_of_construction}' not found in any age group for archetype '{self.usage}'.")
     
     def get_number_of_floors(self):
-        """Get the number of floors for the non-residential building. Only relevant to determine the number of floors for mixed-use buildings."""
+        """Return the supplied or estimated floor count for mixed-use geometry.
+
+        Returns
+        -------
+        int
+            Supplied floor count, or rounded estimate from the ground-floor-to-total-
+            area ratio. The estimate converts gross footprint to net area using 0.85.
+        """
         if self.number_of_floors is None:
             # If number of floors is not provided the avg floor number is used which can be calculated utilizing gf1 which describes the ratio of the ground floor area to the total building area.
             # As the ground floor area is measured as a gross floor area the factor 0.85 is applied to account for the difference between gross and net floor area.
@@ -277,6 +298,35 @@ class NonResidential(object):
 @dataclass
 class NonResidentialConfig:
     # Basic configuration parameters to be provided for the generation of a non-residential building
+    """Store use-specific inputs for non-residential demand generation.
+
+    Parameters
+    ----------
+    working_days : list of int
+        Regular operating weekdays: 0 is Monday, 6 is Sunday.
+    main_zone_name : str
+        Principal activity-zone name used for occupancy scheduling.
+    main_room_zones : list of str
+        Room-zone names included in the main occupancy calculation.
+    affected_by_holidays : bool
+        Whether public holidays reduce occupancy.
+    app_gain_factor : float or None
+        Fraction of appliance electricity becoming heat; None uses model defaults.
+    car_commute_ratio : float or None
+        Share commuting by car (0–1); None uses the profile model's German default.
+    has_ventilation : bool
+        Whether mechanical ventilation is present.
+    min_illuminance : int
+        Lower indoor illuminance target in lux.
+    max_illuminance : int
+        Upper indoor illuminance target in lux.
+    affected_by_school_holidays : bool
+        Whether school holidays reduce occupancy.
+    lighting_irradiance_threshold_mean : float or None
+        Mean outdoor lighting activation threshold in W/m², if configured.
+    lighting_irradiance_threshold_std_dev : float or None
+        Standard deviation of that threshold in W/m², if configured.
+    """
     working_days: List[int] # List of integers representing the working days of the week (0 for Monday, 1 for Tuesday, ..., 6 for Sunday)
     main_zone_name: str
     main_room_zones: List[str] # List of zone names that are considered as main zones for occupancy calculations.
@@ -291,19 +341,48 @@ class NonResidentialConfig:
     lighting_irradiance_threshold_std_dev: float | None  # Standard deviation of the irradiance threshold, representing variability in lighting behavior.
 
 class GenericNonResidential:
-    """
-    Function to handle non-residential buildings. This class defines how a non-residential building behaves.
+    """Provide use-specific assumptions for occupancy and demand profiles.
+
+    Parameters
+    ----------
+    usage_string : str
+        Use code in ``non_residential_behavior.json``, for example ``"OB"``
+        (office) or ``"SC"`` (school).
+
+    Attributes
+    ----------
+    config : NonResidentialConfig
+        Schedule, lighting, ventilation, and commuting assumptions for this use.
     """
 
     _behavior_data_cache = None
 
 
     def __init__(self, usage_string: str):
+        """Load the behavioral assumptions for a building use.
+
+        Parameters
+        ----------
+        usage_string : str
+            Use code in the packaged behavior data, such as ``"OB"`` for offices.
+
+        Returns
+        -------
+        None
+            Stores the selected assumptions in ``config``.
+        """
         self.usage_string = usage_string
         self.config = self._load_config()
 
     def _load_config(self) -> NonResidentialConfig:
-        """Load behavior config from cache or file."""
+        """Select behavioral assumptions, reading the shared JSON only once.
+
+        Returns
+        -------
+        NonResidentialConfig
+            Use-specific settings; optional None values leave fallback selection to
+            the consuming profile model.
+        """
         DATA_DIR_PATH = PACKAGE_DIR
         data_path = os.path.join(DATA_DIR_PATH, 'data', 'non_residential', 'non_residential_behavior.json')
         if GenericNonResidential._behavior_data_cache is None:
@@ -318,67 +397,144 @@ class GenericNonResidential:
         return NonResidentialConfig(**data[self.usage_string])
 
     def get_working_days(self) -> List[int]:
-        """Get the working days for the non-residential building."""
+        """Return the regular operating weekdays.
+
+        Returns
+        -------
+        list of int
+            Weekdays with regular activity, numbered 0 (Monday) to 6 (Sunday).
+        """
         return self.config.working_days
 
     def get_main_zone_name(self) -> str:
-        """Get the main zone name for occupancy calculations."""
+        """Return the principal activity zone.
+
+        Returns
+        -------
+        str
+            Activity-zone name used to determine the main occupancy schedule.
+        """
         return self.config.main_zone_name
 
     def is_affected_by_holidays(self) -> bool:
-        """Check if the building schedule is affected by holidays."""
+        """Return whether public holidays affect occupancy.
+
+        Returns
+        -------
+        bool
+            True when the occupancy model should apply public-holiday reductions.
+        """
         return self.config.affected_by_holidays
 
     def get_app_gain_factor(self) -> float:
-        """Get the appliance heat gain factor."""
+        """Return the appliance heat-gain fraction.
+
+        Returns
+        -------
+        float or None
+            Fraction of appliance electricity released as internal heat (dimensionless).
+            None requests the profile model's default gain calculation.
+        """
         return self.config.app_gain_factor
 
     def get_car_commute_ratio(self) -> float | None:
-        """Get the car commute ratio for non-residential buildings, if specified."""
+        """Return the car-commuting share.
+
+        Returns
+        -------
+        float or None
+            Fraction of occupants commuting by car, from 0 to 1. Zero means no
+            commuting cars; None requests the profile model's German default.
+        """
         return getattr(self.config, 'car_commute_ratio', None)
 
     def get_main_room_zones(self) -> List[str]:
-        """Get the list of main room zones for occupancy calculations."""
+        """Return the zones contributing to main occupancy.
+
+        Returns
+        -------
+        list of str
+            Room-zone names included in the main occupancy calculation.
+        """
         return self.config.main_room_zones
 
     def get_ventilation(self) -> bool:
-        """Get if building is ventilated"""
+        """Return the mechanical-ventilation assumption.
+
+        Returns
+        -------
+        bool
+            True if mechanical ventilation is assumed for this building use.
+        """
         return self.config.has_ventilation
 
     def get_min_illuminance(self) -> int:
-        """Get the minimum required illuminance in lux."""
+        """Return the lower lighting target.
+
+        Returns
+        -------
+        int
+            Lower bound of the required indoor illuminance in lux for lighting demand.
+        """
         return self.config.min_illuminance
 
     def get_max_illuminance(self) -> int:
-        """Get the maximum required illuminance in lux."""
+        """Return the upper lighting target.
+
+        Returns
+        -------
+        int
+            Upper bound of the required indoor illuminance in lux for lighting demand.
+        """
         return self.config.max_illuminance
 
     def is_affected_by_school_holidays(self) -> bool:
-        """Check if the building occupancy drops during school holidays."""
+        """Return whether school holidays affect occupancy.
+
+        Returns
+        -------
+        bool
+            True when occupancy should be reduced during school holidays.
+        """
         return self.config.affected_by_school_holidays
 
     def get_lighting_irradiance_threshold(self) -> tuple[float, float]:
-        """Get the mean and standard deviation of the global irradiance threshold for lighting in W/m2."""
+        """Return the lighting activation threshold distribution.
+
+        Returns
+        -------
+        tuple of float or None
+            Mean and standard deviation, in that order, of the outdoor irradiance
+            threshold in W/m² used to trigger lighting. Entries may be None when
+            no use-specific threshold is configured.
+        """
         return self.config.lighting_irradiance_threshold_mean, self.config.lighting_irradiance_threshold_std_dev
 
 
 def create_non_residential_building(building, bldgs, total_building_area):
-    """
-    Create the archetype of a non-residential building or building part.
+    """Create an envelope archetype from a district building record.
 
     Parameters
     ----------
     building : dict
-        Building of the district.
+        Record with ``buildingFeatures`` containing ``building`` (use code),
+        ``year``, ``area`` (net m²), ``retrofit`` and ``construction_type``
+        (scenario short codes). Optional ``fixed_floors`` sets the floor count;
+        ``is_mixed_part`` suppresses an exposed roof for a lower building part.
     bldgs : dict
-        Design building data of the Datahandler.
+        Design configuration mapping scenario codes to archetype names via
+        ``retrofit_short_non_residential``, ``retrofit_long_non_residential``,
+        ``construction_type_short``, and ``construction_type_long``.
     total_building_area : float or None
-        Net leased area of the whole building if this is part of a mixed-use building.
+        Entire building's net area in m² for mixed-use footprint estimation.
+        None uses the area of the supplied building record.
 
     Returns
     -------
-    tuple
-        The NonResidential archetype and its construction type.
+    archetype : NonResidential
+        Selected envelope properties and oriented surface areas for thermal modeling.
+    construction_type : str
+        Expanded thermal-mass category for the downstream building model.
     """
     retrofit_level = bldgs["retrofit_long_non_residential"][bldgs["retrofit_short_non_residential"].index(building["buildingFeatures"]["retrofit"])]
     construction_type = bldgs["construction_type_long"][bldgs["construction_type_short"].index(building["buildingFeatures"]["construction_type"])]

@@ -11,12 +11,28 @@ from districtgenerator.environment.solar import Sun
 
 class BES:
     """
-    Abstract class for design of the building energy system.
+    Size the Building Energy System (BES) of an individual building.
 
     Parameters
     ----------
-    file_path : string
-        File path to the data directory of the districtgenerator.
+    physics : dict
+        Physical constants, including water density  and heat capacity,
+         used for storage sizing.
+    decentral_device_data : dict
+        Technology parameters keyed by device code.
+    design_building_data : dict
+        Design assumptions.
+    file_path : str or os.PathLike
+        DistrictGenerator data-directory path retained for callers.
+
+    Attributes
+    ----------
+    design_load_heating : float or None
+        Building space-heating design load in W, populated by ``designECS``.
+    bivalent_load_heating : float or None
+        Space-heating load at the bivalent temperature in W.
+    design_load_cooling : float or None
+        Cooling design load in W.
     """
 
     HEATING_CONCEPTS = technologies.HEATING_CONCEPTS
@@ -27,12 +43,23 @@ class BES:
     compression_chiller_cop = staticmethod(technologies.compression_chiller_cop)
 
     def __init__(self, physics, decentral_device_data, design_building_data, file_path):
-        """
-        Constructor of building energy system (BES) class.
+        """Store the inputs used to size a building's energy system.
+
+        Parameters
+        ----------
+        physics : dict
+            Water properties ``rho_water`` (g/L) and ``c_p_water`` (J/(g K)).
+        decentral_device_data : dict
+            Device specifications keyed by technology code.
+        design_building_data : dict
+            Bivalent and heating-limit temperatures in °C.
+        file_path : str or os.PathLike
+            Path to the project data directory.
 
         Returns
         -------
-        None.
+        None
+            Initializes design-load attributes; sizing runs separately in ``designECS``.
         """
 
         self.design_load_heating = None
@@ -44,29 +71,20 @@ class BES:
         self.file_path = file_path
 
     def designECS(self, building, site):
-        """
-        Design of the building energy system.
+        """Size devices for one building's selected supply concept.
 
         Parameters
         ----------
-        building : dictionary
-            Information about the building.
-        site : dictionary
-            Information about location and climatic conditions.
-        physics : json file
-            Physical and use-specific parameters.
-        T_bivalent : float
-            Outdoor temperature at which the heating capacity of the
-            heat pump can just cover the heat demand of the building.
-        T_heatlimit : float
-            Max outdoor temperature at which the heat pump generates heat.
-        dev : list
-            List of possible devices.
+        building : dict
+            Prepared building record with ``buildingFeatures``, ``envelope``, and
+            ``user``.
+        site : dict
+            Site conditions with outdoor design temperature ``T_ne`` in °C.
 
         Returns
         -------
-        BES : class
-             building energy system
+        dict
+            Capacities by device.
         """
 
         buildingFeatures = building["buildingFeatures"]
@@ -230,19 +248,22 @@ class BES:
 
 
 def design_decentral_devices(data, saveGenerationProfiles=True):
-    """
-    Calculate capacities, generation profiles of renewable energies and EV load profiles for decentral devices.
+    """Size building devices and calculate rooftop generation profiles.
 
     Parameters
     ----------
+    data : District with generated envelopes and user demands, site weather,
+     time settings, physical constants, device parameters, and output paths.
     saveGenerationProfiles : bool, optional
-        True: save decentral PV and STC profiles as CSV-file.
-        False: don't save decentral PV and STC profiles as CSV-file.
-        The default is True.
+        If True (default), write each building's PV and STC power profiles in W
+        as semicolon-separated CSV files beneath ``data.resultPath/generation``.
 
     Returns
     -------
-    None.
+    None
+        Adds ``bes_obj`` and ``capacities`` to each building and sets its user's
+        ``generationPV`` and ``generationSTC`` arrays in W. For candidate heater
+        lists, selects a concept and updates the building and scenario heater.
     """
 
     candidates = [technologies.get_heating_candidates(building["buildingFeatures"]["heater"])

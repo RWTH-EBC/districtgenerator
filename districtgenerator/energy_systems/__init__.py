@@ -2,7 +2,21 @@
 
 
 def __getattr__(name):
-    # Lazy access keeps old imports such as ``from districtgenerator.classes.system import BES`` working
+    """
+    Resolve legacy package-level energy-system class imports lazily.
+
+    Lazy access keeps old imports such as``from districtgenerator.classes.system import BES`` working.
+
+    Parameters
+    ----------
+    name : str
+        Requested public class name: ``"BES"`` or ``"CES"``.
+
+    Returns
+    -------
+    type
+        Building or central energy-system class, imported only when requested.
+    """
     if name == "BES":
         from districtgenerator.energy_systems.building_energy_system import BES
         return BES
