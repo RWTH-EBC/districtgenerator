@@ -32,7 +32,9 @@ from zipfile import ZipFile
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PAPER_ROOT = ROOT / "districtgenerator" / "data" / "scenarios" / "Paper_3"
+PAPER_ROOT = ROOT / "districtgenerator" / "results" / "Paper_3"
+if not PAPER_ROOT.exists() and (ROOT / "districtgenerator/data/scenarios/Paper_3").exists():
+    PAPER_ROOT = ROOT / "districtgenerator/data/scenarios/Paper_3"
 RUNS_ROOT = PAPER_ROOT / "cluster_results"
 CONFIG = ROOT / "districtgenerator" / "data" / ".env.CONFIG.BERGFEST"
 TYPES = "ABCDEFHI"
@@ -555,7 +557,7 @@ def run_selected_types(run_dir, manifest, pilot, kinds, retry_failed=False):
               f"all {len(evaluations)} evaluations per district complete.", flush=True)
 
 
-def package_results(run_dir, destination=None, dry_run=False):
+def package_results(run_dir, destination=None, dry_run=False, exclude_districts=()):
     """Package selected successful cases, never modify or delete run outputs.
 
     Legacy TXT solutions are kept unless an equivalent compact export exists.
@@ -581,14 +583,23 @@ def package_results(run_dir, destination=None, dry_run=False):
             raise ValueError("Saved code provenance is missing or modified.")
         files.add(run_dir / name)
     known = {item["name"]: item for item in manifest["districts"]}
+    excluded = set(exclude_districts)
+    if excluded - known.keys():
+        raise ValueError(f"Unknown packaging exclusions: {sorted(excluded - known.keys())}")
+    if excluded and manifest.get("dataset") != "real":
+        raise ValueError("Explicit district exclusions are supported only for real-result packaging.")
     targets = targets_by_type(manifest)
     for kind in TYPES:
         if kind not in latest:
             raise ValueError(f"No final summary for type {kind}.")
         path, summary = latest[kind]
-        names = summary["successful"][kind]
-        if (summary["shortfalls"].get(kind, 0) or len(names) != targets[kind]
-                or len(set(names)) != targets[kind]):
+        names = [name for name in summary["successful"][kind] if name not in excluded]
+        if excluded:
+            expected = {name for name, item in known.items() if item["type"] == kind} - excluded
+            if set(names) != expected or len(names) != len(expected):
+                raise ValueError(f"Type {kind} has incomplete non-excluded districts.")
+        elif (summary["shortfalls"].get(kind, 0) or len(names) != targets[kind]
+              or len(set(names)) != targets[kind]):
             raise ValueError(f"Type {kind} has not reached {targets[kind]} successful districts.")
         files.add(path)
         for name in names:
@@ -621,6 +632,8 @@ def package_results(run_dir, destination=None, dry_run=False):
         if path.is_symlink() or not path.resolve().is_relative_to(run_dir):
             raise ValueError(f"Refusing archive member outside the run: {path}")
     if dry_run:
+        if excluded:
+            print(f"Explicitly excluded districts: {sorted(excluded)}")
         print(f"Would package {len(selected)} cases, {len(files)} files, "
               f"{sum(path.stat().st_size for path in files) / 2**30:.2f} GiB before compression.")
         return
@@ -634,7 +647,9 @@ def package_results(run_dir, destination=None, dry_run=False):
         with tarfile.open(fileobj=output, mode="w:gz", compresslevel=1) as archive:
             for path in sorted(files):
                 archive.add(path, arcname=f"{run_dir.name}/{path.relative_to(run_dir).as_posix()}", recursive=False)
-            payload = json.dumps({"cases": selected, "excluded": ["LP models", "district pickles",
+            payload = json.dumps({"cases": selected, "excluded_districts": sorted(excluded),
+                                 "packaging_script_sha256": digest(Path(__file__)),
+                                 "excluded": ["LP models", "district pickles",
                                  "failed/interrupted attempts", "TXT with a compact equivalent"]}, indent=2).encode()
             info = tarfile.TarInfo(f"{run_dir.name}/backup_selection.json")
             info.size = len(payload)
@@ -662,6 +677,8 @@ def main():
     parser.add_argument("--worker", nargs=4, metavar=("RUN", "SCENARIO", "CASE", "ATTEMPT"), help=argparse.SUPPRESS)
     parser.add_argument("--package", type=Path, help="Archive final successful results without running optimization; --dry-run previews selection.")
     parser.add_argument("--package-output", type=Path, help="New archive path for --package; existing files are never overwritten.")
+    parser.add_argument("--exclude-district", action="append", default=[],
+                        help="With --package only, explicitly exclude one real district from all six evaluations; repeatable.")
     parser.add_argument("--paired-funding", action="store_true", help="Create a matched funding OFF/ON comparison; EB must be disabled.")
     parser.add_argument("--prepare-only", action="store_true", help="Create immutable run snapshots and exit without optimization (safe on login nodes).")
     parser.add_argument('--reuse-from', type=Path, help='Copy matching completed six-case results from a previous comparison into a new run.')
@@ -681,15 +698,17 @@ def main():
                 or args.paired_funding or args.prepare_only):
             parser.error("--package cannot be combined with optimization options.")
         if args.dry_run:
-            package_results(args.package, args.package_output, dry_run=True)
+            package_results(args.package, args.package_output, dry_run=True, exclude_districts=args.exclude_district)
             return
         with ExitStack() as stack:
             for kind in TYPES:
                 stack.enter_context(type_lock(args.package.resolve(), kind))
-            package_results(args.package, args.package_output, args.dry_run)
+            package_results(args.package, args.package_output, args.dry_run, exclude_districts=args.exclude_district)
         return
     if args.package_output:
         parser.error("--package-output requires --package.")
+    if args.exclude_district:
+        parser.error("--exclude-district requires --package.")
     if args.district_type and (not args.resume or args.worker):
         parser.error("--type requires --resume and cannot be combined with --worker.")
     if args.paired_funding and (args.resume or args.worker):

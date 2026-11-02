@@ -1170,6 +1170,8 @@ def scenario_generation(
                 or any(part in {"", ".", ".."} for part in output_subdirectory.replace("\\", "/").split("/"))):
             raise ValueError("output_subdirectory must be a relative path without traversal.")
         safe_subdirectory = os.path.normpath(output_subdirectory)
+        if output_subdirectory.replace("\\", "/").split("/")[0] == "Paper_3":
+            scenario_root = os.path.abspath(os.path.join(current_dir, '..', 'results'))
         save_dir = os.path.join(scenario_root, safe_subdirectory)
     else:
         save_dir = scenario_root

@@ -32,6 +32,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCENARIO_DIR = REPO_ROOT / "districtgenerator" / "data" / "scenarios"
+RESULTS_DIR = REPO_ROOT / "districtgenerator" / "results"
 DEMAND_DIR = REPO_ROOT / "districtgenerator" / "results" / "demands"
 PAPER_3_DISTRICTS_PER_TYPE = 10
 
@@ -393,7 +394,9 @@ def main():
 
     if args.max_threads < 1 or args.scenario_workers < 1:
         parser.error("Worker counts must be positive.")
-    paper_root = SCENARIO_DIR / "Paper_3"
+    paper_root = RESULTS_DIR / "Paper_3"
+    if not paper_root.exists() and (SCENARIO_DIR / "Paper_3").exists():
+        paper_root = SCENARIO_DIR / "Paper_3"
     if args.paper_3:
         scenario_dir = next((p.resolve() for p in (paper_root / 'districts' / 'Synthetic districts',
                              paper_root / 'Districts' / 'Synthetic districts', paper_root / 'districts', paper_root / 'Districts')

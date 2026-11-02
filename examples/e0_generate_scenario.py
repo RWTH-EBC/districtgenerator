@@ -134,9 +134,10 @@ def generate_batch(settlement_types=None, number_of_new_districts_per_type=None,
             or os.path.isabs(batch_subdirectory)
             or os.path.splitdrive(batch_subdirectory)[0]):
         raise ValueError("output_subdirectory must be a relative path without traversal.")
-    batch_directory = os.path.join(
-        PROJECT_ROOT, "districtgenerator", "data", "scenarios", batch_subdirectory
-    )
+    batch_root = os.path.join(PROJECT_ROOT, "districtgenerator", "data", "scenarios")
+    if batch_subdirectory.replace("\\", "/").split("/")[0] == "Paper_3":
+        batch_root = os.path.join(PROJECT_ROOT, "districtgenerator", "results")
+    batch_directory = os.path.join(batch_root, batch_subdirectory)
     # Reserve a fresh folder before starting any generation subprocess.
     try:
         os.makedirs(batch_directory, exist_ok=False)
