@@ -3,7 +3,7 @@
 import json
 import logging
 import copy
-from .envelope_profiles import initialize_context, calculate_profiles
+from .envelope_profiles import (RANK, initialize_context, calculate_profiles,)
 import csv
 import pickle
 import os
@@ -65,7 +65,8 @@ class Datahandler:
                  scenario_file_path = None,
                  env_path = None,
                  run_name: str = None,
-                 project_data_path: str = None):
+                 project_data_path: str = None,
+                 envelope_retrofit_states=None):
         """
         Constructor of Datahandler class.
 
@@ -96,6 +97,18 @@ class Datahandler:
         self.srcPath = srcPath
         self._envelope_profiles_env_path = os.path.abspath(env_path) if env_path else None
         self.filePath = filePath
+
+        # Configurable target envelope states.
+        # Keep the existing two-state behaviour as default.
+        if envelope_retrofit_states is None:
+            states = ("standard", "retrofit")
+        else:
+            states = tuple(envelope_retrofit_states)
+
+        if not states or any(state not in RANK for state in states):
+            raise ValueError(f"Invalid envelope retrofit states: {states!r}. Valid states: {tuple(RANK)}.")
+
+        self.envelope_retrofit_states = states
 
         self.initial_day = None
         self.district = []
@@ -1102,7 +1115,8 @@ class Datahandler:
         if residential_5r1c:
             # Calculate all envelope variants from one initialized QG context.
             try:
-                calculate_profiles(self, building)
+                calculate_profiles(self, building, allowed_states=self.envelope_retrofit_states,)
+
             except Exception as exc:
                 logging.getLogger("app.qg-envelope-profiles").error("%s, Building %s: Envelope profiles could not be loaded or calculated: %s: %s",
                                                                     self.scenario_name,

@@ -18,7 +18,7 @@ import numpy as np
 
 PARTS = ("outer_walls", "windows", "roofs", "ground_floors")
 COMPONENTS = dict(zip(PARTS, ("wall", "window", "roof", "floor")))
-RANK = {"standard": 0, "retrofit": 1}
+RANK = {"standard": 0, "retrofit": 1, "adv_retrofit": 2,}
 SETPOINTS = ("T_set_min", "T_set_min_night", "T_set_min_free_day", "T_set_max", "T_set_max_night")
 MATERIALS = ("d", "d_iso", "rho", "cp", "Lambda", "U", "kappa", "R_se", "R_si", "epsilon", "alpha_Sc", "g_gl")
 INPUT_PROFILES = ("elec", "dhw", "occ", "gains")
@@ -77,12 +77,30 @@ def profile_key(states):
 
 
 def allowed_combinations(initial, allowed_states=("standard", "retrofit")):
-    if set(initial) != set(PARTS) or any(s not in RANK for s in initial.values()):
+    """
+    Generate all permitted envelope combinations.
+
+    The initial component state is always permitted.
+    Only configured target states with a higher energetic rank
+    are added. Downgrades are excluded.
+    """
+
+    if set(initial) != set(PARTS) or any(state not in RANK for state in initial.values()):
         raise ValueError(f"Invalid initial envelope: {initial}")
-    if not allowed_states or any(s not in RANK for s in allowed_states):
-        raise ValueError("Only standard and retrofit are supported.")
-    choices = [[initial[p], *sorted({s for s in allowed_states if RANK[s] > RANK[initial[p]]}, key=RANK.get)] for p in PARTS]
-    return [dict(zip(PARTS, values)) for values in itertools.product(*choices)]
+
+    if not allowed_states or any(state not in RANK for state in allowed_states):
+        raise ValueError(f"Invalid allowed envelope states: {allowed_states!r}. Valid states: {tuple(RANK)}.")
+
+    choices = []
+
+    for part in PARTS:
+        initial_state = initial[part]
+
+        additional_states = sorted({state for state in allowed_states if RANK[state] > RANK[initial_state]}, key=RANK.get,)
+
+        choices.append([initial_state, *additional_states])
+
+    return [dict(zip(PARTS, states)) for states in itertools.product(*choices)]
 
 
 def scenario_input(features):
@@ -130,16 +148,31 @@ def fixed_signature(envelope):
             for p in ("intWall", "ceiling", "intFloor")} for name in MATERIALS}})
 
 
-def build_material_bank(base):
-    # Existing QG material loader, no new TEASER geometry or user constructor.
-    # Its temporary behaviour adjustment is discarded; only external material slots are copied.
+def build_material_bank(base, initial, combinations):
+    """
+    Prepare TABULA material data for all target states
+    actually required by the permitted envelope combinations.
+
+    Existing component states are taken from the base envelope.
+    Only newly required target states are loaded.
+    """
+
+    required_states = {states[part]
+                       for states in combinations
+                       for part in PARTS
+                       if states[part] != initial[part]}
+
     bank = {}
-    # Only retrofit can be a new target; standard slots already come from the initial envelope.
-    for state in ("retrofit",):
+
+    for state in sorted(required_states, key=RANK.get):
         candidate = clone_envelope(base)
-        candidate.component_construction_data = {c: f"tabula_de_{state}" for c in COMPONENTS.values()}
-        candidate.loadComponentProperties(candidate.prj, (0, 0, 0, 0), False)
+
+        candidate.component_construction_data = {component: f"tabula_de_{state}" for component in COMPONENTS.values()}
+
+        candidate.loadComponentProperties(candidate.prj, (0, 0, 0, 0), False,)
+
         bank[state] = candidate
+
     return bank
 
 
@@ -167,7 +200,7 @@ def prepare_envelope(qg, envelope, user, night):
     envelope.calcNormativeProperties(qg.site["SunRad"], user.gains)
 
 
-def calculate_profiles(qg, building):
+def calculate_profiles(qg, building, allowed_states=("standard", "retrofit"),):
     context = qg._envelope_profiles_context
     features, base, user = building["buildingFeatures"], building["envelope"], building["user"]
     scenario = scenario_input(features)
@@ -175,7 +208,7 @@ def calculate_profiles(qg, building):
         if float(features[name]) not in (0, 1):
             raise ValueError(f"{name} must be 0 or 1.")
     initial = scenario["initial_state"]
-    combinations = allowed_combinations(initial)
+    combinations = allowed_combinations(initial, allowed_states,)
     keys = [profile_key(states) for states in combinations]
     logger.debug("%s, Building %s: %d zulässige Hüllkombinationen wurden erzeugt.",
                  qg.scenario_name, scenario["id"], len(keys), )
@@ -237,7 +270,7 @@ def calculate_profiles(qg, building):
 
     if profiles is None:
         previous = getattr(user, "heat", None)
-        bank = build_material_bank(base) if len(keys) > 1 else {}
+        bank = (build_material_bank(base, initial, combinations) if len(keys) > 1 else {})
         fixed = fixed_signature(base)
         weather_signature = digest(qg.site)
         profiles = {}
