@@ -11,12 +11,61 @@ Nullfluss abgesperrt, bei Aktivitaet konstanter quasistationaerer Verlust.
 """
 from pathlib import Path
 import numpy as np
+from districtgenerator.functions import heating_network_2leiter as single_network
 
 # Anlagendaten: vor wissenschaftlicher Bewertung kalibrieren!
+# Industrie-HX: Preise je Quelltyp Q1–Q6; None = bestehende
+# Gebaeude-Uebergabestation (heat_grid_data: C_subst, ...).
+HX_INV_EUR_PER_KW_BY_Q = {
+    "Q1": 250.0,
+    "Q2": 250.0,
+    "Q3": 250.0,
+    "Q4": 250.0,
+    "Q5": 250.0,
+    "Q6": 250.0,
+    "Q7": 250.0,
+}
+
+HX_OM_EUR_PER_UNIT_YEAR_BY_Q = {
+    "Q1": 1000.0,
+    "Q2": 1000.0,
+    "Q3": 1000.0,
+    "Q4": 1000.0,
+    "Q5": 1000.0,
+    "Q6": 1000.0,
+    "Q7": 1000.0,
+}
+
+HX_LIFETIME_YEARS_BY_Q = {
+    'Q1': 20, 'Q2': 20, 'Q3': 20,
+    'Q4': 20, 'Q5': 20, 'Q6': 20, 'Q7': 20,
+}
+
+#Wärmepumpen Werte
 WH_HP_INV_EUR_PER_KW = 1110.0  # Ausgangsannahme wie zentrale HP
 WH_HP_LIFE_YEARS = 20
 WH_HP_OM_FRACTION = 0.033
 WH_HP_TEST_FIXED_KW = None
+
+
+def industry_hx_cost_parameters(q_code, heat_grid_data):
+    """Einheitliche Kostenbasis wie die bisherigen Gebaeude-Uebergabestationen."""
+    q_code = str(q_code).strip().upper()
+    if q_code not in HX_INV_EUR_PER_KW_BY_Q:
+        raise ValueError(
+            f"Quellklasse {q_code!r} nicht in Q1-Q6 parametrisiert. "
+            "Bitte diese Klasse explizit mit Kosten ergaenzen; keine kostenlose Einspeisung."
+        )
+    inv = HX_INV_EUR_PER_KW_BY_Q[q_code]
+    om = HX_OM_EUR_PER_UNIT_YEAR_BY_Q[q_code]
+    lifetime = HX_LIFETIME_YEARS_BY_Q[q_code]
+    inv = heat_grid_data["C_subst"] if inv is None else inv
+    om = heat_grid_data["cost_om_subst"] if om is None else om
+    lifetime = heat_grid_data["lifetime_subst"] if lifetime is None else lifetime
+    inv, om, lifetime = float(inv), float(om), int(lifetime)
+    if not np.isfinite(inv) or not np.isfinite(om) or inv < 0 or om < 0 or lifetime <= 0:
+        raise ValueError(f"Unzulaessige Waermeuebertragerkosten fuer {q_code}")
+    return inv, om, lifetime
 
 
 def enabled(data):
@@ -69,6 +118,19 @@ def load_industry_bridge(data):
         raise ValueError('WH1: negative Basis-Netzverluste')
     cap_raw = np.ravel(b.get('hp_max_output_kw', np.array([np.nan])))[0]
     hp_cap = None if np.isnan(cap_raw) else float(cap_raw)
+    hx_keys = (
+        'hx_factor_kW_per_kW', 'hx_max_design_capacity_kW',
+        'hx_UA_W_K_per_kW', 'hx_q_number',
+    )
+    missing_hx = [k for k in hx_keys if k not in b]
+    if missing_hx:
+        raise ValueError(f'WH1-HX: NPZ ohne neue Parameter: {missing_hx}')
+    if b['hx_factor_kW_per_kW'].shape != sh:
+        raise ValueError('WH1-HX: Faktorenform muss (Quellen,8760) sein')
+    if any(b[k].shape != (sh[0],) for k in hx_keys[1:]):
+        raise ValueError('WH1-HX: statische Parameter pro Quelle erwartet')
+    if not np.isfinite(b['hx_factor_kW_per_kW']).all() or (b['hx_factor_kW_per_kW'] < 0).any():
+        raise ValueError('WH1-HX: ungueltige LMTD-Faktoren')
     data.industry_optimization = {
         'mode': data.heat_grid_data['industrial_dispatch_mode'],
         'heat_mode': data.heat_grid_data['industrial_heat_mode'],
@@ -82,6 +144,12 @@ def load_industry_bridge(data):
         'nominal_loss': np.maximum(loss, 0.0),
         'base_losses': np.maximum(base_losses, 0.0),
         'hp_fixed_max_kw': hp_cap,
+        'hx_factor': b['hx_factor_kW_per_kW'],
+        'hx_static': {
+            'cap_upper': b['hx_max_design_capacity_kW'],
+            'ua_per_kw': b['hx_UA_W_K_per_kW'],
+            'q_num': b['hx_q_number'],
+        },
     }
     print(f'[WH1-OPT] {sh[0]} Quellen geladen; Modus={data.industry_optimization["mode"]}.')
     return data.industry_optimization
@@ -115,7 +183,8 @@ def operating_window(data, cluster, steps):
     return {k: (v[:, sl] if np.asarray(v).ndim == 2 else v[sl])
             for k, v in ind.items() if isinstance(v, np.ndarray)} | {
         'mode': ind['mode'], 'heat_mode': ind['heat_mode'],
-        'hp_fixed_max_kw': ind['hp_fixed_max_kw']}
+        'hp_fixed_max_kw': ind['hp_fixed_max_kw'],
+        'hx_static': ind['hx_static']}
 
 
 def design_windows(data, param, steps):
@@ -140,7 +209,8 @@ def design_windows(data, param, steps):
             raise ValueError('WH1: nicht unterstuetzte Datenmatrix ' + k)
     return windows | {
         'mode': ind['mode'], 'heat_mode': ind['heat_mode'],
-        'hp_fixed_max_kw': ind['hp_fixed_max_kw']}
+        'hp_fixed_max_kw': ind['hp_fixed_max_kw'],
+        'hx_static': ind['hx_static']}
 
 
 def _cap_limit(ind):
@@ -191,6 +261,14 @@ def add_operational_source(model, data, cluster, steps):
     model.wh_gross = pyo.Expression(model.t, rule=lambda m,t: sum(
         m.wh_direct[s,t]+m.wh_hp[s,t] for s in m.wh_sources))
     model.wh_constraints = pyo.ConstraintList()
+    hx_caps = getattr(data, 'centralDevices', {}).get('capacities', {}).get(
+        'industry_hx_capacities_kW'
+    )
+    if hx_caps is None:
+        raise ValueError('WH1-HX: EHDO hat keine HX-Kapazitaeten uebergeben')
+    hx_caps = np.asarray(hx_caps, dtype=float)
+    if hx_caps.shape != (source_count,) or (hx_caps < 0).any():
+        raise ValueError('WH1-HX: falsche Quelle-zu-Kapazitaet-Zuordnung')
     capacity_kw = _cap_limit(ind)
     designed = getattr(data, 'centralDevices', {}).get('capacities', {}).get('industry_hp_capacity_kW')
     if designed is not None:
@@ -204,6 +282,7 @@ def add_operational_source(model, data, cluster, steps):
         model.wh_constraints.add(sum(model.wh_hp[s,t] for s in model.wh_sources) <= capacity_kw * 1000)
         for s in model.wh_sources:
             model.wh_constraints.add(model.wh_direct[s,t] <= float(ind['direct_max'][s,t])*1000)
+            model.wh_constraints.add(model.wh_direct[s,t] <= float(ind['hx_factor'][s,t]) * float(hx_caps[int(s)]) * 1000.0)
             model.wh_constraints.add(model.wh_hp[s,t] <= float(ind['hp_max'][s,t])*1000)
             model.wh_constraints.add(model.wh_direct[s,t] + model.wh_hp[s,t] *
                                      (1-float(ind['hp_el_frac'][s,t])) <= float(ind['source_input'][s,t])*1000)
@@ -257,11 +336,30 @@ def add_design_source(model, data, param, steps):
         if not 0.0 <= fixed_kw <= _cap_limit(full_ind):
             raise ValueError('Industrie-WP-Testkapazitaet ausserhalb der Grenze')
         model.wh_hp_cap.fix(fixed_kw)
+
+    hx_up = np.asarray(ind['hx_static']['cap_upper'], dtype=float)
+    if hx_up.shape != (S,) or (hx_up < 0).any():
+        raise ValueError("WH1-HX: ungueltige Auslegungskapazitaeten")
+    # Jede Quelle erhaelt eine EIGENE investierbare HX-Nennleistung [kW].
+    model.wh_hx_cap = pyo.Var(
+        model.wh_sources, within=pyo.NonNegativeReals,
+        bounds=lambda m, s: (0.0, float(hx_up[int(s)])),
+    )
+    # 1 = Kosten fuer einen installierten Quellwaermeuebertrager.
+    model.wh_hx_built = pyo.Var(model.wh_sources, within=pyo.Binary)
+
     model.wh_hp_el = pyo.Expression(model.support_years, model.clusters, model.time_steps,
                                     rule=lambda m,y,d,t: sum(m.wh_hp[s,y,d,t]*float(ind['hp_el_frac'][s,d,t]) for s in m.wh_sources))
     model.wh_gross = pyo.Expression(model.support_years, model.clusters, model.time_steps,
                                     rule=lambda m,y,d,t: sum(m.wh_direct[s,y,d,t]+m.wh_hp[s,y,d,t] for s in m.wh_sources))
     model.wh_constraints = pyo.ConstraintList()
+    for s in model.wh_sources:
+        model.wh_constraints.add(
+            model.wh_hx_cap[s] <= float(hx_up[int(s)]) * model.wh_hx_built[s]
+        )
+        if float(hx_up[int(s)]) <= 1e-9:
+            model.wh_hx_built[s].fix(0)
+
     for y in model.support_years:
         for d in model.clusters:
             for t in model.time_steps:
@@ -273,6 +371,7 @@ def add_design_source(model, data, param, steps):
                 model.wh_constraints.add(sum(model.wh_hp[s,y,d,t] for s in model.wh_sources) <= model.wh_hp_cap)
                 for s in model.wh_sources:
                     model.wh_constraints.add(model.wh_direct[s,y,d,t] <= float(ind['direct_max'][s,d,t]))
+                    model.wh_constraints.add(model.wh_direct[s,y,d,t] <= float(ind['hx_factor'][s,d,t]) * model.wh_hx_cap[s])
                     model.wh_constraints.add(model.wh_hp[s,y,d,t] <= float(ind['hp_max'][s,d,t]))
                     model.wh_constraints.add(model.wh_direct[s,y,d,t] + model.wh_hp[s,y,d,t] *
                                              (1-float(ind['hp_el_frac'][s,d,t])) <= float(ind['source_input'][s,d,t]))
@@ -293,10 +392,54 @@ def add_design_source(model, data, param, steps):
                 'Bitte erzwungenes Netzprofil und WP-Preset abgleichen.'
             )
         model.wh_hp_cap.fix(required_peak_kw)
+
+    if ind['mode'] == 'forced':
+        for s in model.wh_sources:
+            q = np.asarray(full_ind['forced_direct'][int(s)], dtype=float)
+            fac = np.asarray(full_ind['hx_factor'][int(s)], dtype=float)
+            if np.any((q > 1e-8) & (fac <= 1e-12)):
+                raise ValueError("Erzwungene Direktwaerme ohne Waermeuebertrager")
+            use = fac > 1e-12
+            required = float(np.max(q[use] / fac[use])) if np.any(use) else 0.0
+            if required > float(hx_up[int(s)]) + 1e-5:
+                raise ValueError("Erzwungene HX-Leistung ausserhalb Auslegungsgrenze")
+            model.wh_hx_cap[s].fix(required)
+            model.wh_hx_built[s].fix(int(required > 1e-8))
+
     # Lebenszyklusannahme analog zentralem HP-Parameter – einfache Annuity.
     i = float(param['interest_rate'])
     if i < 0:
         raise ValueError('Zinssatz fuer Industrie-WP darf nicht negativ sein')
     crf = (i*(1+i)**WH_HP_LIFE_YEARS/((1+i)**WH_HP_LIFE_YEARS-1)) if i else 1/WH_HP_LIFE_YEARS
     model.wh_annual_capex = pyo.Expression(expr=model.wh_hp_cap * WH_HP_INV_EUR_PER_KW * (crf+WH_HP_OM_FRACTION))
+
+    # Preis-/Annuitaetslogik WIE bei bestehenden Uebergabestationen:
+    # Investition in EUR/kW, lebensdauerspezifischer Annuitaetsfaktor,
+    # fester Wartungsbetrag pro installiertem Uebertrager.
+    model.wh_hx_inv_per_kw = []
+    model.wh_hx_om_per_year = []
+    model.wh_hx_ann_factor = []
+    model.wh_hx_q_codes = []
+    for s in model.wh_sources:
+        qcode = "Q" + str(int(ind['hx_static']['q_num'][int(s)]))
+        if float(hx_up[int(s)]) > 0.0:
+            inv, om, lifetime = industry_hx_cost_parameters(
+                qcode, data.heat_grid_data
+            )
+            annual_factor = single_network.calc_annual_factor(data, lifetime)
+        else:
+            inv, om, annual_factor = 0.0, 0.0, 0.0
+        model.wh_hx_q_codes.append(qcode)
+        model.wh_hx_inv_per_kw.append(float(inv))
+        model.wh_hx_om_per_year.append(float(om))
+        model.wh_hx_ann_factor.append(float(annual_factor))
+
+    model.wh_hx_annual_cost = pyo.Expression(expr=sum(
+        model.wh_hx_cap[s]
+        * model.wh_hx_inv_per_kw[int(s)]
+        * model.wh_hx_ann_factor[int(s)]
+        + model.wh_hx_built[s] * model.wh_hx_om_per_year[int(s)]
+        for s in model.wh_sources
+    ))
+
     return ind

@@ -40,6 +40,100 @@ from districtgenerator.functions import heating_network_2leiter as single
 
 
 
+HX_HOT_APPROACH_K = 5.0
+HX_COLD_APPROACH_K = 5.0
+HX_UA_SAFETY_FACTOR = 1.0
+SUPPORTED_INDUSTRY_HX_Q_TYPES = frozenset({'Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6', 'Q7'})
+
+
+def calculate_source_hx_specs(industry, supply_C, return_C, direct_max_kW,
+                              demand_cap_kW, *, hot_approach_K=HX_HOT_APPROACH_K):
+    """UA-/LMTD-Bemessung fuer JEDE direkt nutzbare Abwaermequelle.
+
+    Je Quelle: UA pro kW Nennleistung am unguenstigsten noch zulaessigen
+    Netzzustand. Stundenfaktor = LMTD(t) / LMTD(Bemessung).
+    Q_direkt(t) <= HX_Nennleistung[kW] * Stundenfaktor(t).
+    Nennleistung ist durch Quelle und die stündliche Abnahme begrenzt.
+    """
+    sup = np.asarray(supply_C, dtype=float)
+    ret = np.asarray(return_C, dtype=float)
+    raw = np.asarray(direct_max_kW, dtype=float)
+    demand = np.asarray(demand_cap_kW, dtype=float)
+    temperatures = np.asarray(industry["temperatures_C"], dtype=float)
+    source_info = industry["source_info"]
+    if "Quellklasse_Code" not in source_info.columns:
+        raise ValueError("PFA-Quellen-CSV enthaelt keine Spalte 'Quellklasse_Code'.")
+    classes = source_info["Quellklasse_Code"].astype(str).str.strip().str.upper().tolist()
+    if raw.ndim != 2 or raw.shape[1] != sup.size or sup.shape != ret.shape or demand.shape != sup.shape:
+        raise ValueError("Zeitreihenformen der Industrie-Waermeuebertrager stimmen nicht ueberein.")
+    if raw.shape[0] != len(classes) or temperatures.shape != (len(classes),):
+        raise ValueError("Quellklassen und Quellentemperaturen passen nicht zum Profil.")
+    if not np.isfinite(sup).all() or not np.isfinite(ret).all():
+        raise ValueError("Ungültige Netztemperaturen für Quellwaermeuebertrager.")
+    if np.any((demand > 1e-9) & (ret >= sup)):
+        raise ValueError("Positiver Netzbedarf ohne Vorlauf-Ruecklauf-Temperaturhub.")
+    if not np.isfinite(raw).all() or (raw < 0).any() or (demand < 0).any():
+        raise ValueError("Ungültige Quellwärme oder Abnahmegrenze.")
+
+    S, T = raw.shape
+    factor = np.zeros((S, T), dtype=float)
+    ua_per_kW = np.zeros(S, dtype=float)
+    capacity_limit = np.zeros(S, dtype=float)
+    q_num = np.zeros(S, dtype=float)
+    for s, qcode in enumerate(classes):
+        if not qcode.startswith("Q") or not qcode[1:].isdigit():
+            raise ValueError(f"Unbekannte Quellklasse {qcode!r} bei Quelle {s}")
+        q_num[s] = int(qcode[1:])
+        active = (raw[s] > 1e-9) & (demand > 1e-9) & (ret < sup) & (temperatures[s] >= sup + hot_approach_K)
+        if not np.any(active):
+            continue  # Kein direkt nutzbarer Waermeuebertrager noetig
+
+        # Nicht parametrisierte heiße Q7-Quellen dürfen nicht kostenlos laufen.
+        if qcode not in SUPPORTED_INDUSTRY_HX_Q_TYPES:
+            raise ValueError(f"Direkt nutzbare Quelle {s}: Quelltyp {qcode} "
+                             "ist nicht für Industrie-Wärmeübertrager freigegeben.")
+
+        idx = int(np.where(active)[0][np.argmax(sup[active])])
+        t_primary_in = float(temperatures[s])
+        t_sec_in_design = float(ret[idx])
+        t_sec_out_design = float(sup[idx])
+        t_primary_out_design = t_sec_in_design + HX_COLD_APPROACH_K
+        ua_one_kw = single.hx_calc_UA_design(
+            Q_design_W=1000.0,
+            T_primary_in_design=t_primary_in,
+            T_primary_out_design=t_primary_out_design,
+            T_secondary_in_design=t_sec_in_design,
+            T_secondary_out_design=t_sec_out_design,
+        ) * HX_UA_SAFETY_FACTOR
+        if not np.isfinite(ua_one_kw) or ua_one_kw <= 0:
+            raise ValueError(f"Kein physikalisch gültiges Design-UA für Quelle {s}")
+        ua_per_kW[s] = ua_one_kw
+        dt_lm_design = 1000.0 * HX_UA_SAFETY_FACTOR / ua_one_kw
+
+        for t in np.where(active)[0]:
+            dT_hot = t_primary_in - float(sup[t])
+            # Gleiche Gegenstrom-LMTD-Funktion wie für die Gebäude.
+            # Am realen Zeitpunkt: Quellenaustritt mindestens um einen
+            # festen Temperaturansatz ueber dem Netzruecklauf.
+            dT_cold = HX_COLD_APPROACH_K
+            lmtd = single.hx_lmtd(dT_hot, dT_cold)
+            if np.isfinite(lmtd) and lmtd > 0:
+                factor[s, t] = lmtd / dt_lm_design
+
+        pos = factor[s] > 1e-12
+        if not np.any(pos):
+            raise ValueError(f"Kein zulaessiger HX-Uebergang fuer Quelle {s}")
+        q_cap = np.minimum(raw[s, pos], demand[pos])
+        capacity_limit[s] = float(np.max(q_cap / factor[s, pos]))
+
+    return {
+        "hx_factor": factor,
+        "hx_cap_upper": capacity_limit,
+        "hx_UA_per_kW": ua_per_kW,
+        "hx_q_number": q_num,
+    }
+
+
 # ============================================================================
 # BENUTZER-PRESETS: None => einmalige Konsolenabfrage beim ersten Aufruf.
 # ============================================================================
@@ -525,6 +619,60 @@ def compute_dual_pumps(data, param, m_EH, m_WH):
     param["dp_pump_WH_Pa"] = head_WH
     return data, param
 
+def design_pumps_two_scenarios(data, param, m_consumers, m_wh_design,
+                               actual_flows, m_eh_actual, m_wh_actual):
+    """Konservative Pumpen-Vorauslegung: EH-only und technisch WH-max.
+
+    Pumpen von EH1 und WH1 werden GETRENNT bemessen. Der reale/aktuelle
+    Fahrplan bleibt fuer P_pump und die Betriebs-Zeitreihen erhalten.
+    Dies ist KEINE Nachrechnung der spaeteren Pyomo-Entscheidungen.
+    """
+    grid = data.heat_grid_data
+    cases = {}
+    try:
+        for name, wh in (
+                ("EH_only", np.zeros_like(m_wh_design)),
+                ("WH_max", np.asarray(m_wh_design, dtype=float)),
+        ):
+            flows_case, m_eh_case = signed_flows_on_tree(
+                data.pipeline_topology, m_consumers, wh
+            )
+            _apply_signed_flows(data, param, flows_case)
+            data, param = compute_dual_pumps(data, param, m_eh_case, wh)
+            cases[name] = {
+                "EH1_power_max_W": float(np.max(param["P_pump_EH_W"])),
+                "WH1_power_max_W": float(np.max(param["P_pump_WH_W"])),
+                "EH1_dp_max_Pa": float(np.max(param["dp_pump_EH_Pa"])),
+                "WH1_dp_max_Pa": float(np.max(param["dp_pump_WH_Pa"])),
+            }
+    finally:
+        # Die beiden Auslegungsfaelle duerfen die Betriebswerte NICHT ueberschreiben.
+        _apply_signed_flows(data, param, actual_flows)
+        for edge, vmax in param["pipe_design_envelope_max_vol_m3_s"].items():
+            data.pipeline[f"{edge[0]}->{edge[1]}"]["flow_max"] = vmax
+        data, param = compute_dual_pumps(data, param, m_eh_actual, m_wh_actual)
+
+    safety = float(grid.get("pump_safety_factor", 1.3))
+    if not np.isfinite(safety) or safety <= 0:
+        raise ValueError("pump_safety_factor muss positiv und endlich sein")
+    p_eh_kw = safety * max(c["EH1_power_max_W"] for c in cases.values()) / 1000.0
+    p_wh_kw = safety * max(c["WH1_power_max_W"] for c in cases.values()) / 1000.0
+    dp_eh = safety * max(c["EH1_dp_max_Pa"] for c in cases.values())
+    dp_wh = safety * max(c["WH1_dp_max_Pa"] for c in cases.values())
+
+    # Bestehende Kostenrechnung verwendet pump_power_design [kW].
+    # Nicht max(EH+WH), sondern Summe der einzeln ausgelegten Pumpen.
+    grid["pump_power_design"] = p_eh_kw + p_wh_kw
+    grid["dp_pump_max"] = max(dp_eh, dp_wh)
+    grid["pump_power_design_EH_kW"] = p_eh_kw
+    grid["pump_power_design_WH_kW"] = p_wh_kw
+    grid["dp_pump_design_EH_Pa"] = dp_eh
+    grid["dp_pump_design_WH_Pa"] = dp_wh
+    param["pump_design_cases"] = cases
+    param["pump_design_method"] = "EH_only_und_WH_max_vor_Pyomo"
+    # grid['P_pump'] und param['P_pump_*_W'] bleiben der aktuelle Betrieb.
+    return data, param
+
 
 def _safe_select_diameters(data, param):
     """Bestehende Dimensionierung mit abgesicherter Nullflussbehandlung."""
@@ -756,6 +904,489 @@ def _plot_industry_topology(data, folder: Path):
     plt.close(fig)
 
 
+def plot_industry_network_after_optimization(data):
+    """Visualisiert optimierte Clusterwochen hydraulisch, ohne das Netz zu verändern.
+
+    Jahreskarten sind mit den Clusterhäufigkeiten gewichtet; sie sind
+    KEINE validierte 8760-h-Nachrechnung. Rohr-DN und Pumpeninvestition
+    bleiben unverändert. Nur bei vorhandener 4G-Industrie aktiv.
+    """
+    if (data.heat_grid_data.get('heatgrid_generation') != '4G'
+            or not isinstance(getattr(data, 'industry_optimization', None), dict)):
+        return
+
+    param = getattr(data, '_industry_network_plot_param', None)
+    if param is None:
+        raise RuntimeError('Industrie-Postplot: Netzparameter wurden nicht gespeichert.')
+    result_by_year = getattr(data, 'resultsOptimization', None)
+    if not isinstance(result_by_year, dict) or not result_by_year:
+        raise RuntimeError('Industrie-Postplot erst nach optimizationClusters() aufrufen.')
+
+    from types import SimpleNamespace
+    import csv
+    import matplotlib.pyplot as plt
+    import matplotlib.colors as mcolors
+
+    dt_h = float(data.time['timeResolution']) / 3600.0
+    if abs(dt_h - 1.0) > 1e-12:
+        raise NotImplementedError('Industrie-Postplot benötigt Stundenwerte (3600 s).')
+    steps = int(round(float(data.time['clusterLength']) /
+                      float(data.time['timeResolution'])))
+    clusters = [int(c) for c in data.clusters]
+    if steps <= 0 or len(clusters) != int(data.time['clusterNumber']):
+        raise ValueError('Industrie-Postplot: Clusterkonfiguration ungültig.')
+
+    g = data.heat_grid_data
+    rho = float(g['fluid']['rho_f'])
+    cp = float(g['fluid']['c_f'])
+    pipe_keys = list(data.pipeline)
+    original_supply = np.asarray(g['T_supply_EH'], dtype=float)
+    original_return = np.asarray(g['T_return_EH'], dtype=float)
+    original_soil = np.asarray(g['T_soil'], dtype=float)
+    node_mass = {key: np.asarray(arr, dtype=float)
+                 for key, arr in param['building_massflow_HX'].items()}
+    if any(arr.shape != (8760,) for arr in [original_supply, original_return,
+                                            original_soil, *node_mass.values()]):
+        raise ValueError('Industrie-Postplot: originale Netzzeitreihen nicht 8760 Stunden.')
+    if sum(int(data.clusterWeights[c]) for c in clusters) * steps != 8736:
+        raise ValueError('Industrie-Postplot: erwartete 8736 Clusterstunden fehlen.')
+
+    root = (Path(data.resultPath) / 'network' /
+            f'{data.scenario_name}_road_2leiter_industrie' /
+            'nach_betriebsoptimierung')
+    root.mkdir(parents=True, exist_ok=True)
+
+    def _series(wh, field, n, *, divide=1000.0):
+        arr = np.asarray(wh[field], dtype=float) / divide
+        if arr.shape != (n,) or not np.isfinite(arr).all():
+            raise ValueError(f'Industrie-Postplot: {field} hat ungültige Form/Werte: {arr.shape}')
+        return arr
+
+    def _save_map(folder, rows, name, field, title, unit, decimals=2):
+        vals = np.array([r[field] for r in rows], dtype=float)
+        valid = np.isfinite(vals)
+        if not np.any(valid):
+            raise ValueError(f'Industrie-Postplot: keine gültigen Kartendaten für {field}')
+        a, b = float(vals[valid].min()), float(vals[valid].max())
+        if abs(b-a) < 1e-12:
+            b = a + 1.0
+        norm = mcolors.Normalize(vmin=a, vmax=b)
+        cmap = plt.get_cmap('viridis')
+        fig, ax = plt.subplots(figsize=(12, 9))
+        annotate = len(rows) <= 85
+        for rec in rows:
+            pipe = data.pipeline[rec['pipe_id']]
+            x1, y1 = pipe['from_pos']
+            x2, y2 = pipe['to_pos']
+            val = float(rec[field])
+            is_valid = np.isfinite(val)
+            # Für MWh/m undefinierte Null-Längen-Segmente neutral zeichnen;
+            # sie verzerren NICHT mehr Farbskala oder Textbeschriftungen.
+            color = cmap(norm(val)) if is_valid else '0.75'
+            ax.plot([x1, x2], [y1, y2], color=color, linewidth=3.0,
+                    solid_capstyle='round')
+            if annotate and is_valid:
+                ax.text((x1+x2)/2, (y1+y2)/2, f'{val:.{decimals}f}',
+                        fontsize=6, ha='center', va='center', alpha=.85)
+        sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
+        fig.colorbar(sm, ax=ax, label=unit, shrink=.72)
+        ax.set_aspect('equal', adjustable='datalim')
+        ax.set_xlabel('x [m]')
+        ax.set_ylabel('y [m]')
+        ax.set_title(title + '\nClustergewichtete Betriebsnäherung, 8736 h; keine 8760-h-Validierung')
+        ax.grid(alpha=.15)
+        fig.tight_layout()
+        stem = folder / name
+        fig.savefig(str(stem) + '.png', dpi=160)
+        fig.savefig(str(stem) + '.svg')
+        plt.close(fig)
+
+    # Vergleichsbasis: nur JAHR 0, danach unabhängiger Vergleich.
+    # Bei Basiswert ~0: absolute Toleranz statt nicht definierter Prozentzahl.
+    # Diese Schwellwerte können je nach Modellmaßstab angepasst werden.
+    annual_tolerance = {
+        'direct_MWh': 0.01,
+        'hp_heat_MWh': 0.01,
+        'gross_MWh': 0.01,
+        'net_MWh': 0.01,
+        'connection_loss_MWh': 0.01,
+        'pump_EH_MWh': 0.001,
+        'pump_WH_MWh': 0.001,
+    }
+    pipe_tolerance = {
+        'velocity_max_m_s': 0.001,
+        'pressure_gradient_max_Pa_m': 0.01,
+        'energy_density_MWh_m': 0.0001,
+        'heat_loss_density_MWh_m': 0.0001,
+        'reversal_h': 1.0,
+    }
+    profile_tolerance = {
+        'direct_kW': 0.05,
+        'hp_kW': 0.05,
+        'pump_EH_kW': 0.0001,
+        'pump_WH_kW': 0.0001,
+    }
+    plot_stems = (
+        'pipeline_velocity_postopt',
+        'pipeline_pressure_gradient_postopt',
+        'pipeline_energy_density_postopt',
+        'pipeline_heat_loss_density_postopt',
+        'pipeline_flow_reversal_postopt',
+        'industrie_und_pumpen_postopt',
+        'beispielwoche_industrie_pumpen',
+    )
+
+    def _test_delta(reference, current, near_zero_floor):
+        # Funktioniert für Skalare ebenso wie für komplette Zeitreihen.
+        # Bei Zeitreihen und Rohrfeldern wird das schlimmste Element erfasst.
+        ref = np.asarray(reference, dtype=float)
+        cur = np.asarray(current, dtype=float)
+        if ref.shape != cur.shape:
+            raise ValueError('Industrie-Postplot: Vergleiche erfordern gleiche Formen.')
+        delta = float(np.max(np.abs(cur - ref)))
+        ref_scale = float(np.max(np.abs(ref)))
+        if ref_scale < near_zero_floor:
+            threshold = float(near_zero_floor)
+            percent = None  # Jahr 0 nahe 0: prozentualer Vergleich unbestimmt
+        else:
+            threshold = 0.05 * ref_scale
+            percent = 100.0 * delta / ref_scale
+        return {
+            'max_abs_diff': delta,
+            'reference_scale': ref_scale,
+            'threshold_abs': threshold,
+            'deviation_percent': percent,
+            'over_5_percent': bool(delta > threshold),
+        }
+
+    baseline_annual = None
+    baseline_rows = None
+    baseline_profiles = None
+    comparison_report = []
+    year_entries = sorted(result_by_year.items(), key=lambda t: int(t[0]))
+    if not year_entries or int(year_entries[0][0]) != 0:
+        raise ValueError('Industrie-Postplot: Stützjahr 0 als Vergleichsbasis fehlt.')
+
+    for year, cluster_results in year_entries:
+        year = int(year)
+        folder = root / f'jahr_{year}'
+        accum = {key: dict(energy_MWh=0.0, heat_loss_MWh=0.0,
+                           velocity_max_m_s=0.0, pressure_gradient_max_Pa_m=0.0,
+                           reversal_h=0.0) for key in pipe_keys}
+        annual = dict(direct_MWh=0.0, hp_heat_MWh=0.0, gross_MWh=0.0,
+                      net_MWh=0.0, connection_loss_MWh=0.0,
+                      pump_EH_MWh=0.0, pump_WH_MWh=0.0)
+        example = None
+        example_gross = -1.0
+        profile_parts = {name: [] for name in profile_tolerance}
+        for c, medoid in enumerate(clusters):
+            wh = cluster_results[c].get('industrial_wh')
+            if not isinstance(wh, dict):
+                raise ValueError(f'Industrie-Postplot: industrial_wh fehlt für Jahr {year}, Cluster {c}.')
+            direct_matrix = np.asarray(wh['direct_W'], dtype=float) / 1000.0
+            hp_matrix = np.asarray(wh['hp_output_W'], dtype=float) / 1000.0
+            if (direct_matrix.ndim != 2 or hp_matrix.shape != direct_matrix.shape or
+                    direct_matrix.shape[1] != steps or
+                    not np.isfinite(direct_matrix).all() or not np.isfinite(hp_matrix).all()):
+                raise ValueError(f'Industrie-Postplot: Quellmatrizen ungültig in Jahr {year}, Cluster {c}.')
+            gross = _series(wh, 'gross_W', steps)
+            net = _series(wh, 'net_W', steps)
+            wh_loss_opti = _series(wh, 'connection_loss_W', steps)
+            if (not np.allclose(direct_matrix.sum(axis=0) + hp_matrix.sum(axis=0), gross, atol=.01)
+                    or not np.allclose(gross - net, wh_loss_opti, atol=.01)):
+                raise ValueError(f'Industrie-Postplot: Pyomo-Wärmebilanz in Jahr {year}, Cluster {c} inkonsistent.')
+
+            start = medoid * steps
+            sl = slice(start, start + steps)
+            if start < 0 or start + steps > 8760:
+                raise ValueError(f'Industrie-Postplot: ungültiges Zeitfenster Cluster {c}.')
+            weight = int(data.clusterWeights[medoid])
+            if weight <= 0:
+                raise ValueError(f'Industrie-Postplot: ungültiges Clustergewicht {weight}.')
+            delta_t = original_supply[sl] - original_return[sl]
+            if np.any((gross > 1e-9) & (delta_t <= 1e-9)):
+                raise ValueError(f'Industrie-Postplot: kein Temperaturhub in Jahr {year}, Cluster {c}.')
+            m_wh = np.divide(gross*1000.0, cp*delta_t,
+                             out=np.zeros_like(gross), where=delta_t > 1e-9)
+            buildings = {node: arr[sl] for node, arr in node_mass.items()}
+            m_build = sum(buildings.values(), np.zeros(steps))
+            if (m_wh > m_build + 1e-4).any():
+                raise ValueError(f'Industrie-Postplot: WH1 übersteigt die Gebäudemassenströme (Jahr {year}, Cluster {c}).')
+            flows, m_eh = signed_flows_on_tree(data.pipeline_topology, buildings, m_wh)
+
+            # Unabhängige 168h-Arbeitskopie: weder DN, Pumpeninvestition,
+            # voroptimierte P_pump-Zeitreihe noch KPI-Bilanz überschreiben.
+            week_grid = dict(g)
+            week_grid['T_soil'] = original_soil[sl]
+            week_grid['T_supply_EH'] = original_supply[sl]
+            week_grid['T_return_EH'] = original_return[sl]
+            week = SimpleNamespace(
+                heat_grid_data=week_grid,
+                pipeline={key: dict(pipe) for key, pipe in data.pipeline.items()},
+                pipeline_topology=data.pipeline_topology,
+            )
+            p_week = dict(param)
+            p_week['heat_loss_substation'] = np.asarray(param['heat_loss_substation'], dtype=float)[sl]
+            _apply_signed_flows(week, p_week, flows)
+            week, p_week = single.calc_heat_loss_pipe_simple_2leiter(week, p_week)
+            connection_loss_kW, _ = _correct_wh_connection_losses(week, p_week)
+            if not np.allclose(connection_loss_kW, wh_loss_opti, atol=.05, rtol=1e-5):
+                raise ValueError(
+                    f'Industrie-Postplot: WH1-Leitungsverlust weicht von Pyomo ab '
+                    f'(Jahr {year}, Cluster {c}, max '
+                    f'{np.max(np.abs(connection_loss_kW-wh_loss_opti)):.3f} kW).'
+                )
+            week, p_week = compute_dual_pumps(week, p_week, m_eh, m_wh)
+            annual['direct_MWh'] += weight*float(direct_matrix.sum())/1000.0
+            annual['hp_heat_MWh'] += weight*float(hp_matrix.sum())/1000.0
+            annual['gross_MWh'] += weight*float(gross.sum())/1000.0
+            annual['net_MWh'] += weight*float(net.sum())/1000.0
+            annual['connection_loss_MWh'] += weight*float(wh_loss_opti.sum())/1000.0
+            annual['pump_EH_MWh'] += weight*float(np.sum(p_week['P_pump_EH_W']))/1e6
+            annual['pump_WH_MWh'] += weight*float(np.sum(p_week['P_pump_WH_W']))/1e6
+            # Stundenprofile: dieselben acht Medoid-Wochen in allen Stützjahren.
+            # Damit lösen auch veränderte Fahrpläne bei gleicher Jahressumme aus.
+            profile_parts['direct_kW'].append(direct_matrix.sum(axis=0).copy())
+            profile_parts['hp_kW'].append(hp_matrix.sum(axis=0).copy())
+            profile_parts['pump_EH_kW'].append(
+                np.asarray(p_week['P_pump_EH_W'], dtype=float).copy()/1000.0)
+            profile_parts['pump_WH_kW'].append(
+                np.asarray(p_week['P_pump_WH_W'], dtype=float).copy()/1000.0)
+
+            # Stündliche Belastungen der optimierten repräsentativen Woche.
+            for pipe_id, p in week.pipeline.items():
+                dest = accum[pipe_id]
+                q = np.asarray(p['flow'], dtype=float)
+                d = float(p['d_i'])/1000.0
+                if d <= 0:
+                    raise ValueError(f'Unzulässiger Rohrdurchmesser in {pipe_id}')
+                v = abs(q)/(np.pi*d*d/4.0)
+                vmax = float(np.max(v))
+                f = float(p.get('f_fric', g['pipe'].get('f_fric', .02)))
+                grad = f*rho*vmax*vmax/(2.0*d)  # Original: ein Rohr, reine Reibung.
+                dest['velocity_max_m_s'] = max(dest['velocity_max_m_s'], vmax)
+                dest['pressure_gradient_max_Pa_m'] = max(dest['pressure_gradient_max_Pa_m'], grad)
+                dest['reversal_h'] += weight*float(np.count_nonzero(q < -1e-12))
+                dest['energy_MWh'] += weight*float(np.sum(cp*rho*abs(q)*delta_t))/1e6
+                dest['heat_loss_MWh'] += weight*float(np.sum(p['heat_loss_pipe']))/1000.0
+
+            # Ein beispielhafter Cluster je Jahr: der mit der höchsten WH-Bruttowärme.
+            if float(gross.sum()) > example_gross:
+                example_gross = float(gross.sum())
+                example = dict(cluster=c, medoid=medoid, direct=direct_matrix.sum(axis=0),
+                               hp=hp_matrix.sum(axis=0), gross=gross,
+                               p_eh=p_week['P_pump_EH_W']/1000.0,
+                               p_wh=p_week['P_pump_WH_W']/1000.0)
+
+        hours = steps*sum(int(data.clusterWeights[c]) for c in clusters)
+        annual['modelled_h'] = hours
+        annual['method'] = 'cluster-weighted representative week hydraulics, not 8760h dispatch'
+        annual['year'] = year
+        rows = []
+        for key in pipe_keys:
+            p = data.pipeline[key]
+            x = accum[key]
+            length = float(p['length'])
+            if not np.isfinite(length) or length < 0.0:
+                raise ValueError(f'Industrie-Postplot: ungültige Rohrlänge {length} in {key}')
+
+            # Unter 1 mm ist eine längenbezogene Kennzahl für ein
+            # Rohrsegment hier nicht aussagekräftig. Solche Segmente
+            # bleiben hydraulisch unverändert im Netz erhalten.
+            valid_length = length >= 1e-3
+            if not valid_length and year == 0:
+                print(f'[WH1-POSTPLOT] Verbindungskante {key}: '
+                      f'Länge {length:.3e} m; '
+                      'MWh/m in Diagramm und Vergleich ausgeschlossen.')
+
+            rows.append(dict(
+                pipe_id=key,
+                DN=p['DN'],
+                length_m=length,
+                energy_density_MWh_m=(x['energy_MWh'] / length
+                                      if valid_length else float('nan')),
+                heat_loss_density_MWh_m=(x['heat_loss_MWh'] / length
+                                         if valid_length else float('nan')),
+                velocity_max_m_s=x['velocity_max_m_s'],
+                pressure_gradient_max_Pa_m=x['pressure_gradient_max_Pa_m'],
+                reversal_h=x['reversal_h'],
+            ))
+
+        # Jedes Jahr wurde bis hierher vollständig hydraulisch nachgerechnet.
+        # Jetzt wird entschieden, ob die Diagramme tatsächlich nötig sind.
+        profiles = {name: np.concatenate(chunks)
+                    for name, chunks in profile_parts.items()}
+        details = []
+        if year == 0:
+            baseline_annual = {key: float(annual[key]) for key in annual_tolerance}
+            baseline_rows = {
+                str(row['pipe_id']): {key: float(row[key]) for key in pipe_tolerance}
+                for row in rows
+            }
+            baseline_profiles = {key: value.copy() for key, value in profiles.items()}
+            make_plots = True
+        else:
+            for key, floor in annual_tolerance.items():
+                item = _test_delta(baseline_annual[key], annual[key], floor)
+                item.update(group='jahreswert', field=key)
+                details.append(item)
+
+            for key, floor in pipe_tolerance.items():
+                # Ein einziges relevantes Rohr darf einen zusätzlichen
+                # Diagrammsatz auslösen; keine Mittelung über alle Rohre.
+                pipe_checks = []
+                for row in rows:
+                    pid = str(row['pipe_id'])
+                    if pid not in baseline_rows:
+                        raise ValueError(f'Industrie-Postplot: Rohr {pid} nicht in Jahr 0.')
+                    reference_value = baseline_rows[pid][key]
+                    current_value = row[key]
+                    valid_ref = np.isfinite(reference_value)
+                    valid_cur = np.isfinite(current_value)
+                    if not valid_ref or not valid_cur:
+                        if valid_ref != valid_cur:
+                            raise ValueError(
+                                f'Industrie-Postplot: Gültigkeit von {key} '
+                                f'für Rohr {pid} hat sich gegenüber Jahr 0 geändert.'
+                            )
+                        # Beide Werte sind nicht definiert: nicht vergleichen.
+                        continue
+                    item = _test_delta(reference_value, current_value, floor)
+                    item['pipe_id'] = pid
+                    pipe_checks.append(item)
+                if not pipe_checks:
+                    continue
+                worst = max(pipe_checks,
+                            key=lambda item: item['max_abs_diff'] /
+                                             max(item['threshold_abs'], 1e-30))
+                # Der Quotient berücksichtigt die individuelle 5-%-Grenze
+                # jedes Rohres, nicht den größten Netzbezugswert.
+                worst.update(group='rohr', field=key)
+                details.append(worst)
+
+            for key, floor in profile_tolerance.items():
+                item = _test_delta(baseline_profiles[key], profiles[key], floor)
+                item.update(group='stundenprofil', field=key)
+                details.append(item)
+            make_plots = any(item['over_5_percent'] for item in details)
+
+        triggers = [f"{item['group']}.{item['field']}"
+                    + (f" (Rohr {item['pipe_id']})" if 'pipe_id' in item else '')
+                    for item in details if item['over_5_percent']]
+        comparison_report.append({
+            'year': year,
+            'reference_year': 0,
+            'plots_created': bool(make_plots),
+            'reasons': triggers if year != 0 else ['Referenzjahr: immer plotten'],
+            'checks': details,
+        })
+        if not make_plots:
+            # Nur bekannte, von dieser Funktion erzeugte Alt-Dateien löschen,
+            # damit keine veralteten Diagramme eines früheren Laufs verbleiben.
+            if folder.is_dir():
+                for stem in plot_stems:
+                    for ext in ('.png', '.svg'):
+                        old_file = folder / (stem + ext)
+                        if old_file.is_file():
+                            old_file.unlink()
+                for fname in ('rohrwerte_postopt.csv',
+                              'jahresuebersicht_postopt.json'):
+                    old_file = folder / fname
+                    if old_file.is_file():
+                        old_file.unlink()
+                if not any(folder.iterdir()):
+                    folder.rmdir()
+            print(f'[WH1-POSTPLOT] Jahr {year}: <=5 % gegenüber Jahr 0; '
+                  'keine zusätzlichen Diagramme.')
+            continue
+
+        folder.mkdir(parents=True, exist_ok=True)
+        if year != 0:
+            print(f'[WH1-POSTPLOT] Jahr {year}: >5 % gegenüber Jahr 0 in '
+                  + ', '.join(triggers[:5])
+                  + (' ...' if len(triggers) > 5 else ''))
+
+        maps = (
+            ('pipeline_velocity_postopt', 'velocity_max_m_s',
+             'Maximale Strömungsgeschwindigkeit in den Optimierungswochen', 'm/s', 2),
+            ('pipeline_pressure_gradient_postopt', 'pressure_gradient_max_Pa_m',
+             'Maximaler Rohrreibungs-Druckgradient in den Optimierungswochen', 'Pa/m (ein Rohr)', 1),
+            ('pipeline_energy_density_postopt', 'energy_density_MWh_m',
+             'Rohr-Energiedichte, clustergewichtet', 'MWh/m (8736 h)', 2),
+            ('pipeline_heat_loss_density_postopt', 'heat_loss_density_MWh_m',
+             'Rohr-Wärmeverlustdichte, clustergewichtet', 'MWh/m (8736 h)', 2),
+            ('pipeline_flow_reversal_postopt', 'reversal_h',
+             'Stunden mit Strömung entgegen der Netzreferenzrichtung',
+             'h (clustergewichtet, 8736 h)', 0),
+        )
+        for name, field, title, unit, precision in maps:
+            _save_map(folder, rows, name, field, title, unit, precision)
+
+        with (folder/'rohrwerte_postopt.csv').open('w', newline='', encoding='utf-8-sig') as f:
+            writer = csv.DictWriter(f, fieldnames=list(rows[0]), delimiter=';')
+            writer.writeheader()
+            writer.writerows(rows)
+        with (folder/'jahresuebersicht_postopt.json').open('w', encoding='utf-8') as f:
+            json.dump(annual, f, indent=2, ensure_ascii=False)
+
+        fig, axs = plt.subplots(1, 2, figsize=(11, 4))
+        axs[0].bar(0, annual['direct_MWh'], label='Direkt', color='tab:orange')
+        axs[0].bar(0, annual['hp_heat_MWh'], bottom=annual['direct_MWh'],
+                   label='Industrie-WP', color='tab:red')
+        axs[0].bar(1, annual['net_MWh'], label='Netto am Quartier', color='tab:blue')
+        axs[0].bar(1, annual['connection_loss_MWh'], bottom=annual['net_MWh'],
+                   label='WH1-Leitungsverlust', color='tab:gray')
+        axs[0].set_xticks([0, 1], ['WH1 erzeugt', 'WH1 verteilt'])
+        axs[0].set_ylabel('MWh pro 8736 Modellstunden')
+        axs[0].legend(fontsize=8)
+        axs[1].bar(['EH1', 'WH1'], [annual['pump_EH_MWh'], annual['pump_WH_MWh']],
+                   color=['tab:blue', 'tab:orange'])
+        axs[1].set_ylabel('Pumpenstrom [MWh je 8736 Modellstunden]')
+        fig.suptitle(f'Industrie/Netz – optimierter Betrieb Stützjahr {year}\n'
+                     'Clustergewichtete Jahresnäherung (keine 8760-h-Simulation)')
+        fig.tight_layout()
+        fig.savefig(folder/'industrie_und_pumpen_postopt.png', dpi=160)
+        fig.savefig(folder/'industrie_und_pumpen_postopt.svg')
+        plt.close(fig)
+
+        fig, axs = plt.subplots(2, 1, figsize=(12, 7), sharex=True)
+        x = np.arange(steps)
+        axs[0].stackplot(x, example['direct'], example['hp'],
+                         labels=['Direktwärme', 'Industrie-WP'],
+                         colors=['tab:orange', 'tab:red'], alpha=.8)
+        axs[0].set_ylabel('WH1-Brutto [kW]')
+        axs[0].legend(loc='upper right')
+        axs[1].plot(x, example['p_eh'], label='EH1-Pumpe', color='tab:blue')
+        axs[1].plot(x, example['p_wh'], label='WH1-Pumpe', color='tab:orange')
+        axs[1].set_xlabel('Stunde der repräsentativen Woche')
+        axs[1].set_ylabel('Elektrische Pumpenleistung [kW]')
+        axs[1].legend(loc='upper right')
+        axs[1].grid(alpha=.2)
+        fig.suptitle(f'Optimierter Wochenbetrieb Jahr {year}, Cluster {example["cluster"]} '
+                     f'(Originalwoche {example["medoid"]})')
+        fig.tight_layout()
+        fig.savefig(folder/'beispielwoche_industrie_pumpen.png', dpi=160)
+        fig.savefig(folder/'beispielwoche_industrie_pumpen.svg')
+        plt.close(fig)
+        print(f'[WH1-POSTPLOT] Jahr {year}: {len(maps)} neue Rohrkarten und '
+              f'2 Betriebsdiagramme erzeugt ({hours} clustergewichtete Stunden) -> {folder}')
+
+    # Ein Vergleichsprotokoll wird IMMER geschrieben, auch für übersprungene Jahre.
+    with (root / 'vergleich_stuetzjahre_gegen_jahr_0.json').open(
+            'w', encoding='utf-8') as handle:
+        json.dump({
+            'reference_year': 0,
+            'relative_threshold_percent': 5.0,
+            'comparison': 'je Stützjahr einzeln gegen Jahr 0',
+            'near_zero_rule': 'Abweichung > absolute Toleranz',
+            'annual_zero_floors': annual_tolerance,
+            'pipe_zero_floors': pipe_tolerance,
+            'profile_zero_floors': profile_tolerance,
+            'year_decisions': comparison_report,
+        }, handle, ensure_ascii=False, indent=2)
+
+
+
 def network_2leiter_industrie(
         data, *, heat_mode=None, dispatch_mode=None,
         optimized_direct_kW=None, optimized_hp_kW=None,
@@ -820,6 +1451,15 @@ def network_2leiter_industrie(
     envelope = build_industry_envelope(industry, t_sup, heat_mode=mode_heat,
                                        direct_approach_K=approach, hp_eta_carnot=eta)
     envelope["hp_total_capacity_kW"] = max_hp
+    # Quelle fuer Quelle: Gegenstrom-LMTD/UA wie Gebaeude-HX.
+    hx_specs = calculate_source_hx_specs(
+        industry,
+        supply_C=t_sup,
+        return_C=t_ret,
+        direct_max_kW=envelope["direct_max_kW"],
+        demand_cap_kW=demand_dispatch_cap,
+        hot_approach_K=approach,
+    )
     forced_possible = dispatch_industrial_heat(
         industry,
         t_sup,
@@ -952,9 +1592,10 @@ def network_2leiter_industrie(
         data, param
     )
 
-    # Pumpenleistung weiterhin vereinfacht berechnen
-    data, param = compute_dual_pumps(
-        data, param, m_eh, m_wh
+    # Pumpenleistung vereinfacht berechnen
+    data, param = design_pumps_two_scenarios(
+        data, param, param["building_massflow_HX"], m_wh_design,
+        flows, m_eh, m_wh
     )
 
     # Brutto-Wärmeleistung am Ausgang der Industrieanlage
@@ -1048,6 +1689,10 @@ def network_2leiter_industrie(
         source_input_kW=envelope["source_input_kW"],
         hp_max_output_kw=np.array([np.nan if max_hp is None else float(max_hp)]),
         demand_massflow_cap_kW=param["industry_dispatch_demand_cap_kW"],
+        hx_factor_kW_per_kW=hx_specs["hx_factor"],
+        hx_max_design_capacity_kW=hx_specs["hx_cap_upper"],
+        hx_UA_W_K_per_kW=hx_specs["hx_UA_per_kW"],
+        hx_q_number=hx_specs["hx_q_number"],
     )
     np.savez_compressed(
         folder / "industrie_mehrquellen_zeitreihen_8760.npz",
@@ -1104,4 +1749,7 @@ def network_2leiter_industrie(
           f"am Quartier {float(Q_ind_received.sum())/1e6:.3f} GWh/a; "
           f"EH-Rest {float(Q_eh.sum())/1e6:.3f} GWh/a; "
           f"Optimierung ausstehend={pending}")
+    # Nur für die spätere Post-Pyomo-Auswertung der optimierten Cluster.
+    # Keine neuen Dateien; param bleibt im laufenden Datahandler erreichbar.
+    data._industry_network_plot_param = param
     return data, param

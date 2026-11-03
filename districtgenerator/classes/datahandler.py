@@ -36,7 +36,7 @@ from districtgenerator.functions.design_network_with_node import run_pipeline_no
 from districtgenerator.functions.design_network_with_road import run_pipeline_road
 from districtgenerator.functions.heating_network_simple import calculate_soil_temperature
 from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig, ReportConfig
-from districtgenerator.functions.heating_network_2leiter_industrie import network_2leiter_industrie
+from districtgenerator.functions.heating_network_2leiter_industrie import network_2leiter_industrie, plot_industry_network_after_optimization
 from districtgenerator.functions import industrie_optimierung_bridge as industrie_opt
 
 class Datahandler:
@@ -2265,6 +2265,10 @@ class Datahandler:
 
             error_message += "\nPlease check the corresponding 'errorfile_opti_central_*.txt' and '.ilp' files in the 'optimization_results' directory for further information."
             raise Exception(error_message)
+
+        # Nur für 4G-Industrieszenarien: hydraulische Cluster-Nachauswertung.
+        if getattr(self, "_industry_network_plot_param", None) is not None:
+            plot_industry_network_after_optimization(self)
 
     def calculate_ecoData_per_cluster(self):
         ecoData = self.ecoData

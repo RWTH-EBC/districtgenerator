@@ -3905,6 +3905,9 @@ class DataExtractor(ReportComponent):
             language = self.data.report_config.get("language", "de")
             name = "Industrial heat pump" if language == "en" else "Industrie-Wärmepumpe"
             return name, "W<sub>th</sub>"
+        if dev.startswith('Industry_HX_'):
+            parts = dev.split('_')
+            return f'Industrie-Wärmeübertrager {parts[2]} / Quelle {parts[3]}', 'W<sub>th</sub>'
         name = self.translate(f"device_{dev}")
         unit = device_unit_map.get(dev, "W")
 

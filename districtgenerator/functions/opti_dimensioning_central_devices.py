@@ -663,7 +663,11 @@ def build_model(model, data, devs, param, dem):
 
 
     # Combined total annualized investment and O&M costs for all devices
-    model.constraints.add(model.total_annual_costs_devices == sum(model.c_total[dev] for dev in model.all_devs) + (model.wh_annual_capex if wh is not None else 0))
+    model.constraints.add(
+        model.total_annual_costs_devices
+        == sum(model.c_total[dev] for dev in model.all_devs)
+        + ((model.wh_annual_capex + model.wh_hx_annual_cost) if wh is not None else 0)
+    )
 
     # Heat grid costs
     model.constraints.add(model.heat_grid_costs == data.heat_grid_data["ann_costs"] + data.heat_grid_data["om_costs"])
@@ -825,6 +829,13 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     if hasattr(model, "wh_hp_cap"):
         result_dict["industry_hp_capacity_kW"] = float(pyo.value(model.wh_hp_cap))
         result_dict["industry_hp_annuity_EUR_a"] = float(pyo.value(model.wh_annual_capex))
+    result_dict['industry_hx_capacities_kW'] = [
+        float(pyo.value(model.wh_hx_cap[s])) for s in model.wh_sources
+    ]
+    result_dict['industry_hx_q_codes'] = list(model.wh_hx_q_codes)
+    result_dict['industry_hx_annual_cost_EUR_a'] = float(
+        pyo.value(model.wh_hx_annual_cost)
+    )
     result_dict["tac"] = int(safe_value_single(model.obj_tac))  # EUR/a
     result_dict["co2"] = int(safe_value_single(model.obj_co2))  #  kg over full horizon
 
@@ -870,6 +881,27 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
         result_dict["total_ann_inv_cost"] += int(round(wh_ann_inv))
         result_dict["total_ann_inv_cost_unsubsidized"] += int(round(wh_ann_inv))
         result_dict["total_om_cost"] += int(round(wh_om))
+
+    if hasattr(model, 'wh_hx_cap'):
+        hx_cap = [float(pyo.value(model.wh_hx_cap[s]))
+                  for s in model.wh_sources]
+        hx_built = [float(pyo.value(model.wh_hx_built[s]))
+                    for s in model.wh_sources]
+        hx_inv = [hx_cap[int(s)] * model.wh_hx_inv_per_kw[int(s)]
+                  for s in model.wh_sources]
+        hx_ann = [hx_inv[int(s)] * model.wh_hx_ann_factor[int(s)]
+                  for s in model.wh_sources]
+        hx_om = [hx_built[int(s)] * model.wh_hx_om_per_year[int(s)]
+                 for s in model.wh_sources]
+        result_dict['industry_hx_investment_EUR_by_source'] = hx_inv
+        result_dict['industry_hx_annuity_EUR_a_by_source'] = hx_ann
+        result_dict['industry_hx_om_EUR_a_by_source'] = hx_om
+        result_dict['industry_hx_total_annual_cost_EUR_a'] = sum(hx_ann) + sum(hx_om)
+        result_dict['total_inv_cost'] += int(round(sum(hx_inv)))
+        result_dict['total_inv_cost_unsubsidized'] += int(round(sum(hx_inv)))
+        result_dict['total_ann_inv_cost'] += int(round(sum(hx_ann)))
+        result_dict['total_ann_inv_cost_unsubsidized'] += int(round(sum(hx_ann)))
+        result_dict['total_om_cost'] += int(round(sum(hx_om)))
 
     # Total energy imports and exports - per support year
     result_dict["from_el_grid_total_by_year"] = {y: int(safe_value(model.from_el_grid_total, y) / 1000) for y in model.support_years} #MWh

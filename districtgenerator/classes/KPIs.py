@@ -558,6 +558,23 @@ class KPIs:
             self.annual_fixed_costs_central = 0
             self.annual_fixed_costs_central_unsubsidized = 0
 
+        if (isinstance(getattr(data, 'industry_optimization', None), dict)
+                and data.heat_grid_data.get('heatgrid_generation') == '4G'):
+            caps = getattr(data, 'centralDevices', {}).get('capacities', {})
+            names = caps.get('industry_hx_q_codes', [])
+            sizes = caps.get('industry_hx_capacities_kW', [])
+            ann = caps.get('industry_hx_annuity_EUR_a_by_source', [])
+            om = caps.get('industry_hx_om_EUR_a_by_source', [])
+            for idx, (q, size, a, o) in enumerate(zip(names, sizes, ann, om), start=1):
+                if float(size) <= 1e-9:
+                    continue
+                self.central_individual_devices_annualized_cost[f'Industry_HX_{q}_{idx}'] = {
+                    'cap': float(size),
+                    'subsidized_annual_cost': float(a) + float(o),
+                    'unsubsidized_annual_cost': float(a) + float(o),
+                }
+
+
     def calculateDetailedCostsPerYear(self, data):
         """Calculate the detailed costs for each simulated year."""
         self.detailed_costs_year = {}
@@ -965,6 +982,11 @@ class KPIs:
 
             heat_devices = {"TES", "EB", "FC", "WBOI", "WCHP", "BBOI", "BCHP", "HP", "GHP", "BOI", "CHP", "STC", "Industry_HP"}
 
+            heat_devices |= {
+                k for k in self.central_individual_devices_annualized_cost
+                if k.startswith('Industry_HX_')
+            }
+
             # Central heat-producing devices only
             for dev, info in self.central_individual_devices_annualized_cost.items():
                 if dev in heat_devices:
@@ -1325,6 +1347,11 @@ class KPIs:
             "hp_investment_EUR": float(caps.get("industry_hp_investment_EUR", 0.0)),
             "hp_annual_cost_EUR_a": float(caps.get("industry_hp_annuity_EUR_a", 0.0)),
             "hp_om_EUR_a": float(caps.get("industry_hp_annual_om_EUR_a", 0.0)),
+            'hx_capacities_kW': list(caps.get('industry_hx_capacities_kW', [])),
+            'hx_q_codes': list(caps.get('industry_hx_q_codes', [])),
+            'hx_annual_cost_EUR_a': float(caps.get('industry_hx_annual_cost_EUR_a', 0.0)),
+            'hx_investment_EUR': float(sum(caps.get('industry_hx_investment_EUR_by_source', []))),
+            'hx_annual_om_EUR_a': float(sum(caps.get('industry_hx_om_EUR_a_by_source', []))),
         }
 
         heat_total_MWh = (float(self.total_heating_demand) + float(self.total_dhw_demand)) * dt_h / 1000000.0
@@ -1510,6 +1537,12 @@ class KPIs:
             kpi_data_static["Industry HP Initial Investment (EUR)"] = ind_static["hp_investment_EUR"]
             kpi_data_static["Industry HP Annual Capacity Cost (EUR/a)"] = ind_static["hp_annual_cost_EUR_a"]
             kpi_data_static["Industry HP Annual O&M (EUR/a), already in capacity cost"] = ind_static["hp_om_EUR_a"]
+            kpi_data_static['Industry HX Installed Capacity (kW)'] = sum(ind_static['hx_capacities_kW'])
+            kpi_data_static['Industry HX Initial Investment (EUR)'] = ind_static['hx_investment_EUR']
+            kpi_data_static['Industry HX Annual Cost (EUR/a)'] = ind_static['hx_annual_cost_EUR_a']
+            kpi_data_static['Industry HX Annual O&M (EUR/a)'] = ind_static['hx_annual_om_EUR_a']
+            for idx, (q, cap) in enumerate(zip(ind_static['hx_q_codes'], ind_static['hx_capacities_kW']), start=1):
+                kpi_data_static[f'Industry HX Source {idx} {q} Capacity (kW)'] = cap
             kpi_data_static["Industry KPI Basis"] = "Gewichtete repräsentative Wochen; nicht 8760h-validiert"
         kpi_data_static["Residential Area (m²)"] = self.totalarea_residential
         kpi_data_static["Non-Residential Area (m²)"] = self.totalarea_non_residential
