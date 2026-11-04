@@ -63,7 +63,13 @@ class LocationConfig(BaseSettings):
     buildingMax_W: float = 50000.0  # Per-building maximum import/export at the building PCC. (Watt)
 
 
-    ALLOWED_TRY_YEARS: ClassVar[Set[str]] = {"TRY2015", "TRY2045"}
+    # File format of each DWD test reference year: first data row (after the header)
+    # and weekday of January 1st (0 = Monday). Not settable via .env, it describes the files.
+    TRY_FORMATS: ClassVar[Dict[str, Dict[str, int]]] = {
+        "TRY2015": {"first_row": 35, "initial_day": 3},  # Thursday
+        "TRY2045": {"first_row": 37, "initial_day": 6},  # Sunday
+    }
+    ALLOWED_TRY_YEARS: ClassVar[Set[str]] = set(TRY_FORMATS)  # keys of TRY_FORMATS
     ALLOWED_TRY_TYPES: ClassVar[Set[str]] = {"Jahr", "Somm", "Wint"}
 
     model_config = SettingsConfigDict(
