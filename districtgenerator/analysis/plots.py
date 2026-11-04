@@ -5,7 +5,7 @@ import numpy as np
 from datetime import datetime
 import sys
 import os
-from districtgenerator.utilities.paths import PACKAGE_DIR
+from districtgenerator.utilities.paths import RESULTS_DIR
 
 
 class DemandPlots:
@@ -23,11 +23,7 @@ class DemandPlots:
         None.
         """
 
-        self.srcPath = PACKAGE_DIR
-        if resultPath is not None:
-            self.resultPath = resultPath
-        else:
-            self.resultPath = os.path.join(self.srcPath, 'results')
+        self.resultPath = resultPath if resultPath is not None else RESULTS_DIR
 
     def preparePlots(self, data):
         """

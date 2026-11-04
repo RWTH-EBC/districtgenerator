@@ -6,6 +6,7 @@ import os
 import numpy as np
 
 from districtgenerator.environment.site import get_holidays, select_plz_data
+from districtgenerator.utilities.paths import DATA_DIR
 
 
 def load_weather(data):
@@ -38,12 +39,11 @@ def load_weather(data):
     select_plz_data(data)
     # load weather data
     # select the correct file depending on the TRY weather station location
-    weatherData = np.loadtxt(os.path.join(data.filePath, "weather", "TRY_" + data.site["TRYYear"][-4:] + "_" + data.site["TRYType"])
-        + "/"
-        + data.site["TRYYear"] + "_"
-        + str(data.site["Location"]) + "_" + str(data.site["TRYType"])
-        + ".dat",
-        skiprows=first_row - 1)
+    weatherData = np.loadtxt(os.path.join(DATA_DIR, "weather",
+                                          "TRY_" + data.site["TRYYear"][-4:] + "_" + data.site["TRYType"],
+                                          data.site["TRYYear"] + "_" + str(data.site["Location"]) + "_"
+                                          + str(data.site["TRYType"]) + ".dat"),
+                             skiprows=first_row - 1)
 
     """
     # Use this function to load old TRY-weather data

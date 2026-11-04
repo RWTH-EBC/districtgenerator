@@ -3,11 +3,12 @@
 import numpy as np
 import os
 import math
+import warnings
 from itertools import zip_longest
 from districtgenerator.analysis.certificate import CertificateBuilder
 from districtgenerator.economics import annuity
 import pandas as pd
-from districtgenerator.utilities.paths import PACKAGE_DIR
+from districtgenerator.utilities.paths import RESULTS_DIR
 
 # Unit lookup for device capacities in the KPI export tables (saveKPIs); default is "kW" for anything not listed.
 DECENTRAL_DEVICE_UNIT_MAP = {"TES": "Liter", "TES_DHW": "Liter", "BAT": "kWh", "EV": "kWh", "PV": "m²", "STC": "m²"}
@@ -147,9 +148,6 @@ class KPIs:
         electricityGeneration_cluster = []
         electricityGenerationRenewable_cluster = []
         lossesBattery_cumulated_cluster = []
-        # Load data of decentral devices (to calculate battery losses)
-        srcPath = PACKAGE_DIR
-
         self.sum_res_load = {}
         self.sum_res_inj = {}
         self.sum_res_gas = {}
@@ -1338,9 +1336,8 @@ class KPIs:
                 df[df.columns] = df[df.columns].map(self._round_sig)
 
         if result_path is None:
-            src_path = PACKAGE_DIR
-            result_path = os.path.join(src_path, "results")
-            raise Warning(f"Result path not provided. Saving KPIs to default location: {result_path}")
+            result_path = RESULTS_DIR
+            warnings.warn(f"Result path not provided. Saving KPIs to default location: {result_path}")
 
 
         # Save to Excel with four sheets (or three if no central devices)

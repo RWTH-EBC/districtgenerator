@@ -16,7 +16,7 @@ import richardsonpy.classes.lighting as light_model
 from districtgenerator.buildings.typology.non_residential import GenericNonResidential
 from districtgenerator.buildings import thermal
 from districtgenerator.utilities.randomness import derive_seed, seeded_random_state
-from districtgenerator.utilities.paths import PACKAGE_DIR
+from districtgenerator.utilities.paths import DATA_DIR
 
 RES_BUILDINGS = {"SFH", "TH", "MFH", "AB"}
 FLAT_PARALLELIZATION_OPTIONS = ("none", "threading", "multiprocessing")
@@ -539,7 +539,7 @@ class Users:
                 bulbs_combination = "combi_2"
 
             try:
-                with open(os.path.join(PACKAGE_DIR, 'data', 'non_residential',
+                with open(os.path.join(DATA_DIR, 'non_residential',
                             file_name)) as json_file:
                     jsonData = json.load(json_file)
             except FileNotFoundError:

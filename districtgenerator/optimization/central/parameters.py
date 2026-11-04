@@ -23,6 +23,7 @@ from districtgenerator.environment.solar import Sun
 from districtgenerator.economics import annuity
 from districtgenerator.energy_systems import technologies, wind_turbine
 from districtgenerator.energy_systems.technologies import calc_COP
+from districtgenerator.utilities.paths import DATA_DIR
 
 def get_params(data):
 
@@ -808,10 +809,9 @@ def calc_monthly_dem(dem_uncl, param_uncl, result_dict):
 
 def get_PVandSTC_power(devs, param, data):
 
-    filePath = data.filePath
     time = data.time
     site = data.site
-    sun = Sun(filePath=filePath)
+    sun = Sun(filePath=DATA_DIR)
 
     potentialPV, _ = technologies.calc_pv_and_stc_profile(sun=sun, time=time,
                                                           site=site,

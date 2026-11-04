@@ -19,7 +19,7 @@ import os
 import json
 from dataclasses import dataclass
 from typing import List
-from districtgenerator.utilities.paths import PACKAGE_DIR
+from districtgenerator.utilities.paths import DATA_DIR
 
 # This Class is responsible for non-residential envelope generation
 class NonResidential(object):
@@ -221,8 +221,7 @@ class NonResidential(object):
             ``None`` is returned implicitly if the archetype exists but no
             configured age interval contains ``year_of_construction``.
         """
-        DATA_DIR_PATH = PACKAGE_DIR
-        DATA_PATH = os.path.join(DATA_DIR_PATH, 'data', 'non_residential', 'surface_estimation_factors.json')
+        DATA_PATH = os.path.join(DATA_DIR, 'non_residential', 'surface_estimation_factors.json')
         with open(DATA_PATH, 'r', encoding='utf-8') as file:
             data = json.load(file)
 
@@ -250,8 +249,7 @@ class NonResidential(object):
             (roof), and ``u_ug`` (ground floor); plus the dimensionless window solar
             transmittance ``g_gl_fen``.
         """
-        DATA_DIR_PATH = PACKAGE_DIR
-        DATA_PATH = os.path.join(DATA_DIR_PATH, 'data', 'non_residential', 'non_residential_envelope.json')
+        DATA_PATH = os.path.join(DATA_DIR, 'non_residential', 'non_residential_envelope.json')
         with open(DATA_PATH, 'r', encoding='utf-8') as file:
             data = json.load(file)
 
@@ -383,8 +381,7 @@ class GenericNonResidential:
             Use-specific settings; optional None values leave fallback selection to
             the consuming profile model.
         """
-        DATA_DIR_PATH = PACKAGE_DIR
-        data_path = os.path.join(DATA_DIR_PATH, 'data', 'non_residential', 'non_residential_behavior.json')
+        data_path = os.path.join(DATA_DIR, 'non_residential', 'non_residential_behavior.json')
         if GenericNonResidential._behavior_data_cache is None:
             with open(data_path, 'r', encoding='utf-8') as file:
                 GenericNonResidential._behavior_data_cache = json.load(file) # Cache the data after loading it for the first time to avoid redundant file reads in subsequent calls.

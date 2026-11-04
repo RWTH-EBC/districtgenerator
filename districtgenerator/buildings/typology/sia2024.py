@@ -2,7 +2,7 @@
 
 import os
 import pandas as pd
-from districtgenerator.utilities.paths import PACKAGE_DIR
+from districtgenerator.utilities.paths import DATA_DIR
 
 def read_SIA_data():
     """
@@ -29,8 +29,7 @@ def read_SIA_data():
               SIA zone names to their configured proportional share in that
               building type.
     """
-    districtgenerator_dir = PACKAGE_DIR
-    sia_xlsx_path = os.path.join(districtgenerator_dir, 'data', 'SIA2024.xlsx')
+    sia_xlsx_path = os.path.join(DATA_DIR, 'SIA2024.xlsx')
     data = pd.read_excel(sia_xlsx_path, sheet_name='SIA2024', header=1)
     df = pd.DataFrame(data, columns=['number', 'Zone_name_GER', 'T_summer', 'T_winter',	'area_room', 'dQ_persons_perA',
                                      't_fullLoad_persons', 'P_vent_perVh', 'P_vent_perA', 'W_per_person',

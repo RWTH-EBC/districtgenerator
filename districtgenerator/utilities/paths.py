@@ -6,3 +6,6 @@ PACKAGE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 #: Folder with all input data, such as weather, scenarios and device data.
 DATA_DIR = os.path.join(PACKAGE_DIR, "data")
+
+#: Default folder for all results, such as profiles, plots, KPIs and the certificate.
+RESULTS_DIR = os.path.join(PACKAGE_DIR, "results")

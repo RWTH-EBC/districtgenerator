@@ -1,6 +1,7 @@
 """
 Saving and loading of the generated district as a pickle file.
 """
+import os
 import pickle
 
 
@@ -13,7 +14,7 @@ def save_district(data):
     None.
     """
 
-    with open(data.resultPath + "/" + data.scenario_name + ".p", 'wb') as fp:
+    with open(os.path.join(data.resultPath, data.scenario_name + ".p"), 'wb') as fp:
         pickle.dump(data.district, fp, protocol=pickle.HIGHEST_PROTOCOL)
 
 
@@ -33,5 +34,5 @@ def load_district(data, scenario_name='example'):
 
     data.scenario_name = scenario_name
 
-    with open(data.resultPath + "/" + data.scenario_name + ".p", 'rb') as fp:
+    with open(os.path.join(data.resultPath, data.scenario_name + ".p"), 'rb') as fp:
         data.district = pickle.load(fp)

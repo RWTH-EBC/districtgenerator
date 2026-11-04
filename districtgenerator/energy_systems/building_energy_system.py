@@ -8,6 +8,7 @@ import numpy as np
 
 from districtgenerator.energy_systems import technologies
 from districtgenerator.environment.solar import Sun
+from districtgenerator.utilities.paths import DATA_DIR
 
 class BES:
     """
@@ -270,7 +271,7 @@ def design_decentral_devices(data, saveGenerationProfiles=True):
                   for building in data.district]
 
     # Solar irradiance on the tilted roof surfaces is needed for the PV and STC yield
-    sun = Sun(filePath=data.filePath)
+    sun = Sun(filePath=DATA_DIR)
     for building, choices in zip(data.district, candidates):
 
         # %% create building energy system object
@@ -278,7 +279,7 @@ def design_decentral_devices(data, saveGenerationProfiles=True):
         building["bes_obj"] = BES(physics=data.physics,
                       decentral_device_data=data.decentral_device_data,
                       design_building_data=data.design_building_data,
-                      file_path=data.filePath)
+                      file_path=DATA_DIR)
         requested_heater = building["buildingFeatures"]["heater"]
         try:
             if choices:
@@ -307,13 +308,11 @@ def design_decentral_devices(data, saveGenerationProfiles=True):
         if saveGenerationProfiles == True:
             generation_path = os.path.join(data.resultPath, 'generation')
             os.makedirs(generation_path, exist_ok=True)
-            np.savetxt(os.path.join(data.resultPath, 'generation')
-                       + '/decentralPV_' + building["unique_name"] + '.csv',
+            np.savetxt(os.path.join(generation_path, 'decentralPV_' + building["unique_name"] + '.csv'),
                        building["user"].generationPV,
                        delimiter=';',
                        fmt='%.2f')
-            np.savetxt(os.path.join(data.resultPath, 'generation')
-                       + '/decentralSTC_' + building["unique_name"] + '.csv',
+            np.savetxt(os.path.join(generation_path, 'decentralSTC_' + building["unique_name"] + '.csv'),
                        building["user"].generationSTC,
                        delimiter=';',
                        fmt='%.2f')

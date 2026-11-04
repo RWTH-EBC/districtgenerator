@@ -7,6 +7,8 @@ import holidays as hol
 import openpyxl
 import pandas as pd
 
+from districtgenerator.utilities.paths import DATA_DIR
+
 
 def select_plz_data(data):
     """
@@ -19,7 +21,7 @@ def select_plz_data(data):
 
     # Try to find the location of the postal code and matched TRY weather station
     try:
-        workbook = openpyxl.load_workbook(data.filePath + "/plz_geocoord_matched.xlsx")
+        workbook = openpyxl.load_workbook(os.path.join(DATA_DIR, "plz_geocoord_matched.xlsx"))
         sheet = workbook.active
 
         for row in sheet.iter_rows(values_only=True):
@@ -85,8 +87,8 @@ def load_site_conditions(data):
     None.
     """
     # Load other site-dependent values based on DIN/TS 12831-1:2020-04 and VDI 2078-2015 (KLZ)
-    filePath = os.path.join(data.filePath, 'site_data_with_KLZ.txt')
-    site_data = pd.read_csv(filePath, delimiter='\t', dtype={'Zip': str})
+    site_data_path = os.path.join(DATA_DIR, "site_data_with_KLZ.txt")
+    site_data = pd.read_csv(site_data_path, delimiter='\t', dtype={'Zip': str})
 
     # Filter data for the specific zip code
     filtered_data = site_data[site_data['Zip'] == data.site["zip"]]

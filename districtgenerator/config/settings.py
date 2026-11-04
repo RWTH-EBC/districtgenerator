@@ -1,12 +1,11 @@
 from dataclasses import field
-from pathlib import Path
 import os
 
 from typing import Dict, Literal, Optional, Set, Tuple, ClassVar
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from districtgenerator.utilities.paths import PACKAGE_DIR
+from districtgenerator.utilities.paths import DATA_DIR
 
 ### Helper functions ###
 def parse_float_list(value: any) -> list[float]:
@@ -1496,16 +1495,17 @@ class Settings(BaseSettings):
 def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
     """
     Load the global configuration from the specified environment file.
-    If no environment file is provided, it defaults to standard parameters defined in the config classes.
+    If no environment file is provided, the file name from ``Settings`` is used
+    (``.env.CONFIG.EXAMPLE`` unless the environment variable ``ENV_FILE`` is set).
     For error handling, it prints the used environment file path.
-    Note: All parameters defined in '.env.CONFIG.' will override the default values in config.py
+    Note: All parameters defined in '.env.CONFIG.' will override the default values in settings.py
 
     Parameters
     ----------
     env_file : Optional[str]
         The path to the environment file. If None, it uses the default from Settings.
-        Place config in the data folder of the districtgenerator package to use ".env.NAME" or use
-        absolute paths "c:/path/to/.env.CONFIG.EXAMPLE" or "/path/to/.env.CONFIG.EXAMPLE".
+        Relative paths such as ".env.NAME" are resolved in ``DATA_DIR``, absolute paths
+        such as "c:/path/to/.env.CONFIG.EXAMPLE" or "/path/to/.env.CONFIG.EXAMPLE" are used as given.
 
     Returns
     -------
@@ -1517,16 +1517,15 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         settings = Settings()  # Load settings from the .env file
         env_file = settings.env_file
 
-    script_path = Path(__file__).resolve()
-    project_root = Path(PACKAGE_DIR)
+    # Absolute paths are used as given, relative paths are resolved in the data folder
+    env_file_path = env_file if os.path.isabs(env_file) else os.path.join(DATA_DIR, env_file)
 
-    env_file_path = str(project_root / "data" / env_file)
-
-    if not os.path.exists(env_file_path):
+    if not os.path.isfile(env_file_path):
         raise FileNotFoundError(
-            f"Configuration file not found. \n"
+            f"Configuration file '{env_file}' not found.\n"
             f"  - Looked for: {env_file_path}\n"
-            f"  - Based on script location: {script_path}"
+            f"  - Data folder: {DATA_DIR}\n"
+            f"Pass an absolute path or put the file into the data folder."
         )
 
     os.environ["ENV_FILE"] = env_file_path

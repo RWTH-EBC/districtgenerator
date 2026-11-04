@@ -1,7 +1,7 @@
 """Entry point that builds the certificate PDF."""
 from reportlab.platypus import NextPageTemplate, PageBreak, FrameBreak
 import os
-from districtgenerator.utilities.paths import PACKAGE_DIR
+from districtgenerator.utilities.paths import RESULTS_DIR
 from districtgenerator.analysis.certificate.components import ReportComponent
 from districtgenerator.analysis.certificate.data_extractor import DataExtractor
 from districtgenerator.analysis.certificate.layout import CertificateLayout, CertificateTemplate
@@ -35,11 +35,10 @@ class CertificateBuilder(ReportComponent):
 
 
         else:
-            src_path = PACKAGE_DIR
             if file_name:
-                self.outputpath = os.path.join(src_path, "results", f"{file_name}.pdf")
+                self.outputpath = os.path.join(RESULTS_DIR, f"{file_name}.pdf")
             else:
-                self.outputpath = os.path.join(src_path, "results", f"Quartiersenergieausweis_{self.scenario_name}.pdf")
+                self.outputpath = os.path.join(RESULTS_DIR, f"Quartiersenergieausweis_{self.scenario_name}.pdf")
 
         margins = self.style.get_page_margins()
         self.page_margins = {

@@ -11,7 +11,7 @@ import sys
 import pandas as pd
 import numpy as np
 import os
-from districtgenerator.utilities.paths import PACKAGE_DIR
+from districtgenerator.utilities.paths import DATA_DIR
 
 
 def windSpeed_h(windSpeed_ref, h_ref, h, exponent):
@@ -147,8 +147,7 @@ def powerCurve(wind_turbine_model):
 
     try:
         # open power curve of wind turbine
-        data_folder = os.path.join(PACKAGE_DIR, "data")
-        power_curve_path = os.path.join(data_folder, "wind_turbine_models", "WT_" + wind_turbine_model + ".csv")
+        power_curve_path = os.path.join(DATA_DIR, "wind_turbine_models", "WT_" + wind_turbine_model + ".csv")
         power_curve = pd.read_csv(power_curve_path, header=0, delimiter=";")  # wind_speed [m/s], power [kW]
 
     except:
