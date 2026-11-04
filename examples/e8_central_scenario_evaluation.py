@@ -10,7 +10,7 @@ from districtgenerator.classes import *
 def example8_central_scenario_evaluation():
 
     # Initialize District
-    # To use specific parameters, you can provide your own .env.CONFIG file in the data/env folder (see e6)
+    # To use specific parameters, you can provide your own .env.CONFIG file in the districtgenerator/data folder (see e6)
     # Refer to it like this: Datahandler(env_path=".env.CONFIG.EXAMPLE") and put it in ./data
     data = Datahandler(scenario_name = "example_central", env_path=".env.CONFIG.EXAMPLE")
 

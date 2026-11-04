@@ -19,8 +19,6 @@ class Envelope:
         Building parameters like construction year, retrofit.
     construction_data : string
         Building type.
-    file_path : str
-        File path.
 
     Attributes
     ----------
@@ -36,7 +34,7 @@ class Envelope:
         SFH: single family house; TH: terraced house; MFH: multifamily house; AP: apartment block.
     """
 
-    def __init__(self, prj, building_params, construction_data, physics, design_building_data, file_path, SIA2024 = None):
+    def __init__(self, prj, building_params, construction_data, physics, design_building_data, SIA2024 = None):
         """
         Constructor of Envelope class.
 
@@ -74,7 +72,6 @@ class Envelope:
             self.building_zones = self.SIA2024[self.usage_short]
             self.nwg_config = GenericNonResidential(self.usage_short) # Load configuration for non-residential building.
 
-        self.file_path = file_path
         if self.is_residential:
             self.id = building_params["id_teaser"]
         else:

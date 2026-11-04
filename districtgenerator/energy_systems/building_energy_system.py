@@ -8,7 +8,6 @@ import numpy as np
 
 from districtgenerator.energy_systems import technologies
 from districtgenerator.environment.solar import Sun
-from districtgenerator.utilities.paths import DATA_DIR
 
 class BES:
     """
@@ -23,8 +22,6 @@ class BES:
         Technology parameters keyed by device code.
     design_building_data : dict
         Design assumptions.
-    file_path : str or os.PathLike
-        DistrictGenerator data-directory path retained for callers.
 
     Attributes
     ----------
@@ -43,7 +40,7 @@ class BES:
     get_cooling_supply = staticmethod(technologies.get_cooling_supply)
     compression_chiller_cop = staticmethod(technologies.compression_chiller_cop)
 
-    def __init__(self, physics, decentral_device_data, design_building_data, file_path):
+    def __init__(self, physics, decentral_device_data, design_building_data):
         """Store the inputs used to size a building's energy system.
 
         Parameters
@@ -54,8 +51,6 @@ class BES:
             Device specifications keyed by technology code.
         design_building_data : dict
             Bivalent and heating-limit temperatures in °C.
-        file_path : str or os.PathLike
-            Path to the project data directory.
 
         Returns
         -------
@@ -69,7 +64,6 @@ class BES:
         self.physics = physics
         self.decentral_device_data = decentral_device_data
         self.design_building_data = design_building_data
-        self.file_path = file_path
 
     def designECS(self, building, site):
         """Size devices for one building's selected supply concept.
@@ -271,15 +265,14 @@ def design_decentral_devices(data, saveGenerationProfiles=True):
                   for building in data.district]
 
     # Solar irradiance on the tilted roof surfaces is needed for the PV and STC yield
-    sun = Sun(filePath=DATA_DIR)
+    sun = Sun()
     for building, choices in zip(data.district, candidates):
 
         # %% create building energy system object
         # get capacities of all possible devices
         building["bes_obj"] = BES(physics=data.physics,
                       decentral_device_data=data.decentral_device_data,
-                      design_building_data=data.design_building_data,
-                      file_path=DATA_DIR)
+                      design_building_data=data.design_building_data)
         requested_heater = building["buildingFeatures"]["heater"]
         try:
             if choices:

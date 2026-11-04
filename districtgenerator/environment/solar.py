@@ -3,29 +3,11 @@
 import math
 import numpy as np
 
-from districtgenerator.utilities.paths import DATA_DIR
-
 
 class Sun:
     """
     Class for solar irradiance calculations.
-
-    Parameters
-    ----------
-    filePath : string
-        File path to the data directory of the districtgenerator.
     """
-
-    def __init__(self, filePath):
-        """
-        Constructor of Sun class
-
-        Returns
-        -------
-        None.
-        """
-
-        self.filePath = filePath
 
     def getSolarGains(self, initialTime, timeDiscretization, timeSteps, timeZone,
                       location, altitude, beta, gamma, beamRadiation, diffuseRadiation, albedo):
@@ -480,7 +462,7 @@ def calculate_surface_irradiance(data):
     None.
     """
     # Calculate solar irradiance per surface direction - S, W, N, E, Roof represented by angles gamma and beta
-    sun = Sun(filePath=DATA_DIR)
+    sun = Sun()
     data.site["SunRad"] = sun.getSolarGains(initialTime=0,
                                             timeDiscretization=data.time["timeResolution"],
                                             timeSteps=data.time["timeSteps"],

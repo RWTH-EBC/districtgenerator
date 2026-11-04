@@ -1,5 +1,6 @@
 from dataclasses import field
 import os
+import warnings
 
 from typing import Dict, Literal, Optional, Set, Tuple, ClassVar
 
@@ -126,6 +127,15 @@ class TimeConfig(BaseSettings):
     model_config = SettingsConfigDict(
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
     )
+
+    @model_validator(mode='after')
+    def check_hourly_input_data(self) -> 'TimeConfig':
+        """Warn if the input data is not hourly, as some time steps are then not in hours."""
+        if self.dataResolution != 3600:
+            warnings.warn(f"dataResolution is {self.dataResolution} s, but the soil temperature and the heat grid "
+                          f"demand sums use dt = timeResolution / dataResolution as hours. "
+                          f"This is only correct for hourly input data (3600 s).")
+        return self
 
 class DesignBuildingConfig(BaseSettings):
     """
@@ -309,8 +319,6 @@ class EcoConfig(BaseSettings):
         """Select interpolation points based on num_interpolation_points if specified."""
         if self.num_interpolation_points is not None:
             # Validate num_interpolation_points value
-#            print(self.num_interpolation_points)
-#            print(type(self.num_interpolation_points))
             if self.num_interpolation_points < 1:
                 raise ValueError("num_interpolation_points must be at least 1.")
             if self.num_interpolation_points > self.observation_time:
@@ -438,6 +446,16 @@ class HeatGridConfig(BaseSettings):
     d_asph: float = 0.18             # Asphalt layer thickness in meters.
     grid_depth: float = 1.0             # Installation depth of the grid beneath the surface in meters.
     k_soil: float = 1.52                # Soil heat conductivity in W/(m*K). Source: Median value from table 4.1 Wessolek, G. (2022). Parametrisierung thermischer Bodeneigenschaften: Endbericht
+
+    # Fixed surface and material properties of the soil temperature model. Not settable via .env.
+    # alpha_s: surface absorptance [-], epsilon_s: surface emissivity [-], f: surface evaporation rate [-]
+    # Source soil: Badache (2015), http://dx.doi.org/10.1016/j.renene.2015.06.020
+    SOIL_SURFACE: ClassVar[Dict[str, float]] = {"alpha_s": 0.9, "epsilon_s": 0.9, "f": 0.7}
+    # Source asphalt: VDI Wärmeatlas for alpha_s and epsilon_s, f assumed like dry soil (Badache 2015)
+    ASPHALT_SURFACE: ClassVar[Dict[str, float]] = {"alpha_s": 0.93, "epsilon_s": 0.93, "f": 0.3}
+    C_SOIL: ClassVar[float] = 2.4e6     # Soil volumetric heat capacity in J/(m^3*K). Source: Table 1.1 Wessolek, G. (2022). Parametrisierung thermischer Bodeneigenschaften: Endbericht
+    K_ASPH: ClassVar[float] = 0.76      # Asphalt heat conductivity in W/(m*K). Source: VDI Wärmeatlas
+    C_ASPH: ClassVar[float] = 2.1e6     # Asphalt volumetric heat capacity in J/(m^3*K). Source: VDI Wärmeatlas
     k_PUF: float = 0.03                 # Polyurethane foam heat conductivity. Source: VDI Wärmeatlas
     k_PE: float = 0.4                 # Polyethylene heat conductivity. Source: VDI Wärmeatlas
     h_loss_subst: float = 5      # Heat losses at the substation as a percentage (%). Source: Technikkatalog Wärmeplanung 2024
@@ -1056,7 +1074,6 @@ class DecentralDeviceConfig(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="D_",  # Prefix for environment variables
-        env_file=".decentraldeviceconfig",
         extra="ignore"
     )
 
@@ -1441,7 +1458,6 @@ class CentralDeviceConfig(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="C_",
-        env_file=".centraldeviceconfig",
         extra="ignore"
     )
 
@@ -1507,7 +1523,6 @@ class Settings(BaseSettings):
     env_file: str = '.env.CONFIG.EXAMPLE'
 
     class Config:
-        env_file = '.env.CONFIG.EXAMPLE'  # Default .env file if no env_file is provided
         env_file_encoding = 'utf-8'
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
 
@@ -1548,8 +1563,7 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
             f"Pass an absolute path or put the file into the data folder."
         )
 
-    os.environ["ENV_FILE"] = env_file_path
-    print(f'Using config: {os.environ["ENV_FILE"]}')
+    print(f'Using config: {env_file_path}')
 
     return GlobalConfig(
         location=LocationConfig(_env_file=env_file_path),

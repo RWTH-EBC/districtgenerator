@@ -11,7 +11,7 @@ from districtgenerator.classes import *
 def example9_non_residential_scenario_evaluation():
 
     # Initialize District for the chosen scenario.
-    # To use specific parameters, you can provide your own .env.CONFIG file in the data/env folder (see e6)
+    # To use specific parameters, you can provide your own .env.CONFIG file in the districtgenerator/data folder (see e6)
     # Refer to it like this: Datahandler(env_path=".env.CONFIG.EXAMPLE") and put it in ./data
     data = Datahandler(scenario_name = "example_non_residential", env_path=".env.CONFIG.EXAMPLE")
 

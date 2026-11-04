@@ -14,7 +14,6 @@ from districtgenerator.buildings.profiles.users import Users
 from districtgenerator.buildings.typology import mixed_use, non_residential, residential
 from districtgenerator.energy_systems.technologies import get_cooling_supply, get_heating_candidates
 from districtgenerator.utilities.randomness import building_seed, seeded_random_state
-from districtgenerator.utilities.paths import DATA_DIR
 
 
 def parse_position(val):
@@ -169,7 +168,6 @@ def generate_buildings(data):
                                             construction_data=construction_data,
                                             physics=data.physics,
                                             design_building_data=data.design_building_data,
-                                            file_path=DATA_DIR,
                                             SIA2024=data.SIA2024)
             if hasattr(building["envelope"], "compute_heating_curve"):
                 building["envelope"].compute_heating_curve(
@@ -194,7 +192,6 @@ def generate_buildings(data):
                                             construction_data=construction_type,
                                             physics=data.physics,
                                             design_building_data=data.design_building_data,
-                                            file_path=DATA_DIR,
                                             SIA2024=data.SIA2024)
             building["envelope"].compute_heating_curve(
                 data.site, mode="unclustered"

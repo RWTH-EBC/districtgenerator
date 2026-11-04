@@ -98,7 +98,6 @@ class TestBuildingDeviceSizing(unittest.TestCase):
                 code: {} for code in ("HP", "BOI", "EH", "TES_DHW", "EH_DHW")
             },
             design_building_data={"T_bivalent": 0, "T_heatlimit": 15},
-            file_path=".",
         )
         self.site = {"T_ne": -10}
         self.building = {
