@@ -220,21 +220,21 @@ class Datahandler:
 
     def get_holidays(self, country_code: str, year: int, state: str = None):
         """
-        Get the Julian day (day of the year) for holidays in a specific country, year, and state.
+        Get the day of the year of all holidays, see ``environment.site.get_holidays``.
 
         Parameters
         ----------
-            country_code : string
-                The country's ISO 3166-1 alpha-2 code (e.g., 'DE' for Germany).
-            year : integer
-                The year for which to retrieve holidays.
-            state : string
-                The state or region subdivision code (e.g., 'NW' for North Rhine-Westphalia in Germany).
+        country_code : str
+            The country's ISO 3166-1 alpha-2 code (e.g., 'DE' for Germany).
+        year : int
+            The year for which to retrieve holidays.
+        state : str, optional
+            The state or region subdivision code (e.g., 'NW' for North Rhine-Westphalia in Germany).
 
         Returns
         -------
-            julian_holidays : list
-                A list of tuples containing the Julian day of the holiday.
+        list of int
+            Day of the year (1 = January 1st) of each holiday.
         """
         return site_conditions.get_holidays(country_code, year, state)
 

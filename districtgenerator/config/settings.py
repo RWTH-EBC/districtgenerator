@@ -72,6 +72,20 @@ class LocationConfig(BaseSettings):
     ALLOWED_TRY_YEARS: ClassVar[Set[str]] = set(TRY_FORMATS)  # keys of TRY_FORMATS
     ALLOWED_TRY_TYPES: ClassVar[Set[str]] = {"Jahr", "Somm", "Wint"}
 
+    # Fallback if the zip code is not in plz_geocoord_matched.xlsx: Aachen and its TRY weather station
+    FALLBACK_ZIP: ClassVar[str] = "52064"
+    FALLBACK_LOCATION: ClassVar[str] = "507755060854"
+
+    # Cooling load zones (Kühllastzonen) of VDI 2078: (mean summer temperature, daily amplitude) in °C.
+    # Used for the design temperature of the cooling load, the default zone applies to unknown zones.
+    COOLING_LOAD_ZONES: ClassVar[Dict[int, Tuple[float, float]]] = {
+        1: (23.3, 6.7),  # Zone 1 (cool)
+        2: (24.1, 7.4),  # Zone 2 (moderate)
+        3: (25.0, 8.0),  # Zone 3 (warm)
+        4: (26.1, 8.4),  # Zone 4 (hot)
+    }
+    DEFAULT_COOLING_LOAD_ZONE: ClassVar[int] = 3
+
     model_config = SettingsConfigDict(
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
     )

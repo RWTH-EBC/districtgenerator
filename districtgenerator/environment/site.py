@@ -2,11 +2,13 @@
 Site conditions of the district: weather station, holidays and design temperatures.
 """
 import os
+import warnings
 
 import holidays as hol
 import openpyxl
 import pandas as pd
 
+from districtgenerator.config.settings import LocationConfig
 from districtgenerator.utilities.paths import DATA_DIR
 
 
@@ -14,61 +16,75 @@ def select_plz_data(data):
     """
     Select the closest TRY weather station for the location of the postal code.
 
+    Sets ``data.site["Location"]``, the ID of the TRY weather station. If the zip code is not
+    in ``plz_geocoord_matched.xlsx``, a warning is issued and the fallback of ``LocationConfig``
+    (Aachen) is used. In that case ``data.site["zip"]`` is changed as well.
+
+    Parameters
+    ----------
+    data : Datahandler
+        Datahandler with the zip code of the site in ``data.site["zip"]``.
+
     Returns
     -------
     None.
+
+    Raises
+    ------
+    FileNotFoundError
+        If ``plz_geocoord_matched.xlsx`` is missing in the data folder.
     """
+    plz_file_path = os.path.join(DATA_DIR, "plz_geocoord_matched.xlsx")
+    workbook = openpyxl.load_workbook(plz_file_path)
+    sheet = workbook.active
 
-    # Try to find the location of the postal code and matched TRY weather station
-    try:
-        workbook = openpyxl.load_workbook(os.path.join(DATA_DIR, "plz_geocoord_matched.xlsx"))
-        sheet = workbook.active
-
-        for row in sheet.iter_rows(values_only=True):
-            if data.site["zip"] == str(row[0]):
-                weatherdatafile = row[3]
-                data.site["Location"] = weatherdatafile[8:-9]
-                break
-        else:
-            # If postal code cannot be found: Message and select weather data file from Aachen
-            raise ValueError("Postal code cannot be found")
-
-
-    except Exception as e:
-        # If postal code cannot be found: Message and select weathter data file from Aachen
-        print("Postal code cannot be found, location changed to Aachen")
-        data.site["zip"] = "52064"
-        data.site["Location"] = 507755060854
+    # Find the postal code and its matched TRY weather station
+    for row in sheet.iter_rows(values_only=True):
+        if data.site["zip"] == str(row[0]):
+            weatherdatafile = row[3]
+            data.site["Location"] = weatherdatafile[8:-9]
+            break
+    else:
+        # Postal code not found: use the weather station of the fallback location
+        warnings.warn(f"Postal code '{data.site['zip']}' not found in {plz_file_path}, "
+                      f"using fallback '{LocationConfig.FALLBACK_ZIP}' (Aachen).", stacklevel=2)
+        data.site["zip"] = LocationConfig.FALLBACK_ZIP
+        data.site["Location"] = LocationConfig.FALLBACK_LOCATION
 
 
 def get_holidays(country_code: str, year: int, state: str = None):
     """
-    Get the Julian day (day of the year) for holidays in a specific country, year, and state.
+    Get the day of the year of all holidays in a specific country, year, and state.
 
     Parameters
     ----------
-        country_code : string
-            The country's ISO 3166-1 alpha-2 code (e.g., 'DE' for Germany).
-        year : integer
-            The year for which to retrieve holidays.
-        state : string
-            The state or region subdivision code (e.g., 'NW' for North Rhine-Westphalia in Germany).
+    country_code : str
+        The country's ISO 3166-1 alpha-2 code (e.g., 'DE' for Germany).
+    year : int
+        The year for which to retrieve holidays.
+    state : str, optional
+        The state or region subdivision code (e.g., 'NW' for North Rhine-Westphalia in Germany).
+        If None, only nationwide holidays are returned.
 
     Returns
     -------
-        julian_holidays : list
-            A list of tuples containing the Julian day of the holiday.
+    list of int
+        Day of the year (1 = January 1st) of each holiday.
+
+    Raises
+    ------
+    ValueError
+        If the country or state code is invalid.
     """
     try:
         # Initialize the holidays object for the given country, year, and state
         holidays = hol.country_holidays(country_code, years=year, subdiv=state)
+    except (KeyError, NotImplementedError) as e:
+        raise ValueError(f"Invalid country or state code '{country_code}', '{state}'. "
+                         f"Please provide valid codes.") from e
 
-        # Get the Julian day for each holiday
-        julian_holidays = [holiday_date.timetuple().tm_yday for holiday_date in holidays.keys()]
-
-        return julian_holidays
-    except KeyError:
-        return f"Invalid country or state code '{country_code}', '{state}'. Please provide valid codes."
+    # Get the day of the year for each holiday
+    return [holiday_date.timetuple().tm_yday for holiday_date in holidays.keys()]
 
 
 def load_site_conditions(data):
@@ -85,6 +101,11 @@ def load_site_conditions(data):
     Returns
     -------
     None.
+
+    Raises
+    ------
+    ValueError
+        If the zip code is missing in ``site_data_with_KLZ.txt``.
     """
     # Load other site-dependent values based on DIN/TS 12831-1:2020-04 and VDI 2078-2015 (KLZ)
     site_data_path = os.path.join(DATA_DIR, "site_data_with_KLZ.txt")
@@ -92,30 +113,26 @@ def load_site_conditions(data):
 
     # Filter data for the specific zip code
     filtered_data = site_data[site_data['Zip'] == data.site["zip"]]
+    if filtered_data.empty:
+        raise ValueError(f"Postal code '{data.site['zip']}' not found in {site_data_path}. "
+                         f"The site data and plz_geocoord_matched.xlsx are inconsistent.")
+    site_row = filtered_data.iloc[0]
 
     # extract the needed values
-    data.site["altitude"] = filtered_data.iloc[0]['Altitude']
-    data.site["location"] = [filtered_data.iloc[0]['Latitude'],filtered_data.iloc[0]['Longitude']]
-    data.site["T_ne"] = filtered_data.iloc[0]['T_ne'] # norm outside temperature for calculating the design heat load
-    data.site["T_me"] = filtered_data.iloc[0]['T_me'] # mean annual temperature for calculating the design heat load
+    data.site["altitude"] = site_row['Altitude']
+    data.site["location"] = [site_row['Latitude'], site_row['Longitude']]
+    data.site["T_ne"] = site_row['T_ne'] # norm outside temperature for calculating the design heat load
+    data.site["T_me"] = site_row['T_me'] # mean annual temperature for calculating the design heat load
 
     # KLZ added to site_data based on nearest VDI station (generate_klz_site_data.py)
-    klz = filtered_data.iloc[0]['KLZ']
-    # Cooling limit temperatures based on Cooling Laod Zones (Kühllastzonen)
-    # Calculated based on estimated amplitude based on VDI 2078 p. 117
-    # To account for thermal mass and avoid outliers, T_me is used as average plus amplitude
-    vdi_climate_data = {
-        1: (23.3, 6.7),  # Zone 1 (Cool)
-        2: (24.1, 7.4),  # Zone 2 (Moderate)
-        3: (25, 8.0),  # Zone 3 (Warm)
-        4: (26.1, 8.4),  # Zone 4 (Hot)
-    }
+    klz = site_row['KLZ']
 
-    # Calculation: T_max = T_me + Amplitude
-    if klz in vdi_climate_data:
-        t_mean, amplitude = vdi_climate_data[klz]
-        data.site["T_design_cooling"] = t_mean + amplitude
-    else:
-        # Fallback (Standard Zone 3)
-        t_mean, amplitude = vdi_climate_data[3]
-        data.site["T_design_cooling"] = t_mean + amplitude
+    # Design temperature for the cooling load (Kühllastzonen, VDI 2078 p. 117):
+    # mean summer temperature of the cooling load zone plus its daily amplitude
+    zones = LocationConfig.COOLING_LOAD_ZONES
+    if klz not in zones:
+        warnings.warn(f"Unknown cooling load zone '{klz}' for postal code '{data.site['zip']}', "
+                      f"using zone {LocationConfig.DEFAULT_COOLING_LOAD_ZONE}.", stacklevel=2)
+        klz = LocationConfig.DEFAULT_COOLING_LOAD_ZONE
+    t_mean, amplitude = zones[klz]
+    data.site["T_design_cooling"] = t_mean + amplitude
