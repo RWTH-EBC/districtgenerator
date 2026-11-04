@@ -1105,11 +1105,19 @@ class Datahandler:
             try:
                 # Fiware berechnung
                 if not pv_standard:
-                                    # Parse string inputs to lists
-                    roof_areas = [float(area) for area in building["buildingFeatures"]["surfaceAreaSuitableForSolarPV"].split("|")]
-                    roof_inclinations = [float(beta) for beta in str(building["buildingFeatures"]["roofInclination"]).split("|")]
-                    cardinal_directions = [float(gamma) for gamma in str(building["buildingFeatures"]["cardinalDirection"]).split("|")]
-                    roof_shapes = str(building["buildingFeatures"]["roofShape"]).split("|")
+                    # Parse "|"-separated roof segments; pandas may have read them as float/NaN
+                    features = building["buildingFeatures"]
+                    roof_areas = [float(a) for a in _split_feature(features.get("surfaceAreaSuitableForSolarPV"))]
+                    roof_inclinations = [float(b) for b in _split_feature(features.get("roofInclination"))]
+                    cardinal_directions = [float(g) for g in _split_feature(features.get("cardinalDirection"))]
+                    roof_shapes = _split_feature(features.get("roofShape"))
+
+                    if not roof_areas or sum(roof_areas) <= 0:
+                        raise ValueError("no FIWARE roof segments with PV area")
+                    if not (len(roof_areas) == len(roof_inclinations) == len(cardinal_directions)):
+                        raise ValueError(f"roof segment lists differ in length (areas {len(roof_areas)}, "
+                                         f"inclinations {len(roof_inclinations)}, "
+                                         f"directions {len(cardinal_directions)})")
 
                     # Adjust inclinations: flat roofs (0°) get default value (35°)
                     roof_inclinations = [beta if beta != 0 else 35 for beta in roof_inclinations]
@@ -1959,6 +1967,18 @@ def _building_rng(features):
     key = str(features.get("gmlId", features.get("id")))
     seed = int.from_bytes(hashlib.sha256(key.encode("utf-8")).digest()[:8], "little")
     return rd.Random(seed)
+
+
+def _split_feature(value):
+    """
+    Split a "|"-separated scenario value into its entries. The scenario CSV is read with
+    pandas, so a single segment can arrive as float and a missing value as NaN; both are
+    handled here. Returns an empty list for None, NaN or an empty string.
+    """
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return []
+    entries = [entry.strip() for entry in str(value).split("|")]
+    return [entry for entry in entries if entry]
 
 
 def _set_solar_areas(building, area_roof, devices, f_pv, f_stc):
