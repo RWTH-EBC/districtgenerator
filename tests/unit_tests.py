@@ -9,6 +9,7 @@ import unittest
 import numpy as np
 
 from districtgenerator.time_series.resolution import changeResolution
+from districtgenerator.time_series.clustering import select_profile_periods
 from districtgenerator.optimization.central.dimensioning import _discount_factor
 from districtgenerator.optimization.central.parameters import calc_monthly_dem
 
@@ -52,6 +53,28 @@ class TestChangeResolution(unittest.TestCase):
         """An unknown aggregation method raises a ValueError."""
         with self.assertRaises(ValueError):
             changeResolution(np.ones(4), 900, 3600, "max")
+
+
+class TestSelectProfilePeriods(unittest.TestCase):
+    """Unit tests for select_profile_periods of the time_series package."""
+
+    # Three periods of four time steps (0-3, 4-7, 8-11) and an incomplete fourth period (12, 13)
+    PROFILE = np.arange(14, dtype=float)
+
+    def test_selects_periods_in_given_order(self):
+        """The periods are returned as rows in the order of typedays."""
+        result = select_profile_periods(self.PROFILE, [2, 0], 4, 12)
+        np.testing.assert_array_equal(result, [[8, 9, 10, 11], [0, 1, 2, 3]])
+
+    def test_ignores_incomplete_period(self):
+        """Time steps after length_array are not used."""
+        result = select_profile_periods(self.PROFILE, [0, 1, 2], 4, 12)
+        self.assertEqual(result.shape, (3, 4))
+        self.assertEqual(result.max(), 11)
+
+    def test_none_profile(self):
+        """A missing profile stays missing."""
+        self.assertIsNone(select_profile_periods(None, [0], 4, 12))
 
 
 class TestDiscountFactor(unittest.TestCase):
