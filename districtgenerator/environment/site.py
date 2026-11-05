@@ -79,7 +79,7 @@ def get_holidays(country_code: str, year: int, state: str = None):
         If the country or state code is invalid.
     """
     try:
-        # Initialize the holidays object for the given country, year, and state
+        # Initialize the holidays object for the given country, year, and state (if given)
         holidays = hol.country_holidays(country_code, years=year, subdiv=state)
     except (KeyError, NotImplementedError) as e:
         raise ValueError(f"Invalid country or state code '{country_code}', '{state}'. "

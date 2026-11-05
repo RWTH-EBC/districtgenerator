@@ -70,7 +70,9 @@ def calculate_soil_temperature(data, dt):
 
     # Calculate T_sky based on http://dx.doi.org/10.1016/j.renene.2015.06.020
     # The cosine term is the daily cycle of the sky temperature with 15 °/h, so the angle is in degrees
-    weather["T_sky"] = (weather["T_air"] + 273.15) * ((0.711 + 0.0056 * weather["T_dp"] + 0.000073 * weather["T_dp"] ** 2 + 0.013 * np.cos(np.deg2rad(15 * hours_year))) ** 0.25) - 273.15  # sky temperature °C
+    weather["T_sky"] = (weather["T_air"] + 273.15) * ((0.711 + 0.0056 * weather["T_dp"] +
+                                                       0.000073 * weather["T_dp"] ** 2 +
+                                                       0.013 * np.cos(np.deg2rad(15 * hours_year))) ** 0.25) - 273.15  # sky temperature °C
 
     # Cosinus Fit of G, T_air and T_sky: X = mean - amp * cos(omega*t - phase)
     G_mean, G_amp, G_phase = cosFit(weather["G"], dt)

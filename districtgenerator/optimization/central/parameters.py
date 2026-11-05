@@ -434,6 +434,7 @@ def get_params(data):
             devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
         #elif all_models["HP"]["CSV_feasible"]:
+        #       todo: is this still used? if not we dont need coefficient_of_performance.txt in /data
         #    COP_unclustered = np.loadtxt(os.path.join(os.path.dirname(data.srcPath), 'districtgenerator', 'data', 'coefficient_of_performance.txt'))
         #    # Cluster COP time series
         #    COP_base = np.ones((data.time["clusterNumber"], clusterHorizon))
