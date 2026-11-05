@@ -7,12 +7,9 @@ This script is a Pyomo-based translation of the original Gurobi model.
 """
 
 import pyomo.environ as pyo
-from pyomo.util.infeasible import log_infeasible_constraints
-from io import StringIO
-import time
-from datetime import datetime
 import os
 import districtgenerator.optimization.solver as solver_config
+from districtgenerator.economics import annuity
 
 def run_optim(data, devs, param, dem, result_dict):
     """
@@ -33,36 +30,103 @@ def run_optim(data, devs, param, dem, result_dict):
 
     Returns
     -------
-    dict
-        The populated result dictionary, or the original dict if no solution is found.
+    dict or None
+        The populated result dictionary, or None if no optimal solution is found.
     """
-    start_time = time.time()
-
     # Build the model
     model = pyo.ConcreteModel(name="Energy_Hub_Design_Optimization")
     build_model(model=model, data=data, devs=devs, param=param, dem=dem)
-    model_building_time = time.time() - start_time
-
-    # print(f"Precalculation and model set up done in {model_building_time:.2f} seconds.")
 
     # Solve the model and extract results
     result_dict = solve_model_and_extract_results(data=data, model=model, devs=devs, param=param,
                                                   result_dict=result_dict)
-    model_solve_time = time.time() - start_time - model_building_time
-
-    # Total time needed
-    total_time = time.time() - start_time
-
-    # Maybe record the times into a log file
-
-    # print(f"\n Time needed for building the model: {model_building_time:.2f} seconds.")
-    # print(f" Time needed for solving the model: {model_solve_time:.2f} seconds.")
-    # print(f" Total time needed: {total_time:.2f} seconds.")
 
     return result_dict
 
 
+def _support_year_weights(support_years, observation_time):
+    """
+    Number of years each support year represents within the observation period.
+
+    Parameters
+    ----------
+    support_years : iterable of int
+        Support years of the multi-year optimization, relative to the start of the observation period.
+    observation_time : int
+        Observation period [a].
+
+    Returns
+    -------
+    weights : dict
+        Time until the next support year, or until the end of the observation period
+        for the last support year [a], for each support year.
+    """
+    sorted_years = sorted(support_years)
+    weights = {}
+    for idx, year in enumerate(sorted_years):
+        if idx < len(sorted_years) - 1:
+            weights[year] = sorted_years[idx + 1] - year # time until next support year
+        else:
+            weights[year] = observation_time - year # time from last support year to end of observation period
+    return weights
+
+
+def _discount_factor(year, interval_length, interest_rate):
+    """
+    Present value factor of constant annual costs over the interval represented by a support year.
+
+    Uses the geometric series formula:
+    sum(1/q^(year+1+k) for k in 0..interval_length-1) = 1/q^(year+1) * (1 - (1/q)^interval_length) / (1 - 1/q)
+
+    Parameters
+    ----------
+    year : int
+        Support year, relative to the start of the observation period (index starts with 0).
+    interval_length : int
+        Number of years the support year represents [a].
+    interest_rate : float
+        Interest rate [-].
+
+    Returns
+    -------
+    float
+        Factor that converts the annual costs of the support year into their present value.
+    """
+    if interest_rate == 0:  # If interest rate is zero, discount factor is simply the interval length
+        return interval_length
+    q = 1 + interest_rate
+    base_discount = 1 / (q ** (year+1)) # Use year+1 as norm refers to the first year with index 1, but here the index starts with 0. This means that the year i refers to the year i+1 in the norm and an index shift of 1 is needed
+    interval_factor = (1 - (1/q) ** interval_length) / (1 - 1/q)
+    return base_discount * interval_factor
+
+
 def build_model(model, data, devs, param, dem):
+    """
+    Builds the multi-year Energy Hub Design Optimization model.
+
+    The capacities of the central devices and the grid limits are a single investment decision,
+    while the operation is optimized for every support year, cluster and time step. The objective
+    is a weighted sum of the total annualized costs (VDI 2067-1) and the CO2 emissions.
+
+    Parameters
+    ----------
+    model : pyomo.environ.ConcreteModel
+        Empty model that is filled with sets, variables, constraints and the objective.
+    data : object
+        Datahandler, uses the time settings (data.time) and the heat grid costs (data.heat_grid_data).
+    devs : dict
+        Device-specific technical and economic parameters, including clustered norm power and COP profiles.
+    param : dict
+        Economic parameters, prices, emission factors, supply limits, peak demands, cluster
+        weights and assignment (sigma) as well as the optimization focus.
+    dem : dict
+        Clustered demand profiles ('heat', 'power', 'cool') per support year [kW].
+
+    Returns
+    -------
+    model : pyomo.environ.ConcreteModel
+        The built model.
+    """
 
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # 1. Initialize Pyomo Model and Define Sets
@@ -576,41 +640,24 @@ def build_model(model, data, devs, param, dem):
 
     # Anualize Energy costs and miscellaneous costs over all support years by calculating Sum of the NPV of each support year/intervall and then annualizing it
     i = param["interest_rate"]
-    q = 1 + i
     n = param["observation_time"]
     support_years = model.support_years
     sorted_years = sorted(support_years)
 
     # Calculate the weights for each support year based on the intervals they cover
-    weights = {}
-    for idx, year in enumerate(sorted_years):
-        if idx < len(sorted_years) - 1:
-            weights[year] = sorted_years[idx + 1] - year # time until next support year
-        else:
-            weights[year] = n - year # time from last support year to end of observation period
+    weights = _support_year_weights(sorted_years, n)
 
     # Calculate the NPV for energy and miscellaneous costs
-    # Use geometric series formula: sum(1/q^(year+k) for k in 0..n-1) = (1/q^year) * (1 - (1/q)^n) / (1 - 1/q)
     npv_energy = 0
     npv_misc = 0
     for idx, year in enumerate(sorted_years):
-        interval_length = weights[year]
-        # Calculate discount factor for this interval using geometric series formula
-        if i != 0:
-            base_discount = 1 / (q ** (year+1)) # Use year+1 as norm refers to the first year with index 1, but here the index starts with 0. This means that the year i refers to the year i+1 in the norm and an index shift of 1 is needed
-            interval_factor = (1 - (1/q) ** interval_length) / (1 - 1/q)
-            discount_factor = base_discount * interval_factor
-        else:  # If interest rate is zero, discount factor is simply the interval length
-            discount_factor = interval_length
+        discount_factor = _discount_factor(year, weights[year], i)
 
         npv_energy += model.total_energy_costs[year] * discount_factor
         npv_misc += model.misc_costs[year] * discount_factor
 
     # Annualize the NPV over the observation period using the annuity factor
-    if i != 0:
-        annuity_factor = (i * q**n) / (q**n - 1)
-    else:
-        annuity_factor = 1 / n  # If interest rate is 0, simply divide by number of years
+    annuity_factor = annuity.capital_recovery_factor(n, i)
 
     model.constraints.add(model.annualized_energy_costs == npv_energy * annuity_factor)
     model.constraints.add(model.annualized_misc_costs == npv_misc * annuity_factor)
@@ -650,7 +697,28 @@ def build_model(model, data, devs, param, dem):
 
 def solve_model_and_extract_results(data, model, devs, param, result_dict):
     """
-    Function to capsle solving the Pyomo model and extracting results.
+    Solves the Pyomo model and extracts the results.
+
+    The model, solver diagnosis and solution file are saved in '<data.resultPath>/optimization_results'.
+
+    Parameters
+    ----------
+    data : object
+        Datahandler, uses the result path, the solver settings, the time settings and the heat grid data.
+    model : pyomo.environ.ConcreteModel
+        Model built by build_model.
+    devs : dict
+        Device-specific parameters, see build_model.
+    param : dict
+        Economic parameters and model settings, see build_model.
+    result_dict : dict
+        Dictionary that is filled with the optimization results.
+
+    Returns
+    -------
+    result_dict : dict or None
+        Capacities, costs, emissions, energy flows and profiles of the central devices,
+        or None if the solver did not find an optimal solution.
     """
     # Folder to save model and results
     result_dir = os.path.join(data.resultPath, f"optimization_results")
@@ -672,7 +740,8 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
                                       result_dir = result_dir)
 
     ################################################################################
-    # Post-processing and Result Extraction #! This needs to be adapted to multi-year optimization
+    # Post-processing and Result Extraction
+    # TODO: Annual generation, full load hours and charge cycles do not consider the support years yet
     ################################################################################
 
     # --- Robust helper functions for safe value queries ---
@@ -693,7 +762,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     # --- Complete and original filling of the result_dict ---
     result_dict["devs"] = devs
     result_dict["tac"] = int(safe_value_single(model.obj_tac))  # EUR/a
-    result_dict["co2"] = int(safe_value_single(model.obj_co2) / 1000)  # t/a
+    result_dict["co2"] = int(safe_value_single(model.obj_co2) / 1000)  # t over the observation period
 
     for k in model.all_devs:
         result_dict[k] = {
@@ -734,14 +803,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     result_dict["hydrogen_import_total_by_year"] = {y: int(safe_value(model.hydrogen_import_total, y) / 1000) for y in model.support_years}    #MWh
 
     # Calculate weights for each support year (same logic as in build_model)
-    sorted_years = sorted(model.support_years)
-    n = param["observation_time"]
-    weights = {}
-    for idx, year in enumerate(sorted_years):
-        if idx < len(sorted_years) - 1:
-            weights[year] = sorted_years[idx + 1] - year
-        else:
-            weights[year] = n - year
+    weights = _support_year_weights(model.support_years, param["observation_time"])
 
     # Total energy imports and exports over the whole observation period (weighted sum)
     result_dict["from_el_grid_total"] = int(sum(safe_value(model.from_el_grid_total, y) * weights[y] for y in model.support_years) / 1000)  # MWh
@@ -752,14 +814,14 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     result_dict["waste_import_total"] = int(sum(safe_value(model.waste_import_total, y) * weights[y] for y in model.support_years) / 1000)  # MWh
     result_dict["hydrogen_import_total"] = int(sum(safe_value(model.hydrogen_import_total, y) * weights[y] for y in model.support_years) / 1000)  # MWh
 
-    # CO2 emissions breakdown - calculate weighted average based on first support year for backward compatibility
+    # CO2 emissions breakdown - unweighted sum over all support years
     result_dict["co2_onsite_emissions"] = int((sum(safe_value(model.from_gas_grid_total, y) * param["co2_gas"][y] for y in model.support_years) +
                                                sum(safe_value(model.biom_import_total, y) * param["co2_biom"][y] for y in model.support_years) +
                                                sum(safe_value(model.waste_import_total, y) * param["co2_waste"][y] for y in model.support_years)) / 1000)
     result_dict["co2_global_emissions"] = int(result_dict["co2"] / 1000)
     result_dict["co2_credit_feedin"] = int((sum(safe_value(model.to_el_grid_total, y) * param["co2_el_feed_in"][y] for y in model.support_years) +
                                             sum(safe_value(model.to_gas_grid_total, y) * param["co2_gas_feed_in"][y] for y in model.support_years)) / 1000)
-    # CO2 tax: Use weighted average
+    # CO2 tax: Use average over all support years
     result_dict["co2_tax_total"] = int(sum(safe_value(model.misc_costs, y) for y in model.support_years) / len(model.support_years))  # EUR
 
     # Maximum grid flows (electricity and gas) - check across all support years
@@ -967,7 +1029,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
         else:
             result_dict[k]["vol_liter"] = 0
 
-        # Storage state of charge and charging power
+    # Storage state of charge and charging power
     for dev in model.storage_devs:
         # Maximum SOC (across all support years)
         max_soc = max(safe_value(model.soc, (dev, y, day_y, t)) for y in model.support_years for day_y in model.year for t in model.time_steps)
@@ -978,12 +1040,12 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
         result_dict[dev]["ch"] = int(max_ch)
 
     # Calculate detailed CO2 emissions by source (weighted sum over all support years with year-specific factors)
-    result_dict["total_co2_el"] = int(sum(safe_value(model.from_el_grid_total, y) * param["co2_el_grid"][y] * weights[y] for y in model.support_years) / 1000)  # t/a
-    result_dict["total_co2_el_feed_in"] = int(sum(safe_value(model.to_el_grid_total, y) * param["co2_el_feed_in"][y] * weights[y] for y in model.support_years) / 1000)  # t/a
-    result_dict["total_co2_gas"] = int(sum(safe_value(model.from_gas_grid_total, y) * param["co2_gas"][y] * weights[y] for y in model.support_years) / 1000)  # t/a
-    result_dict["total_co2_gas_feed_in"] = int(sum(safe_value(model.to_gas_grid_total, y) * param["co2_gas_feed_in"][y] * weights[y] for y in model.support_years) / 1000)  # t/a
-    result_dict["total_co2_biom"] = int(sum(safe_value(model.biom_import_total, y) * param["co2_biom"][y] * weights[y] for y in model.support_years) / 1000)  # t/a
-    result_dict["total_co2_waste"] = int(sum(safe_value(model.waste_import_total, y) * param["co2_waste"][y] * weights[y] for y in model.support_years) / 1000)  # t/a
-    result_dict["total_co2_hydrogen"] = int(sum(safe_value(model.hydrogen_import_total, y) * param["co2_hydrogen"][y] * weights[y] for y in model.support_years) / 1000)  # t/a
+    result_dict["total_co2_el"] = int(sum(safe_value(model.from_el_grid_total, y) * param["co2_el_grid"][y] * weights[y] for y in model.support_years) / 1000)  # t over the observation period
+    result_dict["total_co2_el_feed_in"] = int(sum(safe_value(model.to_el_grid_total, y) * param["co2_el_feed_in"][y] * weights[y] for y in model.support_years) / 1000)  # t over the observation period
+    result_dict["total_co2_gas"] = int(sum(safe_value(model.from_gas_grid_total, y) * param["co2_gas"][y] * weights[y] for y in model.support_years) / 1000)  # t over the observation period
+    result_dict["total_co2_gas_feed_in"] = int(sum(safe_value(model.to_gas_grid_total, y) * param["co2_gas_feed_in"][y] * weights[y] for y in model.support_years) / 1000)  # t over the observation period
+    result_dict["total_co2_biom"] = int(sum(safe_value(model.biom_import_total, y) * param["co2_biom"][y] * weights[y] for y in model.support_years) / 1000)  # t over the observation period
+    result_dict["total_co2_waste"] = int(sum(safe_value(model.waste_import_total, y) * param["co2_waste"][y] * weights[y] for y in model.support_years) / 1000)  # t over the observation period
+    result_dict["total_co2_hydrogen"] = int(sum(safe_value(model.hydrogen_import_total, y) * param["co2_hydrogen"][y] * weights[y] for y in model.support_years) / 1000)  # t over the observation period
 
     return result_dict

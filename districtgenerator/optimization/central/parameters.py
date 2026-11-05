@@ -12,11 +12,16 @@ Developed by:   E.ON Energy Research Center,
 Contact:        Marco Wirtz
                 marco.wirtz@eonerc.rwth-aachen.de
 
+Prepares the input data of the central energy hub design optimization (see dimensioning.py):
+aggregated district demands, design clustering, device parameters (including COP and
+generation profiles) and economic parameters for every support year.
 """
 
+import os
 import numpy as np
-import math
 import districtgenerator.time_series.medoid as clustering
+from districtgenerator.time_series.resolution import changeResolution
+from districtgenerator.time_series.clustering import select_profile_periods
 import time
 import copy
 from districtgenerator.environment.solar import Sun
@@ -25,6 +30,33 @@ from districtgenerator.energy_systems import technologies, wind_turbine
 from districtgenerator.energy_systems.technologies import calc_COP
 
 def get_params(data):
+    """
+    Collects all parameters for the central energy hub design optimization.
+
+    The demands of all buildings connected to the heating and cooling grid and the electricity
+    demands of all buildings are aggregated and clustered together with the weather data
+    (k-medoids). Based on the design clusters, the technical and economic device parameters,
+    the COP and generation profiles and the economic parameters per support year are prepared.
+
+    Parameters
+    ----------
+    data : Datahandler
+        Datahandler with generated district, site, time settings, heat grid data,
+        central device data, EHDO model parameters and economic data.
+
+    Returns
+    -------
+    param : dict
+        Economic and model parameters, clustered weather data, cluster weights,
+        cluster matrix, typedays and the assignment of each period to its typeday (sigma).
+    devs : dict
+        Technical and economic parameters of every central device, including the annuity factor.
+    dem : dict
+        Clustered demands ('heat', 'cool', 'power') for every support year [kW].
+    result_dict : dict
+        Cluster information for the operational clustering ('cluster_meta') as well as
+        monthly demands, annual peaks and annual sums of the unclustered demands.
+    """
 
     result_dict = {}
     # import model parameters
@@ -80,12 +112,15 @@ def get_params(data):
 
     heating_total = heating + dhw + heat_grid_data["total_losses_heating_network"] - generationSTC
 
-    if "total_losses_cooling_network" not in heat_grid_data:
+    # Missing profiles are stored in data.heat_grid_data on purpose, as the operational clustering
+    # (time_series.clustering) needs them later on. Not set by heating_network() for pump_power.
+    # TODO: Initialize both profiles in energy_systems.heating_network instead
+    if "total_losses_cooling_network" not in data.heat_grid_data:
         data.heat_grid_data["total_losses_cooling_network"] = np.zeros_like(cooling)
     total_losses_cooling_network = data.heat_grid_data["total_losses_cooling_network"]
     cooling_total = np.maximum(0, cooling + total_losses_cooling_network)
 
-    if "pump_power" not in heat_grid_data:
+    if "pump_power" not in data.heat_grid_data:
         data.heat_grid_data["pump_power"] = np.zeros_like(cooling)
     pump_power = data.heat_grid_data["pump_power"]
 
@@ -119,14 +154,12 @@ def get_params(data):
     inputs = np.array(time_series)
 
     # Scaling flags for each profile (True = scale after clustering, False = preserve values)
-    scalings = []
-    for feature in inputs:
-        scalings.append(0)
+    scalings = [False] * len(inputs)
 
     # Execute k-medoids algorithm
     print("Cluster design days...")
     start = time.time()
-    (clustered_series, nc, y, z, inputsTransformed) = clustering.cluster(inputs,
+    (clustered_series, nc, _, z, _) = clustering.cluster(inputs,
                                     data.time["clusterNumber"],
                                     len_cluster=int(clusterHorizon),
                                     norm = 2,
@@ -191,6 +224,9 @@ def get_params(data):
         T_return_const = heat_grid_data["T_cold_heating_network"]["constant"][generation]
         T_supply = np.ones((data.time["clusterNumber"], clusterHorizon)) * T_supply_const  # °C
         T_return = np.ones((data.time["clusterNumber"], clusterHorizon)) * T_return_const  # °C
+    else:
+        raise ValueError(f"temperature_mode '{temperature_mode}' is not supported for the central energy hub "
+                         f"design optimization. Use 'constant'.")
 
     heat_grid["T_hot_heating_network"] = T_supply
     heat_grid["T_cold_heating_network"] = T_return
@@ -433,14 +469,17 @@ def get_params(data):
                     COP_base[d][t] = eta_carnot * (heat_grid["T_hot_heating_network"][d][t] + 273.15) / (heat_grid["T_hot_heating_network"][d][t] - param["T_air"][d][t])
             devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
-        #elif all_models["HP"]["CSV_feasible"]:
-        #    COP_unclustered = np.loadtxt(os.path.join(os.path.dirname(data.srcPath), 'districtgenerator', 'data', 'coefficient_of_performance.txt'))
-        #    # Cluster COP time series
-        #    COP_base = np.ones((data.time["clusterNumber"], clusterHorizon))
-        #    for d in range(data.time["clusterNumber"]):
-        #        for t in range(clusterHorizon):
-        #            COP_base[d][t] = COP_unclustered[clusterHorizon * param["typedays"][d] + t]
-        #    devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
+        elif all_models["HP"]["CSV_feasible"]:
+            COP_unclustered = np.loadtxt(os.path.join(data.filePath, 'coefficient_of_performance.txt'))
+            # The COP file has an hourly resolution; adapt it to the time resolution of the model
+            if data.time["timeResolution"] != 3600:
+                COP_unclustered = changeResolution(COP_unclustered, 3600, data.time["timeResolution"], "mean")
+            # Cluster COP time series
+            COP_base = np.ones((data.time["clusterNumber"], clusterHorizon))
+            for d in range(data.time["clusterNumber"]):
+                for t in range(clusterHorizon):
+                    COP_base[d][t] = COP_unclustered[clusterHorizon * param["typedays"][d] + t]
+            devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
     # Electric boiler
     devs["EB"] = {
@@ -508,7 +547,7 @@ def get_params(data):
         "feasible": all_models["AC"]["enabled"],
         "inv_var": all_models["AC"]["inv_var"],
         "inv_base": all_models["AC"]["inv_base"],
-        "eta_th": all_models["AC"]["eta_th"],
+        "eta_th": all_models["AC"]["eta_th"] / 100,
         "life_time": all_models["AC"]["life_time"],
         "cost_om": all_models["AC"]["cost_om"] / 100,
         "min_cap": all_models["AC"]["min_cap"],
@@ -622,37 +661,31 @@ def get_params(data):
     ### Storages ###
 
     # Heat thermal energy storage
+    kwh_per_m3_TES = param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600  # kWh/m^3, storable energy per volume
     devs["TES"] = {
         "feasible": all_models["TES"]["enabled"],
-        "inv_var": all_models["TES"]["inv_var"] / (
-                    param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh
-        "inv_base": all_models["TES"]["inv_base"] / (
-                    param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh
+        "inv_var": all_models["TES"]["inv_var"] / kwh_per_m3_TES,  # transforming from EUR/m^3 to EUR/kWh
+        "inv_base": all_models["TES"]["inv_base"] / kwh_per_m3_TES,  # transforming from EUR/m^3 to EUR/kWh
         "sto_loss": all_models["TES"]["sto_loss"] / 100,
         "life_time": all_models["TES"]["life_time"],
         "cost_om": all_models["TES"]["cost_om"] / 100,
-        "min_cap": all_models["TES"]["min_vol"] * param["rho_w"] * param["c_w"] * all_models[
-            "TES"]["delta_T"] / 3600,  # kWh
-        "max_cap": all_models["TES"]["max_vol"] * param["rho_w"] * param["c_w"] * all_models[
-            "TES"]["delta_T"] / 3600,  # kWh
+        "min_cap": all_models["TES"]["min_vol"] * kwh_per_m3_TES,  # kWh
+        "max_cap": all_models["TES"]["max_vol"] * kwh_per_m3_TES,  # kWh
         "delta_T": all_models["TES"]["delta_T"],  # K
     }
 
     # Cold thermal energy storage
+    kwh_per_m3_CTES = param["rho_w"] * param["c_w"] * all_models["CTES"]["delta_T"] / 3600  # kWh/m^3, storable energy per volume
     devs["CTES"] = {
         "feasible": all_models["CTES"]["enabled"],
-        "inv_var": all_models["CTES"]["inv_var"] / (
-                    param["rho_w"] * param["c_w"] * all_models["CTES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh
-        "inv_base": all_models["CTES"]["inv_base"] / (
-                    param["rho_w"] * param["c_w"] * all_models["CTES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh
+        "inv_var": all_models["CTES"]["inv_var"] / kwh_per_m3_CTES,  # transforming from EUR/m^3 to EUR/kWh
+        "inv_base": all_models["CTES"]["inv_base"] / kwh_per_m3_CTES,  # transforming from EUR/m^3 to EUR/kWh
         "sto_loss": all_models["CTES"]["sto_loss"] / 100,
         "life_time": all_models["CTES"]["life_time"],
         "cost_om": all_models["CTES"]["cost_om"] / 100,
-        "min_cap": all_models["CTES"]["min_vol"] * param["rho_w"] * param["c_w"] * all_models[
-            "CTES"]["delta_T"] / 3600,  # kWh
-        "max_cap": all_models["CTES"]["max_vol"] * param["rho_w"] * param["c_w"] * all_models[
-            "CTES"]["delta_T"] / 3600,  # kWh
-        "delta_T": all_models["CTES"]["delta_T"],  # K,
+        "min_cap": all_models["CTES"]["min_vol"] * kwh_per_m3_CTES,  # kWh
+        "max_cap": all_models["CTES"]["max_vol"] * kwh_per_m3_CTES,  # kWh
+        "delta_T": all_models["CTES"]["delta_T"],  # K
     }
 
     # Battery
@@ -747,7 +780,7 @@ def get_params(data):
     # Calculate annual investments
     devs, param = calc_annual_investment(devs, param)
     # Calculate values for post-processing
-    result_dict = calc_monthly_dem(dem_uncl, param_uncl, result_dict)
+    result_dict = calc_monthly_dem(dem_uncl, data.time["timeResolution"], result_dict)
 
     return param, devs, dem, result_dict
 
@@ -761,14 +794,17 @@ def calc_annual_investment(devs, param):
 
     Parameters
     ----------
-    dev : dictionary
-        technology parameter
-    param : dictionary
-        economic parameters
+    devs : dict
+        Technical and economic parameters of every central device, including the life time.
+    param : dict
+        Economic parameters, including the observation time and the interest rate.
 
     Returns
     -------
-    annualized fix and variable investment
+    devs : dict
+        Device parameters with the annuity factor ('ann_factor') added for every device.
+    param : dict
+        Economic parameters with the capital recovery factor ('CRF') added.
     """
 
     observation_time = param["observation_time"]
@@ -784,10 +820,30 @@ def calc_annual_investment(devs, param):
 
     return devs, param
 
-def calc_monthly_dem(dem_uncl, param_uncl, result_dict):
+def calc_monthly_dem(dem_uncl, time_resolution, result_dict):
+    """
+    Calculates monthly demands, annual peaks and annual sums of the unclustered demands.
+
+    Parameters
+    ----------
+    dem_uncl : dict
+        Unclustered demands ('heat', 'cool', 'power') for one year (non-leap year) [kW].
+    time_resolution : int
+        Time resolution of the demands [s].
+    result_dict : dict
+        Dictionary the results are added to.
+
+    Returns
+    -------
+    result_dict : dict
+        Result dictionary with the monthly demands ('monthly_dem') [MWh], the annual peaks
+        ('year_peak') [kW] and the annual sums ('year_sum') [MWh].
+    """
 
     month_tuple = ("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
     days_sum = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365]
+    steps_per_day = int(24 * 3600 / time_resolution)
+    dt = time_resolution / 3600  # h
 
     monthly_dem = {}
     year_peak = {}
@@ -795,9 +851,9 @@ def calc_monthly_dem(dem_uncl, param_uncl, result_dict):
     for m in ["heat", "cool", "power"]:
         monthly_dem[m] = {}
         year_peak[m] = int(np.max(dem_uncl[m]))
-        year_sum[m] = int(np.sum(dem_uncl[m]) / 1000)
+        year_sum[m] = int(np.sum(dem_uncl[m]) * dt / 1000)
         for month in range(12):
-            monthly_dem[m][month_tuple[month]] = sum(dem_uncl[m][t] for t in range(days_sum[month]*24, days_sum[month+1]*24)) / 1000
+            monthly_dem[m][month_tuple[month]] = sum(dem_uncl[m][t] for t in range(days_sum[month]*steps_per_day, days_sum[month+1]*steps_per_day)) * dt / 1000
 
     result_dict["monthly_dem"] = monthly_dem
     result_dict["year_peak"] = year_peak
@@ -807,13 +863,37 @@ def calc_monthly_dem(dem_uncl, param_uncl, result_dict):
 
 
 def get_PVandSTC_power(devs, param, data):
+    """
+    Calculates the PV and STC generation per m^2 of collector area, unclustered and for the design typedays.
+
+    Parameters
+    ----------
+    devs : dict
+        Device parameters, uses the tilt ('beta') and azimuth ('gamma') of PV and STC.
+    param : dict
+        Model parameters, uses the clustered global horizontal irradiance ('GHI') for the
+        shape of the clustered profiles and the design typedays ('typedays').
+    data : Datahandler
+        Datahandler with file path, time settings, site data and decentral device data.
+
+    Returns
+    -------
+    potentialPV : array_like
+        Unclustered PV generation per m^2.
+    potentialSTC : array_like
+        Unclustered STC generation per m^2.
+    potentialPV_clustered : array_like
+        PV generation per m^2 for every typeday, shape (number of clusters, cluster horizon).
+    potentialSTC_clustered : array_like
+        STC generation per m^2 for every typeday, shape (number of clusters, cluster horizon).
+    """
 
     filePath = data.filePath
-    time = data.time
+    time_settings = data.time
     site = data.site
     sun = Sun(filePath=filePath)
 
-    potentialPV, _ = technologies.calc_pv_and_stc_profile(sun=sun, time=time,
+    potentialPV, _ = technologies.calc_pv_and_stc_profile(sun=sun, time=time_settings,
                                                           site=site,
                                                           devices=data.decentral_device_data,
                                                           area_roof=1,
@@ -824,7 +904,7 @@ def get_PVandSTC_power(devs, param, data):
                                                           usageFactorSTC=0)
 
     # calculate theoretical STC generation
-    _, potentialSTC = technologies.calc_pv_and_stc_profile(sun=sun, time=time,
+    _, potentialSTC = technologies.calc_pv_and_stc_profile(sun=sun, time=time_settings,
                                                            site=site,
                                                            devices=data.decentral_device_data,
                                                            area_roof=1,
@@ -834,22 +914,11 @@ def get_PVandSTC_power(devs, param, data):
                                                            usageFactorPV2=0,
                                                            usageFactorSTC=1)
 
-    # Get the corresponding values for the typedays
+    # Get the corresponding values for the typedays (the last incomplete period is cut off)
     chunk_size = len(param["GHI"][0])
-    num_chunks = len(potentialPV) // chunk_size
-
-    # Split both potentialPV and potentialSTC into chunks
-    pv_chunks = np.split(potentialPV[:chunk_size * num_chunks], num_chunks)
-    stc_chunks = np.split(potentialSTC[:chunk_size * num_chunks], num_chunks)
-
-    # Initialize empty arrays with the same shape as the GHI input
-    potentialPV_clustered = np.zeros_like(param["GHI"])
-    potentialSTC_clustered = np.zeros_like(param["GHI"])
-
-    # Fill both arrays according to the day types
-    for i, day_type in enumerate(param["typedays"]):
-        potentialPV_clustered[i] = pv_chunks[day_type]
-        potentialSTC_clustered[i] = stc_chunks[day_type]
+    length_array = chunk_size * (len(potentialPV) // chunk_size)
+    potentialPV_clustered = select_profile_periods(potentialPV, param["typedays"], chunk_size, length_array)
+    potentialSTC_clustered = select_profile_periods(potentialSTC, param["typedays"], chunk_size, length_array)
 
     return (potentialPV, potentialSTC, potentialPV_clustered, potentialSTC_clustered)
 

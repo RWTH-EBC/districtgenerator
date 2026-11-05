@@ -70,20 +70,21 @@ OPTION_MAP = {
         'cbc': 'integerTolerance',
         'scip': 'numerics/intfeastol',
     },
-    # Allow non-convex models (if supported)
+    # Enable/disable dual reductions in presolve (disabling helps to distinguish infeasible from unbounded)
     'dual_reductions': {
         'gurobi': 'DualReductions',
-        'highs': None,    # Highs unterstützt keinen direkten Äquivalentparameter
-        'glpk': None,     # GLPK hat kein direktes Pendant
-        'cbc': None,      # CBC hat kein direktes Pendant
-        'scip': None,     # SCIP könnte evtl. 'presolving/maxrestarts' ähnlich steuern, aber kein exaktes Mapping
+        'highs': None,    # HiGHS has no directly equivalent parameter
+        'glpk': None,     # GLPK has no direct counterpart
+        'cbc': None,      # CBC has no direct counterpart
+        'scip': None,     # SCIP might control something similar via 'presolving/maxrestarts', but there is no exact mapping
     },
+    # Allow non-convex models (if supported)
     'nonconvex': {
         'gurobi': 'NonConvex',
-        'highs': None,    # Highs unterstützt keine nichtkonvexen QP/QCP
-        'glpk': None,     # GLPK unterstützt keine nichtkonvexen QP/QCP
-        'cbc': None,      # CBC unterstützt keine nichtkonvexen QP/QCP
-        'scip': None,  # SCIP hat keinen direkten NonConvex-Parameter
+        'highs': None,    # HiGHS does not support non-convex QP/QCP
+        'glpk': None,     # GLPK does not support non-convex QP/QCP
+        'cbc': None,      # CBC does not support non-convex QP/QCP
+        'scip': None,  # SCIP has no direct NonConvex parameter
     },
     # Enable/disable presolve
     'presolve': {
@@ -96,7 +97,7 @@ OPTION_MAP = {
         'gurobi': 'Threads',  # same as 'threads' in Gurobi
         'highs': 'parallel',
         'cbc': 'threads',
-        'glpk': 'threads'  # GLPK has limited threading support
+        'glpk': None  # GLPK is single-threaded
     },
     # Cutting plane settings
     'cuts': {
@@ -135,31 +136,40 @@ OPTION_MAP = {
 
 _NO_INPUT = object()
 
-def create_solver(pyomo_config = None, solver_name=None,timelimit=_NO_INPUT, mipgap=None) -> tuple[SolverFactory, dict]:  # type: ignore
+def create_solver(pyomo_config = None, solver_name=None,timelimit=_NO_INPUT, mipgap=None) -> tuple[object, dict]:
     """
     Returns a Pyomo solver instance based on the provided solver name.
-    Creates the solver with options from a JSON file or function arguments.
+    Creates the solver with options from the configuration or function arguments.
 
     Parameters
-    -------
-    pyomo_config : PyomoConfig, optional
-        PyomoConfig instance containing solver settings. if None the settings are directly loaded from the config file with the standard values.
-    solver_name : str,
-        name of the solver to use, e.g., 'gurobi', 'cbc', 'glpk', 'highs', 'scip' to override the JSON file setting
-    timelimit : 
-        int,        time limit for the solver in seconds to override the JSON file setting
-        _NO_INPUT,  Use the value from the JSON file if None
-        None,       set timelimit to None
+    ----------
+    pyomo_config : dict, optional
+        Solver settings as dictionary (e.g. ``PyomoConfig().__dict__``) with the keys
+        'solver_name', 'solver_executable' and 'solver_options'. If None, the default
+        settings of PyomoConfig are loaded.
+    solver_name : str, optional
+        Name of the solver to use ('gurobi', 'cbc', 'glpk', 'highs' or 'scip').
+        Overrides the configuration setting.
+    timelimit : int or None, optional
+        Time limit for the solver in seconds. Overrides the configuration setting.
+        If not given, the value from the configuration is used.
+        If None, a default time limit of 3600 seconds is used.
+    mipgap : float, optional
+        Relative MIP gap for the solver. Overrides the configuration setting.
 
-    mipgap : float,
-        MIP gap for the solver to override the JSON file setting
-
-    -------
     Returns
     -------
-        tuple: (SolverFactory instance, dict of solver options)
+    solver : object
+        Pyomo solver instance created by SolverFactory.
+    specific_options : dict
+        Solver options mapped to the solver-specific option names.
+
+    Raises
+    ------
+    ValueError
+        If the solver name is not supported.
     """
-    # If no PyomoConfig is provided, load the default configuration
+    # 1. Load the default configuration if no PyomoConfig is provided
     if pyomo_config is None:
         pyomo_config_obj = PyomoConfig()  # Load default config if none provided
         pyomo_config = pyomo_config_obj.__dict__
@@ -170,18 +180,18 @@ def create_solver(pyomo_config = None, solver_name=None,timelimit=_NO_INPUT, mip
     solver_options = pyomo_config["solver_options"].copy()  # make a copy to avoid modifying the original
 
 
-    # check if the solver name is valid
+    # 2. Check if the solver name is valid
     if solver_name not in SUPPORTED_SOLVERS:
         raise ValueError(f"Invalid solver name: {solver_name}. Supported solvers are: {SUPPORTED_SOLVERS}.")
 
-    # 2. Create the solver instance
+    # 3. Create the solver instance
     if solver_executable:
         solver = SolverFactory(solver_name, executable=solver_executable)
     else:
         # Use the default solver executable path if not specified
         solver = SolverFactory(solver_name)
 
-    # 3. get solver specific options
+    # 4. Get solver specific options
     if timelimit is _NO_INPUT:
         pass  # Use the value from the JSON file if no Input is provided
     elif timelimit is None:
@@ -200,18 +210,25 @@ def create_solver(pyomo_config = None, solver_name=None,timelimit=_NO_INPUT, mip
 def _map_options(solver_name, solver_options):
     """
     Map solver options to the appropriate format for the specified solver.
-    
-    -------
+
+    Options without a counterpart for the given solver (None or missing in OPTION_MAP) are skipped.
+
     Parameters
-    solver_name : str,
-        name of the solver to use, e.g., 'gurobi', 'cbc', 'glpk', 'highs'
-    solver_options : dict,
-        dictionary of solver options to map to the solver-specific format
-    
-    -------
+    ----------
+    solver_name : str
+        Name of the solver to use, e.g. 'gurobi', 'cbc', 'glpk', 'highs' or 'scip'.
+    solver_options : dict
+        Generic solver options (keys of OPTION_MAP) to map to the solver-specific format.
+
     Returns
-    mapped_options: dict,
-        dictionary of mapped solver options
+    -------
+    mapped_options : dict
+        Solver options with solver-specific option names.
+
+    Raises
+    ------
+    ValueError
+        If an option is not contained in OPTION_MAP.
     """
 
     mapped_options = {}
@@ -228,7 +245,27 @@ def _map_options(solver_name, solver_options):
 def execute_and_diagnose(model, pyomo_config, model_name, result_dir):
     """
     Solves the given Pyomo model and triggers diagnosis if not solved to optimality.
-    """    
+
+    The model is written to an .lp file in result_dir before solving. The solution is loaded into
+    the model only if the solver found one, so an infeasible model returns its termination
+    condition instead of raising an error (e.g. with HiGHS).
+
+    Parameters
+    ----------
+    model : pyomo.environ.ConcreteModel
+        Optimization model to solve.
+    pyomo_config : dict
+        Solver settings, see create_solver.
+    model_name : str
+        Name of the model, used for the names of the output files.
+    result_dir : str
+        Directory for the .lp file and diagnosis files.
+
+    Returns
+    -------
+    results : pyomo.opt.SolverResults
+        Results object returned by the solver.
+    """
     # Initialize solver
     solver, solver_options = create_solver(pyomo_config=pyomo_config)
 
@@ -242,7 +279,12 @@ def execute_and_diagnose(model, pyomo_config, model_name, result_dir):
     # Capture solver output in a log file by redirecting stdout:
     with open(solver_log_path, 'w', encoding='utf-8') as log_file:
         with redirect_stdout(log_file):
-            results = solver.solve(model, tee=True, options=solver_options)
+            results = solver.solve(model, tee=True, options=solver_options, load_solutions=False)
+
+    # Load the solution only if one exists. With automatic loading, some solvers (e.g. HiGHS) raise an
+    # error for infeasible models instead of returning the termination condition.
+    if len(results.solution) > 0:
+        model.solutions.load_from(results)
 
     term_cond = results.solver.termination_condition
 
@@ -267,6 +309,25 @@ def _diagnose_solution(model, term_cond, result_dir, model_name, lp_filename, so
     """
     Diagnose the optimization result when the solver does not terminate with an optimal solution. 
     Utilizes Gurobi (if available) to analyze infeasibility or unboundedness and saves an error log for further analysis.
+
+    Parameters
+    ----------
+    model : pyomo.environ.ConcreteModel
+        Optimization model that was not solved to optimality.
+    term_cond : pyomo.opt.TerminationCondition
+        Termination condition returned by the solver.
+    result_dir : str
+        Directory for the error file and, if infeasible, the IIS file.
+    model_name : str
+        Name of the model, used for the names of the output files.
+    lp_filename : str
+        Path of the .lp file of the model.
+    solver_log_path : str
+        Path of the solver log file, whose content is copied to the error file.
+
+    Returns
+    -------
+    None.
     """
     errorfile_path = os.path.join(result_dir, f"errorfile_{model_name}.txt")
 
@@ -318,14 +379,14 @@ def _diagnose_solution(model, term_cond, result_dir, model_name, lp_filename, so
                 print("Running Gurobi optimization to determine source of termination...")
                 m.optimize()
 
-                if m.status == gp.GRB.OPTIMAL or m.status == 2: 
+                if m.status == gp.GRB.OPTIMAL:
                     print(f"Gurobi resolved with status: {m.status}. Objective value: {m.objVal}")
                     with open(errorfile_path, 'a') as f:
                         f.write(f"\nGurobi resolved with status: {m.status}. Objective value: {m.objVal}\n")
                         if term_cond == pyo.TerminationCondition.maxTimeLimit:
                             f.write(f"The original solver reached the time limit. Using Gurobi the runtime was: {m.Runtime:.2f} seconds\n")
 
-                elif m.status == gp.GRB.INFEASIBLE or m.status == 4:
+                elif m.status == gp.GRB.INFEASIBLE:
                     m.computeIIS()
                     iis_filename = os.path.join(result_dir, f"iis_{model_name}.ilp")
                     m.write(iis_filename)
@@ -375,6 +436,22 @@ def _diagnose_solution(model, term_cond, result_dir, model_name, lp_filename, so
 def write_solution_file(model, model_name, result_dir):
     """
     Writes the solution of the optimization model to a file.
+
+    The file 'solution_file_<model_name>.txt' contains the objective value and all
+    variable values that are not None. Errors while writing are only printed as warning.
+
+    Parameters
+    ----------
+    model : pyomo.environ.ConcreteModel
+        Solved optimization model with an objective named 'objective'.
+    model_name : str
+        Name of the model, used for the file name.
+    result_dir : str
+        Directory of the solution file.
+
+    Returns
+    -------
+    None.
     """
     file_path = os.path.join(result_dir, f"solution_file_{model_name}.txt")
     try:
