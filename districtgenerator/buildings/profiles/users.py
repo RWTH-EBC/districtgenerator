@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import json
 import statistics
 import os
 import random as rd
@@ -13,10 +12,9 @@ import richardsonpy
 import richardsonpy.classes.stochastic_el_load_wrapper as wrap
 import richardsonpy.classes.appliance as app_model
 import richardsonpy.classes.lighting as light_model
-from districtgenerator.buildings.typology.non_residential import GenericNonResidential
+from districtgenerator.buildings.typology.non_residential import GenericNonResidential, load_non_residential_json
 from districtgenerator.buildings import thermal
 from districtgenerator.utilities.randomness import derive_seed, seeded_random_state
-from districtgenerator.utilities.paths import DATA_DIR
 
 RES_BUILDINGS = {"SFH", "TH", "MFH", "AB"}
 FLAT_PARALLELIZATION_OPTIONS = ("none", "threading", "multiprocessing")
@@ -539,9 +537,7 @@ class Users:
                 bulbs_combination = "combi_2"
 
             try:
-                with open(os.path.join(DATA_DIR, 'non_residential',
-                            file_name)) as json_file:
-                    jsonData = json.load(json_file)
+                jsonData = load_non_residential_json(file_name)
             except FileNotFoundError:
                 print(f"Error: File '{file_name}' not found.")
                 return

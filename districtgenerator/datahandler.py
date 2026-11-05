@@ -212,15 +212,21 @@ class Datahandler:
         """
         Select the closest TRY weather station for the location of the postal code.
 
+        Deprecated, use ``environment.site.select_plz_data`` instead.
+
         Returns
         -------
         None.
         """
+        warnings.warn("'Datahandler.select_plz_data' is deprecated, use "
+                      "'environment.site.select_plz_data' instead.", DeprecationWarning, stacklevel=2)
         site_conditions.select_plz_data(self)
 
     def get_holidays(self, country_code: str, year: int, state: str = None):
         """
-        Get the day of the year of all holidays, see ``environment.site.get_holidays``.
+        Get the day of the year of all holidays.
+
+        Deprecated, use ``environment.site.get_holidays`` instead.
 
         Parameters
         ----------
@@ -236,6 +242,8 @@ class Datahandler:
         list of int
             Day of the year (1 = January 1st) of each holiday.
         """
+        warnings.warn("'Datahandler.get_holidays' is deprecated, use "
+                      "'environment.site.get_holidays' instead.", DeprecationWarning, stacklevel=2)
         return site_conditions.get_holidays(country_code, year, state)
 
     def generateEnvironment(self):

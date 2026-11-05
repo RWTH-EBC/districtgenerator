@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 import math
+import warnings
+
 import numpy as np
 
 
@@ -439,11 +441,23 @@ class Sun:
 
     def calcPVAndSTCProfile(self, time, site, devices, area_roof, beta=35, gamma=0, usageFactorPV1=0.4,
                             usageFactorPV2=0, usageFactorSTC=0.2):
-        """PV and STC generation profiles, see energy_systems.technologies.calc_pv_and_stc_profile."""
+        """
+        PV and STC generation profiles.
+
+        Deprecated, use ``energy_systems.technologies.calc_pv_and_stc_profile`` instead.
+        """
+        warnings.warn("'Sun.calcPVAndSTCProfile' is deprecated, use "
+                      "'energy_systems.technologies.calc_pv_and_stc_profile' instead.",
+                      DeprecationWarning, stacklevel=2)
         from districtgenerator.energy_systems.technologies import calc_pv_and_stc_profile
         return calc_pv_and_stc_profile(self, time, site, devices, area_roof, beta=beta, gamma=gamma,
                                        usageFactorPV1=usageFactorPV1, usageFactorPV2=usageFactorPV2,
                                        usageFactorSTC=usageFactorSTC)
+
+
+# The class has no state, one shared instance is enough
+SUN = Sun()
+
 
 def calculate_surface_irradiance(data):
     """
@@ -462,8 +476,7 @@ def calculate_surface_irradiance(data):
     None.
     """
     # Calculate solar irradiance per surface direction - S, W, N, E, Roof represented by angles gamma and beta
-    sun = Sun()
-    data.site["SunRad"] = sun.getSolarGains(initialTime=0,
+    data.site["SunRad"] = SUN.getSolarGains(initialTime=0,
                                             timeDiscretization=data.time["timeResolution"],
                                             timeSteps=data.time["timeSteps"],
                                             timeZone=data.site["timeZone"],

@@ -45,6 +45,60 @@ def parse_float_list(value: any) -> list[float]:
         return [float(value)]
     raise ValueError(f"Cannot parse {type(value)} into a list of floats")
 
+def build_nested_dicts(model, compute_inv_var=False):
+    """
+    Collect the fields 'NAME__key' of a config into its empty dict field 'NAME'.
+
+    Further '__' create nested dicts, e.g. 'NAME__a__b' becomes NAME["a"]["b"].
+    The individual fields are removed afterwards.
+
+    Parameters
+    ----------
+    model : BaseSettings
+        Config instance with empty dict fields and their prefixed individual fields.
+    compute_inv_var : bool, optional
+        If True, add 'inv_var' = 'inv_base' * (1 - 'inv_subsidy_rate') to each device dict
+        that contains both keys. The default is False.
+
+    Returns
+    -------
+    BaseSettings
+        The same config instance, as required by pydantic model validators.
+    """
+    # Snapshot of the field names, as fields are deleted during the loop
+    field_names = list(model.__dict__.keys())
+
+    for field_name in field_names:
+        # Skip fields that were already moved into a dict
+        if not hasattr(model, field_name):
+            continue
+        # Only empty dict fields are filled, e.g. HP = {} with HP__cap_max, HP__inv_base, ...
+        if not (isinstance(getattr(model, field_name), dict) and getattr(model, field_name) == {}):
+            continue
+
+        target_dict = {}
+        prefix = f"{field_name}__"
+        member_names = [name for name in field_names if name.startswith(prefix) and hasattr(model, name)]
+
+        for attr_name in member_names:
+            # Split the rest of the name by '__' to support nested dicts
+            keys = attr_name[len(prefix):].split('__')
+            current_dict = target_dict
+            for key in keys[:-1]:
+                current_dict = current_dict.setdefault(key, {})
+            current_dict[keys[-1]] = getattr(model, attr_name)
+
+        # Investment costs after subsidies
+        if compute_inv_var and 'inv_base' in target_dict and 'inv_subsidy_rate' in target_dict:
+            target_dict['inv_var'] = target_dict['inv_base'] * (1 - target_dict['inv_subsidy_rate'])
+
+        # Set the dictionary first, then delete the individual fields
+        setattr(model, field_name, target_dict)
+        for attr_name in member_names:
+            delattr(model, attr_name)
+
+    return model
+
 ### Configuration Classes ###
 class LocationConfig(BaseSettings):
     """
@@ -75,7 +129,7 @@ class LocationConfig(BaseSettings):
 
     # Fallback if the zip code is not in plz_geocoord_matched.xlsx: Aachen and its TRY weather station
     FALLBACK_ZIP: ClassVar[str] = "52064"
-    FALLBACK_LOCATION: ClassVar[str] = "507755060854"
+    FALLBACK_WEATHER_STATION: ClassVar[str] = "507755060854"
 
     # Cooling load zones (Kühllastzonen) of VDI 2078: (mean summer temperature, daily amplitude) in °C.
     # Used for the design temperature of the cooling load, the default zone applies to unknown zones.
@@ -387,37 +441,9 @@ class PyomoConfig(BaseSettings):
         return v
 
     @model_validator(mode='after')
-    def build_device_dicts(self) -> 'DecentralDeviceConfig':
-        """Build all device dictionaries from individual parameters."""
-
-        # Create a list of field names to avoid RuntimeError during iteration
-        field_names = list(self.__dict__.keys())
-
-        # Get all field names from the model
-        for field_name in field_names:
-            # Check if this is a dictionary field (uppercase device name)
-            if isinstance(getattr(self, field_name), dict):
-                # Only build if the dictionary is empty
-                if getattr(self, field_name) == {}:
-                    device_dict = {}
-                    prefix = f"{field_name}__"
-
-                    # Find all attributes that start with this device prefix
-                    for attr_name in field_names:  # Use the snapshot here too
-                        if attr_name.startswith(prefix):
-                            # Remove the prefix to get the dictionary key
-                            dict_key = attr_name[len(prefix):]
-                            device_dict[dict_key] = getattr(self, attr_name)
-
-                    # Set the dictionary first
-                    setattr(self, field_name, device_dict)
-
-                    # Now delete the individual attributes
-                    for attr_name in field_names:
-                        if attr_name.startswith(prefix):
-                            delattr(self, attr_name)
-
-        return self
+    def build_device_dicts(self) -> 'PyomoConfig':
+        """Build the solver option dictionary from individual parameters."""
+        return build_nested_dicts(self)
 
     model_config = SettingsConfigDict(
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
@@ -510,46 +536,8 @@ class HeatGridConfig(BaseSettings):
 
     @model_validator(mode='after')
     def build_device_dicts(self) -> 'HeatGridConfig':
-        """Build all device dictionaries from individual parameters, supporting nested structure."""
-
-        field_names = list(self.__dict__.keys())
-
-        for field_name in field_names:
-            if isinstance(getattr(self, field_name), dict):
-                if getattr(self, field_name) == {}:
-                    device_dict = {}
-                    prefix = f"{field_name}__"
-
-                    # Find all attributes that start with this device prefix
-                    for attr_name in field_names:
-                        if attr_name.startswith(prefix):
-                            # Remove the prefix to get the key path
-                            key_path = attr_name[len(prefix):]
-
-                            # Split by __ to support nested structure
-                            keys = key_path.split('__')
-
-                            # Navigate/create nested dict structure
-                            current_dict = device_dict
-                            for i, key in enumerate(keys):
-                                if i == len(keys) - 1:
-                                    # Last key: set the value
-                                    current_dict[key] = getattr(self, attr_name)
-                                else:
-                                    # Intermediate key: ensure nested dict exists
-                                    if key not in current_dict:
-                                        current_dict[key] = {}
-                                    current_dict = current_dict[key]
-
-                    # Set the dictionary
-                    setattr(self, field_name, device_dict)
-
-                    # Now delete the individual attributes
-                    for attr_name in field_names:
-                        if attr_name.startswith(prefix):
-                            delattr(self, attr_name)
-
-        return self
+        """Build all nested dictionaries (e.g. network temperatures) from individual parameters."""
+        return build_nested_dicts(self)
 
 
     model_config = SettingsConfigDict(
@@ -800,37 +788,7 @@ class ReportConfig(BaseSettings):
                         raise ValueError(f"RGB tuple must have exactly 3 values. Got: {val}")
 
         # 2. Build nested dictionaries (Supports both colors and fonts)
-        for field_name in field_names:
-            # Skip if we already deleted this attribute in a previous iteration
-            if not hasattr(self, field_name):
-                continue
-
-            if isinstance(getattr(self, field_name), dict):
-                if getattr(self, field_name) == {}:
-                    target_dict = {}
-                    prefix = f"{field_name}__"
-                    
-                    for attr_name in field_names:
-                        if attr_name.startswith(prefix) and hasattr(self, attr_name):
-                            key_path = attr_name[len(prefix):]
-                            keys = key_path.split('__')
-                            
-                            current_dict = target_dict
-                            for i, key in enumerate(keys):
-                                if i == len(keys) - 1:
-                                    current_dict[key] = getattr(self, attr_name)
-                                else:
-                                    if key not in current_dict:
-                                        current_dict[key] = {}
-                                    current_dict = current_dict[key]
-                    
-                    setattr(self, field_name, target_dict)
-                    
-                    for attr_name in field_names:
-                        if attr_name.startswith(prefix) and hasattr(self, attr_name):
-                            delattr(self, attr_name)
-                            
-        return self
+        return build_nested_dicts(self)
 
     model_config = SettingsConfigDict(
         extra='ignore' # Ignores all other variables in the .env.CONFIG file
@@ -1036,40 +994,8 @@ class DecentralDeviceConfig(BaseSettings):
 
     @model_validator(mode='after')
     def build_device_dicts(self) -> 'DecentralDeviceConfig':
-        """Build all device dictionaries from individual parameters."""
-
-        # Create a list of field names to avoid RuntimeError during iteration
-        field_names = list(self.__dict__.keys())
-
-        # Get all field names from the model
-        for field_name in field_names:
-            # Check if this is a dictionary field (uppercase device name)
-            if isinstance(getattr(self, field_name), dict):
-                # Only build if the dictionary is empty
-                if getattr(self, field_name) == {}:
-                    device_dict = {}
-                    prefix = f"{field_name}__"
-
-                    # Find all attributes that start with this device prefix
-                    for attr_name in field_names:  # Use the snapshot here too
-                        if attr_name.startswith(prefix):
-                            # Remove the prefix to get the dictionary key
-                            dict_key = attr_name[len(prefix):]
-                            device_dict[dict_key] = getattr(self, attr_name)
-
-                    # Calculate inv_var from inv_base and inv_subsidy_rate
-                    if 'inv_base' in device_dict and 'inv_subsidy_rate' in device_dict:
-                        device_dict['inv_var'] = device_dict['inv_base'] * (1 - device_dict['inv_subsidy_rate'])
-
-                    # Set the dictionary first
-                    setattr(self, field_name, device_dict)
-
-                    # Now delete the individual attributes
-                    for attr_name in field_names:
-                        if attr_name.startswith(prefix):
-                            delattr(self, attr_name)
-
-        return self
+        """Build all device dictionaries from individual parameters, including inv_var."""
+        return build_nested_dicts(self, compute_inv_var=True)
 
 
     model_config = SettingsConfigDict(
@@ -1381,41 +1307,9 @@ class CentralDeviceConfig(BaseSettings):
     GS: dict = {}
 
     @model_validator(mode='after')
-    def build_device_dicts(self) -> 'DecentralDeviceConfig':
-        """Build all device dictionaries from individual parameters."""
-
-        # Create a list of field names to avoid RuntimeError during iteration
-        field_names = list(self.__dict__.keys())
-
-        # Get all field names from the model
-        for field_name in field_names:
-            # Check if this is a dictionary field (uppercase device name)
-            if isinstance(getattr(self, field_name), dict):
-                # Only build if the dictionary is empty
-                if getattr(self, field_name) == {}:
-                    device_dict = {}
-                    prefix = f"{field_name}__"
-
-                    # Find all attributes that start with this device prefix
-                    for attr_name in field_names:  # Use the snapshot here too
-                        if attr_name.startswith(prefix):
-                            # Remove the prefix to get the dictionary key
-                            dict_key = attr_name[len(prefix):]
-                            device_dict[dict_key] = getattr(self, attr_name)
-
-                    # Calculate inv_var from inv_base and inv_subsidy_rate
-                    if 'inv_base' in device_dict and 'inv_subsidy_rate' in device_dict:
-                        device_dict['inv_var'] = device_dict['inv_base'] * (1 - device_dict['inv_subsidy_rate'])
-
-                    # Set the dictionary first
-                    setattr(self, field_name, device_dict)
-
-                    # Now delete the individual attributes
-                    for attr_name in field_names:
-                        if attr_name.startswith(prefix):
-                            delattr(self, attr_name)
-
-        return self
+    def build_device_dicts(self) -> 'CentralDeviceConfig':
+        """Build all device dictionaries from individual parameters, including inv_var."""
+        return build_nested_dicts(self, compute_inv_var=True)
     
     @model_validator(mode='after')
     def validate_hp_cc_configuration(self) -> 'CentralDeviceConfig':

@@ -7,7 +7,7 @@ import os
 import numpy as np
 
 from districtgenerator.energy_systems import technologies
-from districtgenerator.environment.solar import Sun
+from districtgenerator.environment.solar import SUN
 
 class BES:
     """
@@ -265,7 +265,7 @@ def design_decentral_devices(data, saveGenerationProfiles=True):
                   for building in data.district]
 
     # Solar irradiance on the tilted roof surfaces is needed for the PV and STC yield
-    sun = Sun()
+    sun = SUN  # shared instance, Sun has no state
     for building, choices in zip(data.district, candidates):
 
         # %% create building energy system object

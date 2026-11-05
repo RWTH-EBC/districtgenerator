@@ -16,7 +16,7 @@ def select_plz_data(data):
     """
     Select the closest TRY weather station for the location of the postal code.
 
-    Sets ``data.site["Location"]``, the ID of the TRY weather station. If the zip code is not
+    Sets ``data.site["weather_station"]``, the ID of the TRY weather station. If the zip code is not
     in ``plz_geocoord_matched.xlsx``, a warning is issued and the fallback of ``LocationConfig``
     (Aachen) is used. In that case ``data.site["zip"]`` is changed as well.
 
@@ -42,14 +42,14 @@ def select_plz_data(data):
     for row in sheet.iter_rows(values_only=True):
         if data.site["zip"] == str(row[0]):
             weatherdatafile = row[3]
-            data.site["Location"] = weatherdatafile[8:-9]
+            data.site["weather_station"] = weatherdatafile[8:-9]
             break
     else:
         # Postal code not found: use the weather station of the fallback location
         warnings.warn(f"Postal code '{data.site['zip']}' not found in {plz_file_path}, "
                       f"using fallback '{LocationConfig.FALLBACK_ZIP}' (Aachen).", stacklevel=2)
         data.site["zip"] = LocationConfig.FALLBACK_ZIP
-        data.site["Location"] = LocationConfig.FALLBACK_LOCATION
+        data.site["weather_station"] = LocationConfig.FALLBACK_WEATHER_STATION
 
 
 def get_holidays(country_code: str, year: int, state: str = None):

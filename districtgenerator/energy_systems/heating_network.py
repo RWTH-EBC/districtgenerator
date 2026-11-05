@@ -15,12 +15,9 @@ import os
 import numpy as np
 import pandas as pd
 import math
-import scipy.optimize as opt
-import cmath
 
 from districtgenerator.economics import annuity
 from districtgenerator.energy_systems import technologies
-from districtgenerator.environment.soil import calculate_soil_temperature
 
 def heating_network(data):
     """
@@ -80,7 +77,7 @@ def heating_network(data):
 #    plot(data)
     data = calc_costs(data)
     data = calc_annual_investment(data)
-    data = calculate_soil_temperature(data, dt)
+    # The soil temperature data.heat_grid_data["T_soil"] is calculated once in Datahandler.generateEnvironment
 
 #    Assign hot/cold network temperatures
     T_e = data.site["T_e"]  # outdoor temperature time series
