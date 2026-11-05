@@ -16,7 +16,7 @@ import pyomo.environ as pyo
 from districtgenerator.analysis.kpis import KPIs
 from districtgenerator.energy_systems import technologies
 from districtgenerator.optimization import solver as solver_config
-from districtgenerator.optimization.central import operation as opti_central
+from districtgenerator.optimization import operation as opti_central
 
 
 def annual_operation_weights(eco_data):
@@ -32,7 +32,7 @@ def annual_operation_weights(eco_data):
 
     Note: The same result is given by capital_recovery_factor (economics.annuity) times
     _discount_factor with the interval lengths of _support_year_weights (both in
-    optimization.central.dimensioning). Keep both implementations consistent when changing one.
+    optimization.energy_hub_sizing). Keep both implementations consistent when changing one.
 
     Parameters
     ----------

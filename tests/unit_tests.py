@@ -10,8 +10,8 @@ import numpy as np
 
 from districtgenerator.time_series.resolution import changeResolution
 from districtgenerator.time_series.clustering import select_profile_periods
-from districtgenerator.optimization.central.dimensioning import _discount_factor
-from districtgenerator.optimization.central.parameters import calc_monthly_dem
+from districtgenerator.optimization.energy_hub_sizing import _discount_factor
+from districtgenerator.optimization.energy_hub_parameters import calc_monthly_dem
 
 
 class TestChangeResolution(unittest.TestCase):

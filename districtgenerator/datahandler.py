@@ -25,7 +25,7 @@ from districtgenerator.economics import price_paths
 from districtgenerator.energy_systems import building_energy_system, central_energy_system, heating_network
 from districtgenerator.environment import site as site_conditions
 from districtgenerator.environment import soil, solar, weather
-from districtgenerator.optimization.central import operation
+from districtgenerator.optimization import operation
 from districtgenerator.storage import district_store, profile_store
 from districtgenerator.time_series import clustering
 from districtgenerator.utilities.paths import PACKAGE_DIR

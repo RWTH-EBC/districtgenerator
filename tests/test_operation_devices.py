@@ -20,7 +20,7 @@ import pyomo.environ as pyo
 from pyomo.contrib.fbbt.fbbt import fbbt
 from pyomo.repn import generate_standard_repn
 
-import districtgenerator.optimization.central.operation as op
+import districtgenerator.optimization.operation as op
 
 # Some devices list the same carrier under two names ("biomass" in the buildings, "biom" in the energy hub)
 CARRIER_ALIASES = {"biom": "biomass"}

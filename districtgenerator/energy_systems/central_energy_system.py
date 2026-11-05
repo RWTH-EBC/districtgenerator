@@ -5,8 +5,8 @@ import os
 
 import numpy as np
 
-import districtgenerator.optimization.central.dimensioning as opti_dimensioning_central_devices
-import districtgenerator.optimization.central.parameters as get_params_central_devices
+import districtgenerator.optimization.energy_hub_sizing as opti_dimensioning_central_devices
+import districtgenerator.optimization.energy_hub_parameters as get_params_central_devices
 
 
 class CES:

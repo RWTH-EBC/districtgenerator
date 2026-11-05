@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Smoke test of the heating concept selection (optimization/decentral/heating_concept.py).
+Smoke test of the heating concept selection (optimization/heating_concept.py).
 
 The selection is run once for a small building with two candidates and solved with HiGHS. The device
 and price parameters come from the example configuration, the profiles from the mock data of
@@ -18,7 +18,7 @@ import pyomo.environ as pyo
 
 from districtgenerator.config.settings import load_global_config
 from districtgenerator.economics import price_paths
-from districtgenerator.optimization.decentral.heating_concept import choose_heating_concept
+from districtgenerator.optimization.heating_concept import choose_heating_concept
 from test_operation_devices import make_mock_data
 
 CANDIDATES = ["HP", "BOI"]

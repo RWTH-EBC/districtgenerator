@@ -34,13 +34,13 @@ OLD_TO_NEW = {
     "districtgenerator.functions.change_resolution": "districtgenerator.time_series.resolution",
     "districtgenerator.functions.clustering_medoid": "districtgenerator.time_series.medoid",
     "districtgenerator.functions.clustering_processing": "districtgenerator.time_series.clustering",
-    "districtgenerator.functions.get_params_central_devices": "districtgenerator.optimization.central.parameters",
+    "districtgenerator.functions.get_params_central_devices": "districtgenerator.optimization.energy_hub_parameters",
     "districtgenerator.functions.heating_network_simple": "districtgenerator.energy_systems.heating_network",
-    "districtgenerator.functions.opti_central": "districtgenerator.optimization.central.operation",
+    "districtgenerator.functions.opti_central": "districtgenerator.optimization.operation",
     "districtgenerator.functions.opti_dimensioning_central_devices":
-        "districtgenerator.optimization.central.dimensioning",
+        "districtgenerator.optimization.energy_hub_sizing",
     "districtgenerator.functions.opti_dimensioning_decentral_devices":
-        "districtgenerator.optimization.decentral.heating_concept",
+        "districtgenerator.optimization.heating_concept",
     "districtgenerator.functions.randomness": "districtgenerator.utilities.randomness",
     "districtgenerator.functions.solver_config": "districtgenerator.optimization.solver",
     "districtgenerator.functions.wind_turbines": "districtgenerator.energy_systems.wind_turbine",

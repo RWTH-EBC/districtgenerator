@@ -3,34 +3,34 @@ Optimization
 
 .. automodule:: districtgenerator.optimization
 
-districtgenerator.optimization.central.dimensioning
----------------------------------------------------
+districtgenerator.optimization.energy_hub_parameters
+----------------------------------------------------
 
-.. automodule:: districtgenerator.optimization.central.dimensioning
+.. automodule:: districtgenerator.optimization.energy_hub_parameters
    :members:
    :undoc-members:
    :show-inheritance:
 
-districtgenerator.optimization.central.operation
+districtgenerator.optimization.energy_hub_sizing
 ------------------------------------------------
 
-.. automodule:: districtgenerator.optimization.central.operation
+.. automodule:: districtgenerator.optimization.energy_hub_sizing
    :members:
    :undoc-members:
    :show-inheritance:
 
-districtgenerator.optimization.central.parameters
--------------------------------------------------
+districtgenerator.optimization.heating_concept
+----------------------------------------------
 
-.. automodule:: districtgenerator.optimization.central.parameters
+.. automodule:: districtgenerator.optimization.heating_concept
    :members:
    :undoc-members:
    :show-inheritance:
 
-districtgenerator.optimization.decentral.heating_concept
---------------------------------------------------------
+districtgenerator.optimization.operation
+----------------------------------------
 
-.. automodule:: districtgenerator.optimization.decentral.heating_concept
+.. automodule:: districtgenerator.optimization.operation
    :members:
    :undoc-members:
    :show-inheritance:

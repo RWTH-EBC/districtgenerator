@@ -4,7 +4,7 @@ k-medoids clustering of time series into representative periods (e.g. typical da
 
 The clustering is solved exactly with tsam. It is used for the operational clustering of the
 district profiles (time_series.clustering) and for the design of the central devices
-(optimization.central.parameters).
+(optimization.energy_hub_parameters).
 """
 
 import warnings
@@ -153,7 +153,7 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, weights=None, scalings
 
     ################################################################
     # Step 3: Reassemble outputs in the ascending-medoid-index convention
-    # expected by callers (both optimization/central/parameters.py and
+    # expected by callers (both optimization/energy_hub_parameters.py and
     # time_series/clustering.py independently re-derive cluster ordering by
     # scanning y/z in ascending original-period-index order, so nc and
     # scaled_typ_clusters_per_input must follow that same ordering here).
