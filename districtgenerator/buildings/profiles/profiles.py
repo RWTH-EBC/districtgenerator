@@ -796,7 +796,7 @@ class Profiles:
 
         # Define Car Segment
         # https://ev-database.org/cheatsheet/range-electric-car
-        with open(os.path.join(DATA_DIR, 'car_segment.json')) as json_file:
+        with open(os.path.join(DATA_DIR, 'buildings', 'car_segment.json')) as json_file:
             segments = json.load(json_file)
         segment_names = list(segments.keys())
         # Source of the proportions: https://www.kba.de/DE/Statistik/Fahrzeuge/Bestand/Segmente/segmente_node.html

@@ -126,7 +126,7 @@ In the [file](https://github.com/RWTH-EBC/districtgenerator/blob/develop/distric
 further data can be found. Default values are already stored there. General modeling assumptions are managed through 
 Pydantic-based configuration classes and will be overwritten through an .env configuration file if the Datahandler 
 is initialized with it. This .env file can be found
-in the directory [data](https://github.com/RWTH-EBC/districtgenerator/tree/develop/districtgenerator/data).
+in the directory [data/config](https://github.com/RWTH-EBC/districtgenerator/tree/develop/districtgenerator/data/config).
 
 The configuration includes assumptions and parameters related to location and weather, temporal resolution, 
 heating and cooling periods, building design conditions, thermal building model, economic parameters, energy prices, 
@@ -134,7 +134,8 @@ emission factors, heating networks, central and decentralized technologies, opti
 report generation.
 
 All input data such as weather, postal codes, scenarios, pipes and SIA 2024 is read from
-`districtgenerator/data`. `Datahandler(env_path=".env.NAME")` looks for the configuration file in this folder,
+`districtgenerator/data`, sorted into subfolders by topic (`config`, `scenarios`, `site`, `weather`, `buildings`,
+`energy_systems`, `report`). `Datahandler(env_path=".env.NAME")` looks for the configuration file in `data/config`,
 an absolute path is used as given. Own scenario files can be placed in another folder with
 `Datahandler(scenario_file_path=...)`. The former parameters `filePath` and `srcPath` are deprecated and ignored.
 Fixed data such as the file format of the TRY weather data, the cooling load zones and the soil properties are
@@ -202,7 +203,7 @@ districtgenerator/
 ├── analysis/          # KPIs, plots and the certificate
 ├── storage/           # saving and loading of profiles and districts
 ├── utilities/         # paths (DATA_DIR, RESULTS_DIR) and helpers without domain knowledge
-└── data/              # input data (all input files, including the .env.CONFIG files)
+└── data/              # input data, one subfolder per topic; raw/ holds source data that the code does not read
 ```
 
 Import the Datahandler with `from districtgenerator import Datahandler`. The previous import

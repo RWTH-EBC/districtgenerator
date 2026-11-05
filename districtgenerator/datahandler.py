@@ -77,7 +77,7 @@ class Datahandler:
         filePath : str, optional
             Deprecated and ignored. All input data is read from ``DATA_DIR``.
         env_path : str, optional
-            Path to the environment configuration file. Relative paths are resolved in ``DATA_DIR``.
+            Path to the environment configuration file. Relative paths are resolved in ``DATA_DIR/config``.
             If None, it defaults to the global configuration file.
 
         Returns
@@ -200,7 +200,7 @@ class Datahandler:
         self.scenario = district_buildings.load_scenario(self.scenario_file_path, self.scenario_name)
 
         # --- 3. Load the pipe catalogue of the selected heat grid generation ---
-        self.pipe_file_path = os.path.join(DATA_DIR, 'pipe')
+        self.pipe_file_path = os.path.join(DATA_DIR, 'energy_systems')
         self.pipe_data = heating_network.load_pipe_data(self.heat_grid_data["generation"], self.pipe_file_path)
 
         # Prices and CO2 factors for each simulated year used in the optimizations

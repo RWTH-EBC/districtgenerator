@@ -22,7 +22,7 @@ class ReportComponent:
         Sets the theme once for all components.
         """
         cls.style = theme_manager
-        translations_path = os.path.join(DATA_DIR, "report_translations.json")
+        translations_path = os.path.join(DATA_DIR, "report", "report_translations.json")
         cls.__load_translations(translations_path, language)
     
     @classmethod

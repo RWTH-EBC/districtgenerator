@@ -22,13 +22,13 @@ from districtgenerator.classes import Datahandler
 def example9_multiple_configs(configs_dir: Path) -> list[Datahandler]:
     ### To run this example, you will need to set up a directory with configuration files.
 
-    # 1. Go to the folder 'districtgenerator/data' (default location).
+    # 1. Go to the folder 'districtgenerator/data/config' (default location).
 
-    # 2. Inside the 'data' folder, place / use your configuration files. For this
+    # 2. Inside the 'config' folder, place / use your configuration files. For this
     #    example, you could reuse both configs '.env.CONFIG.EXAMPLE' and '.env.CONFIG.FREIBURG'
     #    or create another one, e.g., '.env.CONFIG.SCENARIO1'.
 
-    # The script will find all files in the 'data' folder that start with
+    # The script will find all files in the 'config' folder that start with
     # '.env' and process them one by one.
 
     # IMPORTANT: Make sure the configuration files are named correctly, starting with '.env'. You also have
@@ -74,10 +74,10 @@ def example9_multiple_configs(configs_dir: Path) -> list[Datahandler]:
 
 
 if __name__ == '__main__':
-    # This helper code finds the 'data' directory relative to this script's location.
+    # This helper code finds the 'data/config' directory relative to this script's location.
     # Adjust the path if your directory structure is different.
     script_path = Path(__file__).resolve()
     project_root = script_path.parent.parent
-    configs_directory_path = project_root / "districtgenerator" / "data"
+    configs_directory_path = project_root / "districtgenerator" / "data" / "config"
 
     results = example9_multiple_configs(configs_directory_path)

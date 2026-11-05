@@ -34,7 +34,7 @@ def select_plz_data(data):
     FileNotFoundError
         If ``plz_geocoord_matched.xlsx`` is missing in the data folder.
     """
-    plz_file_path = os.path.join(DATA_DIR, "plz_geocoord_matched.xlsx")
+    plz_file_path = os.path.join(DATA_DIR, "site", "plz_geocoord_matched.xlsx")
     workbook = openpyxl.load_workbook(plz_file_path)
     sheet = workbook.active
 
@@ -110,7 +110,7 @@ def load_site_conditions(data):
         If the zip code is missing in ``site_data_with_KLZ.txt``.
     """
     # Load other site-dependent values based on DIN/TS 12831-1:2020-04 and VDI 2078-2015 (KLZ)
-    site_data_path = os.path.join(DATA_DIR, "site_data_with_KLZ.txt")
+    site_data_path = os.path.join(DATA_DIR, "site", "site_data_with_KLZ.txt")
     site_data = pd.read_csv(site_data_path, delimiter='\t', dtype={'Zip': str})
 
     # Filter data for the specific zip code

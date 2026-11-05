@@ -1434,7 +1434,7 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
     ----------
     env_file : Optional[str]
         The path to the environment file. If None, it uses the default from Settings.
-        Relative paths such as ".env.NAME" are resolved in ``DATA_DIR``, absolute paths
+        Relative paths such as ".env.NAME" are resolved in ``DATA_DIR/config``, absolute paths
         such as "c:/path/to/.env.CONFIG.EXAMPLE" or "/path/to/.env.CONFIG.EXAMPLE" are used as given.
 
     Returns
@@ -1447,15 +1447,15 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         settings = Settings()  # Load settings from the .env file
         env_file = settings.env_file
 
-    # Absolute paths are used as given, relative paths are resolved in the data folder
-    env_file_path = env_file if os.path.isabs(env_file) else os.path.join(DATA_DIR, env_file)
+    # Absolute paths are used as given, relative paths are resolved in the config folder of the data
+    env_file_path = env_file if os.path.isabs(env_file) else os.path.join(DATA_DIR, 'config', env_file)
 
     if not os.path.isfile(env_file_path):
         raise FileNotFoundError(
             f"Configuration file '{env_file}' not found.\n"
             f"  - Looked for: {env_file_path}\n"
-            f"  - Data folder: {DATA_DIR}\n"
-            f"Pass an absolute path or put the file into the data folder."
+            f"  - Config folder: {os.path.join(DATA_DIR, 'config')}\n"
+            f"Pass an absolute path or put the file into the config folder."
         )
 
     print(f'Using config: {env_file_path}')
