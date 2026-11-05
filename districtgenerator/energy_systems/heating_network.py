@@ -280,7 +280,8 @@ def calculate_thermal_losses(data):
 
         losses_hotpipe_cooling_network_dist = (qs_cooling_network_dist + qa_cooling_network_dist) * data.heat_grid_data["length_cooling_dist"]
         losses_coldpipe_cooling_network_dist = (qs_cooling_network_dist - qa_cooling_network_dist) * data.heat_grid_data["length_cooling_dist"]
-        losses_cooling_network_dist = (losses_hotpipe_cooling_network_dist + losses_coldpipe_cooling_network_dist) / 1000  # kW
+        # Cooling load increases with heat entering the water, opposite to outward pipe heat flow.
+        losses_cooling_network_dist = -(losses_hotpipe_cooling_network_dist + losses_coldpipe_cooling_network_dist) / 1000  # kW
 
         # Losses in the service pipes
 
@@ -295,7 +296,7 @@ def calculate_thermal_losses(data):
 
         losses_hotpipe_cooling_network_serv = (qs_cooling_network_serv + qa_cooling_network_serv) * data.heat_grid_data["length_cooling_serv"]
         losses_coldpipe_cooling_network_serv = (qs_cooling_network_serv - qa_cooling_network_serv) * data.heat_grid_data["length_cooling_serv"]
-        losses_cooling_network_serv = (losses_hotpipe_cooling_network_serv + losses_coldpipe_cooling_network_serv) / 1000  # kW
+        losses_cooling_network_serv = -(losses_hotpipe_cooling_network_serv + losses_coldpipe_cooling_network_serv) / 1000  # kW
 
         # Losses in the substations
         losses_substations_cooling = data.heat_grid_data["h_loss_subst"] / 100 * data.heat_grid_data["net_cooling_demand"]

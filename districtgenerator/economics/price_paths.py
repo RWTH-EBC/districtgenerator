@@ -34,9 +34,9 @@ def calculate_eco_data_per_simulated_year(eco_data):
     single_value_keys = ['num_interpolation_points','interpolation_points', 'observation_time','interest_rate', 'optimization_focus']
     ecoData = {k: v for k, v in eco_data.copy().items() if k not in single_value_keys}
 
-    # Emission factors use ordinary averages; monetary values use discount weights.
+    # CO2 tax is a monetary value, so it must use the same weights as other prices
     undiscounted_keys = set()
-    co2_keys = set([k for k in ecoData.keys() if 'co2' in k.lower()])
+    co2_keys = set([k for k in ecoData.keys() if 'co2' in k.lower() and k.lower() != 'co2_tax'])
     undiscounted_keys.update(co2_keys)
 
     # Assign each year to the preceding representative year, e.g. 0: [0, 1], 2: [2, 3].
