@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-
+"""
+Solar irradiance on tilted surfaces (Duffie & Beckman, Perez model) and on the facades of the buildings.
+"""
 import math
 import warnings
 

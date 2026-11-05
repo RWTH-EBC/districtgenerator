@@ -25,9 +25,16 @@ def load_weather(data):
     """
     Load the TRY weather data of the site and interpolate it to the time resolution.
 
-    Sets the first weekday of the year, the holidays and the weather time series in
-    ``data.site``: direct, diffuse and total horizontal irradiance, outdoor temperature,
-    wind speed, relative humidity, air pressure and sky clearness.
+    First selects the TRY weather station of the zip code with ``site.select_plz_data``,
+    which sets ``data.site["weather_station"]``. Then sets:
+
+    - ``data.initial_day``: weekday of January 1st of the TRY year (0 = Monday)
+    - ``data.time["timeSteps"]``: number of time steps in the time resolution
+    - ``data.calendar["holidays"]``: day of the year of all nationwide holidays
+    - ``data.site[key]`` for each key in ``TRY_COLUMNS``: ``T_e`` [°C], ``pressure`` [hPa],
+      ``wind_speed`` [m/s], ``ssw`` (sky clearness) [-], ``r_humidity`` [%],
+      ``SunDirect`` and ``SunDiffuse`` [W/m²]
+    - ``data.site["SunTotal"]``: global horizontal irradiance [W/m²]
 
     Parameters
     ----------

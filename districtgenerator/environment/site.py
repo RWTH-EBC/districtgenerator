@@ -42,6 +42,8 @@ def select_plz_data(data):
     for row in sheet.iter_rows(values_only=True):
         if data.site["zip"] == str(row[0]):
             weatherdatafile = row[3]
+            # Cut the station ID out of the file name, e.g. "TRY2015_<station>_Jahr.dat":
+            # 8 characters prefix ("TRY2015_") and 9 characters suffix ("_Jahr.dat")
             data.site["weather_station"] = weatherdatafile[8:-9]
             break
     else:

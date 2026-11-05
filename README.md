@@ -133,6 +133,13 @@ heating and cooling periods, building design conditions, thermal building model,
 emission factors, heating networks, central and decentralized technologies, optimization, solver settings, and
 report generation.
 
+All input data such as weather, postal codes, scenarios, pipes and SIA 2024 is read from
+`districtgenerator/data`. `Datahandler(env_path=".env.NAME")` looks for the configuration file in this folder,
+an absolute path is used as given. Own scenario files can be placed in another folder with
+`Datahandler(scenario_file_path=...)`. The former parameters `filePath` and `srcPath` are deprecated and ignored.
+Fixed data such as the file format of the TRY weather data, the cooling load zones and the soil properties are
+constants in `config/settings.py` and cannot be changed via `.env`.
+
 Set `RANDOM_SEED=42` in `.env` for repeatable stochastic building and demand profiles;
 leave it empty for unrestricted randomness.
 Set `DESIGN_ENERGY_HUB=True` in `.env` to request an energy hub without a thermal network.
@@ -194,8 +201,8 @@ districtgenerator/
 ├── optimization/      # decentral heating concept, central dimensioning and operation
 ├── analysis/          # KPIs, plots and the certificate
 ├── storage/           # saving and loading of profiles and districts
-├── utilities/         # helpers without domain knowledge
-└── data/              # input data
+├── utilities/         # paths (DATA_DIR, RESULTS_DIR) and helpers without domain knowledge
+└── data/              # input data (all input files, including the .env.CONFIG files)
 ```
 
 Import the Datahandler with `from districtgenerator import Datahandler`. The previous import
@@ -205,7 +212,8 @@ Import the Datahandler with `from districtgenerator import Datahandler`. The pre
 ## Final output of the DistrictGenerator
 
 DistrictGenerator stores generated profiles and optimization results in the configured [results](https://github.com/RWTH-EBC/districtgenerator/tree/develop/districtgenerator/results) 
-directory. The directory separates building demand profiles, renewable generation profiles, and optimization results 
+directory (`districtgenerator/results` by default, or the folder given with `Datahandler(resultPath=...)`).
+The directory separates building demand profiles, renewable generation profiles, and optimization results 
 so that intermediate results can be reused independently for post-processing or subsequent simulations. The exact 
 number of building-specific files depends on the investigated district and the selected configuration.
 

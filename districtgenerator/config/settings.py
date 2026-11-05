@@ -403,7 +403,7 @@ class EcoConfig(BaseSettings):
         return self
 
     model_config = SettingsConfigDict(
-        extra = 'allow' # Ignores all other variables in the .env.CONFIG file
+        extra = 'allow' # Keeps all other variables of the .env.CONFIG file as additional fields
     )
 
 class PhysicsConfig(BaseSettings):
@@ -546,7 +546,7 @@ class HeatGridConfig(BaseSettings):
 
 class EHDOConfig(BaseSettings):
     """
-    EHDOConfig class to manage the configuration of the Energy and Heat Distribution Optimization (EHDO) system.
+    EHDOConfig class to manage the configuration of the Energy Hub Design Optimization (EHDO) model.
     This class contains parameters relevant for the central optimization of energy and heat distribution in the
     district generator. It configures e.g. the use of certain technologies (electricity, gas, biomass, hydrogen, etc.)
     and their respective prices, CO2 emissions, and supply limits.
@@ -633,6 +633,7 @@ class Scenario(BaseSettings):
     @field_validator('random_seed', mode='before')
     @classmethod
     def parse_random_seed(cls, value):
+        """Convert '', 'none' or 'null' to None, so that no fixed seed is used."""
         if isinstance(value, str) and value.strip().lower() in ('', 'none', 'null'):
             return None
         return value
@@ -1363,7 +1364,7 @@ class GlobalConfig(BaseModel):
     This class aggregates all individual configuration classes and provides a unified interface
     to access them. It is designed to be initialized with an environment file that contains
     configuration parameters for each component.
-    Note: All parameters defined in this '.env.CONFIG.' will override the default values in config.py
+    Note: All parameters defined in this '.env.CONFIG.' will override the default values in settings.py
 
     Attributes
     ----------
@@ -1382,7 +1383,7 @@ class GlobalConfig(BaseModel):
     heatgrid : HeatGridConfig
         Configuration parameters for the heat grid, including temperatures and heat transfer.
     ehdo : EHDOConfig
-        Configuration parameters for the EHDO (Energy and Heat Distribution Optimization) system.
+        Configuration parameters for the EHDO (Energy Hub Design Optimization) model.
     decentral : DecentralDeviceConfig
         Configuration parameters for decentralized devices in the district.
     central : CentralDeviceConfig

@@ -43,9 +43,8 @@ def calculate_soil_temperature(data, dt):
 
     Returns
     -------
-    object
-        The same ``data`` object. The calculated soil-temperature time
-        series [°C] is stored in
+    None.
+        The calculated soil-temperature time series [°C] is stored in
         ``data.heat_grid_data["T_soil"]``.
 
     """
@@ -155,10 +154,8 @@ def calculate_soil_temperature(data, dt):
         else:  # grid is within asphalt layer
             weather["T_soil"] = Ts_mean - Ts_amp * np.exp(-t / delta_s) * np.cos(omega_hour * time - Ts_phase - t / delta_s)
 
-    # return time series of soil temperature
+    # store time series of soil temperature
     data.heat_grid_data["T_soil"] = weather["T_soil"]
-
-    return data
 
 
 def cosFit(data, dt):
@@ -172,7 +169,8 @@ def cosFit(data, dt):
         physical quantity; the fitted mean and amplitude retain the same
         unit as ``data``.
     dt : float
-        Temporal spacing between consecutive values in hours.
+        Time step between consecutive values in hours (timeResolution / 3600 for hourly input data).
+        The period of the fitted cosine is one year (``HOURS_PER_YEAR``).
 
     Returns
     -------
