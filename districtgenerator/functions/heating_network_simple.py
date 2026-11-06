@@ -1,8 +1,26 @@
 import numpy as np
 import math
+import warnings
 import scipy.optimize as opt
 import cmath
 import matplotlib.pyplot as plt
+
+
+def _select_pipe(pipe_data, dn_required, label):
+    """
+    Return the catalogue row of the smallest pipe with DN >= dn_required.
+
+    If the required DN exceeds the largest pipe in the catalogue (high linear heat density, e.g. large
+    non-residential buildings on a small district area), the largest pipe is used and a warning is issued
+    instead of failing.
+    """
+    larger = pipe_data[pipe_data["Nominal diameter (DN)"] >= dn_required]
+    if larger.empty:
+        largest = pipe_data.loc[pipe_data["Nominal diameter (DN)"].idxmax()]
+        warnings.warn(f"Simple heating network ({label}): required DN {dn_required:.0f} exceeds the largest "
+                      f"pipe in the catalogue, using DN {largest['Nominal diameter (DN)']}.")
+        return largest
+    return larger.loc[larger["Nominal diameter (DN)"].idxmin()]
 
 def heating_network(data):
 
@@ -97,15 +115,13 @@ def calc_costs(data):
     DN_heating_serv = 19.983 * np.exp(0.021 * linear_heat_density_serv)
 
     # Select Next Larger Available Pipe Size ---
-    larger_DN_dist = data.pipe_data[data.pipe_data["Nominal diameter (DN)"] >= DN_heating_dist]
-    chosen_row_dist = larger_DN_dist.loc[larger_DN_dist["Nominal diameter (DN)"].idxmin()]
+    chosen_row_dist = _select_pipe(data.pipe_data, DN_heating_dist, "heating, distribution")
     data.heat_grid_data["DN_heating_dist"] = chosen_row_dist["Nominal diameter (DN)"]
     data.heat_grid_data["da_heating_dist"] = chosen_row_dist["Outer diameter (pipe) (mm)"]
     data.heat_grid_data["di_heating_dist"] = chosen_row_dist["Outer diameter (pipe) (mm)"] - 2 * chosen_row_dist["Thickness (pipe) (mm)"]
     data.heat_grid_data["Da_heating_dist"] = chosen_row_dist["Outer diameter (case) (mm)"]  # outer diameter of the pipe including insulation
 
-    larger_DN_serv = data.pipe_data[data.pipe_data["Nominal diameter (DN)"] >= DN_heating_serv]
-    chosen_row_serv = larger_DN_serv.loc[larger_DN_serv["Nominal diameter (DN)"].idxmin()]
+    chosen_row_serv = _select_pipe(data.pipe_data, DN_heating_serv, "heating, service")
     data.heat_grid_data["DN_heating_serv"] = chosen_row_serv["Nominal diameter (DN)"]
     data.heat_grid_data["da_heating_serv"] = chosen_row_serv["Outer diameter (pipe) (mm)"]
     data.heat_grid_data["di_heating_serv"] = chosen_row_serv["Outer diameter (pipe) (mm)"] - 2 * chosen_row_serv["Thickness (pipe) (mm)"]
@@ -126,15 +142,13 @@ def calc_costs(data):
         DN_cooling_serv = 19.983 * np.exp(0.021 * linear_cool_density_serv)
 
         # Select Next Larger Available Pipe Size ---
-        larger_DN_dist = data.pipe_data[data.pipe_data["Nominal diameter (DN)"] >= DN_cooling_dist]
-        chosen_row_dist = larger_DN_dist.loc[larger_DN_dist["Nominal diameter (DN)"].idxmin()]
+        chosen_row_dist = _select_pipe(data.pipe_data, DN_cooling_dist, "cooling, distribution")
         data.heat_grid_data["DN_cooling_dist"] = chosen_row_dist["Nominal diameter (DN)"]
         data.heat_grid_data["da_cooling_dist"] = chosen_row_dist["Outer diameter (pipe) (mm)"]
         data.heat_grid_data["di_cooling_dist"] = chosen_row_dist["Outer diameter (pipe) (mm)"] - 2 * chosen_row_dist["Thickness (pipe) (mm)"]
         data.heat_grid_data["Da_cooling_dist"] = chosen_row_dist["Outer diameter (case) (mm)"]  # outer diameter of the pipe including insulation
 
-        larger_DN_serv = data.pipe_data[data.pipe_data["Nominal diameter (DN)"] >= DN_cooling_serv]
-        chosen_row_serv = larger_DN_serv.loc[larger_DN_serv["Nominal diameter (DN)"].idxmin()]
+        chosen_row_serv = _select_pipe(data.pipe_data, DN_cooling_serv, "cooling, service")
         data.heat_grid_data["DN_cooling_serv"] = chosen_row_serv["Nominal diameter (DN)"]
         data.heat_grid_data["da_cooling_serv"] = chosen_row_serv["Outer diameter (pipe) (mm)"]
         data.heat_grid_data["di_cooling_serv"] = chosen_row_serv["Outer diameter (pipe) (mm)"] - 2 * chosen_row_serv["Thickness (pipe) (mm)"]
