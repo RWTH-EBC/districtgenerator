@@ -17,7 +17,7 @@ generated for each scenario. To do this right-hand click the example.py file
 """
 
 from pathlib import Path
-from districtgenerator.classes import Datahandler
+from districtgenerator import Datahandler
 
 def example9_multiple_configs(configs_dir: Path) -> list[Datahandler]:
     ### To run this example, you will need to set up a directory with configuration files.

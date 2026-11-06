@@ -206,9 +206,9 @@ districtgenerator/
 └── data/              # input data, one subfolder per topic; raw/ holds source data that the code does not read
 ```
 
-Import the Datahandler with `from districtgenerator import Datahandler`. The previous import
-`from districtgenerator.classes import Datahandler` keeps working. Old module paths such as
-`districtgenerator.functions.opti_central` still resolve to their new modules, with a deprecation warning.
+Import the Datahandler with `from districtgenerator import Datahandler`. The old packages
+`districtgenerator.classes`, `districtgenerator.functions` and `districtgenerator.data_handling` were removed,
+so imports and pickled districts that use these old module paths have to be updated.
 
 ## Final output of the DistrictGenerator
 

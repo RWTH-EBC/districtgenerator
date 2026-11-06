@@ -6,7 +6,7 @@ Therefore the optimized operation of the devices is simulated and the key perfor
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from districtgenerator.classes import *
+from districtgenerator import Datahandler
 
 def example7_decentral_scenario_evaluation():
 

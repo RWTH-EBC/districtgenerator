@@ -24,7 +24,7 @@ from districtgenerator.time_series.resolution import changeResolution
 from districtgenerator.time_series.clustering import select_profile_periods
 import time
 import copy
-from districtgenerator.environment.solar import Sun
+from districtgenerator.environment.solar import SUN
 from districtgenerator.economics import annuity
 from districtgenerator.energy_systems import technologies, wind_turbine
 from districtgenerator.energy_systems.technologies import calc_COP
@@ -470,7 +470,7 @@ def get_params(data):
             devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
         elif all_models["HP"]["CSV_feasible"]:
-            COP_unclustered = np.loadtxt(os.path.join(data.filePath, 'coefficient_of_performance.txt'))
+            COP_unclustered = np.loadtxt(os.path.join(data.filePath, 'energy_systems', 'coefficient_of_performance.txt'))
             # The COP file has an hourly resolution; adapt it to the time resolution of the model
             if data.time["timeResolution"] != 3600:
                 COP_unclustered = changeResolution(COP_unclustered, 3600, data.time["timeResolution"], "mean")
@@ -888,10 +888,9 @@ def get_PVandSTC_power(devs, param, data):
         STC generation per m^2 for every typeday, shape (number of clusters, cluster horizon).
     """
 
-    filePath = data.filePath
     time_settings = data.time
     site = data.site
-    sun = Sun(filePath=filePath)
+    sun = SUN
 
     potentialPV, _ = technologies.calc_pv_and_stc_profile(sun=sun, time=time_settings,
                                                           site=site,

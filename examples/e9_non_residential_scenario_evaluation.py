@@ -6,7 +6,7 @@ non-residential buildings, as well as mixed-use buildings.
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from districtgenerator.classes import *
+from districtgenerator import Datahandler
 
 def example9_non_residential_scenario_evaluation():
 

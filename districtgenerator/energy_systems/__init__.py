@@ -3,9 +3,10 @@
 
 def __getattr__(name):
     """
-    Resolve legacy package-level energy-system class imports lazily.
+    Resolve package-level energy-system class imports lazily.
 
-    Lazy access keeps old imports such as``from districtgenerator.classes.system import BES`` working.
+    Lazy access allows ``from districtgenerator.energy_systems import BES`` without importing
+    the energy-system modules when the package is loaded.
 
     Parameters
     ----------

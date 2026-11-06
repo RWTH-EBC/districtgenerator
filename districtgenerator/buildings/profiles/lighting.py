@@ -19,7 +19,7 @@ class LightingModelConfiguration():
     ----------
     building : str
         Non-residential building-use identifier understood by
-        :class:`~districtgenerator.classes.non_residential.GenericNonResidential`.
+        :class:`~districtgenerator.buildings.typology.non_residential.GenericNonResidential`.
     external_irradiance_threshold : sequence of float, optional
         Fallback mean and standard deviation of the external global
         irradiance threshold in W/m². The default is ``[60, 30]``.

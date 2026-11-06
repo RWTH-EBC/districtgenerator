@@ -92,7 +92,7 @@ def powerCurve(wind_turbine_model):
     Parameters
     ----------
     wind_turbine_model : str
-        Model identifier used in ``data/wind_turbine_models/WT_<model>.csv``,
+        Model identifier used in ``data/energy_systems/WT_<model>.csv``,
         for example ``"Enercon_E40"``.
 
     Returns
@@ -102,7 +102,7 @@ def powerCurve(wind_turbine_model):
         speed in m/s in the first column and electrical output in kW.
     """
     power_curve_path = os.path.join(
-        PACKAGE_DIR, "data", "wind_turbine_models", "WT_" + wind_turbine_model + ".csv"
+        PACKAGE_DIR, "data", "energy_systems", "WT_" + wind_turbine_model + ".csv"
     )
     return pd.read_csv(power_curve_path, header=0, delimiter=";")
 

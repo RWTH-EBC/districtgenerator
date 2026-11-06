@@ -12,7 +12,7 @@ Then choose 'Modify Run Configuration' and tick 'Run with Python Console'.
 """
 
 # Import the Datahandler class to use the district generator.
-from districtgenerator.classes import Datahandler
+from districtgenerator import Datahandler
 
 def example6_config_file_loading():
     ###  To run this example, you will need to edit an existing configuration file.
