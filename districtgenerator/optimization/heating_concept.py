@@ -1,4 +1,10 @@
-"""Select a building's cheapest heating concept with existing fixed sizing rules."""
+"""
+Selection of the cheapest heating concept of a building.
+
+Each candidate heating concept is sized with the fixed sizing rules of the building energy system
+and its operation is optimized for the building alone. The concept with the lowest total annual cost (annualized device costs plus annualized operational
+costs) is selected. 
+"""
 
 import copy
 import json
@@ -10,11 +16,37 @@ import pyomo.environ as pyo
 from districtgenerator.analysis.kpis import KPIs
 from districtgenerator.energy_systems import technologies
 from districtgenerator.optimization import solver as solver_config
-from districtgenerator.optimization.central import operation as opti_central
+from districtgenerator.optimization import operation as opti_central
 
 
 def annual_operation_weights(eco_data):
-    """Discount support-year intervals and annualize over the observation horizon."""
+    """
+    Weights to annualize the operational costs of the support years.
+
+    Each support year represents the years until the next support year (or until the end of the
+    observation period). The operational costs of these years are discounted to the start of the
+    observation period and annualized with the capital recovery factor, so they are comparable with
+    the annualized device costs. The weights of all support years add up to 1.
+
+    Note: The KPIs weight the support years with the number of years without discounting.
+
+    Note: The same result is given by capital_recovery_factor (economics.annuity) times
+    _discount_factor with the interval lengths of _support_year_weights (both in
+    optimization.energy_hub_sizing). Keep both implementations consistent when changing one.
+
+    Parameters
+    ----------
+    eco_data : dict
+        Economic data with the observation period ("observation_time"), the interest rate
+        ("interest_rate") and the support years ("interpolation_points"), relative to the start of
+        the observation period.
+
+    Returns
+    -------
+    dict
+        Weight for each support year. Multiplied with the operational costs of one year of the
+        support year and summed up, this gives the annualized operational costs.
+    """
     horizon = eco_data["observation_time"]
     rate = eco_data["interest_rate"]
     q = 1 + rate
@@ -28,7 +60,40 @@ def annual_operation_weights(eco_data):
 
 
 def choose_heating_concept(data, building, candidates):
-    """Compare standalone building costs; final district operation is optimized later."""
+    """
+    Selects the heating concept with the lowest total annual cost for one building.
+
+    For every candidate, the devices are sized with the fixed sizing rules (designECS) and the
+    operation of the building alone is optimized for all clusters and support years with the cost
+    focus. Candidates without a feasible solution (infeasible or infeasibleOrUnbounded) are
+    discarded. The total annual cost is the sum of
+    the annualized device costs (with subsidies) and the annualized operational costs, see
+    annual_operation_weights. The comparison of all candidates is saved as
+    <resultPath>/heating_selection/building_<id>/comparison.json.
+
+    Parameters
+    ----------
+    data : Datahandler
+        Datahandler with clustered profiles (clusterProfiles must be called before), cluster weights,
+        site data, device parameters, economic data of the support years and solver settings.
+    building : dict
+        Building of data.district. Is changed in place, see Returns.
+    candidates : list of str
+        Heating concepts (values of buildingFeatures["heater"], e.g. "HP", "BOI") that are compared.
+
+    Returns
+    -------
+    None
+        The building is changed in place: buildingFeatures["heater"] is set to the selected concept,
+        "capacities" to its sized devices and "heating_selection" to the comparison of all candidates.
+
+    Raises
+    ------
+    ValueError
+        If no candidate has a feasible solution.
+    RuntimeError
+        If the solver ends neither optimal nor infeasible, e.g. because of a time limit.
+    """
     requested = building["buildingFeatures"]["heater"]
     building_id = int(building["buildingFeatures"]["id"])
     result_dir = Path(data.resultPath) / "heating_selection" / f"building_{building_id}"
@@ -61,8 +126,8 @@ def choose_heating_concept(data, building, candidates):
             candidate["user"].cooling_cluster = np.zeros_like(building["user"].cooling_cluster)
             candidate["buildingFeatures"]["cooling"] = 0
 
-        opti_central.compute_decentral_hp_sink_temperature(
-            [candidate], data.decentral_device_data, data.design_building_data)
+        # Sets envelope.hp_measures, which is needed for the investment costs of the measures
+        opti_central.apply_hp_low_temp_measures([candidate], data.decentral_device_data)
         device_costs = KPIs.building_fixed_costs(data, candidate)
         fixed_cost = sum(device["subsidized_annual_cost"] for device in device_costs.values())
         operating_by_year = {}
@@ -79,7 +144,10 @@ def choose_heating_concept(data, building, candidates):
                 result = solver_config.execute_and_diagnose(
                     model, evaluation.pyomo_config, model.name, str(concept_dir))
                 termination = result.solver.termination_condition
-                if termination == pyo.TerminationCondition.infeasible:
+                # Unbounded is not possible in practice (bounded generation, imports have prices), so
+                # infeasibleOrUnbounded of solvers other than Gurobi is treated as infeasible.
+                if termination in (pyo.TerminationCondition.infeasible,
+                                   pyo.TerminationCondition.infeasibleOrUnbounded):
                     evaluated[concept] = {"status": "infeasible", "year": year, "cluster": cluster}
                     feasible = False
                     break

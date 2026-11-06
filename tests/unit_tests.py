@@ -17,6 +17,9 @@ from districtgenerator.energy_systems.building_energy_system import BES
 from districtgenerator.buildings import thermal
 from districtgenerator.buildings.thermal.model_four_elements.simulation import (prepare_gains_from_envelope,
                                                                                 simulate_4element)
+from districtgenerator.time_series.clustering import select_profile_periods
+from districtgenerator.optimization.energy_hub_sizing import _discount_factor
+from districtgenerator.optimization.energy_hub_parameters import calc_monthly_dem
 
 
 class TestChangeResolution(unittest.TestCase):
@@ -283,6 +286,94 @@ class TestThermalModelCalc(unittest.TestCase):
             self._assert_step(model, "calc_night_setback", 0, midnight, 1700, 0, 17)
             self._assert_step(model, "calc_night_setback", 0, self._noon(10), 2000, 0, 20)
 
+
+
+class TestSelectProfilePeriods(unittest.TestCase):
+    """Unit tests for select_profile_periods of the time_series package."""
+
+    # Three periods of four time steps (0-3, 4-7, 8-11) and an incomplete fourth period (12, 13)
+    PROFILE = np.arange(14, dtype=float)
+
+    def test_selects_periods_in_given_order(self):
+        """The periods are returned as rows in the order of typedays."""
+        result = select_profile_periods(self.PROFILE, [2, 0], 4, 12)
+        np.testing.assert_array_equal(result, [[8, 9, 10, 11], [0, 1, 2, 3]])
+
+    def test_ignores_incomplete_period(self):
+        """Time steps after length_array are not used."""
+        result = select_profile_periods(self.PROFILE, [0, 1, 2], 4, 12)
+        self.assertEqual(result.shape, (3, 4))
+        self.assertEqual(result.max(), 11)
+
+    def test_none_profile(self):
+        """A missing profile stays missing."""
+        self.assertIsNone(select_profile_periods(None, [0], 4, 12))
+
+
+class TestDiscountFactor(unittest.TestCase):
+    """Unit tests for _discount_factor of the central dimensioning optimization."""
+
+    def test_zero_interest_rate(self):
+        """Without interest, the discount factor is the interval length."""
+        self.assertEqual(_discount_factor(5, 5, 0), 5)
+
+    def test_first_year_is_discounted(self):
+        """Support year 0 refers to the first year of VDI 2067, so it is already discounted once."""
+        self.assertAlmostEqual(_discount_factor(0, 1, 0.05), 1 / 1.05)
+
+    def test_interval_from_first_year(self):
+        """Interval of three years from support year 0: 1/1.1 + 1/1.1^2 + 1/1.1^3."""
+        self.assertAlmostEqual(_discount_factor(0, 3, 0.1), 2.486851991, places=8)
+
+    def test_interval_from_later_year(self):
+        """Interval of two years from support year 5: 1/1.1^6 + 1/1.1^7."""
+        self.assertAlmostEqual(_discount_factor(5, 2, 0.1), 1.077632048, places=8)
+
+    def test_intervals_cover_observation_period(self):
+        """The intervals of all support years add up to the present value factor of the whole period."""
+        interest_rate = 0.05
+        intervals = {0: 5, 5: 5, 10: 10}  # support years [0, 5, 10] and an observation period of 20 years
+        total = sum(_discount_factor(year, length, interest_rate) for year, length in intervals.items())
+        self.assertAlmostEqual(total, (1 - 1.05 ** -20) / 0.05)
+
+
+class TestCalcMonthlyDem(unittest.TestCase):
+    """Unit tests for calc_monthly_dem of the central parameter preparation."""
+
+    @staticmethod
+    def _demands(values):
+        """Same profile for heat, cooling and power."""
+        return {m: np.array(values, dtype=float) for m in ("heat", "cool", "power")}
+
+    def test_constant_hourly(self):
+        """Constant 1 kW in hourly resolution: 744 h in January, 672 h in February, 8760 h per year."""
+        result = calc_monthly_dem(self._demands(np.ones(8760)), 3600, {})
+        self.assertAlmostEqual(result["monthly_dem"]["heat"]["Jan"], 0.744)
+        self.assertAlmostEqual(result["monthly_dem"]["heat"]["Feb"], 0.672)
+        self.assertEqual(result["year_sum"]["heat"], 8)
+        self.assertEqual(result["year_peak"]["heat"], 1)
+
+    def test_constant_quarter_hourly(self):
+        """The same constant demand in quarter-hourly resolution gives the same energy."""
+        result = calc_monthly_dem(self._demands(np.ones(35040)), 900, {})
+        self.assertAlmostEqual(result["monthly_dem"]["cool"]["Jan"], 0.744)
+        self.assertAlmostEqual(result["monthly_dem"]["cool"]["Dec"], 0.744)
+        self.assertEqual(result["year_sum"]["cool"], 8)
+
+    def test_month_boundaries(self):
+        """A demand only in January is completely assigned to January."""
+        values = np.zeros(8760)
+        values[:744] = 2
+        result = calc_monthly_dem(self._demands(values), 3600, {})
+        self.assertAlmostEqual(result["monthly_dem"]["power"]["Jan"], 1.488)
+        self.assertAlmostEqual(sum(result["monthly_dem"]["power"].values()), 1.488)
+
+    def test_peak(self):
+        """The annual peak is the maximum demand value in kW."""
+        values = np.ones(8760)
+        values[4000] = 50
+        result = calc_monthly_dem(self._demands(values), 3600, {})
+        self.assertEqual(result["year_peak"]["heat"], 50)
 
 
 if __name__ == '__main__':

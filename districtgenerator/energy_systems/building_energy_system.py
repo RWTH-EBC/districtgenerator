@@ -311,7 +311,7 @@ def design_decentral_devices(data, saveGenerationProfiles=True):
                        fmt='%.2f')
 
     if any(candidates):
-        from districtgenerator.optimization.decentral.heating_concept import choose_heating_concept
+        from districtgenerator.optimization.heating_concept import choose_heating_concept
 
         data.clusterProfiles(centralEnergySupply=False)
         for building, choices in zip(data.district, candidates):

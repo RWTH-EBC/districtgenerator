@@ -599,7 +599,7 @@ class KPIs:
         if capacity.get("HP", 0) > 0 and building["envelope"].hp_measures:
             heatload_kw = building["envelope"].heatload / 1000
             measures = KPIs.calc_annualized_investment(
-                devices["HP"]["measures_inv_fix"] * heatload_kw, data.ecoData)
+                devices["HP"]["low_temp_measures_inv_fix"] * heatload_kw, data.ecoData)
             costs["T_reduction_measures"] = {
                 "cap": heatload_kw, "subsidized_annual_cost": measures,
                 "unsubsidized_annual_cost": measures,

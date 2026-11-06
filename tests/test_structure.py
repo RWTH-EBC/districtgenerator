@@ -16,7 +16,7 @@ OLD_PATHS = {
     "districtgenerator.classes.users": "districtgenerator.buildings.profiles.users",
     "districtgenerator.classes.envelope_7R2C": "districtgenerator.buildings.thermal.model_7r2c.envelope",
     "districtgenerator.functions._5R1C": "districtgenerator.buildings.thermal.model_5r1c.simulation",
-    "districtgenerator.functions.opti_central": "districtgenerator.optimization.central.operation",
+    "districtgenerator.functions.opti_central": "districtgenerator.optimization.operation",
     "districtgenerator.functions.heating_network_simple": "districtgenerator.energy_systems.heating_network",
     "districtgenerator.data_handling.config": "districtgenerator.config.settings",
 }

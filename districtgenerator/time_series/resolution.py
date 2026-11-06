@@ -4,7 +4,6 @@ Script to change resolution of timeseries values with constant
 sampling rate.
 """
 
-from __future__ import division
 import numpy as np
 import math
 

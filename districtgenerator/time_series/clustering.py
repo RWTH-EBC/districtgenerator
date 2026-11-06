@@ -1,297 +1,164 @@
 """
-Script to ....
+Clustering of the district profiles into representative periods for the operation optimization.
+
+clustering_processing clusters the profiles of all buildings, the site and (optionally) the central
+energy supply with k-medoids (time_series.medoid). apply_design_clustering reuses the periods chosen
+during the design of the central devices instead, so that design and operation use the same periods.
 """
 
 import numpy as np
 import districtgenerator.time_series.medoid as cm
 import sys
 
+# Profiles of each building (attributes of building["user"]), clustered as "<name>_cluster"
+BUILDING_PROFILES = ("elec", "dhw", "heat", "cooling", "occ", "EV_carcharging_ondemand", "EV_carprofile",
+                     "generationPV", "generationSTC")
+# Profiles of each individual car, clustered as "<name>_cluster" (None if the car has no such profile)
+CAR_PROFILES = ("availability_profile", "consumption_profile_wh", "on_demand_charging_profile_w", "fuel_profile_l")
+CAR_METADATA = ("car_id", "type", "location", "battery_capacity_wh")
+# Profiles of the central energy supply in heat_grid_data and centralDevices["generation"]
+HEAT_GRID_PROFILES = ("total_losses_heating_network", "total_losses_cooling_network", "pump_power")
+CENTRAL_GENERATION = {"Wind": "WT", "PV": "PV", "STC": "STC"}  # generation profile -> device in the capacities
+
+
+def _save_item(container, key):
+    """Function that saves a clustered profile as container[key]."""
+    def save(clustered):
+        container[key] = clustered
+    return save
+
+
+def _save_attribute(obj, name):
+    """Function that saves a clustered profile as obj.<name>."""
+    def save(clustered):
+        setattr(obj, name, clustered)
+    return save
+
+
 def clustering_processing(time, site, district, heat_grid_data, centralDevices, pyomo_config, centralEnergySupply=False):
     """
     Perform time series aggregation for profiles by using the k-medoids clustering algorithm.
 
+    The periods are chosen by the electricity demand of the buildings, the ambient temperature and,
+    if relevant, wind speed and solar radiation. All other profiles have weight 0 and are only
+    cut into the same periods. The clustered profiles are saved as "<profile>_cluster" next to the
+    original profiles (e.g. user.elec_cluster, site["T_e_cluster"]).
+
+    Parameters
+    ----------
+    time : dict
+        Time settings with "clusterLength" [s], "timeResolution" [s] and "clusterNumber".
+    site : dict
+        Site data with the profiles "T_e", "wind_speed" and "SunTotal".
+    district : list of dict
+        Buildings with their user profiles and building features (f_PV1, f_PV2, f_STC).
+    heat_grid_data : dict
+        Heat grid data with "T_soil" and, for central energy supply, the network losses and pump power.
+    centralDevices : dict
+        Capacities and generation profiles of the central devices. Only used for central energy supply.
+    pyomo_config : dict
+        Solver settings, only "solver_name" is used for the k-medoids problem.
+    centralEnergySupply : bool, optional
+        If True, the profiles of the central energy supply are clustered as well. The default is False.
+
     Returns
     -------
-    None.
+    clusters : list of int
+        Index of the medoid period of each cluster, in ascending order.
+    clusterAssignments : dict
+        Periods represented by each cluster, {medoid: [period indices]}.
+    clusterWeights : dict
+        Number of periods represented by each cluster, {medoid: number}.
+    site : dict
+        Site data with the clustered profiles added.
+    district : list of dict
+        Buildings with the clustered profiles added.
+    heat_grid_data : dict
+        Heat grid data with the clustered profiles added.
     """
 
-    # calculate cluster time horizon
-    initialArrayLenght = int(time["clusterLength"] / time["timeResolution"])
-    num_clusters = len(site["T_e"]) // initialArrayLenght
-    lengthArray = num_clusters * initialArrayLenght
+    # number of time steps per period and number of complete periods in the year
+    steps_per_period = int(time["clusterLength"] / time["timeResolution"])
+    num_periods = len(site["T_e"]) // steps_per_period
+    lengthArray = num_periods * steps_per_period
 
-    # adjust profiles with calculated array length
-    adjProfiles = {}
-    # loop over buildings
-    for i, b in enumerate(district):
-        adjProfiles[i] = {}
-        adjProfiles[i]["elec"] = b["user"].elec[0:lengthArray]
-        adjProfiles[i]["dhw"] = b["user"].dhw[0:lengthArray]
-        adjProfiles[i]["heat"] = b["user"].heat[0:lengthArray]
-        adjProfiles[i]["cooling"] = b["user"].cooling[0:lengthArray]
-        adjProfiles[i]["occ"] = b["user"].occ[0:lengthArray]
-        adjProfiles[i]["EV_carcharging_ondemand"] = b["user"].EV_carcharging_ondemand[0:lengthArray]
-        adjProfiles[i]["EV_carprofile"] = b["user"].EV_carprofile[0:lengthArray]
-        adjProfiles[i]["generationPV"] = b["user"].generationPV[0:lengthArray]
-        adjProfiles[i]["generationSTC"] = b["user"].generationSTC[0:lengthArray]
-
-        # Individual car profiles
-        adjProfiles[i]["individual_cars"] = []
-
-        for car in b["user"].individual_car_profiles:
-            adj_car = {
-                "availability_profile": car["availability_profile"][0:lengthArray] if car["availability_profile"] is not None else None,
-                "consumption_profile_wh": car["consumption_profile_wh"][0:lengthArray] if car["consumption_profile_wh"] is not None else None,
-                "on_demand_charging_profile_w": car["on_demand_charging_profile_w"][0:lengthArray] if car["on_demand_charging_profile_w"] is not None else None,
-                "fuel_profile_l": car["fuel_profile_l"][0:lengthArray] if car["fuel_profile_l"] is not None else None
-            }
-            adjProfiles[i]["individual_cars"].append(adj_car)
-
-    if centralEnergySupply == True:
-
-        adjProfiles["losses_heating_network"] = heat_grid_data["total_losses_heating_network"][0:lengthArray]
-        adjProfiles["losses_cooling_network"] = heat_grid_data["total_losses_cooling_network"][0:lengthArray]
-        adjProfiles["pump_power"] = heat_grid_data["pump_power"][0:lengthArray]
-
-        if centralDevices["capacities"]["WT"]["cap"] > 0:
-            adjProfiles["generationCentralWT"] = centralDevices["generation"]["Wind"][0:lengthArray]
-        else:
-            # no central WT exists; but array with just zeros leads to problem while clustering
-            adjProfiles["generationCentralWT"] = np.ones(lengthArray) * sys.float_info.epsilon
-
-        if centralDevices["capacities"]["PV"]["cap"] > 0:
-            adjProfiles["generationCentralPV"] = centralDevices["generation"]["PV"][0:lengthArray]
-        else:
-            # no central PV exists; but array with just zeros leads to problem while clustering
-            adjProfiles["generationCentralPV"] = np.ones(lengthArray) * sys.float_info.epsilon
-
-        if centralDevices["capacities"]["STC"]["cap"] > 0:
-            adjProfiles["generationCentralSTC"] = centralDevices["generation"]["STC"][0:lengthArray]
-        else:
-            # no central STC exists; but array with just zeros leads to problem while clustering
-            adjProfiles["generationCentralSTC"] = np.ones(lengthArray) * sys.float_info.epsilon
-
-    # wind speed, solar radiance, ambient temperature and soil temperature
-    adjProfiles["wind_speed"] = site["wind_speed"][0:lengthArray]
-    adjProfiles["SunTotal"] = site["SunTotal"][0:lengthArray]
-    adjProfiles["T_e"] = site["T_e"][0:lengthArray]
-    adjProfiles["T_soil"] = heat_grid_data["T_soil"][0:lengthArray]
-
-    # Prepare clustering
-    # weights for clustering algorithm indicating the focus onto this profile
-    # The relevant features for clustering are
+    # Profiles to cluster as (profile, weight, function that saves the clustered profile or None).
+    # The weights indicate the focus of the clustering onto this profile. The relevant features are
     # 1. electricity demand of the buildings (each building with weight 1)
     # 2. outdoor temperature (weight = number of buildings)
     # 3. Windspeed (weight = number of buildings) - only if central WT exists
     # 4. Solar Radiation (weight = number of buildings if central PV or STC exist and + 1 for each building with PV or STC)
-    # The profiles are not scaled currently. If otherwise desired set scalings.append(True) for the relevant profiles.
+    # All other profiles have weight 0 and are only cut into the chosen periods. No profile is scaled.
+    inputs = []
 
-    inputsClustering, weights, scalings = [], [], []
+    def add(profile, weight, save):
+        inputs.append((profile[0:lengthArray], weight, save))
 
-    # loop over buildings
-    for i in range(len(district)):
-        inputsClustering.append(adjProfiles[i]["elec"])
-        weights.append(1)
-        scalings.append(False)
+    # Profiles of the buildings
+    for building in district:
+        user = building["user"]
+        for name in BUILDING_PROFILES:
+            add(getattr(user, name), 1 if name == "elec" else 0, _save_attribute(user, f"{name}_cluster"))
 
-        inputsClustering.append(adjProfiles[i]["dhw"])
-        weights.append(0)
-        scalings.append(False)
+    # Individual car profiles (only the existing ones)
+    clustered_cars = {}
+    for i, building in enumerate(district):
+        clustered_cars[i] = []
+        for car in building["user"].individual_car_profiles:
+            clustered_car = {key: car.get(key) for key in CAR_METADATA}
+            for name in CAR_PROFILES:
+                clustered_car[f"{name}_cluster"] = None
+                if car[name] is not None:
+                    add(car[name], 0, _save_item(clustered_car, f"{name}_cluster"))
+            clustered_cars[i].append(clustered_car)
 
-        inputsClustering.append(adjProfiles[i]["heat"])
-        weights.append(0)
-        scalings.append(False)
+    # Central energy supply: network losses, pump power and renewable generation
+    if centralEnergySupply:
+        for name in HEAT_GRID_PROFILES:
+            add(heat_grid_data[name], 0, _save_item(heat_grid_data, f"{name}_cluster"))
+        generation = centralDevices["generation"]
+        for name, device in CENTRAL_GENERATION.items():
+            if centralDevices["capacities"][device]["cap"] > 0:
+                profile = generation[name]
+            else:
+                # no central device exists; but array with just zeros leads to problem while clustering
+                profile = np.ones(lengthArray) * sys.float_info.epsilon
+            add(profile, 0, _save_item(generation, f"{name}_cluster"))
 
-        inputsClustering.append(adjProfiles[i]["cooling"])
-        weights.append(0)
-        scalings.append(False)
+    # Wind speed and solar radiation (only relevant for clustering)
+    wind_weight = len(district) if centralEnergySupply and centralDevices["capacities"]["WT"]["cap"] > 0 else 0
+    add(site["wind_speed"], wind_weight, None)
 
-        inputsClustering.append(adjProfiles[i]["occ"])
-        weights.append(0)
-        scalings.append(False)
-
-        inputsClustering.append(adjProfiles[i]["EV_carcharging_ondemand"])
-        weights.append(0)      # This profile is not used at all for clustering
-        scalings.append(False)  # This profile is not scaled
-
-        inputsClustering.append(adjProfiles[i]["EV_carprofile"])
-        weights.append(0)      # This profile is not used at all for clustering
-        scalings.append(False)  # This profile is not scaled
-
-        inputsClustering.append(adjProfiles[i]["generationPV"])
-        weights.append(0)
-        scalings.append(False)
-
-        inputsClustering.append(adjProfiles[i]["generationSTC"])
-        weights.append(0)
-        scalings.append(False)
-
-    # Add individual car profiles
-    index_individual_cars_start = len(inputsClustering)
-    for i in range(len(district)):
-        for car in adjProfiles[i]["individual_cars"]:
-            # 4 profiles per car
-
-            if car["availability_profile"] is not None:
-                inputsClustering.append(car["availability_profile"])
-                weights.append(0) # Vorerst kein Gewicht
-                scalings.append(False)
-
-            if car["consumption_profile_wh"] is not None:
-                inputsClustering.append(car["consumption_profile_wh"])
-                weights.append(0)
-                scalings.append(False)
-
-            if car["on_demand_charging_profile_w"] is not None:
-                inputsClustering.append(car["on_demand_charging_profile_w"])
-                weights.append(0)
-                scalings.append(False)
-
-            if car["fuel_profile_l"] is not None:
-                inputsClustering.append(car["fuel_profile_l"])
-                weights.append(0)
-                scalings.append(False)
-
-
-    # Add central energy supply profiles
-    index_central = len(inputsClustering) # Index of the first entry of central energy profiles
-
-    if centralEnergySupply == True:
-
-        # Heating and cooling networks losses
-        inputsClustering.append(adjProfiles["losses_heating_network"])
-        weights.append(0)
-        scalings.append(False)
-
-        inputsClustering.append(adjProfiles["losses_cooling_network"])
-        weights.append(0)
-        scalings.append(False)
-
-        # central pump power
-        inputsClustering.append(adjProfiles["pump_power"])
-        weights.append(0)
-        scalings.append(False)
-
-        # central renewable generation
-        inputsClustering.append(adjProfiles["generationCentralWT"])
-        weights.append(0)
-        scalings.append(False)
-
-        inputsClustering.append(adjProfiles["generationCentralPV"])
-        weights.append(0)
-        scalings.append(False)
-
-        inputsClustering.append(adjProfiles["generationCentralSTC"])
-        weights.append(0)
-        scalings.append(False)
-
-    # Wind speed (only relevant for clustering)
-    inputsClustering.append(adjProfiles["wind_speed"])
-    if centralEnergySupply == True and centralDevices["capacities"]["WT"]["cap"] > 0: weights.append(len(district))
-    else: weights.append(0)
-    scalings.append(False)
-
-    # Solar radiation (only relevant for clustering)
-    inputsClustering.append(adjProfiles["SunTotal"])
-    # determine weight for solar radiation
     solar_weight = 0
-    if centralEnergySupply == True:
+    if centralEnergySupply:
         if (centralDevices["capacities"]["PV"]["cap"] > 0 or
                 centralDevices["capacities"]["STC"]["cap"] > 0):
             solar_weight += len(district)
-
-    for i in range(len(district)):
-        if (district[i]["buildingFeatures"]["f_PV1"] > 0 or
-                district[i]["buildingFeatures"]["f_PV2"] > 0 or
-                district[i]["buildingFeatures"]["f_STC"] > 0):
+    for building in district:
+        if (building["buildingFeatures"]["f_PV1"] > 0 or
+                building["buildingFeatures"]["f_PV2"] > 0 or
+                building["buildingFeatures"]["f_STC"] > 0):
             solar_weight += 1
+    add(site["SunTotal"], solar_weight, None)
 
-    weights.append(solar_weight)
-    scalings.append(False)
-
-    # ambient temperature
-    inputsClustering.append(adjProfiles["T_e"])
-    weights.append(len(district))
-    scalings.append(False)
-
-    # soil temperature
-    inputsClustering.append(adjProfiles["T_soil"])
-    weights.append(0)
-    scalings.append(False)
+    # ambient temperature and soil temperature
+    add(site["T_e"], len(district), _save_item(site, "T_e_cluster"))
+    add(heat_grid_data["T_soil"], 0, _save_item(heat_grid_data, "T_soil_cluster"))
 
     # Perform clustering
-    (newProfiles, nc, y, z, transfProfiles) = cm.cluster(np.array(inputsClustering),
+    (newProfiles, nc, y, z, transfProfiles) = cm.cluster(np.array([profile for profile, _, _ in inputs]),
                                                          number_clusters=time["clusterNumber"],
-                                                         len_cluster=int(initialArrayLenght),
-                                                         weights=weights,
-                                                         scalings=scalings,
+                                                         len_cluster=int(steps_per_period),
+                                                         weights=[weight for _, weight, _ in inputs],
+                                                         scalings=[False] * len(inputs),
                                                          pyomo_config=pyomo_config)
 
-    # safe clustered profiles of all buildings
-    for i in range(len(district)):
-        index_house = int(9)    # number of profiles per building
-        district[i]["user"].elec_cluster = newProfiles[index_house * i]
-        district[i]["user"].dhw_cluster = newProfiles[index_house * i + 1]
-        district[i]["user"].heat_cluster = newProfiles[index_house * i + 2]
-        district[i]["user"].cooling_cluster = newProfiles[index_house * i + 3]
-        district[i]["user"].occ_cluster = newProfiles[index_house * i + 4]
-        district[i]["user"].EV_carcharging_ondemand_cluster = newProfiles[index_house * i + 5]
-        district[i]["user"].EV_carprofile_cluster = newProfiles[index_house * i + 6]
-        district[i]["user"].generationPV_cluster = newProfiles[index_house * i + 7]
-        district[i]["user"].generationSTC_cluster = newProfiles[index_house * i + 8]
-
-    # Get individual car profiles
-    profile_counter = index_individual_cars_start
-    for i in range(len(district)):
-        district[i]["user"].individual_car_profiles_cluster = []
-        for car in district[i]["user"].individual_car_profiles:
-            profiles_car_counter = 0
-            clustered_car_data = {
-                # Get important metadata from the original
-                "car_id": car.get("car_id"),
-                "type": car.get("type"),
-                "location": car.get("location"),
-                "battery_capacity_wh": car.get("battery_capacity_wh"),
-            }
-            if car["availability_profile"] is not None:
-                clustered_car_data["availability_profile_cluster"] = newProfiles[profile_counter]
-                profiles_car_counter += 1
-            else:
-                clustered_car_data["availability_profile_cluster"] = None
-
-            if car["consumption_profile_wh"] is not None:
-                clustered_car_data["consumption_profile_wh_cluster"] = newProfiles[profile_counter + profiles_car_counter]
-                profiles_car_counter += 1
-            else:
-                clustered_car_data["consumption_profile_wh_cluster"] = None
-
-            if car["on_demand_charging_profile_w"] is not None:
-                clustered_car_data["on_demand_charging_profile_w_cluster"] = newProfiles[profile_counter + profiles_car_counter]
-                profiles_car_counter += 1
-            else:
-                clustered_car_data["on_demand_charging_profile_w_cluster"] = None
-
-            if car["fuel_profile_l"] is not None:
-                clustered_car_data["fuel_profile_l_cluster"] = newProfiles[profile_counter + profiles_car_counter]
-                profiles_car_counter += 1
-            else:
-                clustered_car_data["fuel_profile_l_cluster"] = None
-
-            district[i]["user"].individual_car_profiles_cluster.append(clustered_car_data)
-            # Increment counter for the next car by 4
-            profile_counter += profiles_car_counter
-
-
-    if centralEnergySupply == True:
-        heat_grid_data["total_losses_heating_network_cluster"] = newProfiles[index_central]
-        heat_grid_data["total_losses_cooling_network_cluster"] = newProfiles[index_central + 1]
-        heat_grid_data["pump_power_cluster"] = newProfiles[index_central + 2]
-        centralDevices["generation"]["Wind_cluster"] = newProfiles[index_central + 3]
-        centralDevices["generation"]["PV_cluster"] = newProfiles[index_central + 4]
-        centralDevices["generation"]["STC_cluster"] = newProfiles[index_central + 5]
-
-    site["T_e_cluster"] = newProfiles[-2]
-    heat_grid_data["T_soil_cluster"] = newProfiles[-1]
+    # save the clustered profiles
+    for (_, _, save), clustered in zip(inputs, newProfiles):
+        if save is not None:
+            save(clustered)
+    for i, building in enumerate(district):
+        building["user"].individual_car_profiles_cluster = clustered_cars[i]
 
     # clusters
     clusters = []
@@ -321,6 +188,24 @@ def select_profile_periods(profile, typedays, cluster_horizon, length_array):
     """
     Select representative periods from a full-year profile using medoid indices,
     instead of clustering the profile itself.
+
+    Parameters
+    ----------
+    profile : array_like or None
+        Profile of the whole year.
+    typedays : array_like of int
+        Indices of the periods to select (e.g. the medoids of the clustering).
+    cluster_horizon : int
+        Number of time steps per period.
+    length_array : int
+        Number of time steps that are used, a multiple of cluster_horizon. Later time steps
+        (an incomplete last period) are ignored.
+
+    Returns
+    -------
+    numpy.ndarray or None
+        Selected periods with one row per period in the order of typedays, or None if the
+        profile is None.
     """
     if profile is None:
         return None
@@ -336,6 +221,22 @@ def apply_design_clustering(data):
     Reuse the design-stage clustering (already computed while dimensioning the
     central devices) as the operational clustering, instead of independently
     re-clustering the per-building profiles a second time.
+
+    The same profiles as in clustering_processing (with central energy supply) are cut into the
+    design periods. Afterwards the clustered heating curves of the buildings are computed.
+
+    Parameters
+    ----------
+    data : Datahandler
+        Datahandler with the designed central devices, including
+        centralDevices["capacities"]["cluster_meta"] (period length in time steps, medoid
+        indices and cluster matrix of the design clustering).
+
+    Returns
+    -------
+    None
+        The clustered profiles are saved in data (as in clustering_processing), as well as
+        data.clusters, data.clusterAssignments and data.clusterWeights.
     """
     print("Applying design clustering to operation profiles...")
 
@@ -344,62 +245,30 @@ def apply_design_clustering(data):
     typedays = np.asarray(cluster_meta["typedays"], dtype=int)
     cluster_matrix = np.asarray(cluster_meta["clusterMatrix"])
 
-    length_array = cluster_horizon
-    while length_array <= len(data.site["T_e"]):
-        length_array += cluster_horizon
-    length_array = int(length_array - cluster_horizon)
+    length_array = len(data.site["T_e"]) // cluster_horizon * cluster_horizon  # complete periods only
+
+    def select(profile):
+        return select_profile_periods(profile, typedays, cluster_horizon, length_array)
 
     for building in data.district:
         user = building["user"]
-        user.elec_cluster = select_profile_periods(user.elec, typedays, cluster_horizon, length_array)
-        user.dhw_cluster = select_profile_periods(user.dhw, typedays, cluster_horizon, length_array)
-        user.heat_cluster = select_profile_periods(user.heat, typedays, cluster_horizon, length_array)
-        user.cooling_cluster = select_profile_periods(user.cooling, typedays, cluster_horizon, length_array)
-        user.occ_cluster = select_profile_periods(user.occ, typedays, cluster_horizon, length_array)
-        user.EV_carcharging_ondemand_cluster = select_profile_periods(
-            user.EV_carcharging_ondemand, typedays, cluster_horizon, length_array)
-        user.EV_carprofile_cluster = select_profile_periods(
-            user.EV_carprofile, typedays, cluster_horizon, length_array)
-        user.generationPV_cluster = select_profile_periods(
-            user.generationPV, typedays, cluster_horizon, length_array)
-        user.generationSTC_cluster = select_profile_periods(
-            user.generationSTC, typedays, cluster_horizon, length_array)
+        for name in BUILDING_PROFILES:
+            setattr(user, f"{name}_cluster", select(getattr(user, name)))
 
         user.individual_car_profiles_cluster = []
         for car in user.individual_car_profiles:
-            user.individual_car_profiles_cluster.append({
-                "car_id": car.get("car_id"),
-                "type": car.get("type"),
-                "location": car.get("location"),
-                "battery_capacity_wh": car.get("battery_capacity_wh"),
-                "availability_profile_cluster": select_profile_periods(
-                    car.get("availability_profile"), typedays, cluster_horizon, length_array),
-                "consumption_profile_wh_cluster": select_profile_periods(
-                    car.get("consumption_profile_wh"), typedays, cluster_horizon, length_array),
-                "on_demand_charging_profile_w_cluster": select_profile_periods(
-                    car.get("on_demand_charging_profile_w"), typedays, cluster_horizon, length_array),
-                "fuel_profile_l_cluster": select_profile_periods(
-                    car.get("fuel_profile_l"), typedays, cluster_horizon, length_array),
-            })
+            clustered_car = {key: car.get(key) for key in CAR_METADATA}
+            for name in CAR_PROFILES:
+                clustered_car[f"{name}_cluster"] = select(car.get(name))
+            user.individual_car_profiles_cluster.append(clustered_car)
 
-    data.heat_grid_data["total_losses_heating_network_cluster"] = select_profile_periods(
-        data.heat_grid_data["total_losses_heating_network"], typedays, cluster_horizon, length_array)
-    data.heat_grid_data["total_losses_cooling_network_cluster"] = select_profile_periods(
-        data.heat_grid_data["total_losses_cooling_network"], typedays, cluster_horizon, length_array)
-    data.heat_grid_data["pump_power_cluster"] = select_profile_periods(
-        data.heat_grid_data["pump_power"], typedays, cluster_horizon, length_array)
-    data.heat_grid_data["T_soil_cluster"] = select_profile_periods(
-        data.heat_grid_data["T_soil"], typedays, cluster_horizon, length_array)
+    for name in HEAT_GRID_PROFILES + ("T_soil",):
+        data.heat_grid_data[f"{name}_cluster"] = select(data.heat_grid_data[name])
 
-    data.centralDevices["generation"]["Wind_cluster"] = select_profile_periods(
-        data.centralDevices["generation"]["Wind"], typedays, cluster_horizon, length_array)
-    data.centralDevices["generation"]["PV_cluster"] = select_profile_periods(
-        data.centralDevices["generation"]["PV"], typedays, cluster_horizon, length_array)
-    data.centralDevices["generation"]["STC_cluster"] = select_profile_periods(
-        data.centralDevices["generation"]["STC"], typedays, cluster_horizon, length_array)
+    for name in CENTRAL_GENERATION:
+        data.centralDevices["generation"][f"{name}_cluster"] = select(data.centralDevices["generation"][name])
 
-    data.site["T_e_cluster"] = select_profile_periods(
-        data.site["T_e"], typedays, cluster_horizon, length_array)
+    data.site["T_e_cluster"] = select(data.site["T_e"])
 
     for building in data.district:
         envelope = building.get("envelope")

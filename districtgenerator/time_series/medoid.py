@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
+"""
+k-medoids clustering of time series into representative periods (e.g. typical days or weeks).
 
-from __future__ import division
+The clustering is solved exactly with tsam. It is used for the operational clustering of the
+district profiles (time_series.clustering) and for the design of the central devices
+(optimization.energy_hub_parameters).
+"""
+
 import warnings
-import time
 import numpy as np
 import pandas as pd
 import tsam
@@ -15,8 +20,18 @@ def _resolve_tsam_solver(pyomo_config):
     """
     Map the project's Pyomo solver configuration onto a solver supported by tsam's
     exact k-medoids MILP. tsam only supports gurobi/cbc/highs/cplex; glpk/scip
-    (both otherwise supported by districtgenerator.functions.solver_config) fall
+    (both otherwise supported by districtgenerator.optimization.solver) fall
     back to highs.
+
+    Parameters
+    ----------
+    pyomo_config : dict or object or None
+        Solver settings with the attribute or key "solver_name". If None, gurobi is used.
+
+    Returns
+    -------
+    str
+        Name of the solver for tsam.
     """
     solver_name = "gurobi"
     if pyomo_config:
@@ -40,17 +55,20 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, weights=None, scalings
     ----------
     inputs : 2-dimensional array
         First dimension: Number of different input types.
-        Second dimension: Values for each time step of interest.
-    number_clusters : integer, optional
-        How many clusters shall be computed? The default is 12.
-    len_day : integer, optional
-        Number of time steps per day. The default is 24.
+        Second dimension: Values for each time step of interest. Time steps after the last
+        complete period are ignored.
+    number_clusters : integer
+        Number of clusters (representative periods).
+    len_cluster : integer
+        Number of time steps per period (e.g. 24 for typical days in hourly resolution).
     norm : integer, optional
         Compute the distance according to this norm. Only the standard Euclidean-norm
         (norm=2) is supported, since that is the only distance metric tsam's exact
         k-medoids implementation offers.
     weights : 1-dimensional array, optional
-        Weight for each input. If not provided, all inputs are treated equally.
+        Weight for each input. If not provided, all inputs are treated equally. If the weights
+        cannot be used (wrong length, not numeric, all zero), all inputs are treated equally and
+        a warning is issued.
     scalings : list of booleans, optional
         List indicating whether each input should be scaled to preserve energy demands.
     pyomo_config : dict, optional
@@ -60,14 +78,17 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, weights=None, scalings
 
     Returns
     -------
-    scaled_typ_days : list
-        Scaled typical demand days. The scaling is based on the annual demands.
+    scaled_typ_clusters_per_input : list
+        One array per input with the representative periods (rows) and their time steps
+        (columns), ordered by ascending medoid index. Inputs with scaling are rescaled to
+        preserve their mean.
     nc : array_like
-        Weighting factors of each cluster.
+        Number of periods represented by each cluster, in the same order.
     y : array_like
-        Chosen clusters. 1 for chosen, 0 for not chosen.
+        Chosen medoids. 1 for chosen, 0 for not chosen (one entry per period).
     z : 2-dimensional array
-        Mapping of each day to the clusters.
+        Mapping of the periods to the clusters: z[medoid, period] is 1 if the period is
+        represented by the medoid.
     inputsTransformed : list
         One entry for each row of the original 'input'.
         Entries are arrays with rows for each time step and columns for each day.
@@ -95,10 +116,9 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, weights=None, scalings
                 raise ValueError("Length of 'weights' must match number of input profiles")  # -> Go to except block
             if np.sum(weights) == 0 or np.isnan(np.sum(weights)):
                 weights = np.ones(n_inputs, dtype=float)
-        except Exception:
+        except (TypeError, ValueError):
             weights = np.ones(n_inputs, dtype=float)
-            print("Warning: 'weights' could not be processed. Check weight assignment. Using equal weights for all inputs.")
-            time.sleep(5)  # Wait 5 seconds to make sure the user can see the warning
+            warnings.warn("'weights' could not be processed. Check weight assignment. Using equal weights for all inputs.")
 
     # Default: No profile is scaled
     if scalings is None:
@@ -116,7 +136,7 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, weights=None, scalings
 
     solver = _resolve_tsam_solver(pyomo_config)
     with warnings.catch_warnings():
-        # Zero-weight profiles (e.g. dhw/heat/occ passengers, see clustering_processing.py)
+        # Zero-weight profiles (e.g. dhw/heat/occ passengers, see time_series/clustering.py)
         # are expected and intentional; tsam floors them to its min_weight and warns per
         # column, which is just noise here since we already know which profiles are unweighted.
         warnings.filterwarnings("ignore", message=r'weight of ".*" set to the minimal tolerable weighting')
@@ -133,8 +153,8 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, weights=None, scalings
 
     ################################################################
     # Step 3: Reassemble outputs in the ascending-medoid-index convention
-    # expected by callers (both get_params_central_devices.py and
-    # clustering_processing.py independently re-derive cluster ordering by
+    # expected by callers (both optimization/energy_hub_parameters.py and
+    # time_series/clustering.py independently re-derive cluster ordering by
     # scanning y/z in ascending original-period-index order, so nc and
     # scaled_typ_clusters_per_input must follow that same ordering here).
     ################################################################
