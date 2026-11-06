@@ -1,3 +1,11 @@
+"""
+Configuration of the districtgenerator.
+
+Each topic (location, time, buildings, economics, solver, heat grid, devices, report, ...) is a pydantic
+settings class with default values. :func:`load_global_config` reads a ``.env.CONFIG`` file from
+``data/config`` (or an absolute path) and overrides the defaults; the result is a :class:`GlobalConfig`.
+Nested parameters use a double underscore, e.g. ``SOLVER_OPTIONS__TIME_LIMIT=600``.
+"""
 from dataclasses import field
 import os
 import warnings

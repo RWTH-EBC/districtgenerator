@@ -15,5 +15,5 @@ The packages follow the workflow of the districtgenerator. The Datahandler runs 
    districtgenerator.economics
    districtgenerator.optimization
    districtgenerator.analysis
-   districtgenerator.storage
+   districtgenerator.file_io
    districtgenerator.utilities

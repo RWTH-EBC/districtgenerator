@@ -1,4 +1,11 @@
 # -*- coding: utf-8 -*-
+"""
+Building envelope for the 5R1C model according to DIN EN ISO 13790.
+
+:class:`Envelope` derives the areas, U-values and thermal capacities of the building components from
+TEASER archetypes (residential) or from the non-residential archetype data, and provides the
+transmission and ventilation parameters of the 5R1C substitution model.
+"""
 
 import json
 import os

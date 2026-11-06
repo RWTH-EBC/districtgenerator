@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+Building-use data of SIA 2024 for non-residential buildings.
+
+:func:`read_SIA_data` reads ``data/buildings/SIA2024.xlsx`` and restructures it into usage profiles,
+occupancy, internal loads and ventilation data per building use.
+"""
 
 import os
 import pandas as pd
@@ -8,26 +14,26 @@ def read_SIA_data():
     """
     Read and restructure SIA 2024 building-use data from the package data.
 
-        Load the ``SIA2024`` worksheet from ``data/buildings/SIA2024.xlsx`` and convert
-        its tabular zone, energy, ventilation, profile, and building-type
-        composition data into the nested dictionary structure used by
-        DistrictGenerator.
+    Load the ``SIA2024`` worksheet from ``data/buildings/SIA2024.xlsx`` and convert
+    its tabular zone, energy, ventilation, profile, and building-type
+    composition data into the nested dictionary structure used by
+    DistrictGenerator.
 
-        Returns
-        -------
-        dict
-            Nested SIA 2024 data dictionary. It contains two groups of
-            top-level keys:
+    Returns
+    -------
+    dict
+        Nested SIA 2024 data dictionary. It contains two groups of
+        top-level keys:
 
-            - Zone identifiers represented as strings. Each zone contains
-              general zone parameters, energy-use and ventilation values for
-              ``"standard"``, ``"goal"``, and ``"existing"`` states, a
-              24-element people profile, a 24-element device profile, and a
-              12-element monthly profile.
-            - Building-type identifiers such as ``"Living: MFH"``,
-              ``"Living: SFH"``, ``"OB"``, ``"SC"``, and others. Each maps
-              SIA zone names to their configured proportional share in that
-              building type.
+        - Zone identifiers represented as strings. Each zone contains
+          general zone parameters, energy-use and ventilation values for
+          ``"standard"``, ``"goal"``, and ``"existing"`` states, a
+          24-element people profile, a 24-element device profile, and a
+          12-element monthly profile.
+        - Building-type identifiers such as ``"Living: MFH"``,
+          ``"Living: SFH"``, ``"OB"``, ``"SC"``, and others. Each maps
+          SIA zone names to their configured proportional share in that
+          building type.
     """
     sia_xlsx_path = os.path.join(DATA_DIR, 'buildings', 'SIA2024.xlsx')
     data = pd.read_excel(sia_xlsx_path, sheet_name='SIA2024', header=1)

@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+Stochastic user profiles of a flat or a non-residential building unit.
+
+:class:`Profiles` generates occupancy (richardsonpy or SIA 2024 schedules), electricity demand of
+appliances and lighting, internal gains and domestic hot water demand (OpenDHW).
+"""
 
 import os
 import random as rd

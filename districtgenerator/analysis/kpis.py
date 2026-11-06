@@ -1,4 +1,11 @@
 # -*- coding: utf-8 -*-
+"""
+Key performance indicators of a district scenario.
+
+The :class:`KPIs` class evaluates the operation results of the clustered optimization periods:
+residual loads, peak demands, grid imports and exports, self-consumption and coverage, energy-carrier
+consumption, costs and CO2 emissions. It also triggers the PDF district energy certificate.
+"""
 
 import numpy as np
 import os

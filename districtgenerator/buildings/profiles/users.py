@@ -1,4 +1,11 @@
 # -*- coding: utf-8 -*-
+"""
+Users of a building and their demand profiles.
+
+:class:`Users` determines the number of flats and occupants and the annual electricity demand of a
+building, and generates its demand profiles (occupancy, electricity, domestic hot water, internal gains,
+space heating and cooling, electric vehicles) in worker processes or threads.
+"""
 import statistics
 import os
 import random as rd

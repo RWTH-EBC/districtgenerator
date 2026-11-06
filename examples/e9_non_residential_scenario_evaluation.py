@@ -16,7 +16,7 @@ def example9_non_residential_scenario_evaluation():
     data = Datahandler(scenario_name = "example_non_residential", env_path=".env.CONFIG.EXAMPLE")
 
     # We directly generate a complete district. For further information refer to example 7 and 8.
-    data.generateDistrictComplete(calcUserProfiles=True, saveUserProfiles=True)
+    data.generateDistrictComplete(calcUserProfiles=True, saveUserProfiles=False)
 
     # Calculation of the devices' optimal operation
     data.optimizationClusters()

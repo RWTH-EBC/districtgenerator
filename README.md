@@ -64,8 +64,9 @@ energy systems. Technologies include heat pumps, electric heaters, boilers, biom
 hydrogen boilers, combined heat and power units, fuel cells, district heating, photovoltaic systems, 
 solar-thermal collectors, batteries, thermal energy storage, electric vehicles, compression chillers, and wind turbines.
 Representative time periods are generated using k-medoids clustering to reduce the computational effort of annual 
-optimization. Optimization is formulated with Pyomo. The example configuration currently uses Gurobi as the solver but
-also open source solvers like HiGHS can be used.
+optimization. Optimization is formulated with Pyomo. The example configuration uses the open-source solver HiGHS,
+which is installed with the requirements. Other solvers (`gurobi`, `cbc`, `glpk`, `scip`) can be selected with
+`SOLVER_NAME` in the `.env` configuration file; commercial solvers such as Gurobi require a license.
 4. Simulation and optimization results are evaluated using technical, economic, and environmental key performance 
 indicators. They include annual energy demands, grid imports and exports, renewable generation, peak loads,
 self-consumption and coverage indicators, energy-carrier consumption, investment and annualized costs,
@@ -134,8 +135,18 @@ emission factors, heating networks, central and decentralized technologies, opti
 report generation.
 
 All input data such as weather, postal codes, scenarios, pipes and SIA 2024 is read from
-`districtgenerator/data`, sorted into subfolders by topic (`config`, `scenarios`, `site`, `weather`, `buildings`,
-`energy_systems`, `report`). `Datahandler(env_path=".env.NAME")` looks for the configuration file in `data/config`,
+`districtgenerator/data`, sorted into subfolders by topic:
+
+- `config`: `.env.CONFIG` configuration files
+- `scenarios`: scenario files (.csv) with the buildings of a district
+- `site`: postal codes, coordinates, weather stations and cooling load zones
+- `weather`: test reference years (TRY) of the DWD
+- `buildings`: SIA 2024, non-residential archetypes, lighting and car data
+- `energy_systems`: pipe specifications, wind turbine power curves and heat pump COP time series
+- `report`: translations for the PDF certificate
+- `raw`: source data and scripts used to create the files above; the districtgenerator does not read this folder
+
+`Datahandler(env_path=".env.NAME")` looks for the configuration file in `data/config`,
 an absolute path is used as given. Own scenario files can be placed in another folder with
 `Datahandler(scenario_file_path=...)`. The former parameters `filePath` and `srcPath` are deprecated and ignored.
 Fixed data such as the file format of the TRY weather data, the cooling load zones and the soil properties are
@@ -157,9 +168,23 @@ information about each building, namely the building type, year of construction,
 retrofit level, and net floor area. The number of buildings to be calculated is 
 not limited by the program. Optionally, the site of the district, the time 
 resolution of the profiles and the test reference year (TRY) for weather data 
-can be modified.
+can be modified. The `Datahandler` runs the following steps; `generateDistrictComplete` runs steps 1 to 7
+in one call. Each step names the package that implements it.
 
-![Library Structure](img/Workflow_DistrictGenerator.png)
+```mermaid
+flowchart TD
+    input[/"Scenario file (.csv) and .env.CONFIG file"/] --> env
+    env["1 generateEnvironment<br/>environment: TRY weather, site, solar irradiance, soil"] --> init
+    init["2 initializeBuildings<br/>buildings: building features of the scenario file"] --> geo
+    geo["3 generateBuildings<br/>buildings.thermal: envelope from TEASER/TABULA or non-residential archetypes"] --> dem
+    dem["4 generateDemands<br/>buildings.profiles: occupancy, electricity, DHW, internal gains, EV<br/>buildings.thermal: heating and cooling with 5R1C, 7R2C or four elements"] --> dec
+    dec["5 designDecentralDevices<br/>energy_systems, optimization.heating_concept"] --> central
+    central{"Heat grid or energy hub?"} -- yes --> hub["6 design heat grid and central devices<br/>energy_systems.heating_network, optimization.energy_hub_sizing"]
+    central -- no --> clu
+    hub --> clu["7 typical periods<br/>time_series: k-medoids clustering"]
+    clu --> opt["8 optimizationClusters<br/>optimization.operation with Pyomo"]
+    opt --> kpi["9 calculateKPIs<br/>analysis: KPIs, plots, PDF certificate"]
+```
 
 To obtain a fully parameterized building model, the [TEASER tool](https://rwth-ebc.github.io/TEASER/main/docs/index.html) 
 performs a data enrichment with data from the [TABULA WebTool](https://webtool.building-typology.eu/#bm) 
@@ -181,6 +206,13 @@ profiles are needed for domestic hot water profile generation, for which functio
 are utilized. Finally, the static building data, as well as the time-resolved weather and internal gain data, 
 are included in the space heating profile generation. These are computed by means of a 5R1C- or 7R2C-substitution model 
 according to VDI 6007-1 using the simplified hourly method.
+Non-residential buildings use archetype data and usage profiles of SIA 2024 instead of TABULA and richardsonpy.
+
+Based on the demand profiles, the decentral devices of each building are sized, e.g. heat pumps, boilers, PV,
+solar thermal collectors, batteries and thermal energy storages. If buildings are connected to a heat grid or an energy
+hub is requested, the heat grid and the central devices are designed as well. The annual time series are then
+reduced to typical periods with k-medoids clustering, the operation of all devices is optimized for each typical
+period, and the results are evaluated with technical, economic and environmental key performance indicators.
 
 ### Package structure
 
@@ -201,14 +233,15 @@ districtgenerator/
 ├── economics/         # annuities and price paths
 ├── optimization/      # decentral heating concept, central dimensioning and operation
 ├── analysis/          # KPIs, plots and the certificate
-├── storage/           # saving and loading of profiles and districts
+├── file_io/           # saving and loading of profiles and districts
 ├── utilities/         # paths (DATA_DIR, RESULTS_DIR) and helpers without domain knowledge
 └── data/              # input data, one subfolder per topic; raw/ holds source data that the code does not read
 ```
 
 Import the Datahandler with `from districtgenerator import Datahandler`. The old packages
 `districtgenerator.classes`, `districtgenerator.functions` and `districtgenerator.data_handling` were removed,
-so imports and pickled districts that use these old module paths have to be updated.
+so imports and pickled districts that use these old module paths have to be updated. The
+[migration guide](docs/MIGRATION.md) lists the new module paths and the new locations of the data files.
 
 ## Final output of the DistrictGenerator
 
@@ -247,16 +280,28 @@ depending on the technologies present in the scenario.
 Finally, the DistrictGenerator generates a PDF report summarizing the results of the energy-system optimization 
 by various key performance indicators.
 
-## Running examples for functional testing
+## Testing
 
 Once you have installed the DistrictGenerator, you can check the [examples](docs/EXAMPLES.md) 
 to learn how to use the different components. 
 
-To test the tool's executability, run [test_examples.py](https://github.com/RWTH-EBC/districtgenerator/blob/develop/tests)  in the tests folder. 
-This functional testing checks the entire chain of the tool, from data input and 
-initialization to the output of the calculated profiles. It does not correspond to a 
-test of the functional units of the entire process. This  functional testing is based 
-on the examples automatically executed one after another.
+The [tests](https://github.com/RWTH-EBC/districtgenerator/tree/develop/tests) folder contains the following tests.
+Run them from the repository root, e.g. with `python -m pytest tests`:
+
+- `test_examples.py`: functional test of the examples 1 to 5, which checks the whole chain from data input and
+  initialization to the calculated profiles
+- `test_results.py`: regression test of the examples 5, 7, 8 and 9 with a fixed random seed. Demand profiles,
+  residual loads and KPIs are compared with the reference results in `tests/results_data/reference`. After an
+  intended change of the results, run it with the environment variable `UPDATE_REFERENCE_RESULTS=1` to replace the
+  reference files and check the changes with `git diff` before committing them. The optimization results depend on
+  the solver and its version.
+- `test_structure.py`: imports of all modules, the thermal model registry and shared helpers
+- `test_heating_concept.py`: selection of the cheapest heating concept, solved with HiGHS
+- `test_operation_devices.py`: completeness of the device integration in the operation optimization model
+  (the model is built but not solved)
+- `test_time_series.py`: k-medoids clustering and the mapping of the clustered profiles
+- `unit_tests.py`: single functions such as the change of the time resolution, economic year groups and the
+  sizing of building devices, with expected values calculated by hand
 
 ## How to contribute
 

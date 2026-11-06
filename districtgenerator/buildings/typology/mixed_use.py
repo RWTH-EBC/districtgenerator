@@ -206,7 +206,7 @@ def combine_mixed_building_demands(data, saveUserProfiles):
         combined_building["envelope"].dhwpower = main_building["envelope"].dhwpower + secondary_building["envelope"].dhwpower
 
         print(f"Combined mixed building {parent_id}: "
-              f"{main_type} + {secondary_type} → NEW combined building")
+              f"{main_type} + {secondary_type} -> NEW combined building")
 
         # Save combined profiles to Excel file
         if saveUserProfiles:

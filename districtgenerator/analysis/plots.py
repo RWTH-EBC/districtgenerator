@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+Plots of the generated demand profiles.
+
+:class:`DemandPlots` draws the demand and generation profiles of the district, stepwise or summed per month,
+:func:`plot_district` is the entry point used by ``Datahandler.plot``.
+"""
 
 import matplotlib.pyplot as plt
 import numpy as np

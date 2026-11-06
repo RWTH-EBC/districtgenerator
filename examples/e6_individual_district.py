@@ -4,7 +4,7 @@
 This is the sixth example to change specific assumptions about the district.
 
 This method allows for storing and managing separate, versionable configurations without altering the tool's
-default data. How to use multiple configurations will be explained in example nine.
+default data. How to use multiple configurations is explained in example ten.
 
 If you run the examples with Python console, you can see the output file.
 To do this right-hand click the example.py file (e6_individual_district.py).
