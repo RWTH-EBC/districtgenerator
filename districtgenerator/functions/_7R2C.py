@@ -18,12 +18,13 @@ Requirements:
 Assumptions:
 - No mechanical supply air; the air balance uses infiltration only (H_ve).
 - Heating/cooling acts with an optional split (sigma) across air and surfaces.
-- Control is by operative temperature unless otherwise noted.
+- Control is by operative temperature.
 """
 
 from typing import Dict, Optional, Tuple
 import numpy as np
 
+RES_BUILDING_TYPES = {"SFH", "TH", "MFH", "AB"}
 
 def _area_fraction_aw(envelope) -> float:
     Araum = max(float(getattr(envelope, "Araum_tot", 0.0)), 1e-12)
@@ -97,7 +98,8 @@ def build_params_from_envelope(envelope, dt_s: float) -> Dict[str, float]:
         )
 
     # Ventilation conductance (W/K)
-    H_ve = float(envelope.rho_air) * float(envelope.c_p_air) * float(envelope.ventilationRate) * float(envelope.V) / 3600.0
+    # Accounting for heat recovery in mechanical ventilation, but not in infiltration
+    H_ve = float(envelope.rho_air) * float(envelope.c_p_air) / 3600.0 * (float(envelope.V_dot) * (1.0 - float(envelope.eta_temp_vent)) + float(envelope.V_dot_infiltration))
 
     # A tiny air capacity for numerical stability (or scale with volume)
     # Rule of thumb: ~ 1.2 kJ/K per m² zone floor area
@@ -522,7 +524,7 @@ def _build_setpoints_arrays(envelope, n, dt_h, building_type, night_setback, hol
     T_heat = np.full(n, float(envelope.T_set_min), dtype=float)
     T_cool = np.full(n, float(envelope.T_set_max), dtype=float)
 
-    if building_type in {"SFH", "TH", "MFH", "AB"}:
+    if building_type in RES_BUILDING_TYPES:
         # Residential: night 22:00–05:59 only if night_setback requested
         if night_setback:
             for t in range(n):

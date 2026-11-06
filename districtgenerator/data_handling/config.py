@@ -154,9 +154,9 @@ class DesignBuildingConfig(BaseSettings):
 
     # Currently not in .env.CONFIG as info is static:
     # Abbreviations of the selectable building types.
-    buildings_short: list = field(default_factory=lambda: ["SFH", "MFH", "TH", "AB","OB","SC","GS", "RE", "MFH+GR", "AB+GR", "MFH+RE", "AB+RE"])
+    buildings_short: list = field(default_factory=lambda: ["SFH", "MFH", "TH", "AB","OB","SC","GS", "RE", "UNI", "HOSPITAL", "CULTURE", "SPORT", "RETAIL", "WORKSHOP"])
     # Names of the four selectable building types.
-    buildings_long: list = field(default_factory=lambda: ["single_family_house", "multi_family_house", "terraced_house", "apartment_block", "office", "school", "grocery_store", "restaurant", "multi_family_house+grocery_store", "apartment_block+grocery_store", "multi_family_house+restaurant", "apartment_block+restaurant"])
+    buildings_long: list = field(default_factory=lambda: ["single_family_house", "multi_family_house", "terraced_house", "apartment_block", "office", "school", "grocery_store", "restaurant", "research_building", "healthcare_building", "cultural_building", "sports_hall", "retail_building", "workshop_building"])
     # Abbreviations of the retrofit levels.
     retrofit_short: list = field(default_factory=lambda: [0, 1, 2])
     # Names of the retrofit levels.
@@ -170,12 +170,12 @@ class DesignBuildingConfig(BaseSettings):
     # Names of the construction types of the non residential buildings
     construction_type_long: list = field(default_factory=lambda: ["Light", "Medium", "Heavy"])
     # The additional power required by the heating system to meet the domestic hot water demand per square meter in the building types:
-    # SFH, MFH, TH, AB, OB, SC, GS, and RE.
+    # SFH, MFH, TH, AB, OB, SC, GS, and RE, and UNI, HOSPITAL, CULTURE, SPORT, RETAIL, WORKSHOP.
     # Source: SIA2024 Standard-Nutzungsbedingungen für die Energie- und Gebäudetechnik"
-    dhwpower: list = field(default_factory=lambda: [3, 3, 3, 3, 7.1, 8.6, 7.2, 24])
-    # Mean drawoff DHW volume per day and person for each building type (SFH, MFH, TH, AB, OB, SC, GS, RE).
+    dhwpower: list = field(default_factory=lambda: [3, 3, 3, 3, 7.1, 8.6, 7.2, 24, 5.8, 6.4, 12, 30.7, 1.9, 0.95])
+    # Mean drawoff DHW volume per day and person for each building type (SFH, MFH, TH, AB, OB, SC, GS, RE, UNI, HOSPITAL, CULTURE, SPORT, RETAIL, WORKSHOP).
     # Source: 12831-3/A100 Table NA.4 for residential buildings and SIA2024 Standard-Nutzungsbedingungen für die Energie- und Gebäudetechnik for non-residential buildings
-    mean_drawoff_vol_per_day: list = field(default_factory=lambda: [40, 40, 40, 40, 6, 1.5, 1.5, 8])
+    mean_drawoff_vol_per_day: list = field(default_factory=lambda: [40, 40, 40, 40, 6, 1.5, 1.5, 8, 2, 60, 2, 100, 2, 3])
 
     model_config = SettingsConfigDict(
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file

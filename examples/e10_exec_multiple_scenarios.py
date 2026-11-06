@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-This is the ninth example, which explains how to automatically run the generator
+This is the tenth example, which explains how to automatically run the generator
 for multiple configuration files in a sequence.
 
 This approach can be used for comparing different scenarios, as each configuration
@@ -9,7 +9,7 @@ file represents a unique set of assumptions. The script will loop through all
 valid config files in a specified directory and generate a complete set of
 results for each one. You can reuse these configuration files for future runs
 or share them with others to ensure consistent results across different setups.
-
+AC
 If you run the examples with Python console, you can see the output files being
 generated for each scenario. To do this right-hand click the example.py file
 (e9_multiple_configs.py). Then choose 'Modify Run Configuration' and tick

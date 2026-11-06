@@ -146,9 +146,7 @@ class ElectricityProfile(object):
                                 monthly_el_zone_total_demand = monthly_el_zone_demand[month_index] * 1000
                                 el_zone_month_demand = [(a / sum(profile_devices_zone_month)) * monthly_el_zone_total_demand / (time_resolution/3600)
                                     for a in profile_devices_zone_month]
-                                for i in range(len(el_zone_month_demand)):
-                                    if el_zone_month_demand[i] == 0:
-                                        el_zone_month_demand[i] = np.random.normal(el_zone_demand[-1],el_zone_demand[-1] * 0.1)   # If the demand is 0, it is changed to be equal to the demand in the last time step with a small variation
+
                                 el_zone_demand.extend(el_zone_month_demand)
                         power_el_app = [total + daily for total, daily in zip(power_el_app, el_zone_demand)]
         return power_el_app
