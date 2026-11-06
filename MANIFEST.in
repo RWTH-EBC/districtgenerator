@@ -11,3 +11,7 @@ include districtgenerator/data/weather/TRY_2045_Somm/*
 include districtgenerator/data/weather/TRY_2045_Wint/*
 
 include requirements.txt
+include LICENSE.md
+include README.md
+recursive-include districtgenerator/data *
+global-exclude *.py[cod] __pycache__
