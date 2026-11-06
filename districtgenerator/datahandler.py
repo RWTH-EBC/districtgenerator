@@ -27,7 +27,7 @@ from districtgenerator.energy_systems import building_energy_system, central_ene
 from districtgenerator.environment import site as site_conditions
 from districtgenerator.environment import soil, solar, weather
 from districtgenerator.optimization import operation
-from districtgenerator.storage import district_store, profile_store
+from districtgenerator.file_io import district_store, profile_store
 from districtgenerator.time_series import clustering
 from districtgenerator.utilities.paths import DATA_DIR, PACKAGE_DIR, RESULTS_DIR
 

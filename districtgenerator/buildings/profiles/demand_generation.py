@@ -8,7 +8,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_compl
 
 from districtgenerator.buildings import thermal
 from districtgenerator.buildings.typology import mixed_use
-from districtgenerator.storage import profile_store
+from districtgenerator.file_io import profile_store
 from districtgenerator.utilities.randomness import seeded_demand_worker
 
 

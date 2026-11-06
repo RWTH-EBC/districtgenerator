@@ -423,7 +423,7 @@ class PyomoConfig(BaseSettings):
     """
     PyomoConfig class to manage the configuration of the Pyomo optimization solver.
     """
-    solver_name: str = "gurobi"     # Name of the solver to be used. Options: 'gurobi', 'highs', 'cbc' etc. highs does not require any additional download or license. Already available if all packages in requirements.txt are installed.
+    solver_name: str = "highs"     # Name of the solver to be used. Options: 'gurobi', 'highs', 'cbc' etc. highs does not require any additional download or license. Already available if all packages in requirements.txt are installed.
     solver_executable: Optional[str] = None   # Path to solver executable, if needed
     solver_options__time_limit: int = 600          # Time limit in seconds for each optimization run
     solver_options__mip_gap: float = 0.01            # Acceptable MIP gap from optimal solution

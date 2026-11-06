@@ -14,7 +14,7 @@ import pandas as pd
 
 from districtgenerator.buildings.typology.non_residential import NonResidential
 from districtgenerator.buildings.typology.residential import one_floor_area_range
-from districtgenerator.storage import profile_store
+from districtgenerator.file_io import profile_store
 from districtgenerator.utilities.randomness import building_seed
 
 
