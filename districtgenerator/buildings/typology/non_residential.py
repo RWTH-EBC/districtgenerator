@@ -297,8 +297,8 @@ class NonResidential(object):
 # This class is responsible for the behavior configuration for non-residential buildings
 @dataclass
 class NonResidentialConfig:
-    # Basic configuration parameters to be provided for the generation of a non-residential building
-    """Store use-specific inputs for non-residential demand generation.
+    """
+    Store use-specific inputs for non-residential demand generation.
 
     Parameters
     ----------
@@ -341,7 +341,8 @@ class NonResidentialConfig:
     lighting_irradiance_threshold_std_dev: float | None  # Standard deviation of the irradiance threshold, representing variability in lighting behavior.
 
 class GenericNonResidential:
-    """Provide use-specific assumptions for occupancy and demand profiles.
+    """
+    Provide use-specific assumptions for occupancy and demand profiles.
 
     Parameters
     ----------
@@ -359,7 +360,8 @@ class GenericNonResidential:
 
 
     def __init__(self, usage_string: str):
-        """Load the behavioral assumptions for a building use.
+        """
+        Load the behavioral assumptions for a building use.
 
         Parameters
         ----------
@@ -375,7 +377,8 @@ class GenericNonResidential:
         self.config = self._load_config()
 
     def _load_config(self) -> NonResidentialConfig:
-        """Select behavioral assumptions, reading the shared JSON only once.
+        """
+        Select behavioral assumptions, reading the shared JSON only once.
 
         Returns
         -------

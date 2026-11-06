@@ -18,8 +18,28 @@ from districtgenerator.utilities.randomness import building_seed, seeded_random_
 
 def parse_position(val):
     """
-    The building coordinates read directly from CSV files are often irregular and need correction.
-    For example: ('1','2','.','3',',','4','5','.','6') → (12.3, 45.6)
+    Parse a building position from a scenario file into a tuple of floats.
+
+    Used as converter for the "position" column when reading the scenario CSV file.
+    For example, "(12.3,45.6)" and ('1', '2', '.', '3', ',', '4', '5', '.', '6') both become (12.3, 45.6).
+
+    Parameters
+    ----------
+    val : str, tuple or list
+        Comma-separated coordinates as a string, optionally in parentheses, or the characters
+        of such a string as a tuple or list. Values of any other type are returned unchanged.
+
+    Returns
+    -------
+    tuple of float or object
+        Parsed coordinates, or `val` unchanged if it is not a string, tuple or list.
+
+    Raises
+    ------
+    ValueError
+        If a coordinate cannot be converted to a float, e.g. for an empty string.
+    TypeError
+        If a tuple or list contains anything other than strings.
     """
     # If the input is a string like "(12.3,45.6)", parse it into a tuple of floats.
     if isinstance(val, str):
@@ -52,14 +72,12 @@ def load_scenario(scenario_file_path, scenario_name):
     scenario = (pd.read_csv(os.path.join(scenario_file_path, f"{scenario_name}.csv"), delimiter=";",
                                  converters={"position": parse_position}).set_index("id", drop=False))
 
-    # Determine for each building if an dhw_heater is set
-
+    # Determine for each building if a dhw_heater is set
     if "dhw_heater" not in scenario.columns:
         scenario["dhw_heater"] = None
     else: 
         # Replace empty values, NaNs, and 0 with None
         scenario["dhw_heater"] = scenario["dhw_heater"].replace({np.nan: None, "": None, 0: None, "0": None, 0.0: None})
-
         # Replace 1 values with "EH_DHW"
         scenario["dhw_heater"] = scenario["dhw_heater"].replace({1: "EH_DHW", "1": "EH_DHW", 1.0: "EH_DHW"})
 
@@ -124,7 +142,7 @@ def initialize_buildings(data):
     # Rough time estimate
     duration += datetime.timedelta(seconds=3 * num_sfh + 12 * num_mfh)
     print(f"This calculation will take about {duration}.")
-
+    # split mixed-use buildings into main and secondary parts
     mixed_use.split_mixed_buildings(data)
 
 
@@ -158,7 +176,7 @@ def generate_buildings(data):
             construction_data = residential.add_residential_building(prj, building, building_type, bldgs,
                                                                      building_random)
 
-            # %% create envelope object
+            # %% create envelope object based on choosen building thermal model and
             # containing all physical data of the envelope
             building["thermal_model"] = data.design_building_data["thermal_model_type"]
             Envelope = thermal.get_envelope_class(building["thermal_model"])
@@ -179,12 +197,10 @@ def generate_buildings(data):
             nrb_prj, construction_type = non_residential.create_non_residential_building(
                 building, bldgs, data.total_building_area)
 
-            # %% create envelope object
-            # containing all physical data of the envelope
+            # %% create envelope object containing all physical data of the envelope
             # NOTE: For non-residential buildings, the available input data
             # only supports the 5R1C thermal model. A 7R2C mode is not
             # feasible here due to missing parameters for VDI 6007 modeling.
-
             building["thermal_model"] = "5R1C"
             Envelope = thermal.get_envelope_class(building["thermal_model"])
 

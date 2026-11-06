@@ -842,8 +842,8 @@ class Users:
 
         local_calendar["holidays"] = sorted(list(local_holidays))
 
+        # Return the simulation module of a thermal model type.
         heating = thermal.get_simulation(thermal_model)
-
         # calculate the temperatures (Q_HC, T_op, T_m, T_air, T_s)
         if night_setback == 1:
             (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc_night_setback(envelope, site["T_e"], local_calendar, dt, initial_day,

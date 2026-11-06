@@ -18,6 +18,24 @@ THERMAL_MODELS = {
 
 
 def _lookup(model_type):
+    """
+    Look up the envelope class and simulation module of a thermal model type.
+
+    Parameters
+    ----------
+    model_type : str
+        Thermal model type: "5R1C", "7R2C" or "FourElements".
+
+    Returns
+    -------
+    tuple
+        Envelope class and simulation module of the thermal model.
+
+    Raises
+    ------
+    ValueError
+        If `model_type` is not a known thermal model type.
+    """
     try:
         return THERMAL_MODELS[model_type]
     except KeyError:
@@ -25,17 +43,70 @@ def _lookup(model_type):
 
 
 def get_envelope_class(model_type):
-    """Return the envelope class of a thermal model type."""
+    """
+    Return the envelope class of a thermal model type.
+
+    Parameters
+    ----------
+    model_type : str
+        Thermal model type: "5R1C", "7R2C" or "FourElements".
+
+    Returns
+    -------
+    type
+        Envelope class of the thermal model.
+
+    Raises
+    ------
+    ValueError
+        If `model_type` is not a known thermal model type.
+    """
     return _lookup(model_type)[0]
 
 
 def get_simulation(model_type):
-    """Return the simulation module of a thermal model type, providing calc and calc_night_setback."""
+    """
+    Return the simulation module of a thermal model type.
+
+    Parameters
+    ----------
+    model_type : str
+        Thermal model type: "5R1C", "7R2C" or "FourElements".
+
+    Returns
+    -------
+    module
+        Simulation module of the thermal model, providing `calc` and `calc_night_setback`.
+
+    Raises
+    ------
+    ValueError
+        If `model_type` is not a known thermal model type.
+    """
     return _lookup(model_type)[1]
 
 
 def prepare_simulation(envelope, model_type, site, gains):
-    """Compute the model parameters that depend on weather and internal gains, before simulating."""
+    """
+    Compute the model parameters that depend on weather and internal gains, before simulating.
+
+    The results are stored on `envelope`, which is modified in place.
+
+    Parameters
+    ----------
+    envelope : object
+        Envelope of the building, matching `model_type`.
+    model_type : str
+        Thermal model type: "5R1C", "7R2C" or "FourElements".
+    site : dict
+        Site data, e.g. weather.
+    gains : array-like
+        Internal gains of the building in W.
+
+    Returns
+    -------
+    None.
+    """
     _lookup(model_type)
     if model_type == "5R1C":
         envelope.calcNormativeProperties(site["SunRad"], gains)

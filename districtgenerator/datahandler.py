@@ -198,7 +198,7 @@ class Datahandler:
 
         # Prices and CO2 factors for each simulated year used in the optimizations
         self.all_sim_ecoData = self.calculate_ecoData_per_cluster()
-
+        # Read and restructure SIA 2024 building-use data from the package data
         self.SIA2024 = sia2024.read_SIA_data()
 
     def select_plz_data(self):
@@ -329,20 +329,6 @@ class Datahandler:
         """
         demand_generation.generate_demands(self, calcUserProfiles=calcUserProfiles, saveUserProfiles=saveUserProfiles,
                                            max_workers=max_workers, gen_cars=gen_cars)
-
-    def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles, gen_cars = True):
-        """
-        :param building:
-        :param calcUserProfiles: bool
-            True: calculate new user profiles.
-            False: load user profiles from file.
-            The default is True.
-        :param saveUserProfiles: bool
-            True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
-            The default is True.
-        """
-        return demand_generation.run_demand_worker(demand_generation.demand_context(self), building,
-                                                   calcUserProfiles, saveUserProfiles, gen_cars)
 
     def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, gen_cars=True, designEnergyhub=None):
         """

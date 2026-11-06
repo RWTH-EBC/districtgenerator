@@ -637,10 +637,46 @@ class Envelope:
 
     def compute_heating_curve(self, site, mode="unclustered"):
         """
-        Compute building space-heating supply and return temperatures.
+        Compute the space-heating supply and return temperatures of the building over time.
 
         The radiator heating curve follows Laemmle et al. (2022),
-        https://doi.org/10.1016/j.energy.2021.122952.
+        https://doi.org/10.1016/j.energy.2021.122952:
+
+        - Q_rel = (20 - T_out) / (20 - T_ne), limited to the range 0 to 1
+        - Ts = T_room + (T_mean_design - T_room) * Q_rel ** (1 / 1.3) + 0.5 * delta_T_design * Q_rel
+        - Tr = Ts - Q_rel * delta_T_design
+
+        The curve therefore reaches the design temperatures at the norm outside temperature and
+        the room temperature at an outside temperature of 20 °C or above. The design temperatures
+        are selected from `hp_sink_temp_levels` by construction year and retrofit level, using
+        retrofit level 0 if the level is not listed. A second curve is calculated for the design
+        temperatures after low-temperature measures.
+
+        Parameters
+        ----------
+        site : dict
+            Site data in °C: the norm outside temperature "T_ne", and the outside temperature
+            "T_e" (mode "unclustered") or "T_e_cluster" (mode "clustered").
+        mode : str, optional
+            Outside temperature series to use: "unclustered" or "clustered".
+            The default is "unclustered".
+
+        Returns
+        -------
+        None.
+            The results are stored in `self.heating_curve[mode]` as a dict with the keys:
+
+            - "Ts_curve", "Tr_curve": supply and return temperatures in °C.
+            - "Ts_curve_reduced", "Tr_curve_reduced": supply and return temperatures in °C after
+              low-temperature measures. Copies of the original curves if the measures do not
+              lower the design temperatures.
+            - "low_temp_measures_binding": True if the measures lower the supply or return
+              design temperature.
+
+        Raises
+        ------
+        ValueError
+            If `mode` is neither "unclustered" nor "clustered".
         """
         if not hasattr(self, "heating_curve") or self.heating_curve is None:
             self.heating_curve = {}

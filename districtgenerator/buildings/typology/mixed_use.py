@@ -262,7 +262,25 @@ def combine_mixed_building_demands(data, saveUserProfiles):
 
 def split_mixed_buildings(data):
     """
-    Splits mixed-use buildings into main and secondary building parts.
+    Split mixed-use buildings into main and secondary building parts.
+
+    Each building whose type is written as "MAIN+SECONDARY" (e.g. "MFH+RETAIL") is removed from
+    `data.district` and replaced by two parts, which are appended to the end of the list. The total
+    number of floors is derived from the main building type. The secondary part gets one floor and
+    the main part all remaining floors, with the area divided equally per floor.
+
+    The parts are combined again by `combine_mixed_building_demands` after the demand generation.
+
+    Parameters
+    ----------
+    data : Datahandler
+        Datahandler of the district. `data.district` and `data.building_dict` are modified in place:
+        each part gets the features `is_mixed_part`, `mixed_parent_id`, `mixed_role` and
+        `fixed_floors`, and `building_dict` maps the original id of a split building to its main part.
+
+    Returns
+    -------
+    None.
     """
     bldgs = data.design_building_data
 

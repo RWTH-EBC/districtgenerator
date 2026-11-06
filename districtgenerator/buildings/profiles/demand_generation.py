@@ -117,6 +117,7 @@ def run_demand_worker(context, building, calcUserProfiles, saveUserProfiles, gen
             building["unique_name"], demands_path, time_cfg, gen_cars=gen_cars)
         print("Load demands of building " + building["unique_name"])
 
+    # checking the choosen buidling model and adding further model parameters depending on gains and weather
     thermal.prepare_simulation(building["envelope"], building.get("thermal_model"), site, building["user"].gains)
 
     night_setback = building["buildingFeatures"]["night_setback"]
@@ -248,5 +249,4 @@ def generate_demands(data, calcUserProfiles=True, saveUserProfiles=True, max_wor
     data.save_progress()
     print(f"Finished generating demands with "f"{parallelization_method}!")
     # Combine demand profiles for mixed-use buildings
-    # TODO: Werden die kombinierten Profile in data (nur Input, kein Output) gespeichert?
     mixed_use.combine_mixed_building_demands(data, saveUserProfiles)

@@ -197,9 +197,9 @@ def prepare_gains_from_envelope(envelope, rad_frac: float = 0.60) -> Dict[str, n
     Q_int_str = np.zeros(n, dtype=float)
 
     # pick source of non-solar internal gains (total array)
-    gains_src = envelope.internal_gains
-    if gains_src is not None:
-        v = np.asarray(gains_src, dtype=float).reshape(-1)[:n]
+    internal_gains = envelope.internal_gains
+    if internal_gains is not None:
+        v = np.asarray(internal_gains, dtype=float).reshape(-1)[:n]
         Q_int_str[:len(v)] += rad_frac * v
         Q_int_kon[:len(v)] += (1.0 - rad_frac) * v
 

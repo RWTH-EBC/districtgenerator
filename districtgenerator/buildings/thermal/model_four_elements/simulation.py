@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-4-Element (10-node) dynamic zone solver.
+Dynamic four-element zone model with 10 temperature nodes.
 
-Elements:
-    External Wall (ew), Roof (r), Floor (f), Internal Wall (iw).
-Nodes:
-    Air, Radiative Star (rad),
-    T_s_ew, T_m_ew, T_s_r, T_m_r, T_s_f, T_m_f, T_s_iw, T_m_iw.
+The elements are the external walls (ew), roof (r), floor (f) and internal walls (iw). Each element
+has a surface node T_s and a thermal mass node T_m. Together with the air node and the radiative star
+node (rad), these form the state vector, always in this order:
+
+``[T_air, T_rad, T_s_ew, T_m_ew, T_s_r, T_m_r, T_s_f, T_m_f, T_s_iw, T_m_iw]``
+
+Each time step is solved implicitly as a system of linear equations. Temperatures are in °C and heat
+flows in W. `calc` and `calc_night_setback` are the entry points for the building simulation.
 """
 
 from typing import Dict, Optional, Tuple
@@ -14,7 +17,47 @@ import numpy as np
 
 
 def _build_setpoints_arrays(envelope, n, dt_h, building_type, night_setback, holidays, initial_day: int = 0):
-    """Generates setpoint arrays honoring schedules, holidays, and night setbacks."""
+    """
+    Build the heating and cooling setpoint series of a zone.
+
+    Residential buildings ("SFH", "TH", "MFH", "AB") use `T_set_min` and `T_set_max`. With
+    `night_setback`, they use `T_set_min_night` and `T_set_max_night` from 22:00 to 06:00.
+
+    All other buildings always follow a schedule, whatever the value of `night_setback`. Their day
+    runs from 06:00 to 18:00, and their setpoints (heating, cooling) are:
+
+    - Working day, day: `T_set_min`, `T_set_max`.
+    - Working day, night: `T_set_min_night`, `T_set_max_night`.
+    - Weekend or holiday, day: `T_set_min_free_day`, 100 °C, which effectively disables cooling.
+    - Weekend or holiday, night: `T_set_min_free_day`, `T_set_max_night`.
+
+    Missing night setpoints default to `T_set_min` - 3 and `T_set_max` + 1. A missing
+    `T_set_min_free_day` defaults to `T_set_min` during the day and `T_set_min` - 3 at night.
+
+    Parameters
+    ----------
+    envelope : object
+        Envelope of the building, providing the setpoints.
+    n : int
+        Number of time steps.
+    dt_h : float
+        Length of a time step in h.
+    building_type : str
+        Short name of the building type, e.g. "SFH".
+    night_setback : bool
+        Whether residential buildings use the night setpoints.
+    holidays : iterable of int or None
+        Holidays, compared with the day index counted from 0 at the start of the series.
+    initial_day : int, optional
+        Weekday of the first day, from 0 (Monday) to 6 (Sunday). The default is 0.
+
+    Returns
+    -------
+    T_heat : numpy.ndarray
+        Heating setpoint of each time step in °C.
+    T_cool : numpy.ndarray
+        Cooling setpoint of each time step in °C.
+    """
     dt_s = dt_h * 3600.0
     steps_per_day = int(round(86400.0 / dt_s))
     T_heat = np.full(n, float(envelope.T_set_min), dtype=float)
@@ -51,8 +94,35 @@ def _build_setpoints_arrays(envelope, n, dt_h, building_type, night_setback, hol
 
 def _extract_element_params(envelope, dt_s: float) -> Dict[str, float]:
     """
-    Extracts capacities (C), surface resistances (R1), residual resistances (Rrest),
-    convective conductances (G_conv), and radiative conductances (G_rad) for the 4 elements.
+    Collect the model parameters of the zone for the solver.
+
+    Missing element attributes are reported with a printed message and replaced by a default:
+    1e-5 for capacities, 1e15 for resistances, 2.7 for `h_conv_*`, 5.0 for `h_rad_*` and 0 for areas.
+
+    Parameters
+    ----------
+    envelope : object
+        Envelope of the building, providing `rho_air`, `c_p_air`, `ventilationRate` and `V`, and
+        `C_*`, `R1_*`, `Rrest_*`, `h_conv_*`, `h_rad_*` and `A_*` for the prefixes ew, r, f and iw.
+    dt_s : float
+        Length of a time step in s.
+
+    Returns
+    -------
+    dict
+        Parameters of the zone:
+
+        - "dt": length of a time step in s.
+        - "C_air": heat capacity of the air in J/K.
+        - "H_ve": ventilation heat transfer coefficient in W/K.
+
+        And for each element, with the prefixes ew, r, f and iw:
+
+        - "C_<prefix>": heat capacity in J/K.
+        - "G_1_<prefix>": conductance between surface and mass node in W/K.
+        - "G_rest_<prefix>": conductance between mass node and boundary in W/K.
+        - "G_conv_<prefix>": convective conductance between surface and air node in W/K.
+        - "G_rad_<prefix>": radiative conductance between surface and radiative star node in W/K.
     """
     H_ve = float(envelope.rho_air) * float(envelope.c_p_air) * float(envelope.ventilationRate) * float(
         envelope.V) / 3600.0
@@ -60,6 +130,7 @@ def _extract_element_params(envelope, dt_s: float) -> Dict[str, float]:
 
     # Helper to safely extract parameters or apply defaults
     def _safe_get(attr, default=1e-5):
+        """Return an envelope attribute as float, or print a message and return `default` if it is missing."""
         if not hasattr(envelope, attr):
             print(f"Attribute {attr} not found in envelope object.")
         return float(getattr(envelope, attr, default))
@@ -101,7 +172,29 @@ def _extract_element_params(envelope, dt_s: float) -> Dict[str, float]:
 
 def _step10_free_float(params, state10, bnd_t, gains_t):
     """
-    10x10 Matrix solving for [T_air, T_rad, T_s_ew, T_m_ew, T_s_r, T_m_r, T_s_f, T_m_f, T_s_iw, T_m_iw].
+    Solve one time step without heating or cooling.
+
+    A value of 1e-6 is added to the main diagonal of the 10x10 matrix, so that missing building
+    elements do not make it singular.
+
+    Parameters
+    ----------
+    params : dict
+        Parameters of the zone from `_extract_element_params`.
+    state10 : array-like
+        The 10 node temperatures of the previous time step in °C, in the state vector order.
+    bnd_t : dict
+        Boundary temperatures of this time step in °C. The mass nodes are connected to "theta_eq_ew"
+        (external walls), "theta_eq_r" (roof), "T_ground" (floor) and "T_ext" (internal walls).
+        "T_ext" is also the temperature of the ventilation air.
+    gains_t : dict
+        Heat gains of this time step in W: "Q_kon" at the air node, "Q_rad" at the radiative star
+        node, and optionally "Q_sol_<prefix>" at the surface node of an element.
+
+    Returns
+    -------
+    numpy.ndarray
+        The 10 node temperatures of this time step in °C, in the state vector order.
     """
     dt = params["dt"]
     A = np.zeros((10, 10))
@@ -158,7 +251,38 @@ def _step10_free_float(params, state10, bnd_t, gains_t):
 
 def _step11_with_setpoint(params, state10, bnd_t, gains_t, T_set, w_op, sigma, Q_limit, Q_limit_cool):
     """
-    11x11 Matrix solving for states + Q_HC to maintain Operative Temperature.
+    Solve one time step with the heating or cooling power that reaches a setpoint.
+
+    The power Q_HC is added to the node temperatures as an eleventh unknown, and the operative
+    temperature ``w_op * T_air + (1 - w_op) * T_rad`` must equal `T_set`. If Q_HC exceeds a limit,
+    the node temperatures are solved again with Q_HC fixed at that limit, so the setpoint is missed.
+
+    Parameters
+    ----------
+    params : dict
+        Parameters of the zone from `_extract_element_params`.
+    state10 : array-like
+        The 10 node temperatures of the previous time step in °C, in the state vector order.
+    bnd_t : dict
+        Boundary temperatures of this time step in °C, see `_step10_free_float`.
+    gains_t : dict
+        Heat gains of this time step in W, see `_step10_free_float`.
+    T_set : float
+        Setpoint of the operative temperature in °C.
+    w_op : float
+        Weight of the air temperature in the operative temperature, from 0 to 1.
+    sigma : tuple of float
+        Shares of Q_HC at the radiative star node (first value) and the air node (second value).
+    Q_limit : float or None
+        Maximum heating power in W. None means no limit.
+    Q_limit_cool : float or None
+        Maximum cooling power in W, as a positive value. None means no limit.
+
+    Returns
+    -------
+    numpy.ndarray
+        The 10 node temperatures in °C in the state vector order, followed by Q_HC in W, which is
+        positive for heating and negative for cooling.
     """
     dt = params["dt"]
     A = np.zeros((11, 11))
@@ -241,7 +365,32 @@ def _step11_with_setpoint(params, state10, bnd_t, gains_t, T_set, w_op, sigma, Q
     return sol
 
 def _map_states_for_legacy(envelope, T_air, T_s_dict, T_m_dict):
-    """Collapses the 4-element separated nodes back into single equivalent T_m and T_s."""
+    """
+    Collapse the element nodes into one mass temperature and one surface temperature.
+
+    This gives the same return format as the other thermal models. The mass temperatures are
+    weighted by the capacities `C_*` of the envelope and the surface temperatures by the areas `A_*`.
+
+    Parameters
+    ----------
+    envelope : object
+        Envelope of the building, providing the capacities and areas of the elements.
+    T_air : numpy.ndarray
+        Air temperature in °C.
+    T_s_dict : dict of numpy.ndarray
+        Surface temperatures in °C, with the keys "ew", "r", "f" and "iw".
+    T_m_dict : dict of numpy.ndarray
+        Mass temperatures in °C, with the keys "ew", "r", "f" and "iw".
+
+    Returns
+    -------
+    T_m : numpy.ndarray
+        Capacity-weighted mass temperature in °C.
+    T_air : numpy.ndarray
+        Air temperature in °C, unchanged.
+    T_s : numpy.ndarray
+        Area-weighted surface temperature in °C.
+    """
     C_ew = getattr(envelope, "C_ew", 0.0)
     C_r = getattr(envelope, "C_r", 0.0)
     C_f = getattr(envelope, "C_f", 0.0)
@@ -267,14 +416,92 @@ def _map_states_for_legacy(envelope, T_air, T_s_dict, T_m_dict):
     return T_m, T_air, T_s
 
 
+def prepare_gains_from_envelope(envelope, rad_frac=0.60):
+    """
+    Combine the solar and internal gains into the gains at the air and radiative star node.
+
+    Parameters
+    ----------
+    envelope : object
+        Envelope of the building, prepared with `thermal.prepare_simulation`. It provides the solar
+        gains `Q_il_kon` and `Q_il_str` and the internal gains `internal_gains` in W.
+    rad_frac : float, optional
+        Radiative share of the internal gains, from 0 to 1. The rest is convective.
+        The default is 0.60.
+
+    Returns
+    -------
+    dict of numpy.ndarray
+        Total gains of each time step in W: "Q_kon" at the air node and "Q_rad" at the radiative
+        star node.
+
+    Raises
+    ------
+    ValueError
+        If the internal gains and the solar gains differ in length.
+    """
+    Q_sol_kon = np.asarray(envelope.Q_il_kon, dtype=float).reshape(-1)
+    Q_sol_rad = np.asarray(envelope.Q_il_str, dtype=float).reshape(-1)
+    Q_int = np.asarray(envelope.internal_gains, dtype=float).reshape(-1)
+
+    if not len(Q_int) == len(Q_sol_kon) == len(Q_sol_rad):
+        raise ValueError(f"Gains differ in length: internal {len(Q_int)}, solar convective {len(Q_sol_kon)}, "
+                         f"solar radiative {len(Q_sol_rad)}.")
+
+    return {"Q_kon": Q_sol_kon + (1.0 - rad_frac) * Q_int,
+            "Q_rad": Q_sol_rad + rad_frac * Q_int}
+
+
 def simulate_4element(envelope, T_ext, dt_s, T_set_heat, T_set_cool, calendar, w_op=0.5):
-    """Executes the timestep loop for the 4-element matrix."""
+    """
+    Simulate the zone over all time steps.
+
+    Each time step is first solved without heating or cooling. If the operative temperature is then
+    below the heating setpoint during the heating period, or above the cooling setpoint during the
+    cooling period, the step is solved again with `_step11_with_setpoint`. The power is limited by
+    `envelope.heatload` and `envelope.coolingload`, if defined, and acts only on the air node.
+
+    Parameters
+    ----------
+    envelope : object
+        Envelope of the building, providing the gains for `prepare_gains_from_envelope`. These
+        attributes are read with a fallback if they are missing: `theta_eq_ew` and `theta_eq_r`
+        (`T_ext`), `T_ground` (10 °C) and `T_set_min` (20 °C, used as the initial temperature of
+        all nodes).
+    T_ext : numpy.ndarray
+        Outside temperature of each time step in °C.
+    dt_s : float
+        Length of a time step in s.
+    T_set_heat : numpy.ndarray
+        Heating setpoint of each time step in °C.
+    T_set_cool : numpy.ndarray
+        Cooling setpoint of each time step in °C.
+    calendar : dict or None
+        Periods as day indices, counted from 0 at the start of the series. Cooling is possible from
+        "cooling_period_start" (default 0) up to "cooling_period_end" (default 365). Heating is
+        possible except from "heating_period_end" (default 150) up to "heating_period_start"
+        (default 250). The end of each range is excluded. If None, both are possible at all times.
+    w_op : float, optional
+        Weight of the air temperature in the operative temperature, from 0 to 1. The default is 0.5.
+
+    Returns
+    -------
+    dict of numpy.ndarray
+        Results of each time step:
+
+        - "Q_H", "Q_C": heating and cooling load in W, both as positive values.
+        - "T_op", "T_air": operative and air temperature in °C.
+        - "T_s_<prefix>", "T_m_<prefix>": surface and mass temperature in °C of each element, with
+          the prefixes ew, r, f and iw.
+    """
     n = len(T_ext)
     params = _extract_element_params(envelope, dt_s)
 
-    # Safe fallback gains if envelope does not supply them yet
-    Q_kon = getattr(envelope, "Q_il_kon", np.zeros(n))
-    Q_rad = getattr(envelope, "Q_il_str", np.zeros(n))
+    gains = prepare_gains_from_envelope(envelope)
+    Q_kon = gains["Q_kon"]
+    Q_rad = gains["Q_rad"]
+
+    # Safe fallback boundary temperatures if envelope does not supply them yet
     theta_ew = getattr(envelope, "theta_eq_ew", T_ext)
     theta_r = getattr(envelope, "theta_eq_r", T_ext)
     T_grnd = getattr(envelope, "T_ground", np.full(n, 10.0))
@@ -353,6 +580,43 @@ def simulate_4element(envelope, T_ext, dt_s, T_set_heat, T_set_cool, calendar, w
 
 
 def calc(envelope, T_e, calendar, dt, initial_day, building_type):
+    """
+    Calculate the heating and cooling loads of a building without night setback.
+
+    Only residential buildings run without a setback here. Non-residential buildings always follow
+    their schedule, see `_build_setpoints_arrays`.
+
+    Parameters
+    ----------
+    envelope : object
+        Envelope of the building, prepared with `thermal.prepare_simulation`.
+    T_e : array-like
+        Outside temperature of each time step in °C.
+    calendar : dict
+        Calendar data: "holidays", and the optional heating and cooling periods described in
+        `simulate_4element`.
+    dt : float
+        Length of a time step in h.
+    initial_day : int
+        Weekday of the first day, from 0 (Monday) to 6 (Sunday).
+    building_type : str
+        Short name of the building type, e.g. "SFH".
+
+    Returns
+    -------
+    Q_H : numpy.ndarray
+        Heating load in W.
+    Q_C : numpy.ndarray
+        Cooling load in W, as a positive value.
+    T_op : numpy.ndarray
+        Operative temperature in °C.
+    T_m : numpy.ndarray
+        Capacity-weighted mass temperature in °C.
+    T_i : numpy.ndarray
+        Air temperature in °C.
+    T_s : numpy.ndarray
+        Area-weighted surface temperature in °C.
+    """
     T_e = np.asarray(T_e, dtype=float)
     T_heat, T_cool = _build_setpoints_arrays(envelope, len(T_e), dt, building_type, False, calendar["holidays"],
                                              initial_day)
@@ -367,6 +631,43 @@ def calc(envelope, T_e, calendar, dt, initial_day, building_type):
 
 
 def calc_night_setback(envelope, T_e, calendar, dt, initial_day, building_type):
+    """
+    Calculate the heating and cooling loads of a building with night setback.
+
+    Residential buildings use their night setpoints from 22:00 to 06:00. Non-residential buildings
+    follow the same schedule as in `calc`, see `_build_setpoints_arrays`.
+
+    Parameters
+    ----------
+    envelope : object
+        Envelope of the building, prepared with `thermal.prepare_simulation`.
+    T_e : array-like
+        Outside temperature of each time step in °C.
+    calendar : dict
+        Calendar data: "holidays", and the optional heating and cooling periods described in
+        `simulate_4element`.
+    dt : float
+        Length of a time step in h.
+    initial_day : int
+        Weekday of the first day, from 0 (Monday) to 6 (Sunday).
+    building_type : str
+        Short name of the building type, e.g. "SFH".
+
+    Returns
+    -------
+    Q_H : numpy.ndarray
+        Heating load in W.
+    Q_C : numpy.ndarray
+        Cooling load in W, as a positive value.
+    T_op : numpy.ndarray
+        Operative temperature in °C.
+    T_m : numpy.ndarray
+        Capacity-weighted mass temperature in °C.
+    T_i : numpy.ndarray
+        Air temperature in °C.
+    T_s : numpy.ndarray
+        Area-weighted surface temperature in °C.
+    """
     T_e = np.asarray(T_e, dtype=float)
     T_heat, T_cool = _build_setpoints_arrays(envelope, len(T_e), dt, building_type, True, calendar["holidays"],
                                              initial_day)

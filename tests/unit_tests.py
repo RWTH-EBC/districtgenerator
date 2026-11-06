@@ -6,6 +6,7 @@ The expected values are calculated by hand, so the tests do not depend on data f
 """
 import unittest
 from copy import deepcopy
+from itertools import product
 from types import SimpleNamespace
 
 import numpy as np
@@ -13,6 +14,9 @@ import numpy as np
 from districtgenerator.time_series.resolution import changeResolution
 from districtgenerator.economics.price_paths import calculate_eco_data_per_simulated_year
 from districtgenerator.energy_systems.building_energy_system import BES
+from districtgenerator.buildings import thermal
+from districtgenerator.buildings.thermal.model_four_elements.simulation import (prepare_gains_from_envelope,
+                                                                                simulate_4element)
 
 
 class TestChangeResolution(unittest.TestCase):
@@ -129,6 +133,157 @@ class TestBuildingDeviceSizing(unittest.TestCase):
         self.assertAlmostEqual(capacities["EH"], 5000)
         self.assertAlmostEqual(capacities["TES_DHW"], 1000)
         self.assertEqual(capacities["BOI"], 0)
+
+
+class TestFourElementsGains(unittest.TestCase):
+    """Check that solar and internal gains reach the four-element solver."""
+
+    def setUp(self):
+        self.envelope = SimpleNamespace(Q_il_kon=np.array([100.0, 200.0]),
+                                        Q_il_str=np.array([10.0, 20.0]),
+                                        internal_gains=np.array([1000.0, 500.0]))
+
+    def test_default_split_of_internal_gains(self):
+        """Internal gains are split into 60% radiative and 40% convective and added to the solar gains."""
+        gains = prepare_gains_from_envelope(self.envelope)
+        np.testing.assert_allclose(gains["Q_kon"], [100 + 400, 200 + 200])
+        np.testing.assert_allclose(gains["Q_rad"], [10 + 600, 20 + 300])
+
+    def test_custom_radiative_share(self):
+        """The radiative share of the internal gains can be changed."""
+        gains = prepare_gains_from_envelope(self.envelope, rad_frac=0.25)
+        np.testing.assert_allclose(gains["Q_kon"], [100 + 750, 200 + 375])
+        np.testing.assert_allclose(gains["Q_rad"], [10 + 250, 20 + 125])
+
+    def test_different_lengths_raise_error(self):
+        """Internal gains of a different length raise a ValueError instead of being cut or filled up."""
+        for internal_gains in (np.ones(1), np.ones(3)):
+            with self.subTest(length=len(internal_gains)):
+                self.envelope.internal_gains = internal_gains
+                with self.assertRaises(ValueError):
+                    prepare_gains_from_envelope(self.envelope)
+
+    def test_missing_internal_gains_raise_error(self):
+        """An envelope without internal gains raises an error instead of simulating without them."""
+        del self.envelope.internal_gains
+        with self.assertRaises(AttributeError):
+            prepare_gains_from_envelope(self.envelope)
+
+    def test_simulation_includes_internal_gains(self):
+        """Without heating and heat losses through the envelope, all gains must leave with the ventilation."""
+        n = 3
+        # Ventilation: 1 kg/m3 * 1000 J/(kgK) * 1 1/h * 36 m3 / 3600 s/h = 10 W/K
+        envelope = SimpleNamespace(rho_air=1.0, c_p_air=1000.0, ventilationRate=1.0, V=36.0,
+                                   T_set_min=20.0,
+                                   Q_il_kon=np.full(n, 100.0),
+                                   Q_il_str=np.full(n, 100.0),
+                                   internal_gains=np.full(n, 800.0))
+        for prefix in ("ew", "r", "f", "iw"):
+            for attribute, value in (("C", 1e5), ("R1", 0.01), ("Rrest", 1e15), ("A", 10.0),
+                                     ("h_conv", 2.0), ("h_rad", 5.0)):
+                setattr(envelope, f"{attribute}_{prefix}", value)
+
+        # With very long time steps, the zone reaches its steady state.
+        result = simulate_4element(envelope, T_ext=np.full(n, 10.0), dt_s=1e9, T_set_heat=np.full(n, -1000.0),
+                                   T_set_cool=np.full(n, 1000.0), calendar=None)
+
+        # 100 W + 100 W + 800 W = 1000 W, so the air is 1000 W / 10 W/K = 100 K warmer than outside.
+        self.assertAlmostEqual(result["T_air"][-1], 110.0, delta=0.01)
+        # The radiative gains of 100 W + 60% * 800 W = 580 W flow to the air through the surfaces.
+        # T_rad - T_air = 580 W * (1 / (4 * 50 W/K) + 1 / (4 * 20 W/K)) = 10.15 K, with T_op as the mean of both.
+        self.assertAlmostEqual(result["T_op"][-1], 110.0 + 0.5 * 10.15, delta=0.01)
+        self.assertEqual(result["Q_H"][-1], 0)
+        self.assertEqual(result["Q_C"][-1], 0)
+
+
+class TestThermalModelCalc(unittest.TestCase):
+    """
+    Check calc and calc_night_setback of all thermal models against hand-calculated steady states.
+
+    The only heat loss of the zone is the ventilation with 100 W/K and the capacities are negligible,
+    so a constant outside temperature T_e gives Q_H = 100 W/K * (T_set - T_e), for all thermal models.
+    """
+    MODELS = ("5R1C", "7R2C", "FourElements")
+    FUNCTIONS = ("calc", "calc_night_setback")
+    DT = 6.0  # A year of 1460 steps of 6 h, so the steps of a day are at 0, 6, 12 and 18 h
+    STEPS = 1460
+
+    @staticmethod
+    def _envelope(model, heatload=1e6, coolingload=1e6, gain=0.0):
+        """Minimal envelope of a thermal model. `gain` is a heat gain in W directly at the air node."""
+        gains, zeros = np.full(TestThermalModelCalc.STEPS, gain), np.zeros(TestThermalModelCalc.STEPS)
+        envelope = SimpleNamespace(T_set_min=20.0, T_set_min_night=17.0, T_set_min_free_day=15.0, T_set_max=26.0,
+                                   T_set_max_night=28.0, heatload=heatload, coolingload=coolingload)
+        if model == "5R1C":
+            vars(envelope).update(H_ve=100.0, H_tr_is=1000.0, H_tr_ms=1000.0, H_tr_w=0.0, H_tr_em=[0.0], C_m=1.0,
+                                  phi_ia=gains, phi_m=zeros, phi_st=zeros)
+            return envelope
+        # 1 kg/m3 * 1000 J/(kgK) * 360 m3/h / 3600 s/h = 100 W/K
+        vars(envelope).update(rho_air=1.0, c_p_air=1000.0, V=1.0, Q_il_kon=gains, Q_il_str=zeros, internal_gains=zeros)
+        if model == "7R2C":
+            vars(envelope).update(V_dot=0.0, V_dot_infiltration=360.0, eta_temp_vent=0.0, C1IW=1.0, C1AW=1.0,
+                                  R1IW=0.01, R1AW=0.01, RrestAW=1e15, RalphaStarIW=0.01, RalphaStarAW=0.01,
+                                  UA_tot=0.0, Aaw_tot=1.0, Araum_tot=2.0, theta_eq_tot=zeros)
+        else:
+            envelope.ventilationRate = 360.0
+            for prefix in ("ew", "r", "f", "iw"):
+                vars(envelope).update({f"C_{prefix}": 1.0, f"R1_{prefix}": 0.01, f"Rrest_{prefix}": 1e15,
+                                       f"A_{prefix}": 10.0, f"h_conv_{prefix}": 10.0, f"h_rad_{prefix}": 5.0})
+        return envelope
+
+    def _assert_step(self, model, function, T_e, step, Q_H, Q_C, T_op, building="SFH", **envelope_args):
+        """Run a simulation with constant T_e, starting on a Monday, and check one time step."""
+        calendar = {"heating_period_start": 259, "heating_period_end": 135, "cooling_period_start": 105,
+                    "cooling_period_end": 273, "consider_heating_period": True, "consider_cooling_period": True,
+                    "holidays": [2]}
+        result = getattr(thermal.get_simulation(model), function)(
+            self._envelope(model, **envelope_args), np.full(self.STEPS, float(T_e)), calendar, self.DT, 0, building)
+        with self.subTest(model=model, function=function, T_e=T_e, step=step, building=building, **envelope_args):
+            self.assertAlmostEqual(result[0][step], Q_H, delta=0.5)
+            self.assertAlmostEqual(result[1][step], Q_C, delta=0.5)
+            self.assertAlmostEqual(result[2][step], T_op, delta=0.01)
+
+    def _cases(self):
+        """All combinations of thermal model and function."""
+        return product(self.MODELS, self.FUNCTIONS)
+
+    @staticmethod
+    def _noon(day):
+        """Index of the time step at 12:00 of a day, counted from 0."""
+        return day * 4 + 2
+
+    def test_heating(self):
+        """Heating holds the setpoint in the heating period, up to the heat load, and is off outside of it."""
+        for model, function in self._cases():
+            self._assert_step(model, function, 0, self._noon(10), 2000, 0, 20)
+            self._assert_step(model, function, 0, self._noon(10), 500, 0, 5, heatload=500.0)
+            self._assert_step(model, function, 0, self._noon(200), 0, 0, 0)
+
+    def test_cooling(self):
+        """Cooling holds the setpoint in the cooling period, up to the cooling load, and is off outside of it."""
+        for model, function in self._cases():
+            self._assert_step(model, function, 40, self._noon(150), 0, 1400, 26)
+            self._assert_step(model, function, 40, self._noon(150), 0, 700, 33, coolingload=700.0)
+            self._assert_step(model, function, 40, self._noon(10), 0, 0, 40)
+
+    def test_deadband(self):
+        """Between the setpoints, neither heating nor cooling is used, even if both periods are active."""
+        for model, function in self._cases():
+            self._assert_step(model, function, 22, self._noon(120), 0, 0, 22)
+
+    def test_gains_reduce_heating(self):
+        """A gain of 500 W replaces 500 W of the heating."""
+        for model, function in self._cases():
+            self._assert_step(model, function, 0, self._noon(10), 1500, 0, 20, gain=500.0)
+
+    def test_night_setback_of_residential_buildings(self):
+        """Only calc_night_setback lowers the setpoint at night, and neither lowers it during the day."""
+        midnight = 10 * 4
+        for model in self.MODELS:
+            self._assert_step(model, "calc", 0, midnight, 2000, 0, 20)
+            self._assert_step(model, "calc_night_setback", 0, midnight, 1700, 0, 17)
+            self._assert_step(model, "calc_night_setback", 0, self._noon(10), 2000, 0, 20)
+
 
 
 if __name__ == '__main__':
