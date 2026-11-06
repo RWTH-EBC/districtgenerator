@@ -6,6 +6,12 @@ import cmath
 import numpy as np
 import scipy.optimize as opt
 
+from districtgenerator.config.settings import HeatGridConfig
+
+# Period of the annual harmonic of the soil temperature model
+HOURS_PER_YEAR = 8760
+DAYS_PER_YEAR = 365
+
 
 def calculate_soil_temperature(data, dt):
     """
@@ -33,13 +39,12 @@ def calculate_soil_temperature(data, dt):
         ``"asphaltlayer"``, ``"k_soil"``, ``"d_asph"``, and
         ``"grid_depth"``.
     dt : float
-        Temporal resolution of the input series in hours.
+        Time step of the input series in hours (timeResolution / 3600 for hourly input data).
 
     Returns
     -------
-    object
-        The same ``data`` object. The calculated soil-temperature time
-        series [°C] is stored in
+    None.
+        The calculated soil-temperature time series [°C] is stored in
         ``data.heat_grid_data["T_soil"]``.
 
     """
@@ -52,8 +57,8 @@ def calculate_soil_temperature(data, dt):
     weather["G"] = data.site["SunTotal"]  # Global radiation W/m^2
     weather["p"] = data.site["pressure"]  # air pressure hPa
 
-    # Calculate the total number of time steps in one year
-    num_timesteps = int(365 * (24 / dt))
+    # Number of time steps of the weather series
+    num_timesteps = len(weather["T_air"])
     # Create an array of times in hours, shifted so that the first time is 1 hour.
     time_in_hours = 1 + np.arange(num_timesteps) * dt
     # Calculate the hour-of-day values
@@ -64,7 +69,10 @@ def calculate_soil_temperature(data, dt):
     weather["T_dp"] = (243.04 * alpha) / (17.625 - alpha)  # dew point temperatur °C
 
     # Calculate T_sky based on http://dx.doi.org/10.1016/j.renene.2015.06.020
-    weather["T_sky"] = (weather["T_air"] + 273.15) * ((0.711 + 0.0056 * weather["T_dp"] + 0.000073 * weather["T_dp"] ** 2 + 0.013 * np.cos(15 * hours_year)) ** 0.25) - 273.15  # sky temperature °C
+    # The cosine term is the daily cycle of the sky temperature with 15 °/h, so the angle is in degrees
+    weather["T_sky"] = (weather["T_air"] + 273.15) * ((0.711 + 0.0056 * weather["T_dp"] +
+                                                       0.000073 * weather["T_dp"] ** 2 +
+                                                       0.013 * np.cos(np.deg2rad(15 * hours_year))) ** 0.25) - 273.15  # sky temperature °C
 
     # Cosinus Fit of G, T_air and T_sky: X = mean - amp * cos(omega*t - phase)
     G_mean, G_amp, G_phase = cosFit(weather["G"], dt)
@@ -90,28 +98,28 @@ def calculate_soil_temperature(data, dt):
     r = np.mean(weather["r"])
 
     # get ground parameters
-    omega = 2 * np.pi / 365 # angular frequency
+    # angular frequency of the annual cycle in 1/d, used with the diffusivity in m^2/d
+    omega_day = 2 * np.pi / DAYS_PER_YEAR
+    # Fixed surface and material properties, see HeatGridConfig for their sources
+    k_soil = data.heat_grid_data["k_soil"]                                      # W/(m*K),   soil heat conductivity
+    c_soil = HeatGridConfig.C_SOIL                                              # J/(m^3*K), soil volumetric heat capacity
 
     if data.heat_grid_data["asphaltlayer"] == 0:  # no asphalt layer, only soil
-        alpha_s = 0.9                                                           #---,       soil surface absorptance Source: http://dx.doi.org/10.1016/j.renene.2015.06.020
-        epsilon_s = 0.9                                                         #---,       soil surface emissivity. Source: http://dx.doi.org/10.1016/j.renene.2015.06.020
-        f = 0.7                                                                 #---,       soil surface evaporation rate. Source: http://dx.doi.org/10.1016/j.renene.2015.06.020
-        k_soil = data.heat_grid_data["k_soil"]                              # W/(m*K),  soil heat conductivity
+        surface = HeatGridConfig.SOIL_SURFACE
         k = k_soil
-        c_soil = 2.4e6                                                          # J/(m^3*K),soil volumetric heat capacity. Source: Table 1.1 Wessolek, G. (2022). Parametrisierung thermischer Bodeneigenschaften: Endbericht
-        delta_s = (2 * (k_soil / c_soil * 3600 * 24) / omega) ** 0.5            # m,  surface damping depth. Source: http://dx.doi.org/10.1016/j.renene.2015.06.020
+        delta_s = (2 * (k_soil / c_soil * 3600 * 24) / omega_day) ** 0.5        # m,  surface damping depth. Source: http://dx.doi.org/10.1016/j.renene.2015.06.020
         delta_soil = delta_s
     else:  # with asphalt layer at surface
-        alpha_s = 0.93                                                          #---,        asphalt surface absorptance. Source: VDI Wärmeatlas
-        epsilon_s = 0.93                                                        #---,        asphalt surface emissivity. Source: VDI Wärmeatlas
-        f =  0.3                                                                #---,        asphalt surface evaporation rate. Source: http://dx.doi.org/10.1016/j.renene.2015.06.020 (assumed like the dry soil)
-        k_asph = 0.76                                                           # W/(m*K),   asphalt heat conductivity. Source: VDI Wärmeatlas
-        k_soil = data.heat_grid_data["k_soil"]                              # W/(m*K),  soil heat conductivity
+        surface = HeatGridConfig.ASPHALT_SURFACE
+        k_asph = HeatGridConfig.K_ASPH                                          # W/(m*K),   asphalt heat conductivity
+        c_asph = HeatGridConfig.C_ASPH                                          # J/(m^3*K), asphalt volumetric heat capacity
         k = k_asph
-        c_asph = 2100000                                                        # J/(m^3*K), asphalt volumetric heat capacity. Source: VDI Wärmeatlas
-        c_soil = 2.4e6                                                          # J/(m^3*K),soil volumetric heat capacity. Source: Table 1.1 Wessolek, G. (2022). Parametrisierung thermischer Bodeneigenschaften: Endbericht
-        delta_s = (2 * (k_asph / c_asph * 3600 * 24) / omega) ** 0.5            # m,    surface damping depth (= asphalt). Source: http://dx.doi.org/10.1016/j.renene.2015.06.020
-        delta_soil = (2 * (k_soil / c_soil * 3600 * 24) / omega) ** 0.5         # m,    soil damping depth. Source: http://dx.doi.org/10.1016/j.renene.2015.06.020
+        delta_s = (2 * (k_asph / c_asph * 3600 * 24) / omega_day) ** 0.5        # m,    surface damping depth (= asphalt). Source: http://dx.doi.org/10.1016/j.renene.2015.06.020
+        delta_soil = (2 * (k_soil / c_soil * 3600 * 24) / omega_day) ** 0.5     # m,    soil damping depth. Source: http://dx.doi.org/10.1016/j.renene.2015.06.020
+
+    alpha_s = surface["alpha_s"]        # ---, surface absorptance
+    epsilon_s = surface["epsilon_s"]    # ---, surface emissivity
+    f = surface["f"]                    # ---, surface evaporation rate
 
     # Calculate and return time series of soil temperature in grid depth
     # Model by M. Badache (2015): A new modeling approach for improved ground temperature profile determination
@@ -136,24 +144,20 @@ def calculate_soil_temperature(data, dt):
     # Calculate soil temperature in grid depth
     d = data.heat_grid_data["d_asph"]    # m asphalt layer thickness
     t = data.heat_grid_data["grid_depth"] # m installation depth beneath surface
-    omega = 2 * np.pi / 365 / 24
-    time = np.arange(dt, 8760 + dt, dt)  # time array in hours
+    # angular frequency of the annual cycle in 1/h, used with the time array in hours
+    omega_hour = 2 * np.pi / HOURS_PER_YEAR
+    time = np.arange(1, num_timesteps + 1) * dt  # time array in hours
 
     if data.heat_grid_data["asphaltlayer"] == 0:  # no asphalt
-        weather["T_soil"] = Ts_mean - Ts_amp * np.exp(-t / delta_soil) * np.cos(omega * time - Ts_phase - t / delta_soil)
+        weather["T_soil"] = Ts_mean - Ts_amp * np.exp(-t / delta_soil) * np.cos(omega_hour * time - Ts_phase - t / delta_soil)
     else:  # with asphalt layaer
         if t > d:  # grid is below asphalt layer
-            weather["T_soil"] = Ts_mean - Ts_amp * np.exp(-d / delta_s) * np.exp(-(t - d) / delta_soil) * np.cos(omega * time - Ts_phase - d / delta_s - (t - d) / delta_soil)
+            weather["T_soil"] = Ts_mean - Ts_amp * np.exp(-d / delta_s) * np.exp(-(t - d) / delta_soil) * np.cos(omega_hour * time - Ts_phase - d / delta_s - (t - d) / delta_soil)
         else:  # grid is within asphalt layer
-            weather["T_soil"] = Ts_mean - Ts_amp * np.exp(-t / delta_s) * np.cos(omega * time - Ts_phase - t / delta_s)
+            weather["T_soil"] = Ts_mean - Ts_amp * np.exp(-t / delta_s) * np.cos(omega_hour * time - Ts_phase - t / delta_s)
 
-    # plt.plot(time/24, weather["T_soil"])
-    # plt.show()
-
-    # return time series of soil temperature
+    # store time series of soil temperature
     data.heat_grid_data["T_soil"] = weather["T_soil"]
-
-    return data
 
 
 def cosFit(data, dt):
@@ -167,7 +171,8 @@ def cosFit(data, dt):
         physical quantity; the fitted mean and amplitude retain the same
         unit as ``data``.
     dt : float
-        Temporal spacing between consecutive values in hours.
+        Time step between consecutive values in hours (timeResolution / 3600 for hourly input data).
+        The period of the fitted cosine is one year (``HOURS_PER_YEAR``).
 
     Returns
     -------
@@ -178,7 +183,7 @@ def cosFit(data, dt):
     phase : float
         Fitted phase angle in radians.
     """
-    omega = 2 * np.pi / 8760
+    omega = 2 * np.pi / HOURS_PER_YEAR  # angular frequency of the annual cycle in 1/h
     time = np.arange(len(data)) * dt
 
     start_mean = np.mean(data) # initial guess for the mean of the cosine function

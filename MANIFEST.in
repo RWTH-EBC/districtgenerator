@@ -3,3 +3,5 @@ include LICENSE.md
 include README.md
 recursive-include districtgenerator/data *
 global-exclude *.py[cod] __pycache__
+# Source data that the code does not read
+prune districtgenerator/data/raw

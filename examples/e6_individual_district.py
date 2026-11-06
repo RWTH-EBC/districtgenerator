@@ -17,7 +17,7 @@ from districtgenerator.classes import Datahandler
 def example6_config_file_loading():
     ###  To run this example, you will need to edit an existing configuration file.
 
-    # In the data-Folder should be a file called '.env.CONFIG.FREIBURG'. Open this file and ensure the following
+    # In the folder districtgenerator/data/config should be a file called '.env.CONFIG.FREIBURG'. Open this file and ensure the following
     # parameters are set to run the desired scenario. The default file which you should not alter or delete is the
     # '.env.CONFIG.EXAMPLE'. Use this only as a reference for the parameters you can change, always create a new file
     # to store your custom configuration, such as '.env.CONFIG.FREIBURG'. You can store this file in a different
@@ -50,7 +50,7 @@ def example6_config_file_loading():
     # That is equal to a time resolution of three hours.
 
     # Initialize District
-    data = Datahandler(scenario_name = "example_decentral", env_path=".env.CONFIG.Freiburg")
+    data = Datahandler(scenario_name = "example_decentral", env_path=".env.CONFIG.FREIBURG")
 
     # Alternative if you need an absolute path:
     # data = Datahandler(env_path="/path/to/your/.env.CONFIG.FREIBURG")

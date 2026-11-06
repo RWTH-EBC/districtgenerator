@@ -10,16 +10,38 @@ DistrictGenerator:
   loaded from ``non_residential_behavior.json``.
 
 Envelope properties and surface-estimation factors are loaded from the
-packaged JSON data in ``data/non_residential``. The implementation follows the
+packaged JSON data in ``data/buildings``. The implementation follows the
 DistrictGenerator non-residential archetype approach and provides the geometry
 and use-specific parameters required by the building, profile, and thermal
 models.
 """
 import os
 import json
+import functools
 from dataclasses import dataclass
 from typing import List
-from districtgenerator.utilities.paths import PACKAGE_DIR
+from districtgenerator.utilities.paths import DATA_DIR
+
+
+@functools.lru_cache(maxsize=None)
+def load_non_residential_json(file_name):
+    """Read a JSON file of ``data/buildings`` once per process and cache it.
+
+    The returned dict is shared between all callers and must not be modified.
+
+    Parameters
+    ----------
+    file_name : str
+        File name inside ``data/buildings``, e.g. ``"non_residential_envelope.json"``.
+
+    Returns
+    -------
+    dict
+        Content of the JSON file.
+    """
+    with open(os.path.join(DATA_DIR, 'buildings', file_name), 'r', encoding='utf-8') as file:
+        return json.load(file)
+
 
 # This Class is responsible for non-residential envelope generation
 class NonResidential(object):
@@ -207,7 +229,7 @@ class NonResidential(object):
     def load_surface_estimation_factors(self):
         """
         Load use- and age-specific surface-estimation factors.
-        Read ``data/non_residential/surface_estimation_factors.json`` and
+        Read ``data/buildings/surface_estimation_factors.json`` and
         select the parameter set corresponding to ``usage`` and
         ``year_of_construction``.
 
@@ -221,10 +243,7 @@ class NonResidential(object):
             ``None`` is returned implicitly if the archetype exists but no
             configured age interval contains ``year_of_construction``.
         """
-        DATA_DIR_PATH = PACKAGE_DIR
-        DATA_PATH = os.path.join(DATA_DIR_PATH, 'data', 'non_residential', 'surface_estimation_factors.json')
-        with open(DATA_PATH, 'r', encoding='utf-8') as file:
-            data = json.load(file)
+        data = load_non_residential_json('surface_estimation_factors.json')
 
         # Validate if the archetype exists in the data
         if self.usage not in data:
@@ -250,10 +269,7 @@ class NonResidential(object):
             (roof), and ``u_ug`` (ground floor); plus the dimensionless window solar
             transmittance ``g_gl_fen``.
         """
-        DATA_DIR_PATH = PACKAGE_DIR
-        DATA_PATH = os.path.join(DATA_DIR_PATH, 'data', 'non_residential', 'non_residential_envelope.json')
-        with open(DATA_PATH, 'r', encoding='utf-8') as file:
-            data = json.load(file)
+        data = load_non_residential_json('non_residential_envelope.json')
 
         # Validate if the archetype exists in the data
         if self.usage not in data:
@@ -356,9 +372,6 @@ class GenericNonResidential:
         Schedule, lighting, ventilation, and commuting assumptions for this use.
     """
 
-    _behavior_data_cache = None
-
-
     def __init__(self, usage_string: str):
         """
         Load the behavioral assumptions for a building use.
@@ -386,16 +399,12 @@ class GenericNonResidential:
             Use-specific settings; optional None values leave fallback selection to
             the consuming profile model.
         """
-        DATA_DIR_PATH = PACKAGE_DIR
-        data_path = os.path.join(DATA_DIR_PATH, 'data', 'non_residential', 'non_residential_behavior.json')
-        if GenericNonResidential._behavior_data_cache is None:
-            with open(data_path, 'r', encoding='utf-8') as file:
-                GenericNonResidential._behavior_data_cache = json.load(file) # Cache the data after loading it for the first time to avoid redundant file reads in subsequent calls.
-
-        data = GenericNonResidential._behavior_data_cache
+        file_name = 'non_residential_behavior.json'
+        data = load_non_residential_json(file_name)
 
         if self.usage_string not in data:
-            raise ValueError(f"NWG '{self.usage_string}' not found in JSON. path: {data_path}")
+            raise ValueError(f"NWG '{self.usage_string}' not found in JSON. path: "
+                             f"{os.path.join(DATA_DIR, 'buildings', file_name)}")
 
         return NonResidentialConfig(**data[self.usage_string])
 

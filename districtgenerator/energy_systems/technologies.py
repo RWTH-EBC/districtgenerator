@@ -158,7 +158,7 @@ def calc_pv_and_stc_profile(sun, time, site, devices, area_roof, beta=35, gamma=
                                  beta=beta,
                                  gamma=(((np.array(gamma) + 360) % 360) - 180).tolist(),  # calculating gamma for
                                  # roof side 2 so that side 2 is opposite to side 1, with respect to the definition
-                                 # of gamma (0° = south, 90° = east, 180° = north, -90° = west)
+                                 # of gamma (0° = south, -90° = east, 180° = north, 90° = west)
                                  beamRadiation=site["SunDirect"],
                                  diffuseRadiation=site["SunDiffuse"],
                                  albedo=site["albedo"])

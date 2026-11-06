@@ -1,12 +1,12 @@
 from dataclasses import field
-from pathlib import Path
 import os
+import warnings
 
 from typing import Dict, Literal, Optional, Set, Tuple, ClassVar
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from districtgenerator.utilities.paths import PACKAGE_DIR
+from districtgenerator.utilities.paths import DATA_DIR
 
 ### Helper functions ###
 def parse_float_list(value: any) -> list[float]:
@@ -45,6 +45,60 @@ def parse_float_list(value: any) -> list[float]:
         return [float(value)]
     raise ValueError(f"Cannot parse {type(value)} into a list of floats")
 
+def build_nested_dicts(model, compute_inv_var=False):
+    """
+    Collect the fields 'NAME__key' of a config into its empty dict field 'NAME'.
+
+    Further '__' create nested dicts, e.g. 'NAME__a__b' becomes NAME["a"]["b"].
+    The individual fields are removed afterwards.
+
+    Parameters
+    ----------
+    model : BaseSettings
+        Config instance with empty dict fields and their prefixed individual fields.
+    compute_inv_var : bool, optional
+        If True, add 'inv_var' = 'inv_base' * (1 - 'inv_subsidy_rate') to each device dict
+        that contains both keys. The default is False.
+
+    Returns
+    -------
+    BaseSettings
+        The same config instance, as required by pydantic model validators.
+    """
+    # Snapshot of the field names, as fields are deleted during the loop
+    field_names = list(model.__dict__.keys())
+
+    for field_name in field_names:
+        # Skip fields that were already moved into a dict
+        if not hasattr(model, field_name):
+            continue
+        # Only empty dict fields are filled, e.g. HP = {} with HP__cap_max, HP__inv_base, ...
+        if not (isinstance(getattr(model, field_name), dict) and getattr(model, field_name) == {}):
+            continue
+
+        target_dict = {}
+        prefix = f"{field_name}__"
+        member_names = [name for name in field_names if name.startswith(prefix) and hasattr(model, name)]
+
+        for attr_name in member_names:
+            # Split the rest of the name by '__' to support nested dicts
+            keys = attr_name[len(prefix):].split('__')
+            current_dict = target_dict
+            for key in keys[:-1]:
+                current_dict = current_dict.setdefault(key, {})
+            current_dict[keys[-1]] = getattr(model, attr_name)
+
+        # Investment costs after subsidies
+        if compute_inv_var and 'inv_base' in target_dict and 'inv_subsidy_rate' in target_dict:
+            target_dict['inv_var'] = target_dict['inv_base'] * (1 - target_dict['inv_subsidy_rate'])
+
+        # Set the dictionary first, then delete the individual fields
+        setattr(model, field_name, target_dict)
+        for attr_name in member_names:
+            delattr(model, attr_name)
+
+    return model
+
 ### Configuration Classes ###
 class LocationConfig(BaseSettings):
     """
@@ -64,8 +118,28 @@ class LocationConfig(BaseSettings):
     buildingMax_W: float = 50000.0  # Per-building maximum import/export at the building PCC. (Watt)
 
 
-    ALLOWED_TRY_YEARS: ClassVar[Set[str]] = {"TRY2015", "TRY2045"}
+    # File format of each DWD test reference year: first data row (after the header)
+    # and weekday of January 1st (0 = Monday). Not settable via .env, it describes the files.
+    TRY_FORMATS: ClassVar[Dict[str, Dict[str, int]]] = {
+        "TRY2015": {"first_row": 35, "initial_day": 3},  # Thursday
+        "TRY2045": {"first_row": 37, "initial_day": 6},  # Sunday
+    }
+    ALLOWED_TRY_YEARS: ClassVar[Set[str]] = set(TRY_FORMATS)  # keys of TRY_FORMATS
     ALLOWED_TRY_TYPES: ClassVar[Set[str]] = {"Jahr", "Somm", "Wint"}
+
+    # Fallback if the zip code is not in plz_geocoord_matched.xlsx: Aachen and its TRY weather station
+    FALLBACK_ZIP: ClassVar[str] = "52064"
+    FALLBACK_WEATHER_STATION: ClassVar[str] = "507755060854"
+
+    # Cooling load zones (Kühllastzonen) of VDI 2078: (mean summer temperature, daily amplitude) in °C.
+    # Used for the design temperature of the cooling load, the default zone applies to unknown zones.
+    COOLING_LOAD_ZONES: ClassVar[Dict[int, Tuple[float, float]]] = {
+        1: (23.3, 6.7),  # Zone 1 (cool)
+        2: (24.1, 7.4),  # Zone 2 (moderate)
+        3: (25.0, 8.0),  # Zone 3 (warm)
+        4: (26.1, 8.4),  # Zone 4 (hot)
+    }
+    DEFAULT_COOLING_LOAD_ZONE: ClassVar[int] = 3
 
     model_config = SettingsConfigDict(
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
@@ -107,6 +181,15 @@ class TimeConfig(BaseSettings):
     model_config = SettingsConfigDict(
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
     )
+
+    @model_validator(mode='after')
+    def check_hourly_input_data(self) -> 'TimeConfig':
+        """Warn if the input data is not hourly, as some time steps are then not in hours."""
+        if self.dataResolution != 3600:
+            warnings.warn(f"dataResolution is {self.dataResolution} s, but the soil temperature and the heat grid "
+                          f"demand sums use dt = timeResolution / dataResolution as hours. "
+                          f"This is only correct for hourly input data (3600 s).")
+        return self
 
 class DesignBuildingConfig(BaseSettings):
     """
@@ -290,8 +373,6 @@ class EcoConfig(BaseSettings):
         """Select interpolation points based on num_interpolation_points if specified."""
         if self.num_interpolation_points is not None:
             # Validate num_interpolation_points value
-#            print(self.num_interpolation_points)
-#            print(type(self.num_interpolation_points))
             if self.num_interpolation_points < 1:
                 raise ValueError("num_interpolation_points must be at least 1.")
             if self.num_interpolation_points > self.observation_time:
@@ -322,7 +403,7 @@ class EcoConfig(BaseSettings):
         return self
 
     model_config = SettingsConfigDict(
-        extra = 'allow' # Ignores all other variables in the .env.CONFIG file
+        extra = 'allow' # Keeps all other variables of the .env.CONFIG file as additional fields
     )
 
 class PhysicsConfig(BaseSettings):
@@ -360,37 +441,9 @@ class PyomoConfig(BaseSettings):
         return v
 
     @model_validator(mode='after')
-    def build_device_dicts(self) -> 'DecentralDeviceConfig':
-        """Build all device dictionaries from individual parameters."""
-
-        # Create a list of field names to avoid RuntimeError during iteration
-        field_names = list(self.__dict__.keys())
-
-        # Get all field names from the model
-        for field_name in field_names:
-            # Check if this is a dictionary field (uppercase device name)
-            if isinstance(getattr(self, field_name), dict):
-                # Only build if the dictionary is empty
-                if getattr(self, field_name) == {}:
-                    device_dict = {}
-                    prefix = f"{field_name}__"
-
-                    # Find all attributes that start with this device prefix
-                    for attr_name in field_names:  # Use the snapshot here too
-                        if attr_name.startswith(prefix):
-                            # Remove the prefix to get the dictionary key
-                            dict_key = attr_name[len(prefix):]
-                            device_dict[dict_key] = getattr(self, attr_name)
-
-                    # Set the dictionary first
-                    setattr(self, field_name, device_dict)
-
-                    # Now delete the individual attributes
-                    for attr_name in field_names:
-                        if attr_name.startswith(prefix):
-                            delattr(self, attr_name)
-
-        return self
+    def build_device_dicts(self) -> 'PyomoConfig':
+        """Build the solver option dictionary from individual parameters."""
+        return build_nested_dicts(self)
 
     model_config = SettingsConfigDict(
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
@@ -419,6 +472,16 @@ class HeatGridConfig(BaseSettings):
     d_asph: float = 0.18             # Asphalt layer thickness in meters.
     grid_depth: float = 1.0             # Installation depth of the grid beneath the surface in meters.
     k_soil: float = 1.52                # Soil heat conductivity in W/(m*K). Source: Median value from table 4.1 Wessolek, G. (2022). Parametrisierung thermischer Bodeneigenschaften: Endbericht
+
+    # Fixed surface and material properties of the soil temperature model. Not settable via .env.
+    # alpha_s: surface absorptance [-], epsilon_s: surface emissivity [-], f: surface evaporation rate [-]
+    # Source soil: Badache (2015), http://dx.doi.org/10.1016/j.renene.2015.06.020
+    SOIL_SURFACE: ClassVar[Dict[str, float]] = {"alpha_s": 0.9, "epsilon_s": 0.9, "f": 0.7}
+    # Source asphalt: VDI Wärmeatlas for alpha_s and epsilon_s, f assumed like dry soil (Badache 2015)
+    ASPHALT_SURFACE: ClassVar[Dict[str, float]] = {"alpha_s": 0.93, "epsilon_s": 0.93, "f": 0.3}
+    C_SOIL: ClassVar[float] = 2.4e6     # Soil volumetric heat capacity in J/(m^3*K). Source: Table 1.1 Wessolek, G. (2022). Parametrisierung thermischer Bodeneigenschaften: Endbericht
+    K_ASPH: ClassVar[float] = 0.76      # Asphalt heat conductivity in W/(m*K). Source: VDI Wärmeatlas
+    C_ASPH: ClassVar[float] = 2.1e6     # Asphalt volumetric heat capacity in J/(m^3*K). Source: VDI Wärmeatlas
     k_PUF: float = 0.03                 # Polyurethane foam heat conductivity. Source: VDI Wärmeatlas
     k_PE: float = 0.4                 # Polyethylene heat conductivity. Source: VDI Wärmeatlas
     h_loss_subst: float = 5      # Heat losses at the substation as a percentage (%). Source: Technikkatalog Wärmeplanung 2024
@@ -473,46 +536,8 @@ class HeatGridConfig(BaseSettings):
 
     @model_validator(mode='after')
     def build_device_dicts(self) -> 'HeatGridConfig':
-        """Build all device dictionaries from individual parameters, supporting nested structure."""
-
-        field_names = list(self.__dict__.keys())
-
-        for field_name in field_names:
-            if isinstance(getattr(self, field_name), dict):
-                if getattr(self, field_name) == {}:
-                    device_dict = {}
-                    prefix = f"{field_name}__"
-
-                    # Find all attributes that start with this device prefix
-                    for attr_name in field_names:
-                        if attr_name.startswith(prefix):
-                            # Remove the prefix to get the key path
-                            key_path = attr_name[len(prefix):]
-
-                            # Split by __ to support nested structure
-                            keys = key_path.split('__')
-
-                            # Navigate/create nested dict structure
-                            current_dict = device_dict
-                            for i, key in enumerate(keys):
-                                if i == len(keys) - 1:
-                                    # Last key: set the value
-                                    current_dict[key] = getattr(self, attr_name)
-                                else:
-                                    # Intermediate key: ensure nested dict exists
-                                    if key not in current_dict:
-                                        current_dict[key] = {}
-                                    current_dict = current_dict[key]
-
-                    # Set the dictionary
-                    setattr(self, field_name, device_dict)
-
-                    # Now delete the individual attributes
-                    for attr_name in field_names:
-                        if attr_name.startswith(prefix):
-                            delattr(self, attr_name)
-
-        return self
+        """Build all nested dictionaries (e.g. network temperatures) from individual parameters."""
+        return build_nested_dicts(self)
 
 
     model_config = SettingsConfigDict(
@@ -521,7 +546,7 @@ class HeatGridConfig(BaseSettings):
 
 class EHDOConfig(BaseSettings):
     """
-    EHDOConfig class to manage the configuration of the Energy and Heat Distribution Optimization (EHDO) system.
+    EHDOConfig class to manage the configuration of the Energy Hub Design Optimization (EHDO) model.
     This class contains parameters relevant for the central optimization of energy and heat distribution in the
     district generator. It configures e.g. the use of certain technologies (electricity, gas, biomass, hydrogen, etc.)
     and their respective prices, CO2 emissions, and supply limits.
@@ -608,6 +633,7 @@ class Scenario(BaseSettings):
     @field_validator('random_seed', mode='before')
     @classmethod
     def parse_random_seed(cls, value):
+        """Convert '', 'none' or 'null' to None, so that no fixed seed is used."""
         if isinstance(value, str) and value.strip().lower() in ('', 'none', 'null'):
             return None
         return value
@@ -763,37 +789,7 @@ class ReportConfig(BaseSettings):
                         raise ValueError(f"RGB tuple must have exactly 3 values. Got: {val}")
 
         # 2. Build nested dictionaries (Supports both colors and fonts)
-        for field_name in field_names:
-            # Skip if we already deleted this attribute in a previous iteration
-            if not hasattr(self, field_name):
-                continue
-
-            if isinstance(getattr(self, field_name), dict):
-                if getattr(self, field_name) == {}:
-                    target_dict = {}
-                    prefix = f"{field_name}__"
-                    
-                    for attr_name in field_names:
-                        if attr_name.startswith(prefix) and hasattr(self, attr_name):
-                            key_path = attr_name[len(prefix):]
-                            keys = key_path.split('__')
-                            
-                            current_dict = target_dict
-                            for i, key in enumerate(keys):
-                                if i == len(keys) - 1:
-                                    current_dict[key] = getattr(self, attr_name)
-                                else:
-                                    if key not in current_dict:
-                                        current_dict[key] = {}
-                                    current_dict = current_dict[key]
-                    
-                    setattr(self, field_name, target_dict)
-                    
-                    for attr_name in field_names:
-                        if attr_name.startswith(prefix) and hasattr(self, attr_name):
-                            delattr(self, attr_name)
-                            
-        return self
+        return build_nested_dicts(self)
 
     model_config = SettingsConfigDict(
         extra='ignore' # Ignores all other variables in the .env.CONFIG file
@@ -999,45 +995,12 @@ class DecentralDeviceConfig(BaseSettings):
 
     @model_validator(mode='after')
     def build_device_dicts(self) -> 'DecentralDeviceConfig':
-        """Build all device dictionaries from individual parameters."""
-
-        # Create a list of field names to avoid RuntimeError during iteration
-        field_names = list(self.__dict__.keys())
-
-        # Get all field names from the model
-        for field_name in field_names:
-            # Check if this is a dictionary field (uppercase device name)
-            if isinstance(getattr(self, field_name), dict):
-                # Only build if the dictionary is empty
-                if getattr(self, field_name) == {}:
-                    device_dict = {}
-                    prefix = f"{field_name}__"
-
-                    # Find all attributes that start with this device prefix
-                    for attr_name in field_names:  # Use the snapshot here too
-                        if attr_name.startswith(prefix):
-                            # Remove the prefix to get the dictionary key
-                            dict_key = attr_name[len(prefix):]
-                            device_dict[dict_key] = getattr(self, attr_name)
-
-                    # Calculate inv_var from inv_base and inv_subsidy_rate
-                    if 'inv_base' in device_dict and 'inv_subsidy_rate' in device_dict:
-                        device_dict['inv_var'] = device_dict['inv_base'] * (1 - device_dict['inv_subsidy_rate'])
-
-                    # Set the dictionary first
-                    setattr(self, field_name, device_dict)
-
-                    # Now delete the individual attributes
-                    for attr_name in field_names:
-                        if attr_name.startswith(prefix):
-                            delattr(self, attr_name)
-
-        return self
+        """Build all device dictionaries from individual parameters, including inv_var."""
+        return build_nested_dicts(self, compute_inv_var=True)
 
 
     model_config = SettingsConfigDict(
         env_prefix="D_",  # Prefix for environment variables
-        env_file=".decentraldeviceconfig",
         extra="ignore"
     )
 
@@ -1345,41 +1308,9 @@ class CentralDeviceConfig(BaseSettings):
     GS: dict = {}
 
     @model_validator(mode='after')
-    def build_device_dicts(self) -> 'DecentralDeviceConfig':
-        """Build all device dictionaries from individual parameters."""
-
-        # Create a list of field names to avoid RuntimeError during iteration
-        field_names = list(self.__dict__.keys())
-
-        # Get all field names from the model
-        for field_name in field_names:
-            # Check if this is a dictionary field (uppercase device name)
-            if isinstance(getattr(self, field_name), dict):
-                # Only build if the dictionary is empty
-                if getattr(self, field_name) == {}:
-                    device_dict = {}
-                    prefix = f"{field_name}__"
-
-                    # Find all attributes that start with this device prefix
-                    for attr_name in field_names:  # Use the snapshot here too
-                        if attr_name.startswith(prefix):
-                            # Remove the prefix to get the dictionary key
-                            dict_key = attr_name[len(prefix):]
-                            device_dict[dict_key] = getattr(self, attr_name)
-
-                    # Calculate inv_var from inv_base and inv_subsidy_rate
-                    if 'inv_base' in device_dict and 'inv_subsidy_rate' in device_dict:
-                        device_dict['inv_var'] = device_dict['inv_base'] * (1 - device_dict['inv_subsidy_rate'])
-
-                    # Set the dictionary first
-                    setattr(self, field_name, device_dict)
-
-                    # Now delete the individual attributes
-                    for attr_name in field_names:
-                        if attr_name.startswith(prefix):
-                            delattr(self, attr_name)
-
-        return self
+    def build_device_dicts(self) -> 'CentralDeviceConfig':
+        """Build all device dictionaries from individual parameters, including inv_var."""
+        return build_nested_dicts(self, compute_inv_var=True)
     
     @model_validator(mode='after')
     def validate_hp_cc_configuration(self) -> 'CentralDeviceConfig':
@@ -1422,7 +1353,6 @@ class CentralDeviceConfig(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="C_",
-        env_file=".centraldeviceconfig",
         extra="ignore"
     )
 
@@ -1434,7 +1364,7 @@ class GlobalConfig(BaseModel):
     This class aggregates all individual configuration classes and provides a unified interface
     to access them. It is designed to be initialized with an environment file that contains
     configuration parameters for each component.
-    Note: All parameters defined in this '.env.CONFIG.' will override the default values in config.py
+    Note: All parameters defined in this '.env.CONFIG.' will override the default values in settings.py
 
     Attributes
     ----------
@@ -1453,7 +1383,7 @@ class GlobalConfig(BaseModel):
     heatgrid : HeatGridConfig
         Configuration parameters for the heat grid, including temperatures and heat transfer.
     ehdo : EHDOConfig
-        Configuration parameters for the EHDO (Energy and Heat Distribution Optimization) system.
+        Configuration parameters for the EHDO (Energy Hub Design Optimization) model.
     decentral : DecentralDeviceConfig
         Configuration parameters for decentralized devices in the district.
     central : CentralDeviceConfig
@@ -1488,7 +1418,6 @@ class Settings(BaseSettings):
     env_file: str = '.env.CONFIG.EXAMPLE'
 
     class Config:
-        env_file = '.env.CONFIG.EXAMPLE'  # Default .env file if no env_file is provided
         env_file_encoding = 'utf-8'
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
 
@@ -1496,16 +1425,17 @@ class Settings(BaseSettings):
 def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
     """
     Load the global configuration from the specified environment file.
-    If no environment file is provided, it defaults to standard parameters defined in the config classes.
+    If no environment file is provided, the file name from ``Settings`` is used
+    (``.env.CONFIG.EXAMPLE`` unless the environment variable ``ENV_FILE`` is set).
     For error handling, it prints the used environment file path.
-    Note: All parameters defined in '.env.CONFIG.' will override the default values in config.py
+    Note: All parameters defined in '.env.CONFIG.' will override the default values in settings.py
 
     Parameters
     ----------
     env_file : Optional[str]
         The path to the environment file. If None, it uses the default from Settings.
-        Place config in the data folder of the districtgenerator package to use ".env.NAME" or use
-        absolute paths "c:/path/to/.env.CONFIG.EXAMPLE" or "/path/to/.env.CONFIG.EXAMPLE".
+        Relative paths such as ".env.NAME" are resolved in ``DATA_DIR/config``, absolute paths
+        such as "c:/path/to/.env.CONFIG.EXAMPLE" or "/path/to/.env.CONFIG.EXAMPLE" are used as given.
 
     Returns
     -------
@@ -1517,20 +1447,18 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         settings = Settings()  # Load settings from the .env file
         env_file = settings.env_file
 
-    script_path = Path(__file__).resolve()
-    project_root = Path(PACKAGE_DIR)
+    # Absolute paths are used as given, relative paths are resolved in the config folder of the data
+    env_file_path = env_file if os.path.isabs(env_file) else os.path.join(DATA_DIR, 'config', env_file)
 
-    env_file_path = str(project_root / "data" / env_file)
-
-    if not os.path.exists(env_file_path):
+    if not os.path.isfile(env_file_path):
         raise FileNotFoundError(
-            f"Configuration file not found. \n"
+            f"Configuration file '{env_file}' not found.\n"
             f"  - Looked for: {env_file_path}\n"
-            f"  - Based on script location: {script_path}"
+            f"  - Config folder: {os.path.join(DATA_DIR, 'config')}\n"
+            f"Pass an absolute path or put the file into the config folder."
         )
 
-    os.environ["ENV_FILE"] = env_file_path
-    print(f'Using config: {os.environ["ENV_FILE"]}')
+    print(f'Using config: {env_file_path}')
 
     return GlobalConfig(
         location=LocationConfig(_env_file=env_file_path),

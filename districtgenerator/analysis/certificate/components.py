@@ -4,7 +4,7 @@ from reportlab.lib import colors
 from reportlab.platypus import Flowable, Table, TableStyle, Paragraph, Spacer
 import os
 from reportlab.platypus import Flowable
-from districtgenerator.utilities.paths import PACKAGE_DIR
+from districtgenerator.utilities.paths import DATA_DIR
 from districtgenerator.analysis.certificate.theme import DEBUG, ThemeManager, debug_line_width
 
 
@@ -22,8 +22,7 @@ class ReportComponent:
         Sets the theme once for all components.
         """
         cls.style = theme_manager
-        srcPath = PACKAGE_DIR
-        translations_path = os.path.join(srcPath, "data", "report_translations.json")
+        translations_path = os.path.join(DATA_DIR, "report", "report_translations.json")
         cls.__load_translations(translations_path, language)
     
     @classmethod

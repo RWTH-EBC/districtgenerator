@@ -13,6 +13,7 @@ It holds the configuration and the district, and delegates each step to its doma
 """
 import json
 import os
+import warnings
 
 from districtgenerator.analysis.kpis import KPIs
 from districtgenerator.analysis import plots
@@ -28,7 +29,7 @@ from districtgenerator.environment import soil, solar, weather
 from districtgenerator.optimization.central import operation
 from districtgenerator.storage import district_store, profile_store
 from districtgenerator.time_series import clustering
-from districtgenerator.utilities.paths import PACKAGE_DIR
+from districtgenerator.utilities.paths import DATA_DIR, PACKAGE_DIR, RESULTS_DIR
 
 
 class Datahandler:
@@ -52,13 +53,13 @@ class Datahandler:
     counter:
         Dict for counting number of equal building types.
     srcPath:
-        Source path.
+        Package folder of the districtgenerator (``PACKAGE_DIR``).
     filePath:
-        File path.
+        Data folder (``DATA_DIR``). All input data is read from this folder.
     """
 
     def __init__(self, scenario_name = None, resultPath = None,  scenario_file_path = None,
-                 srcPath = PACKAGE_DIR, filePath = None,
+                 srcPath = None, filePath = None,
                  env_path = None):
         """
         Constructor of Datahandler class.
@@ -68,23 +69,29 @@ class Datahandler:
         scenario_name : str, optional
             Name of the scenario file. If none given, takes scenario_name from globalConfig else "example".
         resultPath : str, optional
-            Path to save results. If None, it defaults to 'srcPath/results'.
+            Path to save results. If None, it defaults to ``RESULTS_DIR``.
         scenario_file_path : str, optional
-            Path to the scenario file. If None, it defaults to 'filePath/scenarios'.
+            Path to the scenario file. If None, it defaults to 'DATA_DIR/scenarios'.
         srcPath : str, optional
-            Source path of the district generator. The default is the parent directory of this file.
+            Deprecated and ignored. The package folder is always ``PACKAGE_DIR``.
         filePath : str, optional
-            Path to the data directory. If None, it defaults to 'srcPath/data'.
+            Deprecated and ignored. All input data is read from ``DATA_DIR``.
         env_path : str, optional
-            Path to the environment configuration file. If None, it defaults to the global configuration file.
+            Path to the environment configuration file. Relative paths are resolved in ``DATA_DIR/config``.
+            If None, it defaults to the global configuration file.
 
         Returns
         -------
         None.
         """
 
-        if filePath is None:
-            filePath = os.path.join(srcPath, 'data')
+        # All input data comes from one folder, custom data folders are no longer supported
+        for name, value in (("srcPath", srcPath), ("filePath", filePath)):
+            if value is not None:
+                warnings.warn(f"'{name}' is deprecated and ignored, all input data is read from '{DATA_DIR}'.",
+                              DeprecationWarning, stacklevel=2)
+        srcPath = PACKAGE_DIR
+        filePath = DATA_DIR
 
         self.initial_day = None
         self.district = []
@@ -117,12 +124,12 @@ class Datahandler:
         if scenario_file_path is not None:
             self.scenario_file_path = scenario_file_path
         else:
-            self.scenario_file_path = os.path.join(self.filePath, 'scenarios')
+            self.scenario_file_path = os.path.join(DATA_DIR, 'scenarios')
 
         if resultPath is not None:
             self.resultPath = resultPath
         else:
-            self.resultPath = os.path.join(self.srcPath, 'results')
+            self.resultPath = RESULTS_DIR
 
         self.load_all_data(env_path=env_path, scenario_name=scenario_name)
 
@@ -193,7 +200,7 @@ class Datahandler:
         self.scenario = district_buildings.load_scenario(self.scenario_file_path, self.scenario_name)
 
         # --- 3. Load the pipe catalogue of the selected heat grid generation ---
-        self.pipe_file_path = os.path.join(self.filePath, 'pipe')
+        self.pipe_file_path = os.path.join(DATA_DIR, 'energy_systems')
         self.pipe_data = heating_network.load_pipe_data(self.heat_grid_data["generation"], self.pipe_file_path)
 
         # Prices and CO2 factors for each simulated year used in the optimizations
@@ -205,30 +212,38 @@ class Datahandler:
         """
         Select the closest TRY weather station for the location of the postal code.
 
+        Deprecated, use ``environment.site.select_plz_data`` instead.
+
         Returns
         -------
         None.
         """
+        warnings.warn("'Datahandler.select_plz_data' is deprecated, use "
+                      "'environment.site.select_plz_data' instead.", DeprecationWarning, stacklevel=2)
         site_conditions.select_plz_data(self)
 
     def get_holidays(self, country_code: str, year: int, state: str = None):
         """
-        Get the Julian day (day of the year) for holidays in a specific country, year, and state.
+        Get the day of the year of all holidays.
+
+        Deprecated, use ``environment.site.get_holidays`` instead.
 
         Parameters
         ----------
-            country_code : string
-                The country's ISO 3166-1 alpha-2 code (e.g., 'DE' for Germany).
-            year : integer
-                The year for which to retrieve holidays.
-            state : string
-                The state or region subdivision code (e.g., 'NW' for North Rhine-Westphalia in Germany).
+        country_code : str
+            The country's ISO 3166-1 alpha-2 code (e.g., 'DE' for Germany).
+        year : int
+            The year for which to retrieve holidays.
+        state : str, optional
+            The state or region subdivision code (e.g., 'NW' for North Rhine-Westphalia in Germany).
 
         Returns
         -------
-            julian_holidays : list
-                A list of tuples containing the Julian day of the holiday.
+        list of int
+            Day of the year (1 = January 1st) of each holiday.
         """
+        warnings.warn("'Datahandler.get_holidays' is deprecated, use "
+                      "'environment.site.get_holidays' instead.", DeprecationWarning, stacklevel=2)
         return site_conditions.get_holidays(country_code, year, state)
 
     def generateEnvironment(self):

@@ -2,13 +2,13 @@
 
 import os
 import pandas as pd
-from districtgenerator.utilities.paths import PACKAGE_DIR
+from districtgenerator.utilities.paths import DATA_DIR
 
 def read_SIA_data():
     """
     Read and restructure SIA 2024 building-use data from the package data.
 
-        Load the ``SIA2024`` worksheet from ``data/SIA2024.xlsx`` and convert
+        Load the ``SIA2024`` worksheet from ``data/buildings/SIA2024.xlsx`` and convert
         its tabular zone, energy, ventilation, profile, and building-type
         composition data into the nested dictionary structure used by
         DistrictGenerator.
@@ -29,8 +29,7 @@ def read_SIA_data():
               SIA zone names to their configured proportional share in that
               building type.
     """
-    districtgenerator_dir = PACKAGE_DIR
-    sia_xlsx_path = os.path.join(districtgenerator_dir, 'data', 'SIA2024.xlsx')
+    sia_xlsx_path = os.path.join(DATA_DIR, 'buildings', 'SIA2024.xlsx')
     data = pd.read_excel(sia_xlsx_path, sheet_name='SIA2024', header=1)
     df = pd.DataFrame(data, columns=['number', 'Zone_name_GER', 'T_summer', 'T_winter',	'area_room', 'dQ_persons_perA',
                                      't_fullLoad_persons', 'P_vent_perVh', 'P_vent_perA', 'W_per_person',

@@ -19,7 +19,7 @@ import math
 import districtgenerator.time_series.medoid as clustering
 import time
 import copy
-from districtgenerator.environment.solar import Sun
+from districtgenerator.environment.solar import SUN
 from districtgenerator.economics import annuity
 from districtgenerator.energy_systems import technologies, wind_turbine
 from districtgenerator.energy_systems.technologies import calc_COP
@@ -434,6 +434,7 @@ def get_params(data):
             devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
         #elif all_models["HP"]["CSV_feasible"]:
+        #       todo: is this still used? if not we dont need coefficient_of_performance.txt in /data
         #    COP_unclustered = np.loadtxt(os.path.join(os.path.dirname(data.srcPath), 'districtgenerator', 'data', 'coefficient_of_performance.txt'))
         #    # Cluster COP time series
         #    COP_base = np.ones((data.time["clusterNumber"], clusterHorizon))
@@ -808,10 +809,9 @@ def calc_monthly_dem(dem_uncl, param_uncl, result_dict):
 
 def get_PVandSTC_power(devs, param, data):
 
-    filePath = data.filePath
     time = data.time
     site = data.site
-    sun = Sun(filePath=filePath)
+    sun = SUN  # shared instance, Sun has no state
 
     potentialPV, _ = technologies.calc_pv_and_stc_profile(sun=sun, time=time,
                                                           site=site,

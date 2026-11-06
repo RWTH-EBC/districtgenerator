@@ -21,3 +21,4 @@ districtgenerator/data/weather/*
 *.eggs
 districtgenerator.egg-info/*
 docs/_build/
+*pyc

@@ -198,8 +198,6 @@ class Envelope:
     design_building_data : dict
         Building-design parameters including temperature set points, ventilation rate, bivalent temperature,
         and heating-limit temperature.
-    file_path : str or os.PathLike
-        Path associated with the building or project input data.
     SIA2024 : dict or None, optional
         SIA 2024 usage and ventilation data. Required for supported non-residential building types.
 
@@ -230,7 +228,7 @@ class Envelope:
 
     """
 
-    def __init__(self, prj, building_params, construction_data, physics, design_building_data, file_path, SIA2024 = None):
+    def __init__(self, prj, building_params, construction_data, physics, design_building_data, SIA2024 = None):
         """
         Constructor of Envelope class.
 
@@ -268,7 +266,6 @@ class Envelope:
             self.building_zones = self.SIA2024[self.usage_short]
             self.nwg_config = GenericNonResidential(self.usage_short) # Load configuration for non-residential building.
 
-        self.file_path = file_path
         self.id = int(building_params.get("id_teaser", building_params["id"]))
         self.loadParams()
         self.loadComponentProperties(prj)

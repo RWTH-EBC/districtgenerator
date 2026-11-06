@@ -11,7 +11,7 @@ import richardsonpy.functions.change_resolution as cr
 import OpenDHW
 from districtgenerator.buildings.typology.non_residential import GenericNonResidential
 import districtgenerator.time_series.resolution as chres
-from districtgenerator.utilities.paths import PACKAGE_DIR
+from districtgenerator.utilities.paths import DATA_DIR
 
 
 class Profiles:
@@ -796,8 +796,7 @@ class Profiles:
 
         # Define Car Segment
         # https://ev-database.org/cheatsheet/range-electric-car
-        srcPath = PACKAGE_DIR
-        with open(os.path.join(srcPath, 'data', 'car_segment.json')) as json_file:
+        with open(os.path.join(DATA_DIR, 'buildings', 'car_segment.json')) as json_file:
             segments = json.load(json_file)
         segment_names = list(segments.keys())
         # Source of the proportions: https://www.kba.de/DE/Statistik/Fahrzeuge/Bestand/Segmente/segmente_node.html
