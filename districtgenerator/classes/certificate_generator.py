@@ -3909,6 +3909,11 @@ class DataExtractor(ReportComponent):
             parts = dev.split('_')
             return f'Industrie-Wärmeübertrager {parts[2]} / Quelle {parts[3]}', 'W<sub>th</sub>'
         name = self.translate(f"device_{dev}")
+        if dev == 'Industry_TES':
+            language = self.data.report_config.get('language', 'de')
+            name = ('Industrial thermal storage at WH1' if language == 'en'
+                    else 'Industrie-Waermespeicher (WH1)')
+            return name, 'Wh<sub>th</sub>'
         unit = device_unit_map.get(dev, "W")
 
         return name, unit
@@ -4125,6 +4130,12 @@ class CertificateBuilder(ReportComponent):
                 ("Industrie-WP installiert [kW]", "hp_capacity_kW"),
                 ("Industrie-WP Kapazitätskosten [EUR/a]", "hp_annual_cost_EUR_a"),
             ]
+            if k.get('tes_enabled', False):
+                static_items.extend([
+                    ('Industrie-TES installiert [kWh]', 'tes_capacity_kWh'),
+                    ('Industrie-TES Investition [EUR]', 'tes_investment_EUR'),
+                    ('Industrie-TES Jahreskosten [EUR/a]', 'tes_annual_cost_EUR_a'),
+                ])
             for label, key in static_items:
                 rows.append([label] + [cell(k[key])] * len(years))
 
@@ -4139,6 +4150,14 @@ class CertificateBuilder(ReportComponent):
                 ("Industrie-WP COP [-]", "hp_cop"),
                 ("Gewichtete Modellstunden [h/a]", "modelled_h_a"),
             ]
+            if k.get('tes_enabled', False):
+                year_items.extend([
+                    ('Industrie-TES Ladung [MWh/a]', 'tes_charge_MWh_a'),
+                    ('Industrie-TES Entladung [MWh/a]', 'tes_discharge_MWh_a'),
+                    ('Industrie-TES interne Verluste [MWh/a]', 'tes_loss_MWh_a'),
+                    ('Industrie-TES max. Fuellung [kWh]', 'tes_soc_max_kWh'),
+                    ('Industrie-TES Vollentladungen [-/a]', 'tes_full_discharge_cycles_a'),
+                ])
             for label, key in year_items:
                 rows.append([label] + [
                     cell(kpis.industry_kpis_year[y][key]) for y in years

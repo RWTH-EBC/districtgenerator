@@ -47,6 +47,127 @@ WH_HP_LIFE_YEARS = 20
 WH_HP_OM_FRACTION = 0.033
 WH_HP_TEST_FIXED_KW = None
 
+# Industrie-TES: eigene Auslegungsgrenze; Kosten/Verluste werden
+# aus dem bereits vorhandenen zentralen TES-Datensatz übernommen.
+INDUSTRY_TES_MAX_ENERGY_KWH = 5000.0
+INDUSTRY_TES_FULL_CHARGE_H = 2.0  # P_max = E_inst / 2 h
+INDUSTRY_TES_ETA_CH = 0.98
+INDUSTRY_TES_ETA_DCH = 0.98
+
+
+def _industry_tes_enabled(data):
+    return bool(getattr(data, 'heat_grid_data', {}).get('industrial_tes_enabled', False))
+
+
+def _tes_check_parameters(loss):
+    if not (0 <= float(loss) < 1):
+        raise ValueError('Industrie-TES: Speicherverlust muss zwischen 0 und 1 liegen')
+    if INDUSTRY_TES_MAX_ENERGY_KWH <= 0 or INDUSTRY_TES_FULL_CHARGE_H <= 0:
+        raise ValueError('Industrie-TES: positive Kapazitaets- und Leistungsgrenze erforderlich')
+    if not (0 < INDUSTRY_TES_ETA_CH <= 1 and 0 < INDUSTRY_TES_ETA_DCH <= 1):
+        raise ValueError('Industrie-TES: ungueltige Lade-/Entladewirkungsgrade')
+
+
+def _tes_design_variables(model, data, devs):
+    if not _industry_tes_enabled(data):
+        return False
+    import pyomo.environ as pyo
+    tes = devs['TES']  # gleicher Kostendatensatz wie zentraler TES
+    loss = float(tes['sto_loss'])
+    _tes_check_parameters(loss)
+    model.wh_tes_loss = loss
+    model.wh_tes_inv_var = float(tes['inv_var'])
+    model.wh_tes_inv_base = float(tes['inv_base'])
+    model.wh_tes_ann_factor = float(tes['ann_factor'])
+    model.wh_tes_om_fraction = float(tes['cost_om'])
+    for value in (model.wh_tes_inv_var, model.wh_tes_inv_base,
+                  model.wh_tes_ann_factor, model.wh_tes_om_fraction):
+        if not np.isfinite(value) or value < 0:
+            raise ValueError('Industrie-TES: ungueltige TES-Kostenparameter')
+    model.wh_tes_capacity = pyo.Var(within=pyo.NonNegativeReals,
+                                    bounds=(0.0, INDUSTRY_TES_MAX_ENERGY_KWH))
+    idx = (model.support_years, model.clusters, model.time_steps)
+    model.wh_tes_charge = pyo.Var(*idx, within=pyo.NonNegativeReals)  # kW
+    model.wh_tes_discharge = pyo.Var(*idx, within=pyo.NonNegativeReals)  # kW
+    model.wh_tes_soc = pyo.Var(*idx, within=pyo.NonNegativeReals)  # kWh
+    model.wh_tes_mode = pyo.Var(*idx, within=pyo.Binary)
+    model.wh_tes_annual_cost = pyo.Expression(expr=model.wh_tes_capacity * (
+            model.wh_tes_inv_var * model.wh_tes_ann_factor
+            + model.wh_tes_inv_base * model.wh_tes_om_fraction))
+    return True
+
+
+def _tes_design_constraints(model, data):
+    if not hasattr(model, 'wh_tes_capacity'):
+        return
+    dt = float(data.time['timeResolution']) / 3600.0
+    if abs(dt - 1.0) > 1e-12:
+        raise NotImplementedError('Industrie-TES: aktuell 1-h-Zeitschritte')
+    rate_max = INDUSTRY_TES_MAX_ENERGY_KWH / INDUSTRY_TES_FULL_CHARGE_H
+    for y in model.support_years:
+        for d in model.clusters:
+            ts = list(model.time_steps)
+            for i, t in enumerate(ts):
+                ix = y, d, t
+                prev = ts[i-1] if i else ts[-1]
+                model.wh_constraints.add(model.wh_tes_soc[ix] <= model.wh_tes_capacity)
+                model.wh_constraints.add(model.wh_tes_charge[ix] <=
+                                         model.wh_tes_capacity / INDUSTRY_TES_FULL_CHARGE_H)
+                model.wh_constraints.add(model.wh_tes_discharge[ix] <=
+                                         model.wh_tes_capacity / INDUSTRY_TES_FULL_CHARGE_H)
+                model.wh_constraints.add(model.wh_tes_charge[ix] <= rate_max * model.wh_tes_mode[ix])
+                model.wh_constraints.add(model.wh_tes_discharge[ix] <= rate_max * (1-model.wh_tes_mode[ix]))
+                model.wh_constraints.add(
+                    model.wh_tes_soc[ix] ==
+                    (1-model.wh_tes_loss)**dt * model.wh_tes_soc[y,d,prev]
+                    + (INDUSTRY_TES_ETA_CH*model.wh_tes_charge[ix]
+                       - model.wh_tes_discharge[ix]/INDUSTRY_TES_ETA_DCH) * dt)
+    # Anfang und Ende jeder repraesentativen Woche zyklisch verbunden:
+    # keine fiktiven Verschiebungen zwischen nicht zusammenhaengenden Wochen.
+
+
+def _tes_operating_variables(model, data):
+    if not _industry_tes_enabled(data):
+        return False
+    import pyomo.environ as pyo
+    caps = getattr(data, 'centralDevices', {}).get('capacities', {})
+    if 'industry_tes_capacity_kWh' not in caps or 'industry_tes_sto_loss' not in caps:
+        raise ValueError('Industrie-TES: EHDO-Kapazitaet/Verlustdaten fehlen')
+    e_kWh = float(caps['industry_tes_capacity_kWh'])
+    loss = float(caps['industry_tes_sto_loss'])
+    _tes_check_parameters(loss)
+    if not np.isfinite(e_kWh) or e_kWh < -1e-8 or e_kWh > INDUSTRY_TES_MAX_ENERGY_KWH+1e-6:
+        raise ValueError('Industrie-TES: ungueltige installierte Kapazitaet')
+    model.wh_tes_installed_Wh = max(0.,e_kWh) * 1000.0
+    model.wh_tes_loss = loss
+    model.wh_tes_charge = pyo.Var(model.t, within=pyo.NonNegativeReals)  # W
+    model.wh_tes_discharge = pyo.Var(model.t, within=pyo.NonNegativeReals)  # W
+    model.wh_tes_soc = pyo.Var(model.t, within=pyo.NonNegativeReals)  # Wh
+    model.wh_tes_mode = pyo.Var(model.t, within=pyo.Binary)
+    return True
+
+
+def _tes_operating_constraints(model, data):
+    if not hasattr(model, 'wh_tes_installed_Wh'):
+        return
+    dt = float(data.time['timeResolution']) / 3600.0
+    if abs(dt-1.0)>1e-12:
+        raise NotImplementedError('Industrie-TES: aktuell 1-h-Zeitschritte')
+    max_power_W = model.wh_tes_installed_Wh / INDUSTRY_TES_FULL_CHARGE_H
+    ts = list(model.t)
+    for i,t in enumerate(ts):
+        prev = ts[i-1] if i else ts[-1]
+        model.wh_constraints.add(model.wh_tes_soc[t] <= model.wh_tes_installed_Wh)
+        model.wh_constraints.add(model.wh_tes_charge[t] <= max_power_W)
+        model.wh_constraints.add(model.wh_tes_discharge[t] <= max_power_W)
+        model.wh_constraints.add(model.wh_tes_charge[t] <= max_power_W * model.wh_tes_mode[t])
+        model.wh_constraints.add(model.wh_tes_discharge[t] <= max_power_W * (1-model.wh_tes_mode[t]))
+        model.wh_constraints.add(
+            model.wh_tes_soc[t] == (1-model.wh_tes_loss)**dt * model.wh_tes_soc[prev]
+            + (INDUSTRY_TES_ETA_CH*model.wh_tes_charge[t]
+               - model.wh_tes_discharge[t]/INDUSTRY_TES_ETA_DCH)*dt)
+
+
 
 def industry_hx_cost_parameters(q_code, heat_grid_data):
     """Einheitliche Kostenbasis wie die bisherigen Gebaeude-Uebergabestationen."""
@@ -258,8 +379,10 @@ def add_operational_source(model, data, cluster, steps):
     model.wh_net = pyo.Var(model.t, within=pyo.NonNegativeReals)
     model.wh_hp_el = pyo.Expression(model.t, rule=lambda m,t: sum(
         m.wh_hp[s,t] * float(ind['hp_el_frac'][s,t]) for s in m.wh_sources))
-    model.wh_gross = pyo.Expression(model.t, rule=lambda m,t: sum(
-        m.wh_direct[s,t]+m.wh_hp[s,t] for s in m.wh_sources))
+    tes_on = _tes_operating_variables(model, data)
+    model.wh_gross = pyo.Expression(model.t, rule=lambda m,t:
+    sum(m.wh_direct[s,t]+m.wh_hp[s,t] for s in m.wh_sources)
+    - (m.wh_tes_charge[t]-m.wh_tes_discharge[t] if tes_on else 0))
     model.wh_constraints = pyo.ConstraintList()
     hx_caps = getattr(data, 'centralDevices', {}).get('capacities', {}).get(
         'industry_hx_capacities_kW'
@@ -274,8 +397,9 @@ def add_operational_source(model, data, cluster, steps):
     if designed is not None:
         capacity_kw = min(capacity_kw, float(designed))
     for t in model.t:
-        maxgross = float((ind['direct_max'][:,t]+ind['hp_max'][:,t]).sum()) * 1000
-        maxgross = min(maxgross, max(0., float(ind['demand_cap'][t]))*1000)
+        maxgross = max(0.,float(ind['demand_cap'][t]))*1000
+        if not tes_on:
+            maxgross = min(maxgross, float((ind['direct_max'][:,t]+ind['hp_max'][:,t]).sum())*1000)
         model.wh_constraints.add(model.wh_gross[t] <= maxgross * model.wh_on[t])
         model.wh_constraints.add(model.wh_net[t] == model.wh_gross[t]
                                  - float(ind['nominal_loss'][t])*1000*model.wh_on[t])
@@ -286,11 +410,12 @@ def add_operational_source(model, data, cluster, steps):
             model.wh_constraints.add(model.wh_hp[s,t] <= float(ind['hp_max'][s,t])*1000)
             model.wh_constraints.add(model.wh_direct[s,t] + model.wh_hp[s,t] *
                                      (1-float(ind['hp_el_frac'][s,t])) <= float(ind['source_input'][s,t])*1000)
-            if ind['mode'] == 'forced':
+            if ind['mode'] == 'forced' and not tes_on:
                 model.wh_direct[s,t].fix(float(ind['forced_direct'][s,t])*1000)
                 model.wh_hp[s,t].fix(float(ind['forced_hp'][s,t])*1000)
         if ind['mode'] == 'forced':
             model.wh_on[t].fix(int(float(ind['forced_direct'][:,t].sum()+ind['forced_hp'][:,t].sum()) > 1e-8))
+    _tes_operating_constraints(model, data)
     model.wh_base_loss_W = pyo.Param(model.t, initialize=lambda m,t: float(ind['base_losses'][t])*1000)
     return ind
 
@@ -299,7 +424,7 @@ def operating_result(model):
     if not hasattr(model, 'wh_sources'):
         return None
     import pyomo.environ as pyo
-    return {
+    result = {
         'direct_W': [[float(pyo.value(model.wh_direct[s,t])) for t in model.t] for s in model.wh_sources],
         'hp_output_W': [[float(pyo.value(model.wh_hp[s,t])) for t in model.t] for s in model.wh_sources],
         'gross_W': [float(pyo.value(model.wh_gross[t])) for t in model.t],
@@ -308,9 +433,16 @@ def operating_result(model):
         'connection_loss_W': [float(pyo.value(model.wh_gross[t])) -
                               float(pyo.value(model.wh_net[t])) for t in model.t],
     }
+    if hasattr(model, 'wh_tes_soc'):
+        result.update({
+            'tes_charge_W': [float(pyo.value(model.wh_tes_charge[t])) for t in model.t],
+            'tes_discharge_W': [float(pyo.value(model.wh_tes_discharge[t])) for t in model.t],
+            'tes_soc_Wh': [float(pyo.value(model.wh_tes_soc[t])) for t in model.t],
+        })
+    return result
 
 
-def add_design_source(model, data, param, steps):
+def add_design_source(model, data, param, steps, devs=None):
     """Pyomo-Variablen in kW fuer EHDO, auf param['typedays'] abgebildet."""
     ind = design_windows(data, param, steps)
     if ind is None:
@@ -350,8 +482,13 @@ def add_design_source(model, data, param, steps):
 
     model.wh_hp_el = pyo.Expression(model.support_years, model.clusters, model.time_steps,
                                     rule=lambda m,y,d,t: sum(m.wh_hp[s,y,d,t]*float(ind['hp_el_frac'][s,d,t]) for s in m.wh_sources))
+    if _industry_tes_enabled(data) and devs is None:
+        raise ValueError('Industrie-TES: devs aus EHDO an die Bridge uebergeben')
+    tes_on = _tes_design_variables(model, data, devs)
     model.wh_gross = pyo.Expression(model.support_years, model.clusters, model.time_steps,
-                                    rule=lambda m,y,d,t: sum(m.wh_direct[s,y,d,t]+m.wh_hp[s,y,d,t] for s in m.wh_sources))
+                                    rule=lambda m,y,d,t:
+                                    sum(m.wh_direct[s,y,d,t]+m.wh_hp[s,y,d,t] for s in m.wh_sources)
+                                    - (m.wh_tes_charge[y,d,t]-m.wh_tes_discharge[y,d,t] if tes_on else 0))
     model.wh_constraints = pyo.ConstraintList()
     for s in model.wh_sources:
         model.wh_constraints.add(
@@ -363,8 +500,9 @@ def add_design_source(model, data, param, steps):
     for y in model.support_years:
         for d in model.clusters:
             for t in model.time_steps:
-                maxgross = float((ind['direct_max'][:,d,t]+ind['hp_max'][:,d,t]).sum())
-                maxgross = min(maxgross, max(0.,float(ind['demand_cap'][d,t])))
+                maxgross = max(0.,float(ind['demand_cap'][d,t]))
+                if not tes_on:
+                    maxgross = min(maxgross, float((ind['direct_max'][:,d,t]+ind['hp_max'][:,d,t]).sum()))
                 model.wh_constraints.add(model.wh_gross[y,d,t] <= maxgross * model.wh_on[y,d,t])
                 model.wh_constraints.add(model.wh_net[y,d,t] == model.wh_gross[y,d,t]
                                          - float(ind['nominal_loss'][d,t])*model.wh_on[y,d,t])
@@ -378,7 +516,7 @@ def add_design_source(model, data, param, steps):
                     if ind['mode'] == 'forced':
                         model.wh_direct[s,y,d,t].fix(float(ind['forced_direct'][s,d,t]))
                         model.wh_hp[s,y,d,t].fix(float(ind['forced_hp'][s,d,t]))
-                if ind['mode'] == 'forced':
+                if ind['mode'] == 'forced' and not tes_on:
                     model.wh_on[y,d,t].fix(int(float(ind['forced_direct'][:,d,t].sum()+
                                                      ind['forced_hp'][:,d,t].sum()) > 1e-8))
     if ind['mode'] == 'forced':
@@ -392,6 +530,8 @@ def add_design_source(model, data, param, steps):
                 'Bitte erzwungenes Netzprofil und WP-Preset abgleichen.'
             )
         model.wh_hp_cap.fix(required_peak_kw)
+    _tes_design_constraints(model, data)
+
 
     if ind['mode'] == 'forced':
         for s in model.wh_sources:

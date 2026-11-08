@@ -573,6 +573,24 @@ class KPIs:
                     'subsidized_annual_cost': float(a) + float(o),
                     'unsubsidized_annual_cost': float(a) + float(o),
                 }
+                # Industrie-TES NUR anzeigen: EHDO hat Investition/O&M bereits
+
+        # in total_ann_inv_cost und total_om_cost beruecksichtigt.
+        grid = getattr(data, 'heat_grid_data', None)
+        ind = getattr(data, 'industry_optimization', None)
+        if (isinstance(grid, dict) and grid.get('heatgrid_generation') == '4G'
+                and isinstance(ind, dict)):
+            caps = getattr(data, 'centralDevices', {}).get('capacities', {})
+            tes_cap = float(caps.get('industry_tes_capacity_kWh', 0.0))
+            tes_ann = float(caps.get('industry_tes_annual_cost_EUR_a', 0.0))
+            if tes_cap > 1e-9:
+                if tes_ann <= 0.0:
+                    raise ValueError('Industrie-TES: positive Kapazitaet ohne EHDO-Kosten')
+                self.central_individual_devices_annualized_cost['Industry_TES'] = {
+                    'cap': tes_cap,  # kWh, NICHT kW
+                    'subsidized_annual_cost': tes_ann,
+                    'unsubsidized_annual_cost': tes_ann,
+                }
 
 
     def calculateDetailedCostsPerYear(self, data):
@@ -980,7 +998,7 @@ class KPIs:
             el_cost_heat = 0.0
             fixed_cost_heat = 0.0
 
-            heat_devices = {"TES", "EB", "FC", "WBOI", "WCHP", "BBOI", "BCHP", "HP", "GHP", "BOI", "CHP", "STC", "Industry_HP"}
+            heat_devices = {"TES", "EB", "FC", "WBOI", "WCHP", "BBOI", "BCHP", "HP", "GHP", "BOI", "CHP", "STC", "Industry_HP", 'Industry_TES'}
 
             heat_devices |= {
                 k for k in self.central_individual_devices_annualized_cost
@@ -1341,6 +1359,12 @@ class KPIs:
 
         dt_h = float(data.time["timeResolution"]) / 3600.0
         caps = getattr(data, "centralDevices", {}).get("capacities", {})
+        tes_enabled = bool(grid.get('industrial_tes_enabled', False))
+        if tes_enabled and 'industry_tes_capacity_kWh' not in caps:
+            raise ValueError(
+                'Industrie-TES wurde aktiviert, aber seine EHDO-Kapazitaet fehlt. '
+                'Bitte TES-Export in opti_dimensioning_central_devices.py pruefen.'
+            )
         self.industry_kpis_static = {
             "source_available_MWh_a": float(source.sum() * dt_h / 1000.0),
             "hp_capacity_kW": float(caps.get("industry_hp_capacity_kW", 0.0)),
@@ -1352,6 +1376,12 @@ class KPIs:
             'hx_annual_cost_EUR_a': float(caps.get('industry_hx_annual_cost_EUR_a', 0.0)),
             'hx_investment_EUR': float(sum(caps.get('industry_hx_investment_EUR_by_source', []))),
             'hx_annual_om_EUR_a': float(sum(caps.get('industry_hx_om_EUR_a_by_source', []))),
+            'tes_enabled': tes_enabled,
+            'tes_capacity_kWh': float(caps.get('industry_tes_capacity_kWh', 0.0)),
+            'tes_investment_EUR': float(caps.get('industry_tes_investment_EUR', 0.0)),
+            'tes_investment_base_EUR': float(caps.get('industry_tes_investment_base_EUR', 0.0)),
+            'tes_annual_cost_EUR_a': float(caps.get('industry_tes_annual_cost_EUR_a', 0.0)),
+            'tes_annual_om_EUR_a': float(caps.get('industry_tes_annual_om_EUR_a', 0.0)),
         }
 
         heat_total_MWh = (float(self.total_heating_demand) + float(self.total_dhw_demand)) * dt_h / 1000000.0
@@ -1360,6 +1390,13 @@ class KPIs:
                 "net_MWh_a", "loss_MWh_a", "hp_el_MWh_a")
         for year in self.inputData["simulated_years"]:
             values = {key: 0.0 for key in keys}
+            values.update({
+                'tes_charge_MWh_a': 0.0,
+                'tes_discharge_MWh_a': 0.0,
+                'tes_loss_MWh_a': 0.0,
+                'tes_soc_max_kWh': 0.0,
+                'tes_full_discharge_cycles_a': None,
+            })
             values["modelled_h_a"] = 0.0
 
             for c, cluster_id in enumerate(self.inputData["clusters"]):
@@ -1382,14 +1419,60 @@ class KPIs:
                 values["net_MWh_a"] += weight * to_MWh("net_W")
                 values["loss_MWh_a"] += weight * to_MWh("connection_loss_W")
                 values["hp_el_MWh_a"] += weight * to_MWh("hp_electric_W")
+                if tes_enabled:
+                    required = ('tes_charge_W', 'tes_discharge_W', 'tes_soc_Wh')
+                    missing = [name for name in required if name not in wh]
+                    if missing:
+                        raise ValueError(
+                            f'Industrie-TES-KPI: Ergebnisfelder fehlen in '
+                            f'Jahr {year}, Cluster {c}: {missing}. '
+                            'Bitte operating_result() in der Bridge pruefen.'
+                        )
+
+                    expected_n = np.asarray(wh['gross_W']).size
+                    for field in required:
+                        arr = np.asarray(wh[field], dtype=float)
+                        if arr.shape != (expected_n,) or not np.isfinite(arr).all():
+                            raise ValueError(
+                                f'Industrie-TES-KPI: {field} hat ungueltige '
+                                f'Form/Werte in Jahr {year}, Cluster {c}'
+                            )
+
+                    values['tes_charge_MWh_a'] += weight * to_MWh('tes_charge_W')
+                    values['tes_discharge_MWh_a'] += weight * to_MWh('tes_discharge_W')
+                    values['tes_soc_max_kWh'] = max(
+                        values['tes_soc_max_kWh'],
+                        float(np.max(wh['tes_soc_Wh'])) / 1000.0
+                    )
                 values["modelled_h_a"] += (
                         weight * np.asarray(wh["gross_W"]).size * dt_h
                 )
 
-            # Quellenwärme = direkte Nutzung + WP-Wärme - Verdichterstrom.
-            values["source_used_MWh_a"] = (
-                    values["gross_MWh_a"] - values["hp_el_MWh_a"]
+            # Primaer genutzte industrielle Abwaerme, VOR dem Standort-TES:
+            # Direkte Quellenwaerme + WP-Waerme minus WP-Strom.
+            values['source_used_MWh_a'] = (
+                    values['direct_MWh_a'] + values['hp_heat_MWh_a']
+                    - values['hp_el_MWh_a']
             )
+            if tes_enabled:
+                # Zyklische Wochen: Ladung - Entladung = innere Speicherverluste
+                # einschliesslich Wirkungsgraden und Stillstandsverlusten.
+                balance = (
+                        values['tes_charge_MWh_a']
+                        - values['tes_discharge_MWh_a']
+                )
+                if balance < -1e-5:
+                    raise ValueError(
+                        f'Industrie-TES-KPI: Entladung ist groesser als Ladung '
+                        f'(Jahr {year}, Differenz {balance:.6f} MWh). '
+                        'Zyklischen SOC/Ergebnisexport pruefen.'
+                    )
+                values['tes_loss_MWh_a'] = max(0.0, balance)
+                capacity_kWh = self.industry_kpis_static['tes_capacity_kWh']
+                if capacity_kWh > 1e-9:
+                    values['tes_full_discharge_cycles_a'] = (
+                            values['tes_discharge_MWh_a'] * 1000.0 / capacity_kWh
+                    )
             values["hp_cop"] = (
                 values["hp_heat_MWh_a"] / values["hp_el_MWh_a"]
                 if values["hp_el_MWh_a"] > 1e-9 else None
@@ -1496,6 +1579,11 @@ class KPIs:
                 "Industry HP Seasonal COP (-)": "hp_cop",
                 "Industry Share of Total Building Heat + DHW (%)": "district_heat_share_pct",
                 "Industry Cluster-Represented Hours (h/a)": "modelled_h_a",
+                'Industry TES Charge (MWh/a)': 'tes_charge_MWh_a',
+                'Industry TES Discharge (MWh/a)': 'tes_discharge_MWh_a',
+                'Industry TES Internal Loss (MWh/a)': 'tes_loss_MWh_a',
+                'Industry TES Maximum Observed SOC (kWh)': 'tes_soc_max_kWh',
+                'Industry TES Equivalent Full Discharges (-/a)': 'tes_full_discharge_cycles_a',
             }
             for label, key in industry_rows.items():
                 kpi_data_yearly[label] = {
@@ -1543,6 +1631,12 @@ class KPIs:
             kpi_data_static['Industry HX Annual O&M (EUR/a)'] = ind_static['hx_annual_om_EUR_a']
             for idx, (q, cap) in enumerate(zip(ind_static['hx_q_codes'], ind_static['hx_capacities_kW']), start=1):
                 kpi_data_static[f'Industry HX Source {idx} {q} Capacity (kW)'] = cap
+            kpi_data_static['Industry TES Offered (1=yes, 0=no)'] = int(ind_static['tes_enabled'])
+            kpi_data_static['Industry TES Installed Capacity (kWh)'] = ind_static['tes_capacity_kWh']
+            kpi_data_static['Industry TES Initial Investment (EUR)'] = ind_static['tes_investment_EUR']
+            kpi_data_static['Industry TES Initial Investment Unsubsidized (EUR)'] = ind_static['tes_investment_base_EUR']
+            kpi_data_static['Industry TES Annual Capacity Cost (EUR/a)'] = ind_static['tes_annual_cost_EUR_a']
+            kpi_data_static['Industry TES Annual O&M (EUR/a), already in capacity cost'] = ind_static['tes_annual_om_EUR_a']
             kpi_data_static["Industry KPI Basis"] = "Gewichtete repräsentative Wochen; nicht 8760h-validiert"
         kpi_data_static["Residential Area (m²)"] = self.totalarea_residential
         kpi_data_static["Non-Residential Area (m²)"] = self.totalarea_non_residential
@@ -1605,7 +1699,7 @@ class KPIs:
             # Determine unit based on device type
             if device_name == "Heat_Grid" or device_name == "heat_grid_OEB":
                 unit = "-"
-            elif device_name in ["TES", "CTES", "BAT", "GS", "H2S"]:
+            elif device_name in ["TES", "CTES", "BAT", "GS", "H2S", "Industry_TES"]:
                 unit = "kWh"
             elif device_name in ["PV", "STC", "WT"]:
                 unit = "kW"

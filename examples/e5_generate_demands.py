@@ -12,6 +12,8 @@ Then choose 'Modify Run Configuration' and tick 'Run with Python Console'.
 from districtgenerator.classes import *
 import pandas as pd
 import matplotlib.pyplot as plt
+import sys
+print("Verwendeter Python-Interpreter:", sys.executable)
 
 def example5_generate_demands():
 

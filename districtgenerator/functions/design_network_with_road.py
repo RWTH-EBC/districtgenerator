@@ -573,9 +573,17 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
 
         # Find nodes in the same row (including building connection points and the transformer)
         rows = defaultdict(list)  # row_key -> [(cp_id, pos)]
+        row_tolerance_m = 1e-6 # Verhindert das Entstehen von 1e-14 Meter langen Rohren
+
         for cp_id, pos in enumerate(heat_network_points[:num_cp]):
-            # Determine a “row key” by using the y-coordinate of each point
-            yk = pos[1]
+            y = float(pos[1])
+
+            yk = next(
+                (ref_y for ref_y in rows
+                 if abs(y - ref_y) < row_tolerance_m),
+                y,
+            )
+
             rows[yk].append((cp_id, pos))
 
         # Add nodes that align vertically with the transformer (for vertical connection lines)
@@ -585,9 +593,8 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
         i = len(heat_network_points)
         for yk, lst in rows.items():
             # Compute the position of the column connection node for this row
-            col_node = tuple([x_col, lst[0][1][1]])
-
-            if col_node[1] != transformer[1]:
+            col_node = (float(x_col), float(yk))
+            if abs(col_node[1] - float(transformer[1])) >= row_tolerance_m:
                 # Skip if the node overlaps with the transformer itself
                 lst.append((i, col_node))  # Add the new column node to this row
                 col_nodes.append(col_node)

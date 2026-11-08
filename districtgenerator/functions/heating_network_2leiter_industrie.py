@@ -143,6 +143,8 @@ INDUSTRY_HEAT_MODE = None  # "direct_only" | "all_sources_hp" | None
 # "forced": maximal mögliche Nutzung, beschränkt durch Wärmeabnahme und Technik
 # "optimizer": quellenweise freigegeben; zunächst keine Einspeisung ohne Optimierungsergebnis
 INDUSTRY_DISPATCH_MODE = None  # "forced" | "optimizer" | None
+INDUSTRY_TES_MODE = None  # 'off' | 'on' | None
+INDUSTRY_EH_PEAK_RESERVE_MODE = None  # None = Abfrage; 'on' / 'off' = Preset
 
 # Vorläufige technische Parameter, keine validierte WP-Kennlinie!
 INDUSTRY_HP_ETA_CARNOT = 0.40
@@ -161,6 +163,8 @@ def _choose_setting(value, preset, kind):
                  "direct_only": "direct_only", "all_sources_hp": "all_sources_hp"},
         "dispatch": {"1": "forced", "2": "optimizer",
                      "forced": "forced", "optimizer": "optimizer"},
+        'tes': {'1': 'off', '2': 'on', 'off': 'off', 'on': 'on'},
+        'eh_peak': {'1': 'on', '2': 'off', 'on': 'on', 'off': 'off'},
     }[kind]
     proposed = preset if value is None else value
     if proposed is not None:
@@ -174,10 +178,20 @@ def _choose_setting(value, preset, kind):
         print("\nINDUSTRIELLE ABWÄRME – TEMPERATURVARIANTE")
         print("  1 = Nur Quellen mit ausreichender Temperatur direkt einspeisen")
         print("  2 = Auch zu kalte Quellen über eine Industrie-Wärmepumpe nutzbar")
-    else:
+    elif kind == 'dispatch':
         print("\nINDUSTRIELLE ABWÄRME – EINSATZSTRATEGIE")
         print("  1 = Erzwungene Strategie: verfügbare Wärme vorrangig bis zum Bedarf nutzen")
         print("  2 = Optimierer entscheidet später für jede Quelle über die Nutzung")
+    elif kind == 'tes':
+        print("\nINDUSTRIELLE ABWAERME – WAERMESPEICHER AM INDUSTRIESTANDORT")
+        print("  1 = Keinen Industrie-TES beruecksichtigen")
+        print("  2 = Industrie-TES als Optimierungsoption zulassen")
+    elif kind == 'eh_peak':
+        print("\nENERGIEZENTRALE – KONSERVATIVE SPITZENLASTAUSLEGUNG")
+        print("  1 = Ja: EH1 kann die Wärmelastspitze auch ohne Industrie immer versorgen (konservative Auslegung)")
+        print("  2 = Nein: EHDO dimensioniert ohne diese zusätzliche Reserve (ökonomische Auslegung)")
+    else:
+        raise ValueError(f"Unbekannte Industrie-Einstellung: {kind}")
     while True:
         answer = input("Auswahl [1/2]: ").strip().lower()
         if answer in choices:
@@ -644,6 +658,10 @@ def design_pumps_two_scenarios(data, param, m_consumers, m_wh_design,
                 "WH1_power_max_W": float(np.max(param["P_pump_WH_W"])),
                 "EH1_dp_max_Pa": float(np.max(param["dp_pump_EH_Pa"])),
                 "WH1_dp_max_Pa": float(np.max(param["dp_pump_WH_Pa"])),
+                # Nennfoerderstrom pro Pumpe, auch wenn beide Pumpen
+                # ihre Spitzen nicht in derselben Stunde erreichen.
+                "EH1_flow_max_m3_h": (float(np.max(m_eh_case)) / float(grid["fluid"]["rho_f"]) * 3600.0),
+                "WH1_flow_max_m3_h": (float(np.max(wh)) / float(grid["fluid"]["rho_f"]) * 3600.0),
             }
     finally:
         # Die beiden Auslegungsfaelle duerfen die Betriebswerte NICHT ueberschreiben.
@@ -653,24 +671,36 @@ def design_pumps_two_scenarios(data, param, m_consumers, m_wh_design,
         data, param = compute_dual_pumps(data, param, m_eh_actual, m_wh_actual)
 
     safety = float(grid.get("pump_safety_factor", 1.3))
+    eta = float(grid["pump"]["eta_pump"])
     if not np.isfinite(safety) or safety <= 0:
         raise ValueError("pump_safety_factor muss positiv und endlich sein")
-    p_eh_kw = safety * max(c["EH1_power_max_W"] for c in cases.values()) / 1000.0
-    p_wh_kw = safety * max(c["WH1_power_max_W"] for c in cases.values()) / 1000.0
+    if not np.isfinite(eta) or not (0 < eta <= 1):
+        raise ValueError("eta_pump muss zwischen 0 und 1 liegen")
+
+    # Jede physische Pumpe hat ihren EIGENEN Bemessungspunkt (V_dot, dp).
+    # Die groessten V_dot und dp koennen zu verschiedenen Stunden gehoeren.
+    # Das Produkt der beiden Huelle-Maxima ist bewusst konservativ.
+    flow_eh_m3_h = max(c["EH1_flow_max_m3_h"] for c in cases.values())
+    flow_wh_m3_h = max(c["WH1_flow_max_m3_h"] for c in cases.values())
     dp_eh = safety * max(c["EH1_dp_max_Pa"] for c in cases.values())
     dp_wh = safety * max(c["WH1_dp_max_Pa"] for c in cases.values())
+    p_eh_kw = (flow_eh_m3_h / 3600.0) * dp_eh / eta / 1000.0
+    p_wh_kw = (flow_wh_m3_h / 3600.0) * dp_wh / eta / 1000.0
 
-    # Bestehende Kostenrechnung verwendet pump_power_design [kW].
-    # Nicht max(EH+WH), sondern Summe der einzeln ausgelegten Pumpen.
-    grid["pump_power_design"] = p_eh_kw + p_wh_kw
-    grid["dp_pump_max"] = max(dp_eh, dp_wh)
-    grid["pump_power_design_EH_kW"] = p_eh_kw
-    grid["pump_power_design_WH_kW"] = p_wh_kw
+    grid["pump_flow_design_EH_m3_h"] = flow_eh_m3_h
+    grid["pump_flow_design_WH_m3_h"] = flow_wh_m3_h
     grid["dp_pump_design_EH_Pa"] = dp_eh
     grid["dp_pump_design_WH_Pa"] = dp_wh
+    grid["pump_power_design_EH_kW"] = p_eh_kw
+    grid["pump_power_design_WH_kW"] = p_wh_kw
+    grid["pump_number_design"] = int(p_eh_kw > 1e-12) + int(p_wh_kw > 1e-12)
+
+    # Abwaertskompatible Summenfelder sind KEINE dritte/gemeinsame Pumpe.
+    grid["pump_power_design"] = p_eh_kw + p_wh_kw
+    grid["dp_pump_max"] = max(dp_eh, dp_wh)  # Nur Vergleichswert, NICHT addieren!
     param["pump_design_cases"] = cases
-    param["pump_design_method"] = "EH_only_und_WH_max_vor_Pyomo"
-    # grid['P_pump'] und param['P_pump_*_W'] bleiben der aktuelle Betrieb.
+    param["pump_design_method"] = "EH1_WH1_separater_Volumenstrom_und_Druck"
+    # Betriebszeitreihen und Rohr-DN bleiben unveraendert.
     return data, param
 
 
@@ -721,18 +751,36 @@ def _make_industry_costs(data, param):
     pipe_ann = grid["pipe"]["pipe_ann_factor"]
     pipes_annual = (inv_pipes + inv_construction) * pipe_ann
     pipes_om = (inv_pipes + inv_construction) * grid["pipe"]["cost_om_pipe"]
-    pump_inv = grid["pump_power_design"] * grid["pump"]["inv_pump"]
-    pump_annual = pump_inv * grid["pump"]["pump_ann_factor"]
-    pump_om = pump_inv * grid["pump"]["cost_om_pump"]
+    # ZWEI getrennt bemessene physische Pumpen; gleicher bisheriger
+    # linearer EUR/kW-Kostenansatz je Pumpe. Kein zusaetzlicher Fixpreis.
+    pump_inv_eh = grid["pump_power_design_EH_kW"] * grid["pump"]["inv_pump"]
+    pump_inv_wh = grid["pump_power_design_WH_kW"] * grid["pump"]["inv_pump"]
+    pump_inv = pump_inv_eh + pump_inv_wh
+    pump_annual_eh = pump_inv_eh * grid["pump"]["pump_ann_factor"]
+    pump_annual_wh = pump_inv_wh * grid["pump"]["pump_ann_factor"]
+    pump_annual = pump_annual_eh + pump_annual_wh
+    pump_om_eh = pump_inv_eh * grid["pump"]["cost_om_pump"]
+    pump_om_wh = pump_inv_wh * grid["pump"]["cost_om_pump"]
+    pump_om = pump_om_eh + pump_om_wh
     pump_kWh_a = float(np.sum(grid["P_pump"])) / 1000.0
     costs = {
-        "pipe_investment_EUR": inv_pipes,
         "construction_investment_EUR": inv_construction,
-        "pipe_annuity_EUR_a": pipes_annual,
-        "pipe_om_EUR_a": pipes_om,
         "pump_investment_EUR": pump_inv,
+        "pump_investment_EH_EUR": pump_inv_eh,
+        "pump_investment_WH_EUR": pump_inv_wh,
         "pump_annuity_EUR_a": pump_annual,
+        "pump_annuity_EH_EUR_a": pump_annual_eh,
+        "pump_annuity_WH_EUR_a": pump_annual_wh,
         "pump_om_EUR_a": pump_om,
+        "pump_om_EH_EUR_a": pump_om_eh,
+        "pump_om_WH_EUR_a": pump_om_wh,
+        "pump_number_design": grid["pump_number_design"],
+        "pump_flow_design_EH_m3_h": grid["pump_flow_design_EH_m3_h"],
+        "pump_flow_design_WH_m3_h": grid["pump_flow_design_WH_m3_h"],
+        "dp_pump_design_EH_Pa": grid["dp_pump_design_EH_Pa"],
+        "dp_pump_design_WH_Pa": grid["dp_pump_design_WH_Pa"],
+        "pump_power_design_EH_kW": grid["pump_power_design_EH_kW"],
+        "pump_power_design_WH_kW": grid["pump_power_design_WH_kW"],
         "pump_electric_kWh_a": pump_kWh_a,
         "costs_exclude_industrial_hp": True,
         "costs_exclude_substations": True,
@@ -1092,9 +1140,19 @@ def plot_industry_network_after_optimization(data):
             gross = _series(wh, 'gross_W', steps)
             net = _series(wh, 'net_W', steps)
             wh_loss_opti = _series(wh, 'connection_loss_W', steps)
-            if (not np.allclose(direct_matrix.sum(axis=0) + hp_matrix.sum(axis=0), gross, atol=.01)
+            tes_charge = (_series(wh, 'tes_charge_W', steps)
+                          if 'tes_charge_W' in wh else np.zeros(steps))
+            tes_discharge = (_series(wh, 'tes_discharge_W', steps)
+                             if 'tes_discharge_W' in wh else np.zeros(steps))
+            gross_expected = (direct_matrix.sum(axis=0)
+                              + hp_matrix.sum(axis=0)
+                              - tes_charge + tes_discharge)
+            if (not np.allclose(gross_expected, gross, atol=.01)
                     or not np.allclose(gross - net, wh_loss_opti, atol=.01)):
-                raise ValueError(f'Industrie-Postplot: Pyomo-Wärmebilanz in Jahr {year}, Cluster {c} inkonsistent.')
+                raise ValueError(
+                    f'Industrie-Postplot: Quellen-/TES-/Netzbilanz in Jahr {year}, '
+                    f'Cluster {c} inkonsistent.'
+                )
 
             start = medoid * steps
             sl = slice(start, start + steps)
@@ -1401,6 +1459,8 @@ def network_2leiter_industrie(
     Re-run with optimized_direct_kW / optimized_hp_kW after optimization.
     """
     mode_heat, mode_dispatch = resolve_industry_modes(heat_mode, dispatch_mode)
+    tes_enabled = (_choose_setting(None, INDUSTRY_TES_MODE, 'tes') == 'on')
+    eh_peak_reserve_enabled = _choose_setting(None, INDUSTRY_EH_PEAK_RESERVE_MODE, 'eh_peak') == 'on'
     eta = INDUSTRY_HP_ETA_CARNOT if hp_eta_carnot is None else float(hp_eta_carnot)
     max_hp = INDUSTRY_HP_MAX_OUTPUT_KW if hp_max_output_kw is None else hp_max_output_kw
     approach = INDUSTRY_DIRECT_APPROACH_K if direct_approach_K is None else float(direct_approach_K)
@@ -1663,6 +1723,9 @@ def network_2leiter_industrie(
     data.heat_grid_data["industrial_dispatch_pending"] = pending
     data.heat_grid_data["industrial_heat_mode"] = mode_heat
     data.heat_grid_data["industrial_dispatch_mode"] = mode_dispatch
+    data.heat_grid_data['industrial_tes_enabled'] = bool(tes_enabled)
+    data.heat_grid_data['industrial_eh_peak_reserve_enabled'] = bool(eh_peak_reserve_enabled)
+
 
     _save_industry_topology(data, folder)
     _plot_industry_topology(data, folder)

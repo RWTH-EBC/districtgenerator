@@ -222,7 +222,14 @@ def build_model(model, data, devs, param, dem):
     ################################################################################
     model.constraints = pyo.ConstraintList()
     # Quellenspezifische WH1-Variablen nur bei 4G mit Industrieszenario.
-    wh = industrie_opt.add_design_source(model, data, param, cluster_horizon)
+    wh = industrie_opt.add_design_source(model, data, param, cluster_horizon, devs=devs)
+
+    # Ohne Industriebeteiligung immer das bisherige EHDO-Verhalten erhalten.
+    eh_peak_reserve_active = (wh is None or bool(data.heat_grid_data.get('industrial_eh_peak_reserve_enabled', True)))
+    if wh is not None:
+        print('[EHDO] EH1-Waermespitzenreserve:',
+              'AN (EH1 kann allein die Spitze decken)' if eh_peak_reserve_active
+              else 'AUS (Industrie wird in den Clusterstunden mitoptimiert)')
 
     is_5g_fixed = data.heat_grid_data["heatgrid_generation"] == "5G"
 
@@ -432,16 +439,17 @@ def build_model(model, data, devs, param, dem):
 
     if param["peak_dem_met_conv"]:
         # Heating (conventional - only controllable devices)
-        model.constraints.add(model.cap["HP"] + model.cap["GroundHP"] + model.cap["EB"]
-                              + model.cap["CHP"] / devs["CHP"]["eta_el"] * devs["CHP"]["eta_th"]
-                              + model.cap["BOI"]
-                              + model.cap["GHP"]
-                              + model.cap["BCHP"] / devs["BCHP"]["eta_el"] * devs["BCHP"]["eta_th"]
-                              + model.cap["BBOI"]
-                              + model.cap["WCHP"] / devs["WCHP"]["eta_el"] * devs["WCHP"]["eta_th"]
-                              + model.cap["WBOI"]
-                              + model.cap["FC"] / devs["FC"]["eta_el"] * devs["FC"]["eta_th"]
-                              >= param["peak_heat"])
+        if eh_peak_reserve_active:
+            model.constraints.add(model.cap["HP"] + model.cap["GroundHP"] + model.cap["EB"]
+                                  + model.cap["CHP"] / devs["CHP"]["eta_el"] * devs["CHP"]["eta_th"]
+                                  + model.cap["BOI"]
+                                  + model.cap["GHP"]
+                                  + model.cap["BCHP"] / devs["BCHP"]["eta_el"] * devs["BCHP"]["eta_th"]
+                                  + model.cap["BBOI"]
+                                  + model.cap["WCHP"] / devs["WCHP"]["eta_el"] * devs["WCHP"]["eta_th"]
+                                  + model.cap["WBOI"]
+                                  + model.cap["FC"] / devs["FC"]["eta_el"] * devs["FC"]["eta_th"]
+                                  >= param["peak_heat"])
 
         # Cooling
         model.constraints.add(model.cap["CC"] + model.cap["AC"] >= param["peak_cool"])
@@ -666,7 +674,10 @@ def build_model(model, data, devs, param, dem):
     model.constraints.add(
         model.total_annual_costs_devices
         == sum(model.c_total[dev] for dev in model.all_devs)
-        + ((model.wh_annual_capex + model.wh_hx_annual_cost) if wh is not None else 0)
+        + ((model.wh_annual_capex
+            + model.wh_hx_annual_cost
+            + (model.wh_tes_annual_cost if hasattr(model, 'wh_tes_capacity') else 0))
+           if wh is not None else 0)
     )
 
     # Heat grid costs
@@ -826,9 +837,15 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
 
     # --- Complete and original filling of the result_dict ---
     result_dict["devs"] = devs
+    if industrie_opt.enabled(data):
+        result_dict['industry_eh_peak_reserve_enabled'] = bool(data.heat_grid_data.get('industrial_eh_peak_reserve_enabled', True))
     if hasattr(model, "wh_hp_cap"):
         result_dict["industry_hp_capacity_kW"] = float(pyo.value(model.wh_hp_cap))
         result_dict["industry_hp_annuity_EUR_a"] = float(pyo.value(model.wh_annual_capex))
+    if hasattr(model, 'wh_tes_capacity'):
+        result_dict['industry_tes_capacity_kWh'] = float(pyo.value(model.wh_tes_capacity))
+        result_dict['industry_tes_sto_loss'] = float(model.wh_tes_loss)
+        result_dict['industry_tes_annual_cost_EUR_a'] = float(pyo.value(model.wh_tes_annual_cost))
     result_dict['industry_hx_capacities_kW'] = [
         float(pyo.value(model.wh_hx_cap[s])) for s in model.wh_sources
     ]
@@ -902,6 +919,23 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
         result_dict['total_ann_inv_cost'] += int(round(sum(hx_ann)))
         result_dict['total_ann_inv_cost_unsubsidized'] += int(round(sum(hx_ann)))
         result_dict['total_om_cost'] += int(round(sum(hx_om)))
+
+    if hasattr(model, 'wh_tes_capacity'):
+        e = float(pyo.value(model.wh_tes_capacity))
+        inv = e * model.wh_tes_inv_var
+        inv_base = e * model.wh_tes_inv_base
+        ann_inv = inv * model.wh_tes_ann_factor
+        ann_inv_base = inv_base * model.wh_tes_ann_factor
+        om = inv_base * model.wh_tes_om_fraction
+        result_dict['industry_tes_investment_EUR'] = inv
+        result_dict['industry_tes_investment_base_EUR'] = inv_base
+        result_dict['industry_tes_annual_investment_EUR_a'] = ann_inv
+        result_dict['industry_tes_annual_om_EUR_a'] = om
+        result_dict['total_inv_cost'] += int(round(inv))
+        result_dict['total_inv_cost_unsubsidized'] += int(round(inv_base))
+        result_dict['total_ann_inv_cost'] += int(round(ann_inv))
+        result_dict['total_ann_inv_cost_unsubsidized'] += int(round(ann_inv_base))
+        result_dict['total_om_cost'] += int(round(om))
 
     # Total energy imports and exports - per support year
     result_dict["from_el_grid_total_by_year"] = {y: int(safe_value(model.from_el_grid_total, y) / 1000) for y in model.support_years} #MWh
