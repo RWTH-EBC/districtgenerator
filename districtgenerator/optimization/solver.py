@@ -87,12 +87,16 @@ OPTION_MAP = {
         'scip': None,  # SCIP has no direct NonConvex parameter
     },
     # Enable/disable presolve
+    # Values differ between solvers: HiGHS expects "on", "off" or "choose", CBC "on"/"off", GLPK True/False
     'presolve': {
         'highs': 'presolve',
         'cbc': 'preprocess',
         'glpk': 'presol'
     },
     # Parallelization level or number of threads (if different)
+    # Parallelization mode (not the number of threads, use 'threads' for that)
+    # HiGHS expects "on", "off" or "choose". For Gurobi and CBC this is the same as 'threads',
+    # so do not set both options at the same time.
     'parallel': {
         'gurobi': 'Threads',  # same as 'threads' in Gurobi
         'highs': 'parallel',
@@ -193,7 +197,7 @@ def create_solver(pyomo_config = None, solver_name=None,timelimit=_NO_INPUT, mip
 
     # 4. Get solver specific options
     if timelimit is _NO_INPUT:
-        pass  # Use the value from the JSON file if no Input is provided
+        pass  # Use the value from the configuration if no input is provided
     elif timelimit is None:
         solver_options["time_limit"] = 3600 # if None a default time limit of 3600 seconds is set (1hour)
     else:
@@ -268,6 +272,10 @@ def execute_and_diagnose(model, pyomo_config, model_name, result_dir):
     """
     # Initialize solver
     solver, solver_options = create_solver(pyomo_config=pyomo_config)
+
+    if pyomo_config["solver_name"] == "highs":
+        import highspy
+        highspy.Highs.resetGlobalScheduler(True)
 
     # Save the model to an .lp file
     lp_filename = os.path.join(result_dir, f"{model_name}.lp")

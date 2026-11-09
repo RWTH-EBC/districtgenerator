@@ -16,7 +16,7 @@ from districtgenerator import Datahandler
 
 def example6_config_file_loading():
     ### How to change parameters
-    # All parameters and their default values are defined in TODO districtgenerator/data_handling/config.py.
+    # All parameters and their default values are defined in districtgenerator/config/settings.py.
     # To change parameters, you create your own configuration file that ONLY contains the parameters you want to
     # change. All other parameters keep their default values.
     #
@@ -31,7 +31,7 @@ def example6_config_file_loading():
     #
     # The file '.env.CONFIG.FREIBURG' used in this example is such a file.
 
-    # In this example we use the existing example-file freiburg.csv with four buildings.
+    # In this example we use the existing example example_decentral_freiburg.csv with four buildings.
 
     # 1. Changing the location and weather data:
     #    To set the district's location to Freiburg im Breisgau and use the warm

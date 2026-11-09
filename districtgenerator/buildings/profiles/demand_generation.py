@@ -164,7 +164,7 @@ def run_demand_worker(context, building, calcUserProfiles, saveUserProfiles, gen
     }
 
 
-def generate_demands(data, calcUserProfiles=True, saveUserProfiles=True, max_workers=8, gen_cars=True):
+def generate_demands(data, calcUserProfiles=True, saveUserProfiles=True, max_workers=None, gen_cars=True):
     """
     Generate demand profiles for all buildings.
 
@@ -175,12 +175,15 @@ def generate_demands(data, calcUserProfiles=True, saveUserProfiles=True, max_wor
     saveUserProfiles : bool, optional
         Whether generated user profiles should be saved.
     max_workers : int, optional
-        Maximum number of parallel workers.
+        Maximum number of parallel workers. If None, BUILDING_MAX_WORKERS from the config is used.
     gen_cars : bool, optional
         Whether car profiles should be generated.
     use_multiprocessing : str
         ProcessPoolExecutor or ThreadPoolExecutor is used.
     """
+
+    if max_workers is None:
+        max_workers = data.building_max_workers
 
     data.buildings_total = len(data.district)
     data.buildings_completed = 0

@@ -1,27 +1,41 @@
-districtgenerator/results/*
-districtgenerator/data/scenarios/*
-.venv
+# --- Python & Build Caches ---
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+build/
+dist/
+*.egg-info/
+*.egg/
+*.eggs
+districtgenerator.egg-info/
+
+# --- IDEs ---
+.idea/
+.vscode/
+
+# --- Project-specific data & results ---
+districtgenerator/results/
+districtgenerator/data/scenarios/
+districtgenerator/data/weather/
 errorfile.txt
-build
+# local, personal config overrides (template: districtgenerator/data/.env.CONFIG.EXAMPLE)
+/districtgenerator/data/config/.env.CONFIG*
+
+# --- temporary data, backup & logs ---
 *.bk
 *.log
+
+# --- Solver solution files  ---
 *.lp
 *.sol
 *.ilp
 *.prm
 *.mps
+
+# --- Data Serialization (Pickles etc.) ---
 *.p
 *.pkl
-__pycache__/
-.idea/
-demands/
-districtgenerator/data/weather/*
-*.egg-info/
-*.egg/
-*.eggs
-districtgenerator.egg-info/*
-docs/_build/
-*pyc
 
-# local, personal config overrides (template: districtgenerator/data/.env.CONFIG.EXAMPLE)
-/districtgenerator/data/.env.CONFIG*
+# --- Documentation ---
+docs/_build/

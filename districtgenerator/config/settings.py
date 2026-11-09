@@ -10,7 +10,7 @@ from dataclasses import field
 import os
 import warnings
 
-from typing import Dict, Literal, Optional, Set, Tuple, ClassVar
+from typing import Dict, Literal, Optional, Set, Tuple, ClassVar, Annotated
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -18,7 +18,7 @@ from districtgenerator.utilities.paths import DATA_DIR
 
 #############################
 # NOTE: After changing parameters, defaults or their comments in this file, regenerate the template:
-#   python -m districtgenerator.data_handling.generate_env_example
+#   python -m districtgenerator.config.generate_env_example
 #############################
 
 ### Helper functions ###
@@ -123,7 +123,7 @@ class LocationConfig(BaseSettings):
     albedo: float = 0.2         # Ground reflectance. 0 refers to 0% and 1 refers to 100%.
     TRYYear: str = 'TRY2015'    # Test reference year of DWD. Possible entries are TRY2015 and TRY2045.
     TRYType: str = 'Jahr'       # Test reference conditions of DWD. Possible entries are Jahr, Somm, Wint.
-    district_area: float = 1.0   # Area of the district in ha (hectare)
+    district_area: float = 0.5   # Area of the district in ha (hectare)
     zip: str = '10115'          # Zip code of the location.
     enable_trafoMax_W: bool = False  # Consider active power cap for the district transformer. If set, it is used for BOTH import and export at the GNP.
     trafoMax_W: float = 500000.0 # Active power cap for the district transformer. If set, it is used for BOTH import and export at the GNP. (Watt)
@@ -210,10 +210,10 @@ class DesignBuildingConfig(BaseSettings):
     This class contains parameters related to building design, such as temperature settings, ventilation rates,
     building types, retrofit options, and domestic hot water (DHW) load.
     """
-    T_set_min: float = 21.0         # Required minimum indoor temperature (for heating load calculation) in degrees Celsius
+    T_set_min: float = 20.0         # Required minimum indoor temperature (for heating load calculation) in degrees Celsius
     T_set_min_night: float = 18.0   # Required minimum indoor temperature at night (for heating load calculation) in degrees Celsius
-    T_set_min_free_day: float = 18.0 # Minimum required indoor temperature on a non-working day in a non-residential building (for heating load calculations)
-    T_set_max: float = 24.0         # Required maximum indoor temperature (for cooling load calculation) in degrees Celsius
+    T_set_min_free_day: float = 16.0 # Minimum required indoor temperature on a non-working day in a non-residential building (for heating load calculations)
+    T_set_max: float = 23.0         # Required maximum indoor temperature (for cooling load calculation) in degrees Celsius
     T_set_max_night: float = 28.0   # Required maximum indoor temperature at night (for cooling load calculation) in degrees Celsius
     T_bivalent: float = -2.0        # Dual mode temperature (for heat pump design) in degrees Celsius
     T_heatlimit: float = 15.0       # Limit temperature (for heat pump design)
@@ -287,32 +287,32 @@ class EcoConfig(BaseSettings):
 
     # The interpolation points can be either defined by specifying the exact years in interpolation_points or by choosing a number of interpolation points num_interpolation_points.
     # *Warning: num_interpolation_points overrides interpolation_points if both are specified.
-    num_interpolation_points: Optional[int] = None # Number of interpolation points if not None these are used, otherwise the exact position is used
+    num_interpolation_points: Optional[int] = 1 # Number of interpolation points if not None these are used, otherwise the exact position is used
     interpolation_points: str | list[int] = [0,5,10,15] # Exact interpolation points if num_interpolation_points is None, these points are used for interpolation
 
 
     # electricity prices and feed-in revenue in €/kWh
-    price_supply_el: str | list = [0.3969]    # Electricity price in €/kWh
+    price_supply_el: str | list = [0.3460]    # Electricity price in €/kWh
     revenue_feed_in_el: str | list = [0.0794]  # Feed-in electricity price in €/kWh
 
     price_supply_el_eh: str | list = [0.1590]  # Electricity price for the energy hub in €/kWh
     revenue_feed_in_el_eh: str | list = [0.0794] # Feed-in electricity price for the energy hub in €/kWh
 
     # gas and other fuel prices in €/kWh
-    price_supply_gas: str | list = [0.1236]   # Gas price in €/kWh
+    price_supply_gas: str | list = [0.1230]   # Gas price in €/kWh
     price_supply_gas_eh: str | list = [0.0820] # Gas price for the energy hub in €/kWh
     revenue_feed_in_gas: str | list = [0.02]  # Revenue for natural gas feed-in €/kWh
     price_gasoline_liter: str | list = [1.70]  # Gasoline price in €/liter
-    price_hydrogen: str | list = [0.1]         # Hydrogen price in €/kWh
+    price_hydrogen: str | list = [0.2990]         # Hydrogen price in €/kWh
     price_waste: str | list = [0.1]            # Waste price in €/kWh
-    price_biomass: str | list = [0.05]         # Biomass price in €/kWh
+    price_biomass: str | list = [0.0580]         # Biomass price in €/kWh
     price_oil: str | list = [0.90]           # Oil price in €/kWh
     price_district_heat: str | list = [0.16385]  # Gross district heat price in €/kWh
 
     # CO2 emission factors in kg/kWh
-    co2_el_grid: str | list = [0.363]          # CO2 emissions for electricity import (grid mix) in kg/kWh
-    co2_gas: str | list = [0.201]              # CO2 emissions for burning natural gas in kg/kWh
-    co2_biom: str | list = [0.35]              # CO2 emissions for burning biomass in kg/kWh
+    co2_el_grid: str | list = [0.328]          # CO2 emissions for electricity import (grid mix) in kg/kWh
+    co2_gas: str | list = [0.240]              # CO2 emissions for burning natural gas in kg/kWh
+    co2_biom: str | list = [0.020]              # CO2 emissions for burning biomass in kg/kWh
     co2_hydrogen: str | list = [0.0402]           # CO2 emissions for burning hydrogen in kg/kWh
     co2_oil: str | list = [0.310]              # CO2 emissions for burning oil in kg/kWh
     co2_waste: str | list = [0.02]              # CO2 emissions for burning waste in kg/kWh
@@ -571,12 +571,12 @@ class EHDOConfig(BaseSettings):
     enable_price_cap_el: bool = False       # Enable electricity capacity price, bool.
     price_cap_el: float = 60                # Electricity capacity price in €/kWh.
     enable_cap_limit_el: bool = False       # Consider capacity of grid connection, bool.
-    cap_limit_el: float = 100000  # in kW   # Capacity of grid connection in kW.
+    cap_limit_el: float = 100000       # Capacity of grid connection in kW.
     enable_supply_limit_el: bool = False    # Enable restriction of electricity demand from grid, bool.
     supply_limit_el: float = 100000         # Restrict electricity demand from grid in MWh/year
 
     # Gas configuration
-    enable_supply_gas: bool = False         # Enable gas supply, bool.
+    enable_supply_gas: bool = True         # Enable gas supply, bool.
     enable_price_cap_gas: bool = False      # Enable gas capacity price, bool.
     price_cap_gas: float = 0.04             # Gas capacity price in €/kWh
     enable_feed_in_gas: bool = False        # Enable natural gas feed-in, bool.
@@ -584,17 +584,17 @@ class EHDOConfig(BaseSettings):
     cap_limit_gas: float = 1000000          # Maximum annual energy drawn from the gas grid in MWh/year
 
     # Biomass configuration
-    enable_supply_biomass: bool = False         # Restrict available biomass, bool.
+    enable_supply_biomass: bool = False         # Enable biomass supply, bool.
     enable_supply_limit_biomass: bool = False   # Enable limit annual biomass import, bool.
     supply_limit_biomass: float = 1000000       # Maximum available biomass in MWh/year
 
     # Hydrogen configuration
-    enable_supply_hydrogen: bool = False        # Restrict available hydrogen, bool.
+    enable_supply_hydrogen: bool = False        # Enable hydrogen supply, bool.
     enable_supply_limit_hydrogen: bool = False  # Enable limit annual hydrogen import, bool.
     supply_limit_hydrogen: float = 1000000      # Maximum available Hydrogen in MWh/year
 
     # Waste configuration
-    enable_supply_waste: bool = False           # Restrict available waste, bool.
+    enable_supply_waste: bool = False           # Enable waste supply, bool.
     enable_supply_limit_waste: bool = False     # Enable limit annual waste import, bool.
     supply_limit_waste: float = 1000000         # Maximum available waste in MWh/year
 
@@ -641,7 +641,13 @@ class Scenario(BaseSettings):
     """
     scenario_name: str = 'base_scenario' # default value for scenario name
     parallelization: str = 'multiprocessing' # default value for parallelization type, options: 'multiprocessing', 'threading'
-    random_seed: Optional[int] = Field(default=None, ge=0)
+    building_max_workers: Annotated[int, Field(ge=1)] = 4  # Max. number of parallel workers for the demand generation of the buildings.
+    random_seed: Annotated[Optional[int], Field(ge=0)] = None  # Set an integer (e.g. 42) for repeatable profiles; empty or None leaves randomness enabled.
+    design_energy_hub: bool = False # Request energy-hub design without a thermal network.
+    # Parallelization of the flats inside one residential building (Users.calcProfiles).
+    # 'none' keeps flats sequential; worker counts multiply with the building-level workers.
+    flat_parallelization: Literal['none', 'threading', 'multiprocessing'] = 'none'
+    flat_max_workers: Annotated[int, Field(ge=1)] = 4  # Max. number of workers for the flat parallelization.
 
     @field_validator('random_seed', mode='before')
     @classmethod
@@ -650,11 +656,6 @@ class Scenario(BaseSettings):
         if isinstance(value, str) and value.strip().lower() in ('', 'none', 'null'):
             return None
         return value
-    design_energy_hub: bool = False # Request energy-hub design without a thermal network.
-    # Parallelization of the flats inside one residential building (Users.calcProfiles).
-    # 'none' keeps flats sequential; worker counts multiply with the building-level workers.
-    flat_parallelization: Literal['none', 'threading', 'multiprocessing'] = 'none'
-    flat_max_workers: int = Field(default=4, ge=1)
 
     model_config = SettingsConfigDict(
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
@@ -742,12 +743,6 @@ class ReportConfig(BaseSettings):
     fonts__sizes__dense: int = 7
     fonts__sizes__page_number: int = 9
 
-    def parse_none_string(cls, v):
-        """Convert string 'None' to Python None"""
-        if v == "None" or v == "null" or v == "":
-            return None
-        return v
-
     @model_validator(mode='after')
     def process_config(self) -> 'ReportConfig':
         """Translate HEX to RGB and build all nested dictionaries."""
@@ -834,7 +829,7 @@ class DecentralDeviceConfig(BaseSettings):
     HP__life_time: int = 20  # Maximum life time in years.
     HP__inv_base: float = 1660.0  # Unsubsidized investment in €/kWth.
     HP__cost_om: float = 0.02  # Operation and maintenance costs as a fraction of investment costs in 1/year.
-    HP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    HP__inv_subsidy_rate: float = 0.3  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     HP__enable_low_temp_measures: bool = False  # Reduce the design heating curve to 50/40 °C where binding.
     HP__low_temp_measures_inv_fix: float = 226.0  # €/kW_th, additional investment if these measures are applied.
     HP: dict = {}
@@ -852,7 +847,7 @@ class DecentralDeviceConfig(BaseSettings):
     BOI__life_time: int = 20  # Maximum life time in years.
     BOI__inv_base: float = 527.0  # Unsubsidized investment in €/kW.
     BOI__cost_om: float = 0.031  # Operation and maintenance costs as a fraction of investment costs in 1/year.
-    BOI__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    BOI__inv_subsidy_rate: float = 0.0 # Investment subsidy rate as a fraction of investment cost (0 to 1).
     BOI: dict = {}
 
     # BBOI parameters (Biomass Boiler)
@@ -860,7 +855,7 @@ class DecentralDeviceConfig(BaseSettings):
     BBOI__life_time: int = 20  # Maximum life time in years.
     BBOI__inv_base: float = 2724.0  # Unsubsidized investment in €/kW
     BBOI__cost_om: float = 0.0095  # Operation and maintenance costs as a fraction of investment costs in 1/year.
-    BBOI__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    BBOI__inv_subsidy_rate: float = 0.3  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     BBOI: dict = {}
 
     # OBOI parameters (Oil Boiler)
@@ -876,7 +871,7 @@ class DecentralDeviceConfig(BaseSettings):
     H2BOI__life_time: int = 20  # Maximum life time in years.
     H2BOI__inv_base: float = 597.0  # Unsubsidized investment in €/kW.
     H2BOI__cost_om: float = 0.03  # Operation and maintenance costs as a fraction of investment costs in 1/year.
-    H2BOI__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    H2BOI__inv_subsidy_rate: float = 0.3  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     H2BOI: dict = {}
 
     # CHP parameters (Combined Heat and Power)
@@ -893,7 +888,7 @@ class DecentralDeviceConfig(BaseSettings):
     DH__life_time: int = 30  # Maximum life time in years.
     DH__inv_base: float = 60.93  # (Baukostenzuschuss) Unsubsidized investment in €/kW.
     DH__cap_fee: float = 0.0  # Capacity fee in €/kW/year.
-    DH__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    DH__inv_subsidy_rate: float = 0.3  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     DH: dict = {}
 
     # FC parameters (Fuel Cell)
@@ -902,7 +897,7 @@ class DecentralDeviceConfig(BaseSettings):
     FC__life_time: int = 20  # Maximum life time in years.
     FC__inv_base: float = 2900.0  # Unsubsidized investment in €/kW.
     FC__cost_om: float = 0.03  # Operation and maintenance costs as a fraction of total investment costs (percentage).
-    FC__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    FC__inv_subsidy_rate: float = 0.3  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     FC: dict = {}
 
     # PV parameters (Photovoltaics)
@@ -940,7 +935,7 @@ class DecentralDeviceConfig(BaseSettings):
     STC__life_time: int = 20  # Maximum life time in years.
     STC__inv_base: int = 600  # Unsubsidized investment in €/m^2.
     STC__cost_om: float = 0.05  # Operation and maintenance costs as a fraction of total investment costs (percentage).
-    STC__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    STC__inv_subsidy_rate: float = 0.3  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     STC: dict = {}
 
     # TES parameters (Thermal Energy Storage)
@@ -960,7 +955,7 @@ class DecentralDeviceConfig(BaseSettings):
     # BAT parameters (Battery Storage)
     BAT__soc_min: float = 0.1  # Minimum state of charge.
     BAT__soc_max: float = 0.95  # Maximum state of charge.
-    BAT__eta_standby: float = 0.99999  # Standby hourly efficiency (accounts for self-discharge).
+    BAT__eta_standby: float = 0.9999  # Standby hourly efficiency (accounts for self-discharge).
     BAT__eta_ch: float = 0.97  # Charging and discharging efficiency.
     BAT__coeff_ch: float = 0.8  # Charging and discharging coefficient in Watt per Watthour.
     BAT__init: float = 0.5  # Initial state of charge.
@@ -995,7 +990,7 @@ class DecentralDeviceConfig(BaseSettings):
     TES_DHW__soc_min: float = 0.0  # Minimum state of charge.
     TES_DHW__soc_max: float = 1.0  # Maximum state of charge.
     TES_DHW__eta_standby: float = 0.998  # Standby hourly efficiency (accounts for self-discharge).
-    TES_DHW__eta_ch: float = 1.0  # Charging and discharging efficiency.
+    TES_DHW__eta_ch: float = 1.0  # Charging and discharging efficiency.cap_limit_el
     TES_DHW__coeff_ch: float = 10000.0  # Charging and discharging coefficient in Watt per Watthour.
     TES_DHW__init: float = 0.5  # Initial state of charge.
     TES_DHW__T_diff_max: int = 35  # Maximum temperature difference in degree Celsius.
@@ -1074,35 +1069,35 @@ class CentralDeviceConfig(BaseSettings):
     STC__eta: float = 0.7  # Thermal efficiency between 0 and 1.
     STC__beta: float = 35.0  # Tilt angle of the solar collectors in degrees.
     STC__gamma: float = 0  # Azimuth angle (orientation) of the collectors in degrees (0=South, -90=East, 90=West).
-    STC__inv_base: float = 800  # Unsubsidized investment in €/kW.
+    STC__inv_base: float = 350  # Unsubsidized investment in €/kW.
     STC__life_time: int = 20  # Maximum life time in years.
     STC__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
     STC__max_area: float = 5000  # Maximum installation area in square meters.
     STC__min_area: float = 0  # Minimum installation area in square meters.
     STC__g_stc: float = 1  # Global horizontal irradiance under STC in kW/m^2.
-    STC__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    STC__inv_subsidy_rate: float = 0.4  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     STC: dict = {}
 
     # CHP parameters (Combined Heat and Power)
-    CHP__feasible: bool = True  # Should this be considered for the central optimization.
-    CHP__inv_base: float = 1200  # Unsubsidized investment in €/kW.
+    CHP__feasible: bool = False  # Should this be considered for the central optimization.
+    CHP__inv_base: float = 983  # Unsubsidized investment in €/kW.
     CHP__eta_el: float = 0.4  # Electrical efficiency between 0 and 1.
     CHP__eta_th: float = 0.5  # Thermal efficiency between 0 and 1.
     CHP__life_time: int = 20  # Maximum life time in years.
     CHP__cost_om: float = 0.03  # Cost of operation and maintenance as a percentage of investment.
     CHP__min_cap: float = 0  # Minimum capacity in kW.
-    CHP__max_cap: float = 1000  # Maximum capacity in kW.
+    CHP__max_cap: float = 10000  # Maximum capacity in kW.
     CHP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     CHP: dict = {}
 
     # BOI parameters (Boiler)
-    BOI__feasible: bool = True  # Should this be considered for the central optimization.
+    BOI__feasible: bool = False  # Should this be considered for the central optimization.
     BOI__inv_base: float = 138  # Unsubsidized investment in €/kW.
     BOI__eta_th: float = 0.99  # Thermal efficiency between 0 and 1.
     BOI__life_time: int = 25  # Maximum life time in years.
     BOI__cost_om: float = 0.014  # Cost of operation and maintenance as a percentage of investment.
     BOI__min_cap: float = 0  # Minimum capacity in kW.
-    BOI__max_cap: float = 500  # Maximum capacity in kW.
+    BOI__max_cap: float = 5000  # Maximum capacity in kW.
     BOI__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     BOI: dict = {}
 
@@ -1118,7 +1113,7 @@ class CentralDeviceConfig(BaseSettings):
     GHP: dict = {}
 
     # HP parameters (Heat Pump)
-    HP__feasible: bool = False  # Is an Heat Pump feasible?
+    HP__feasible: bool = True  # Is an Heat Pump feasible?
     HP__CCOP_feasible: bool = True  # Should it be modeled with a constant COP?
     HP__ASHP_carnot_feasible: bool = False  # Should this be modeled as an Air Source Heat Pump with Carnot efficiency?
     HP__ASHP_model_feasible: bool = False  # COP model for ammonia large scale heat pumps based on DOI: 10.18462/iir.gl.2018.1386
@@ -1131,22 +1126,22 @@ class CentralDeviceConfig(BaseSettings):
     HP__ASHP_carnot_eff: float = 0.4  # Carnot efficiency of the Air Source Heat Pump between 0 and 1.
     HP__ASHP_supply_temp: float = 60  # Supply temperature of the Air Source Heat Pump in Celsius.
     HP__COP_const: float = 4  # Constant Coefficient of Performance (COP).
-    HP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    HP__inv_subsidy_rate: float = 0.4  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     HP: dict = {}
 
     # GroundHP parameters (Ground Source Heat Pump)
-    GroundHP__feasible: bool = False  # Should this be considered for the central optimization.
+    GroundHP__feasible: bool = True  # Should this be considered for the central optimization.
     GroundHP__life_time: int = 20  # Maximum life time in years.
-    GroundHP__inv_base: float = 1000  # Unsubsidized investment in €/kWth.
+    GroundHP__inv_base: float = 1260  # Unsubsidized investment in €/kWth.
     GroundHP__cost_om: float = 0.025  # Cost of operation and maintenance as a percentage of investment.
     GroundHP__min_cap: float = 0  # Minimum capacity in kWth.
     GroundHP__max_cap: float = 500  # Maximum capacity in kWth.
-    GroundHP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    GroundHP__inv_subsidy_rate: float = 0.4  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     GroundHP: dict = {}
 
     # EB parameters (Electric Boiler)
     EB__feasible: bool = True  # Should this be considered for the central optimization.
-    EB__inv_base: float = 32.73  # Unsubsidized investment in €/kW.
+    EB__inv_base: float = 154  # Unsubsidized investment in €/kW.
     EB__eta_th: float = 0.99  # Thermal efficiency between 0 and 1.
     EB__life_time: int = 25  # Maximum life time in years.
     EB__cost_om: float = 0.01  # Cost of operation and maintenance as a percentage of investment.
@@ -1156,7 +1151,7 @@ class CentralDeviceConfig(BaseSettings):
     EB: dict = {}
 
     # CC parameters (Chiller)
-    CC__feasible: bool = False  # CC using a constant COP.
+    CC__feasible: bool = True  # CC using a constant COP.
     CC__CCOP_feasible: bool = True  # Should it be modeled with a constant COP?
     CC__ASCC_model_feasible: bool = False  # COP model for ammonia large scale heat pumps based on DOI: 10.18462/iir.gl.2018.1386
     CC__inv_base: float = 700  # Unsubsidized investment in €/kW.
@@ -1164,7 +1159,7 @@ class CentralDeviceConfig(BaseSettings):
     CC__life_time: int = 20  # Maximum life time in years.
     CC__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
     CC__min_cap: float = 0  # Minimum capacity in kW.
-    CC__max_cap: float = 500  # Maximum capacity in kW.
+    CC__max_cap: float = 100000  # Maximum capacity in kW.
     CC__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     CC: dict = {}
 
@@ -1188,18 +1183,18 @@ class CentralDeviceConfig(BaseSettings):
     BCHP__cost_om: float = 0.03  # Cost of operation and maintenance as a percentage of investment.
     BCHP__min_cap: float = 0  # Minimum capacity in kW.
     BCHP__max_cap: float = 1000  # Maximum capacity in kW.
-    BCHP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    BCHP__inv_subsidy_rate: float = 0.4  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     BCHP: dict = {}
 
     # BBOI parameters (Biomass Boiler)
     BBOI__feasible: bool = False  # Should this be considered for the central optimization.
-    BBOI__inv_base: float = 570  # Unsubsidized investment in €/kW.
+    BBOI__inv_base: float = 1180  # Unsubsidized investment in €/kW.
     BBOI__eta_th: float = 0.85  # Thermal efficiency between 0 and 1.
     BBOI__life_time: int = 20  # Maximum life time in years.
     BBOI__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
     BBOI__min_cap: float = 0  # Minimum capacity in kW.
     BBOI__max_cap: float = 500  # Maximum capacity in kW.
-    BBOI__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    BBOI__inv_subsidy_rate: float = 0.4  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     BBOI: dict = {}
 
     # WCHP parameters (Waste Combined Heat and Power)
@@ -1216,7 +1211,7 @@ class CentralDeviceConfig(BaseSettings):
 
     # WBOI parameters (Waste Boiler)
     WBOI__feasible: bool = False  # Should this be considered for the central optimization.
-    WBOI__inv_base: float = 700  # Unsubsidized investment in €/kW.
+    WBOI__inv_base: float = 3087  # Unsubsidized investment in €/kW.
     WBOI__eta_th: float = 0.8  # Thermal efficiency between 0 and 1.
     WBOI__life_time: int = 20  # Maximum life time in years.
     WBOI__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
@@ -1374,10 +1369,8 @@ class CentralDeviceConfig(BaseSettings):
 class GlobalConfig(BaseModel):
     """
     GlobalConfig class to manage all configurations for the district generator.
-    This class aggregates all individual configuration classes and provides a unified interface
-    to access them. It is designed to be initialized with an environment file that contains
-    configuration parameters for each component.
-    Note: All parameters defined in this '.env.CONFIG.' will override the default values in settings.py
+    It aggregates all individual configuration classes and is created by :func:`load_global_config`.
+    Parameters set in an environment file override the defaults of the config classes.
 
     Attributes
     ----------
@@ -1410,74 +1403,58 @@ class GlobalConfig(BaseModel):
         Configuration parameters for reporting and output generation, including formats and paths.
 
     """
+    scenario: 'Scenario'
     location: 'LocationConfig'
     time: 'TimeConfig'
+    calendar: 'CalendarConfig'
     design_building: 'DesignBuildingConfig'
-    eco: 'EcoConfig'
     physics: 'PhysicsConfig'
     pyomo: 'PyomoConfig'
     heatgrid: 'HeatGridConfig'
     ehdo: 'EHDOConfig'
+    eco: 'EcoConfig'
     decentral: 'DecentralDeviceConfig'
     central: 'CentralDeviceConfig'
-    calendar: 'CalendarConfig'
-    scenario: 'Scenario'
     report: 'ReportConfig'
-class Settings(BaseSettings):
-    """
-    Settings class to manage global configuration parameters.
-    This class is used to load configuration parameters from an environment file.
-    """
-    env_file: str = '.env.CONFIG.EXAMPLE'
-
-    class Config:
-        env_file_encoding = 'utf-8'
-        extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
-
 
 def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
     """
-    Load the global configuration from the specified environment file.
-    If no environment file is provided, the file name from ``Settings`` is used
-    (``.env.CONFIG.EXAMPLE`` unless the environment variable ``ENV_FILE`` is set).
-    For error handling, it prints the used environment file path.
-    Note: All parameters defined in '.env.CONFIG.' will override the default values in settings.py
-    todo resolve up and down
     Load the global configuration.
 
-    Without an environment file, the default values defined in the config classes of this module are used.
-    With an environment file, all parameters defined in it override these defaults.
-    See data/.env.CONFIG.EXAMPLE for all parameters that can be overridden.
+    Without an environment file, the defaults defined in the config classes of this module are used.
+    With an environment file, every parameter set in it overrides the corresponding default.
+    Environment variables of the process (e.g. RANDOM_SEED=42) override both.
+    See data/config/.env.CONFIG.EXAMPLE for all parameters that can be set.
 
     Parameters
     ----------
     env_file : Optional[str]
-        The path to the environment file. If None, it uses the default from Settings.
-        Relative paths such as ".env.NAME" are resolved in ``DATA_DIR/config``, absolute paths
-        such as "c:/path/to/.env.CONFIG.EXAMPLE" or "/path/to/.env.CONFIG.EXAMPLE" are used as given.
+        Name of an environment file in ``DATA_DIR/config`` (e.g. ".env.CONFIG.FREIBURG")
+        or an absolute path (e.g. "c:/path/to/.env.CONFIG.MYPROJECT"). If None, only the defaults are used.
 
     Returns
     -------
     GlobalConfig
         An instance of GlobalConfig containing all configurations.
+
+    Raises
+    ------
+    FileNotFoundError
+        If env_file is given but the file does not exist.
     """
     if env_file is None:
         env_file_path = None
-        os.environ.pop("ENV_FILE", None)
-        print("Using config: defaults from config.py")
+        print("Using config: defaults from settings.py")
     else:
         # Absolute paths are used as given, relative paths are resolved in the config folder of the data
-        env_file_path = env_file if os.path.isabs(env_file) else os.path.join(DATA_DIR, 'config', env_file)  # absolute paths are kept by pathlib
-
+        env_file_path = env_file if os.path.isabs(env_file) else os.path.join(DATA_DIR, 'config', env_file)
         if not os.path.isfile(env_file_path):
             raise FileNotFoundError(
-                f"Configuration file '{env_file}'not found. \n"
+                f"Configuration file '{env_file}' not found.\n"
                 f"  - Looked for: {env_file_path}\n"
                 f"  - Config folder: {os.path.join(DATA_DIR, 'config')}\n"
-            f"Pass an absolute path or put the file into the config folder."
+                f"Pass an absolute path or put the file into the config folder."
             )
-
-        
         print(f'Using config: {env_file_path}')
 
     return GlobalConfig(

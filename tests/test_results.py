@@ -28,6 +28,7 @@ REFERENCE = TEST_DATA / "reference"
 OVERRIDES = {
     "RANDOM_SEED": "42",
     "SOLVER_OPTIONS__THREADS": "1",
+    "SOLVER_NAME": "highs",
 }
 
 # Demand profiles of each building that are compared as time series
@@ -46,7 +47,8 @@ def run_example(module_name, function_name, result_path):
     datahandler = module.Datahandler
 
     def test_datahandler(*args, **kwargs):
-        kwargs.update(resultPath=str(result_path), scenario_file_path=str(SCENARIOS))
+        kwargs.update(resultPath=str(result_path), scenario_file_path=str(SCENARIOS),
+                      env_path=str(TEST_DATA / ".env.CONFIG.TEST"))
         return datahandler(*args, **kwargs)
 
     with patch.object(module, "Datahandler", side_effect=test_datahandler), patch.dict(os.environ, OVERRIDES):

@@ -13,7 +13,7 @@ import re
 import unittest
 from pathlib import Path
 
-from districtgenerator.data_handling import generate_env_example as gen
+from districtgenerator.config import generate_env_example as gen
 
 DATA_DIR = gen.EXAMPLE_PATH.parent
 KEY_RE = re.compile(r"^\s*([A-Za-z0-9_]+)\s*=")
