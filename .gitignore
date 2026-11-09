@@ -20,7 +20,10 @@ districtgenerator/data/scenarios/
 districtgenerator/data/weather/
 errorfile.txt
 # local, personal config overrides (template: districtgenerator/data/.env.CONFIG.EXAMPLE)
+# local, personal config overrides (template: districtgenerator/data/config/.env.CONFIG.EXAMPLE)
 /districtgenerator/data/config/.env.CONFIG*
+!/districtgenerator/data/config/.env.CONFIG.EXAMPLE
+!/districtgenerator/data/config/.env.CONFIG.FREIBURG
 
 # --- temporary data, backup & logs ---
 *.bk

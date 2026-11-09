@@ -25,23 +25,23 @@ class TestEnvConfig(unittest.TestCase):
         current = gen.EXAMPLE_PATH.read_text(encoding="utf-8")
         self.assertEqual(
             current, gen.render(),
-            "\n.env.CONFIG.EXAMPLE differs from config.py. It is generated and must not be edited by hand.\n"
-            "If config.py changed, run: python -m districtgenerator.data_handling.generate_env_example\n"
+            "\n.env.CONFIG.EXAMPLE differs from settings.py. It is generated and must not be edited by hand.\n"
+            "If settings.py changed, run: python -m districtgenerator.config.generate_env_example\n"
             "If you only wanted to change values for yourself, put them into your own .env.CONFIG file "
-            "and restore the EXAMPLE with: git restore districtgenerator/data/.env.CONFIG.EXAMPLE")
+            "and restore the EXAMPLE with: git restore districtgenerator/data/config/.env.CONFIG.EXAMPLE")
 
     def test_example_roundtrip_equals_defaults(self):
-        from districtgenerator.data_handling import config as c
+        from districtgenerator.config import settings as s
 
         active = "\n".join(re.sub(r"^# ([A-Z0-9_]+=)", r"\1", line) for line in gen.render().splitlines())
         tmp = DATA_DIR / ".env.CONFIG._ROUNDTRIP_TEST"
         tmp.write_text(active, encoding="utf-8")
         try:
-            loaded = c.load_global_config(tmp.name)
+            loaded = s.load_global_config(tmp.name)
         finally:
             tmp.unlink()
 
-        for section in c.GlobalConfig.model_fields:
+        for section in s.GlobalConfig.model_fields:
             cfg = getattr(loaded, section)
             default = type(cfg)(_env_file=None)
             self.assertEqual(cfg.__dict__, default.__dict__, f"Round trip differs in section '{section}'")

@@ -137,7 +137,10 @@ In the [file](https://github.com/RWTH-EBC/districtgenerator/blob/develop/distric
 further data can be found. Default values are already stored there. General modeling assumptions are managed through 
 Pydantic-based configuration classes and will be overwritten through an .env configuration file if the Datahandler 
 is initialized with it. This .env file can be found
-in the directory [data/config](https://github.com/RWTH-EBC/districtgenerator/tree/develop/districtgenerator/data/config).
+in the directory [data/config](https://github.com/RWTH-EBC/districtgenerator/tree/develop/districtgenerator/data/config). 
+Without env_path, the defaults of config/settings.py are used. 
+data/config/.env.CONFIG.EXAMPLE is a generated template; regenerate it with 
+`python -m districtgenerator.config.generate_env_example` after changing settings.py.
 
 The configuration includes assumptions and parameters related to location and weather, temporal resolution, 
 heating and cooling periods, building design conditions, thermal building model, economic parameters, energy prices, 

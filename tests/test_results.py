@@ -24,7 +24,7 @@ TEST_DATA = Path(__file__).parent / "results_data"
 SCENARIOS = TEST_DATA / "scenarios"
 REFERENCE = TEST_DATA / "reference"
 
-# Settings that override .env.CONFIG.EXAMPLE, so that every run produces the same results
+# Settings that override .env.CONFIG.TEST and the defaults, so that every run produces the same results
 OVERRIDES = {
     "RANDOM_SEED": "42",
     "SOLVER_OPTIONS__THREADS": "1",
