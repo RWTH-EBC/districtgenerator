@@ -269,6 +269,11 @@ def execute_and_diagnose(model, pyomo_config, model_name, result_dir):
     # Initialize solver
     solver, solver_options = create_solver(pyomo_config=pyomo_config)
 
+    # Reset HiGHS global thread scheduler
+    if pyomo_config["solver_name"] == "highs":
+        import highspy
+        highspy.Highs.resetGlobalScheduler(True)
+
     # Save the model to an .lp file
     lp_filename = os.path.join(result_dir, f"{model_name}.lp")
     model.write(lp_filename, io_options={"symbolic_solver_labels": True})
