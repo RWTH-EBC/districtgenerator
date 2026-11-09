@@ -5,12 +5,12 @@ We reached the final step, to generate our first district: Generate demand profi
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from districtgenerator.classes import *
+from districtgenerator import Datahandler
 
 def example8_central_scenario_evaluation():
 
     # Initialize District
-    # Runs with the defaults from config.py. To change parameters, create your own file in districtgenerator/data
+    # Runs with the defaults from config.py. To change parameters, create your own file in districtgenerator/data/config
     # (see e6 and .env.CONFIG.EXAMPLE) and load it with Datahandler(env_path=".env.CONFIG.MYPROJECT").
     data = Datahandler(scenario_name = "example_central")
 
@@ -27,7 +27,7 @@ def example8_central_scenario_evaluation():
     # of the energy central and the economic parameters are read from additional
     # .csv and .json data sources.
 
-    data.generateDistrictComplete(calcUserProfiles=True, saveUserProfiles=True)
+    data.generateDistrictComplete(calcUserProfiles=True, saveUserProfiles=False)
 
     # Calculation of the devices' optimal operation
     data.optimizationClusters()

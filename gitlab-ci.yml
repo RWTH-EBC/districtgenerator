@@ -8,7 +8,7 @@ stages:
 
 variables:
     EXCLUDE_PYTHON: 37
-    PYTHON_VERSION: "registry.git.rwth-aachen.de/ebc/ebc_all/gitlab_ci/templates:python_3.9"
+    PYTHON_VERSION: "registry.git.rwth-aachen.de/ebc/ebc_all/gitlab_ci/templates:python_3.12"
     PAGES_BRANCH: master
     GIT_REPO: "RWTH-EBC/districtgenerator"
     PYTHON_VERSION_NAME: "__version__"

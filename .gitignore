@@ -20,6 +20,8 @@ districtgenerator/data/weather/*
 *.egg/
 *.eggs
 districtgenerator.egg-info/*
+docs/_build/
+*pyc
 
 # local, personal config overrides (template: districtgenerator/data/.env.CONFIG.EXAMPLE)
 /districtgenerator/data/.env.CONFIG*
