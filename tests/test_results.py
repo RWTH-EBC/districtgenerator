@@ -3,12 +3,12 @@
 Regression tests for the results of the examples e5, e7, e8 and e9.
 
 Every example runs with a fixed random seed and the scenario files in tests/results_data/scenarios.
-Selected time series (demand profiles, residual load) and single KPI values are compared with the
-reference results in tests/results_data/reference.
+Demand profiles and selected KPI values are compared with the reference results in
+tests/results_data/reference. Residual load is checked against the calculated power flows.
 
-If a reference file is missing, it is written from the current results and the test is skipped.
-After an intended change of the results, set the environment variable UPDATE_REFERENCE_RESULTS=1
-to replace the reference files, and check the changes with git diff before committing them.
+If a demand-profile reference file is missing, it is written from the current results and the test is skipped.
+After an intended change of the demand profiles, set the environment variable UPDATE_REFERENCE_RESULTS=1
+to replace the demand-profile reference files, and check the changes with git diff before committing them.
 """
 import os
 import tempfile
@@ -34,9 +34,11 @@ OVERRIDES = {
 # Demand profiles of each building that are compared as time series
 PROFILES = ("heat", "cooling", "elec", "dhw", "occ", "gains", "EV_carcharging_ondemand")
 
-# Relative tolerances: generated profiles must be equal, optimization results may differ within the MIP gap
+# Relative tolerance for deterministic demand results
 RTOL_PROFILES = 1e-9
-RTOL_OPTIMIZATION = 1e-6
+REFERENCE_MIP_GAP = 0.01  # Solver gap used by the reference configuration.
+DEMAND_KPIS = ("total_heating_demand", "total_cooling_demand", "total_electricity_demand",
+    "total_dhw_demand", "total_EV_demand")
 
 UPDATE = os.environ.get("UPDATE_REFERENCE_RESULTS") == "1"
 
@@ -67,31 +69,8 @@ def demand_profiles(data):
     return pd.DataFrame(columns)  # Shorter profiles are filled with NaN
 
 
-def collect_values(name, value, values):
-    """Add a numeric value, or all numeric values of a (nested) dict, e.g. 'peakDemand[0]' for year 0."""
-    if isinstance(value, dict):
-        for key, item in value.items():
-            collect_values(f"{name}[{key}]", item, values)
-    elif isinstance(value, (int, float, np.integer, np.floating)) and not isinstance(value, bool):
-        values[name] = float(value)
-
-
-def kpi_values(kpis):
-    """All single numeric KPI values of the KPIs object, including the values per simulated year."""
-    values = {}
-    for name, value in vars(kpis).items():
-        if name != "inputData":
-            collect_values(name, value, values)
-    return pd.Series(values, name="value").sort_index()
-
-
-def residual_load(kpis):
-    """Time series of the residual load of the district, one column per simulated year."""
-    return pd.DataFrame({f"residualLoad[{year}]": np.ravel(load) for year, load in kpis.residualLoad.items()})
-
-
 class TestResults(unittest.TestCase):
-    """Checks that the examples always produce the same results."""
+    """Check reproducible demands and optimized operation for the examples."""
 
     def assert_reference(self, name, actual, rtol):
         """Compare a DataFrame or Series with its reference CSV file, or write the reference if missing."""
@@ -111,16 +90,53 @@ class TestResults(unittest.TestCase):
         np.testing.assert_allclose(actual.to_numpy(dtype=float), expected.to_numpy(dtype=float),
                                    rtol=rtol, atol=1e-9, err_msg=f"Results of {name} changed")
 
+    def check_operation(self, prefix, data):
+        """Check quantities that remain meaningful for different optimal dispatches."""
+        expected = pd.read_csv(REFERENCE / f"{prefix}_kpis.csv", index_col=0).iloc[:, 0]
+        demand = [getattr(data.KPIs, name) for name in DEMAND_KPIS]
+        np.testing.assert_allclose(demand, expected.loc[list(DEMAND_KPIS)],
+                                   rtol=RTOL_PROFILES, atol=1e-9, err_msg=f"{prefix} demand KPIs")
+        years = data.ecoData["interpolation_points"]
+        steps = data.time["clusterLength"] // data.time["timeResolution"]
+        self.assertLessEqual(data.pyomo_config["solver_options"]["mip_gap"], REFERENCE_MIP_GAP)
+        self.assertEqual(set(data.resultsOptimization), set(years))
+        self.assertEqual(len(data.clusters), data.time["clusterNumber"])
+        self.assertEqual(sum(data.clusterWeights[c] for c in data.clusters), len(data.site["T_e"]) // steps)
+        for year in years:
+            results = data.resultsOptimization[year]
+            self.assertEqual(set(results), set(range(len(data.clusters))))
+            loads, annual_cost = [], 0.0
+            for index, cluster in enumerate(data.clusters):
+                result = results[index]
+                flows = np.stack([
+                    result["P_dem_gcp"], result["P_inj_gcp"], result["P_dem_total"],
+                    result["P_inj_total"], result["energy_hub"]["res_load"],
+                    result["energy_hub"]["res_inj"],
+                ])
+                self.assertEqual(flows.shape, (6, steps))
+                self.assertTrue(np.isfinite(flows).all())
+                imports, exports, building_load, building_feed, hub_load, hub_feed = flows
+                net_grid = imports - exports
+                # Each of the six exported flows is rounded to the nearest watt.
+                np.testing.assert_allclose(net_grid, building_load - building_feed + hub_load - hub_feed,
+                                           rtol=0, atol=3, err_msg=f"{prefix}, year {year}, cluster {cluster}")
+                loads.append(net_grid / 1000)
+                annual_cost += result["Cost_total"] * data.clusterWeights[cluster]
+            np.testing.assert_array_equal(data.KPIs.residualLoad[year], loads)
+            self.assertEqual(data.KPIs.operationCosts[year], round(annual_cost))
+            reference_cost = expected[f"operationCosts[{year}]"]
+            # The saved annual KPI is rounded to euros. Both runs use a MIP gap for operating costs.
+            allowed_difference = REFERENCE_MIP_GAP * max(abs(reference_cost), abs(annual_cost)) + 0.5
+            self.assertLessEqual(abs(annual_cost - reference_cost), allowed_difference,
+                                 f"{prefix} year {year} operating costs: {annual_cost:.2f} vs {reference_cost:.2f} EUR")
+
     def check_example(self, prefix, data, with_kpis=True):
         """Compare the demand profiles and, if calculated, the KPIs of an example."""
         self.assertEqual(data.random_seed, 42)
         with self.subTest(results="profiles"):
             self.assert_reference(f"{prefix}_profiles", demand_profiles(data), RTOL_PROFILES)
         if with_kpis:
-            with self.subTest(results="residual load"):
-                self.assert_reference(f"{prefix}_residual_load", residual_load(data.KPIs), RTOL_OPTIMIZATION)
-            with self.subTest(results="kpis"):
-                self.assert_reference(f"{prefix}_kpis", kpi_values(data.KPIs), RTOL_OPTIMIZATION)
+            self.check_operation(prefix, data)
 
     def test_e5_generate_demands(self):
         """Example 5 always generates the same demand profiles."""
@@ -129,21 +145,21 @@ class TestResults(unittest.TestCase):
         self.check_example("e5", data, with_kpis=False)
 
     def test_e7_decentral_scenario_evaluation(self):
-        """Example 7 always produces the same profiles and KPIs."""
+        """Check demand profiles and optimized operation for Example 7."""
         with tempfile.TemporaryDirectory() as result_path:
             data = run_example("e7_decentral_scenario_evaluation", "example7_decentral_scenario_evaluation",
                                result_path)
         self.check_example("e7", data)
 
     def test_e8_central_scenario_evaluation(self):
-        """Example 8 always produces the same profiles and KPIs."""
+        """Check demand profiles and optimized operation for Example 8."""
         with tempfile.TemporaryDirectory() as result_path:
             data = run_example("e8_central_scenario_evaluation", "example8_central_scenario_evaluation",
                                result_path)
         self.check_example("e8", data)
 
     def test_e9_non_residential_scenario_evaluation(self):
-        """Example 9 always produces the same profiles and KPIs."""
+        """Check demand profiles and optimized operation for Example 9."""
         with tempfile.TemporaryDirectory() as result_path:
             data = run_example("e9_non_residential_scenario_evaluation",
                                "example9_non_residential_scenario_evaluation", result_path)

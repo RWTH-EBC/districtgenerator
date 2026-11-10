@@ -246,6 +246,33 @@ def _map_options(solver_name, solver_options):
             raise ValueError(f"Unsupported option '{key}' for solver '{solver_name}'. Supported options are: {list(OPTION_MAP.keys())}.")
     return mapped_options
 
+def _reset_highs_scheduler(solver):
+    """
+    Reset the thread scheduler of HiGHS before a solve.
+
+    HiGHS creates one thread scheduler per process with the thread count of the first solve. A later
+    solve in the same process with a different 'threads' option stops immediately and Pyomo reports the
+    termination condition 'unknown', e.g. when several scenarios or tests with different settings run in
+    one process. Resetting the scheduler lets every solve use its own thread count.
+
+    Parameters
+    ----------
+    solver : object
+        Pyomo solver instance created by create_solver.
+
+    Returns
+    -------
+    None.
+    """
+    if getattr(solver, "name", None) != "highs":
+        return
+    try:
+        import highspy
+    except ImportError:
+        return
+    highspy.Highs.resetGlobalScheduler(True)
+
+
 def execute_and_diagnose(model, pyomo_config, model_name, result_dir):
     """
     Solves the given Pyomo model and triggers diagnosis if not solved to optimality.
@@ -273,6 +300,7 @@ def execute_and_diagnose(model, pyomo_config, model_name, result_dir):
     # Initialize solver
     solver, solver_options = create_solver(pyomo_config=pyomo_config)
 
+    # Reset HiGHS global thread scheduler
     if pyomo_config["solver_name"] == "highs":
         import highspy
         highspy.Highs.resetGlobalScheduler(True)
@@ -283,6 +311,8 @@ def execute_and_diagnose(model, pyomo_config, model_name, result_dir):
 
     # temporary log-file for the solver
     solver_log_path = os.path.join(result_dir, f"solver_output_{model_name}.log")    
+
+    _reset_highs_scheduler(solver)
 
     # Capture solver output in a log file by redirecting stdout:
     with open(solver_log_path, 'w', encoding='utf-8') as log_file:
