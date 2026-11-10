@@ -12,7 +12,6 @@ Welcome to the documentation of the DistrictGenerator!
 
    README
    EXAMPLES
-   MIGRATION
    modules
    about/index
 

@@ -209,44 +209,6 @@ class Datahandler:
         # Read and restructure SIA 2024 building-use data from the package data
         self.SIA2024 = sia2024.read_SIA_data()
 
-    def select_plz_data(self):
-        """
-        Select the closest TRY weather station for the location of the postal code.
-
-        Deprecated, use ``environment.site.select_plz_data`` instead.
-
-        Returns
-        -------
-        None.
-        """
-        warnings.warn("'Datahandler.select_plz_data' is deprecated, use "
-                      "'environment.site.select_plz_data' instead.", DeprecationWarning, stacklevel=2)
-        site_conditions.select_plz_data(self)
-
-    def get_holidays(self, country_code: str, year: int, state: str = None):
-        """
-        Get the day of the year of all holidays.
-
-        Deprecated, use ``environment.site.get_holidays`` instead.
-
-        Parameters
-        ----------
-        country_code : str
-            The country's ISO 3166-1 alpha-2 code (e.g., 'DE' for Germany).
-        year : int
-            The year for which to retrieve holidays.
-        state : str, optional
-            The state or region subdivision code (e.g., 'NW' for North Rhine-Westphalia in Germany).
-
-        Returns
-        -------
-        list of int
-            Day of the year (1 = January 1st) of each holiday.
-        """
-        warnings.warn("'Datahandler.get_holidays' is deprecated, use "
-                      "'environment.site.get_holidays' instead.", DeprecationWarning, stacklevel=2)
-        return site_conditions.get_holidays(country_code, year, state)
-
     def generateEnvironment(self):
         """
         Load physical district environment - site and weather.
@@ -262,7 +224,6 @@ class Datahandler:
         # calculate the soil temperature profile
         dt = self.time["timeResolution"] / self.time["dataResolution"]
         soil.calculate_soil_temperature(self, dt)
-        # TODO: fehlt hier return bzw. bei Funktionen ...=...???
 
     def is_mixed_building(self, building_type):
         """
@@ -279,21 +240,6 @@ class Datahandler:
             True if the building type contains "+", False otherwise.
         """
         return mixed_use.is_mixed_building(building_type)
-
-    def combine_mixed_building_demands(self, saveUserProfiles):
-        """
-        Combine demand profiles from split mixed-use buildings back into a single building.
-        This should be called after generateDemands() but before designDecentralDevices().
-
-        Creates a new combined building with summed demand profiles.
-        Both main and secondary buildings are deleted, replaced by the combined building.
-        An Excel file is created for each combined building showing all demand profiles.
-
-        Returns
-        -------
-        None
-        """
-        mixed_use.combine_mixed_building_demands(self, saveUserProfiles)
 
     def initializeBuildings(self):
         """
@@ -536,13 +482,6 @@ class Datahandler:
         print("Preparing initial clustering (pre-optimization)...")
         self.clusterProfiles(centralEnergySupply=False)
 
-    def finalizeClusterProfiles(self):
-        """
-        Perform final clustering including central generation and
-        heating network losses after optimization.
-        """
-        print("Finalizing clustering (post-optimization)...")
-        self.clusterProfiles(centralEnergySupply=True)
 
     def applyCentralDesignClusteringToOperationProfiles(self):
         """
@@ -596,33 +535,6 @@ class Datahandler:
         """
         district_store.load_district(self, scenario_name=scenario_name)
 
-    def plot(self, mode='default', initialTime=0, timeHorizon=31536000, savePlots=True, timeStamp=False, show=False):
-        """
-        Create plots of the energy consumption and generation.
-
-        Parameters
-        ----------
-        mode : string, optional
-            Choose a single plot or show all of them as default. The default is 'default'.
-            Possible modes are:
-            ['elec', 'dhw', 'gains', 'occ', 'car', 'heating', 'pv', 'stc', 'electricityDemand', 'heatDemand'].
-        initialTime : integer, optional
-            Start of the plot in seconds from the beginning of the year. The default is 0.
-        timeHorizon : integer, optional
-            Length of the time horizon that is plotted in seconds. The default is 31536000 (what equals one year).
-        savePlots : boolean, optional
-            Decision if plots are saved under results/plots/. The default is True.
-        timeStamp : boolean, optional
-            Decision if saved plots get a unique name by adding a time stamp. The default is False.
-        show : boolean, optional
-            Decision if saved plots are presented directly to the user. The default is False.
-
-        Returns
-        -------
-        None.
-        """
-        plots.plot_district(self, mode=mode, initialTime=initialTime, timeHorizon=timeHorizon, savePlots=savePlots,
-                            timeStamp=timeStamp, show=show)
 
     def optimizationClusters(self):
         """
