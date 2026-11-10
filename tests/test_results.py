@@ -28,6 +28,7 @@ REFERENCE = TEST_DATA / "reference"
 OVERRIDES = {
     "RANDOM_SEED": "42",
     "SOLVER_OPTIONS__THREADS": "1",
+    "SOLVER_OPTIONS__TIME_LIMIT": "1800",
 }
 
 # Demand profiles of each building that are compared as time series
