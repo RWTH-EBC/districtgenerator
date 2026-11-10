@@ -238,10 +238,7 @@ districtgenerator/
 └── data/              # input data, one subfolder per topic; raw/ holds source data that the code does not read
 ```
 
-Import the Datahandler with `from districtgenerator import Datahandler`. The old packages
-`districtgenerator.classes`, `districtgenerator.functions` and `districtgenerator.data_handling` were removed,
-so imports and pickled districts that use these old module paths have to be updated. The
-[migration guide](docs/MIGRATION.md) lists the new module paths and the new locations of the data files.
+Import the Datahandler with `from districtgenerator import Datahandler`.
 
 ## Final output of the DistrictGenerator
 
@@ -300,7 +297,7 @@ Run them from the repository root, e.g. with `python -m pytest tests`:
 - `test_operation_devices.py`: completeness of the device integration in the operation optimization model
   (the model is built but not solved)
 - `test_time_series.py`: k-medoids clustering and the mapping of the clustered profiles
-- `unit_tests.py`: single functions such as the change of the time resolution, economic year groups and the
+- `unit_test.py`: single functions such as the change of the time resolution, economic year groups and the
   sizing of building devices, with expected values calculated by hand
 
 ## How to contribute
