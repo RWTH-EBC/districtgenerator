@@ -123,53 +123,44 @@ The example_decentral.csv file can be used as [template](https://github.com/RWTH
 
 ### Additional configuration categories and input data
 
-Default values for all parameters are defined in
-[config.py](districtgenerator/data_handling/config.py), which is the single source of truth.
-To override values, create your own file in `districtgenerator/data/` (e.g. `.env.CONFIG.MYPROJECT`) that
-contains **only the parameters you want to change**, and load it with
-`Datahandler(env_path=".env.CONFIG.MYPROJECT")`.
-[.env.CONFIG.EXAMPLE](districtgenerator/data/.env.CONFIG.EXAMPLE) lists all parameters with description, unit
-and default value. Copy the lines you need and remove the leading `# `. The EXAMPLE is generated from
-`config.py` and must not be edited by hand. A file named `.env.CONFIG` is ignored by git and can be used for
-local tests.
-TODO resolve (up and down)
-In the [file](https://github.com/RWTH-EBC/districtgenerator/blob/develop/districtgenerator/config/settings.py) 
-further data can be found. Default values are already stored there. General modeling assumptions are managed through 
-Pydantic-based configuration classes and will be overwritten through an .env configuration file if the Datahandler 
-is initialized with it. This .env file can be found
-in the directory [data/config](https://github.com/RWTH-EBC/districtgenerator/tree/develop/districtgenerator/data/config). 
-Without env_path, the defaults of config/settings.py are used. 
-data/config/.env.CONFIG.EXAMPLE is a generated template; regenerate it with 
-`python -m districtgenerator.config.generate_env_example` after changing settings.py.
+All default values are defined in [settings.py](districtgenerator/config/settings.py), which is the single
+source of truth. General modeling assumptions are managed through Pydantic-based configuration classes. Without
+`env_path`, the Datahandler uses these defaults.
 
-The configuration includes assumptions and parameters related to location and weather, temporal resolution, 
-heating and cooling periods, building design conditions, thermal building model, economic parameters, energy prices, 
+To override values, create your own file in [data/config](districtgenerator/data/config)
+(e.g. `.env.CONFIG.MYPROJECT`) that contains **only the parameters you want to change**, and load it with
+`Datahandler(env_path=".env.CONFIG.MYPROJECT")`. Files in other locations can be loaded with an absolute path.
+
+[.env.CONFIG.EXAMPLE](districtgenerator/data/config/.env.CONFIG.EXAMPLE) lists all parameters with description,
+unit and default value. Copy the lines you need and remove the leading `# `. The EXAMPLE is generated from
+`settings.py` and must not be edited by hand. After changing `settings.py`, regenerate it with
+`python -m districtgenerator.config.generate_env_example`. Local `.env.CONFIG*` files in `data/config` are
+ignored by git (except EXAMPLE and FREIBURG).
+
+The configuration includes assumptions and parameters related to location and weather, temporal resolution,
+heating and cooling periods, building design conditions, thermal building model, economic parameters, energy prices,
 emission factors, heating networks, central and decentralized technologies, optimization, solver settings, and
 report generation.
 
-All input data such as weather, postal codes, scenarios, pipes and SIA 2024 is read from
-`districtgenerator/data`, sorted into subfolders by topic:
+All input data such as weather, postal codes, scenarios, pipes and SIA 2024 is read from `districtgenerator/data`, sorted into subfolders by topic:
 
-- `config`: `.env.CONFIG` configuration files
-- `scenarios`: scenario files (.csv) with the buildings of a district
-- `site`: postal codes, coordinates, weather stations and cooling load zones
-- `weather`: test reference years (TRY) of the DWD
-- `buildings`: SIA 2024, non-residential archetypes, lighting and car data
-- `energy_systems`: pipe specifications, wind turbine power curves and heat pump COP time series
-- `report`: translations for the PDF certificate
-- `raw`: source data and scripts used to create the files above; the districtgenerator does not read this folder
+* `config`: configuration files (generated template `.env.CONFIG.EXAMPLE`, shared configs and your own `.env.CONFIG.*` files)
+* `scenarios`: scenario files (.csv) with the buildings of a district
+* `site`: postal codes, coordinates, weather stations and cooling load zones
+* `weather`: test reference years (TRY) of the DWD
+* `buildings`: SIA 2024, non-residential archetypes, lighting and car data
+* `energy_systems`: pipe specifications, wind turbine power curves and heat pump COP time series
+* `report`: translations for the PDF certificate
+* `raw`: source data and scripts used to create the files above; the districtgenerator does not read this folder
 
-`Datahandler(env_path=".env.NAME")` looks for the configuration file in `data/config`,
-an absolute path is used as given. Own scenario files can be placed in another folder with
-`Datahandler(scenario_file_path=...)`. The former parameters `filePath` and `srcPath` are deprecated and ignored.
-Fixed data such as the file format of the TRY weather data, the cooling load zones and the soil properties are
-constants in `config/settings.py` and cannot be changed via `.env`.
+Own scenario files can be placed in another folder with `Datahandler(scenario_file_path=...)`. 
+The former parameters `filePath` and `srcPath` are deprecated and ignored. 
+Fixed data such as the file format of the TRY weather data, the cooling load zones and the soil properties are constants
+in `config/settings.py` and cannot be changed via a config file.
 
-Set `RANDOM_SEED=42` in `.env` for repeatable stochastic building and demand profiles;
-leave it empty for unrestricted randomness.
-Set `DESIGN_ENERGY_HUB=True` in `.env` to request an energy hub without a thermal network.
-Enable technologies separately, e.g. `C_PV__FEASIBLE=True`.
-Heating networks trigger hub design automatically.
+In your own config file, set `RANDOM_SEED=42` for repeatable stochastic building and demand profiles; 
+leave it empty for unrestricted randomness. Set `DESIGN_ENERGY_HUB=True` to request an energy hub without a thermal network. 
+Enable technologies separately, e.g. `C_PV__FEASIBLE=True`. Heating networks trigger hub design automatically.
 
 ## Workflow of the DistrictGenerator
 
@@ -312,7 +303,7 @@ Run them from the repository root, e.g. with `python -m pytest tests`:
 - `test_time_series.py`: k-medoids clustering and the mapping of the clustered profiles
 - `unit_test.py`: single functions such as the change of the time resolution, economic year groups and the
   sizing of building devices, with expected values calculated by hand
-
+- `test_env_config.py`:  checks that the EXAMPLE is up to date and that config files only use known keys
 ## How to contribute
 
 The documentation and examples should be understandable and the code bug-free. 
