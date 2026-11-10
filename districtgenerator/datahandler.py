@@ -194,6 +194,7 @@ class Datahandler:
         self.random_seed = global_config.scenario.random_seed
         self.flat_parallelization = global_config.scenario.flat_parallelization
         self.flat_max_workers = global_config.scenario.flat_max_workers
+        self.building_max_workers = global_config.scenario.building_max_workers
         self.design_energy_hub = global_config.scenario.design_energy_hub
 
         # --- 2. Load the scenario file with one row per building ---
@@ -325,7 +326,7 @@ class Datahandler:
         """
         district_buildings.generate_buildings(self)
 
-    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_workers=8, gen_cars=True):
+    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_workers=None, gen_cars=True):
         """
         Generate demand profiles for all buildings.
 
@@ -336,7 +337,7 @@ class Datahandler:
         saveUserProfiles : bool, optional
             Whether generated user profiles should be saved.
         max_workers : int, optional
-            Maximum number of parallel workers.
+            If None, BUILDING_MAX_WORKERS from the config is used.
         gen_cars : bool, optional
             Whether car profiles should be generated.
         use_multiprocessing : str

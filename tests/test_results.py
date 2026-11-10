@@ -24,10 +24,11 @@ TEST_DATA = Path(__file__).parent / "results_data"
 SCENARIOS = TEST_DATA / "scenarios"
 REFERENCE = TEST_DATA / "reference"
 
-# Settings that override .env.CONFIG.EXAMPLE, so that every run produces the same results
+# Settings that override .env.CONFIG.TEST and the defaults, so that every run produces the same results
 OVERRIDES = {
     "RANDOM_SEED": "42",
     "SOLVER_OPTIONS__THREADS": "1",
+    "SOLVER_NAME": "highs",
 }
 
 # Demand profiles of each building that are compared as time series
@@ -48,7 +49,8 @@ def run_example(module_name, function_name, result_path):
     datahandler = module.Datahandler
 
     def test_datahandler(*args, **kwargs):
-        kwargs.update(resultPath=str(result_path), scenario_file_path=str(SCENARIOS))
+        kwargs.update(resultPath=str(result_path), scenario_file_path=str(SCENARIOS),
+                      env_path=str(TEST_DATA / ".env.CONFIG.TEST"))
         return datahandler(*args, **kwargs)
 
     with patch.object(module, "Datahandler", side_effect=test_datahandler), patch.dict(os.environ, OVERRIDES):

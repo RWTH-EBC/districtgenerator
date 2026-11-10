@@ -775,6 +775,10 @@ def get_params(data):
                         for year in param["interpolation_points"]}  # EUR/kg
 
     ################################################################
+    # PLAUSIBILITY CHECK
+    check_device_feasibility(devs, param)
+
+    ################################################################
     # INITIALIZE CALCULATION
 
     # Calculate annual investments
@@ -920,4 +924,39 @@ def get_PVandSTC_power(devs, param, data):
     potentialSTC_clustered = select_profile_periods(potentialSTC, param["typedays"], chunk_size, length_array)
 
     return (potentialPV, potentialSTC, potentialPV_clustered, potentialSTC_clustered)
+
+def check_device_feasibility(devs, param):
+    """
+    Checks before building the model whether the feasible central devices can cover the peak demands.
+
+    Raises
+    ------
+    ValueError
+        If there is a heating or cooling demand without a feasible device, or if the
+        summed maximum capacity of the feasible devices is below the peak demand.
+    """
+    # Cooling: only compression and absorption chillers generate cold (CTES only shifts it)
+    cooling_devs = [d for d in ("CC", "AC") if devs[d]["feasible"]]
+    if param["peak_cool"] > 0 and not cooling_devs:
+        raise ValueError(f"Peak cooling demand of {param['peak_cool']:.1f} kW at the energy hub, but no central "
+                         f"cooling device is feasible. Set C_CC__FEASIBLE=True or C_AC__FEASIBLE=True.")
+
+    # Heating: devices without fluctuating sources (STC), as for peak_dem_met_conv
+    fuel_of = {"BOI": "gas", "CHP": "gas", "GHP": "gas",
+               "BBOI": "biomass", "BCHP": "biomass",
+               "WBOI": "waste", "WCHP": "waste"}
+    heating_devs = []
+    for d in ("EB", "HP", "GroundHP", "BOI", "CHP", "GHP", "BBOI", "BCHP", "WBOI", "WCHP"):
+        fuel = fuel_of.get(d)
+        if devs[d]["feasible"] and (fuel is None or param.get(f"enable_supply_{fuel}", True)):
+            heating_devs.append(d)
+
+    if param["peak_heat"] > 0:
+        if not heating_devs:
+            raise ValueError(f"Peak heating demand of {param['peak_heat']:.1f} kW at the energy hub, but no "
+                             f"central heating device is feasible (or its fuel supply is disabled).")
+        max_heat = sum(devs[d]["max_cap"] for d in heating_devs)
+        if max_heat < param["peak_heat"]:
+            raise ValueError(f"Peak heating demand of {param['peak_heat']:.1f} kW exceeds the summed max_cap "
+                             f"of the feasible heating devices {heating_devs} ({max_heat:.1f} kW).")
 
