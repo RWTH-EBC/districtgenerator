@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-This is the fourth example to add more information the the building models.
+This is the fourth example to add more information to the building models.
 
 If you run the examples with Python console, you can see the output file.
 To do this right-hand click the example.py file (e4_generate_buildings.py).
@@ -9,11 +9,11 @@ Then choose 'Modify Run Configuration' and tick 'Run with Python Console'.
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from districtgenerator.classes import *
+from districtgenerator import Datahandler
 
 def example4_generate_buildings():
     # Initialize District
-    data = Datahandler(scenario_name = "example")
+    data = Datahandler(scenario_name = "example_decentral")
 
     # Generate Environment for the District
     data.generateEnvironment()

@@ -11,7 +11,7 @@ Welcome to the documentation of the DistrictGenerator!
    :caption: Contents:
 
    README
-   modules
    EXAMPLES
+   modules
    about/index
 

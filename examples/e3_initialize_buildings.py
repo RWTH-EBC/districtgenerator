@@ -9,12 +9,12 @@ Then choose 'Modify Run Configuration' and tick 'Run with Python Console'.
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from districtgenerator.classes import *
+from districtgenerator import Datahandler
 
 def example3_initialize_buildings():
 
     # Initialize District
-    data = Datahandler(scenario_name = "example")
+    data = Datahandler(scenario_name = "example_decentral")
 
     # Generate Environment for the District
     data.generateEnvironment()
@@ -23,7 +23,7 @@ def example3_initialize_buildings():
     data.initializeBuildings()
 
     ### =====================================  Output  ===================================== ###
-    # The district consists of a list of two buildings with id 0 and 1 (see "data.district").
+    # The district consists of a list of four buildings with id 0 to 3 (see "data.district").
     # To every building the building features from example.csv are added.
 
     return data

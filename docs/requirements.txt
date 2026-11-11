@@ -1,3 +1,9 @@
+# Packages for building the documentation
 sphinx
 sphinx_rtd_theme
 myst-parser
+sphinxcontrib-mermaid
+autodoc_pydantic
+
+# autodoc imports every module, so the dependencies of the districtgenerator are needed as well
+-r ../requirements.txt
