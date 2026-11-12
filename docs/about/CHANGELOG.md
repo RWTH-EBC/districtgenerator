@@ -1,5 +1,10 @@
 # Version History
 
+## v1.0.1
+
+- Added project description, project links and classifiers for PyPI
+- Fixed relative links in README for display on PyPI
+
 ## v1.0.0
 
 ### Restructuring

@@ -1,4 +1,4 @@
-![E.ON EBC RWTH Aachen University](./img/EBC_Logo.png)
+![E.ON EBC RWTH Aachen University](https://raw.githubusercontent.com/RWTH-EBC/districtgenerator/master/img/EBC_Logo.png)
 
 # DistrictGenerator
 
@@ -87,7 +87,7 @@ pip install -e districtgenerator
 ```
 Editable installation is recommended for researchers who want to inspect, extend, or modify the source code.
 
-Once you have installed the DistrictGenerator, you can check the [examples](docs/EXAMPLES.md) 
+Once you have installed the DistrictGenerator, you can check the [examples](https://github.com/RWTH-EBC/districtgenerator/blob/master/docs/EXAMPLES.md) 
 to learn how to use the different components.
 
 ### Minimum manual required input data
@@ -119,19 +119,19 @@ The minimal input data set was defined following the [TABULA archetype approach]
 - gammaPV: azimuth angle of roof side 1 in degrees (0° = south-facing orientation)
 - EV_charging: electric vehicle charging behavior (bidirectional = charging and discharging with use as electricity storage, on-demand = charging as needed, intelligent = optimized charging)
 
-The example_decentral.csv file can be used as [template](https://github.com/RWTH-EBC/districtgenerator/blob/develop/districtgenerator/data/scenarios/example_decentral.csv).
+The example_decentral.csv file can be used as [template](https://github.com/RWTH-EBC/districtgenerator/blob/master/districtgenerator/data/scenarios/example_decentral.csv).
 
 ### Additional configuration categories and input data
 
-All default values are defined in [settings.py](districtgenerator/config/settings.py), which is the single
+All default values are defined in [settings.py](https://github.com/RWTH-EBC/districtgenerator/blob/master/districtgenerator/config/settings.py), which is the single
 source of truth. General modeling assumptions are managed through Pydantic-based configuration classes. Without
 `env_path`, the Datahandler uses these defaults.
 
-To override values, create your own file in [data/config](districtgenerator/data/config)
+To override values, create your own file in [data/config](https://github.com/RWTH-EBC/districtgenerator/tree/master/districtgenerator/data/config)
 (e.g. `.env.CONFIG.MYPROJECT`) that contains **only the parameters you want to change**, and load it with
 `Datahandler(env_path=".env.CONFIG.MYPROJECT")`. Files in other locations can be loaded with an absolute path.
 
-[.env.CONFIG.EXAMPLE](districtgenerator/data/config/.env.CONFIG.EXAMPLE) lists all parameters with description,
+[.env.CONFIG.EXAMPLE](https://github.com/RWTH-EBC/districtgenerator/blob/master/districtgenerator/data/config/.env.CONFIG.EXAMPLE) lists all parameters with description,
 unit and default value. Copy the lines you need and remove the leading `# `. The EXAMPLE is generated from
 `settings.py` and must not be edited by hand. After changing `settings.py`, regenerate it with
 `python -m districtgenerator.config.generate_env_example`. Local `.env.CONFIG*` files in `data/config` are
@@ -246,7 +246,7 @@ Import the Datahandler with `from districtgenerator import Datahandler`.
 
 ## Final output of the DistrictGenerator
 
-DistrictGenerator stores generated profiles and optimization results in the configured [results](https://github.com/RWTH-EBC/districtgenerator/tree/develop/districtgenerator/results) 
+DistrictGenerator stores generated profiles and optimization results in the configured [results](https://github.com/RWTH-EBC/districtgenerator/tree/master/districtgenerator/results) 
 directory (`districtgenerator/results` by default, or the folder given with `Datahandler(resultPath=...)`).
 The directory separates building demand profiles, renewable generation profiles, and optimization results 
 so that intermediate results can be reused independently for post-processing or subsequent simulations. The exact 
@@ -283,10 +283,7 @@ by various key performance indicators.
 
 ## Testing
 
-Once you have installed the DistrictGenerator, you can check the [examples](docs/EXAMPLES.md) 
-to learn how to use the different components. 
-
-The [tests](https://github.com/RWTH-EBC/districtgenerator/tree/develop/tests) folder contains the following tests.
+The [tests](https://github.com/RWTH-EBC/districtgenerator/tree/master/tests) folder contains the following tests.
 Run them from the repository root, e.g. with `python -m pytest tests`:
 
 - `test_examples.py`: functional test of the examples 1 to 5, which checks the whole chain from data input and
@@ -352,7 +349,7 @@ We presented or applied the library in the following publications:
 
 The DistrictGenerator is released by RWTH Aachen University, E.ON Energy
 Research Center, Institute for Energy Efficient Buildings and Indoor Climate,
-under the [MIT License](docs/about/LICENSE.md).
+under the [MIT License](https://github.com/RWTH-EBC/districtgenerator/blob/master/docs/about/LICENSE.md).
 
 ## Acknowledgements
 
