@@ -7,6 +7,14 @@ from typing import Optional, Tuple
 import pandas as pd
 
 
+# Vereinfachte Annahme: unterer thermischer Abschluss ist eine Kellerdecke
+# gegen einen unbeheizten Keller. Fx = 0,8 nach dena-Leitfaden (2023),
+# S. 61, Kellerdecke, in Anlehnung an DIN V 18599-2:2018-09.
+# Der Faktor wird auch fuer die vereinfachte QG-Heizlastauslegung
+# angesetzt; damit wird kein vollstaendiger Normheizlastnachweis beansprucht.
+BASEMENT_FX = 0.8
+
+
 class Envelope:
     """
     Abstract class for envelop component management handling.
@@ -229,10 +237,13 @@ class Envelope:
         # Heat transfer resistances for opaque components
         self.R_se["opaque"]["wall"] = 0.04  # m²K/W ISO 6946 Table 1
         self.R_se["opaque"]["roof"] = 0.04  # m²K/W ISO 6946 Table 1
-        self.R_se["opaque"]["floor"] = 0.00  # m²K/W ISO 6946 Table 1
+        self.R_se["opaque"]["floor"] = 0.17  # m²K/W: Kellerdecke, Kellerseite
 
         for x in self.opaque_ext:
             self.R_si["opaque"][x] = 0.13  # m²K/W ISO 6946 Table 1
+
+        # Waermestrom nach unten: Oberseite der Kellerdecke (DIN EN ISO 6946).
+        self.R_si["opaque"]["floor"] = 0.17  # m²K/W: Raumseite
 
         # ASHRAE 140 : 2011, Table 5.6 p.19
         self.R_se["window"] = 0.0476  # ASHRAE 140 : 2011, Table 5.6 p.19
@@ -683,15 +694,14 @@ class Envelope:
         """
         H = self._calcTransmissionCoefficients()
 
-        # Correction factor for annual fluctuation of the outdoor temperature (fθann) [DIN/TS 12831-1, 4.3.1]
-        f_g1 = 1.45
-        # Reduction factor (fix,k) [DIN EN 12831-1, 6.3.2.5 and table 7]
-        f_g2 = (self.T_set_min - site["T_me"]) / (self.T_set_min - site["T_ne"])
-        # influence of groundwater neglected [DIN/TS 12831-1, 4.3.1]
-        G_w = 1.0
+        # Newly added, 13.11.26 FKL
+        # Vereinfachte Auslegungsheizlast: Kellerdecke gegen unbeheizten Keller.
+        # Der fixe Korrekturfaktor ersetzt die bisherige Erdreichkorrektur f_g1 * f_g2 * G_w.
+        # Für die Varianten gilt derselbe Kelleransatz wie in der Jahresbedarfsberechnung. Keine DIN-EN-12831-Vollberechnung.
+        H_base = H["envelope_air"] + H["vent"] + H["floor"] * BASEMENT_FX
         try:
             if method == "design":
-                Q_nHC = (H["envelope_air"] + H["vent"] + (H["floor"] * f_g1 * f_g2 * G_w)) * (self.T_set_min - site["T_ne"])
+                Q_nHC = H_base * (self.T_set_min - site["T_ne"])
                 if night_setback == 1:
                     # Q_hu: Heating-up power (W) to cover the additional load after a night setback,
                     # based on a standard factor (20 W/m² as per DIN/TS 12831)
@@ -699,10 +709,10 @@ class Envelope:
                     Q_nHC += Q_hu
 
             if method == "bivalent":
-                Q_nHC = (H["envelope_air"] + H["vent"] + (H["floor"] * f_g1 * f_g2 * G_w)) * (self.T_set_min - self.T_bivalent)
+                Q_nHC = H_base * (self.T_set_min - self.T_bivalent)
 
             if method == "heatlimit":
-                Q_nHC = (H["envelope_air"] + H["vent"] + (H["floor"] * f_g1 * f_g2 * G_w)) * (self.T_set_min - self.T_heatlimit)
+                Q_nHC = H_base * (self.T_set_min - self.T_heatlimit)
         except ValueError:
             raise ValueError(f"Method '{method}' not implemented for heating load calculation. Use 'design', 'bivalent' or 'heatlimit'.")
         except KeyError as e:
@@ -1050,19 +1060,10 @@ class Envelope:
 
         self.H_tr_ms = sum(self.A["opaque"][x] for x in self.opaque) * self.h_ms
 
-        # matching coefficient for thermal transmittance coefficient
-        # if temperature is unequal to T_e, otherwise = 1
-        # Assumption: Constant annual heat flow through ground
-        # (ISO 13370 A.5 p 25 eq. A8)
-        T_e_mon = 9.71  # monthly mean outside temperature
-        T_i_appr = 22.917  # monthly approximated room temperature
-
-        T_i_year = 22.917  # annual mean indoor temperature
-        T_e_year = 9.71  # annual mean outside temperature
-
-        # ground p.44 ISO 13790
-        # Heating period from October until May (important for T_i_appr)
-        self.b_floor = (T_i_year - T_e_year) / (T_i_appr - T_e_mon)
+        # Newly added, 13.11.26 FKL
+        # Kellerdecke gegen unbeheizten Keller, vereinfachter Temperaturkorrekturfaktor für die Jahres-Raumheizbilanz.
+        # Im verwendeten 5R1C-Modell wird damit der Bodenanteil in H_tr_em = sum(A_i * U_i * b_i) reduziert.
+        self.b_floor = BASEMENT_FX
 
         self.b_tr = {"wall": np.ones(len(SunRad[0])),
                      "roof": np.ones(len(SunRad[0])),

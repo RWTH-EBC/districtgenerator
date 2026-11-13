@@ -22,7 +22,7 @@ RANK = {"standard": 0, "retrofit": 1, "adv_retrofit": 2,}
 SETPOINTS = ("T_set_min", "T_set_min_night", "T_set_min_free_day", "T_set_max", "T_set_max_night")
 MATERIALS = ("d", "d_iso", "rho", "cp", "Lambda", "U", "kappa", "R_se", "R_si", "epsilon", "alpha_Sc", "g_gl")
 INPUT_PROFILES = ("elec", "dhw", "occ", "gains")
-VERSION = "QGP2"
+VERSION = "QGP3"
 logger = logging.getLogger("app.qg-envelope-profiles")
 
 
@@ -234,7 +234,7 @@ def calculate_profiles(qg, building, allowed_states=("standard", "retrofit"),):
         try:
             info = json.loads(manifest.read_text(encoding="utf-8"))
 
-            required_fields = {"version", "fingerprint", "sha256", "annual_kwh", "states", "initial_key", "initial_state",}
+            required_fields = {"version", "fingerprint", "sha256", "annual_kwh", "design_heat_load_w", "states", "initial_key", "initial_state",}
             missing_fields = required_fields.difference(info)
 
             if missing_fields:
@@ -258,6 +258,14 @@ def calculate_profiles(qg, building, allowed_states=("standard", "retrofit"),):
                 profiles = {key: valid_profile(data[key]) for key in keys}
                 cooling = valid_profile(data["initial_cooling"])
 
+            # QGP3: Jede Profilkombination muss eine gueltige Heizlast haben.
+            loads = info["design_heat_load_w"]
+            if set(loads) != set(keys):
+                raise ValueError("Design heat load keys do not match the envelope profiles.")
+            if any(not np.isfinite(float(loads[key])) or float(loads[key]) <= 0
+                   for key in keys):
+                raise ValueError("Invalid QG design heat load in the cache manifest.")
+
             existing_profiles_loaded = True
 
         except Exception as exc:
@@ -274,11 +282,19 @@ def calculate_profiles(qg, building, allowed_states=("standard", "retrofit"),):
         fixed = fixed_signature(base)
         weather_signature = digest(qg.site)
         profiles = {}
+        # Newly added, 13.11.26 FKL
+        # Design heat loads in W, by the same envelope key as each QG SH profile.
+        # These loads are unscaled; f_WB is not applied to nominal heat load.
+        design_heat_load_w = {}
         for states, key in zip(combinations, keys):
             envelope = variant_envelope(base, initial, states, bank)
             if fixed_signature(envelope) != fixed:
                 raise ValueError("Non-envelope conditions changed between variants.")
             prepare_envelope(qg, envelope, user, scenario["night_setback"])
+            nominal_w = float(envelope.heatload)
+            if not np.isfinite(nominal_w) or nominal_w <= 0:
+                raise ValueError(f"Invalid design heat load for envelope {key}: {nominal_w} W.")
+            design_heat_load_w[key] = nominal_w
             # A shallow copy keeps all initialized user inputs, without drawing any new random values.
             output_user = copy.copy(user)
             output_user.calcHeatingProfile(site=qg.site, envelope=envelope, thermal_model="5R1C",
@@ -306,7 +322,8 @@ def calculate_profiles(qg, building, allowed_states=("standard", "retrofit"),):
             "initial_key": keys[0], "initial_state": initial, "states": dict(zip(keys, combinations)),
             "setpoints": {name: float(getattr(base, name)) for name in SETPOINTS},
             "fixed_envelope_signature": fixed, "new_simulations": len(keys),
-            "annual_kwh": {key: float(values.sum()) / 1000 for key, values in profiles.items()}}
+            "annual_kwh": {key: float(values.sum()) / 1000 for key, values in profiles.items()},
+            "design_heat_load_w": design_heat_load_w}
         if previous is not None and np.asarray(previous).shape == (8760,):
             diff = profiles[keys[0]] - np.asarray(previous)
             info["old_heating_comparison"] = {"annual_difference_kwh": float(diff.sum()) / 1000,
@@ -349,6 +366,7 @@ def calculate_profiles(qg, building, allowed_states=("standard", "retrofit"),):
                                  "profile_count": len(keys),
                                  "initial_key": keys[0],
                                  "annual_kwh": info["annual_kwh"],
+                                 "design_heat_load_w": info["design_heat_load_w"],
                                  "checks": validation_checks,},
                                 ensure_ascii=False,) + "\n")
 
