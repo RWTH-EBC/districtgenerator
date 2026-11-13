@@ -1,0 +1,87 @@
+{
+  "settings": {
+    "seed": 42,
+    "scenario": "example_decentral",
+    "timestep_s": 3600,
+    "solver": "highs",
+    "mip_gap": 0.001,
+    "support_years": [
+      0
+    ]
+  },
+  "scenario": [
+    {
+      "id": 0,
+      "building": "SFH",
+      "year": 1990,
+      "retrofit": 1,
+      "construction_type": 2,
+      "night_setback": 0,
+      "area": 70,
+      "heater": "HP",
+      "dhw_heater": null,
+      "cooling": 1,
+      "EV": 0,
+      "f_TES": 0,
+      "f_BAT": 0,
+      "f_PV1": 0,
+      "f_PV2": 0,
+      "f_STC": 0,
+      "gamma_PV": 0,
+      "ev_charging": "on_demand"
+    },
+    {
+      "id": 1,
+      "building": "MFH",
+      "year": 1970,
+      "retrofit": 0,
+      "construction_type": 2,
+      "night_setback": 0,
+      "area": 300,
+      "heater": "HP",
+      "dhw_heater": null,
+      "cooling": 1,
+      "EV": 0,
+      "f_TES": 0,
+      "f_BAT": 0,
+      "f_PV1": 0,
+      "f_PV2": 0,
+      "f_STC": 0,
+      "gamma_PV": 0,
+      "ev_charging": "on_demand"
+    },
+    {
+      "id": 2,
+      "building": "OB",
+      "year": 1970,
+      "retrofit": 0,
+      "construction_type": 2,
+      "night_setback": 1,
+      "area": 100,
+      "heater": "BOI",
+      "dhw_heater": "EH_DHW",
+      "cooling": 1,
+      "EV": 0,
+      "f_TES": 0,
+      "f_BAT": 0,
+      "f_PV1": 0,
+      "f_PV2": 0,
+      "f_STC": 0,
+      "gamma_PV": 0,
+      "ev_charging": "on_demand"
+    }
+  ],
+  "buildings": {},
+  "environment/T_e": {
+    "size": 8760,
+    "mean": 10.893538812785389,
+    "min": -9.1,
+    "max": 33.5
+  },
+  "environment/SunTotal": {
+    "size": 8760,
+    "mean": 119.50593607305936,
+    "min": 0.0,
+    "max": 908.0
+  }
+}
