@@ -145,6 +145,9 @@ INDUSTRY_HEAT_MODE = None  # "direct_only" | "all_sources_hp" | None
 INDUSTRY_DISPATCH_MODE = None  # "forced" | "optimizer" | None
 INDUSTRY_TES_MODE = None  # 'off' | 'on' | None
 INDUSTRY_EH_PEAK_RESERVE_MODE = None  # None = Abfrage; 'on' / 'off' = Preset
+INDUSTRY_DUALSOURCE_MODE = None  # None = fragen; 'off' oder 'on' = Preset
+INDUSTRY_THERMAL_MODEL = "deterministic"
+INDUSTRY_ADVANCED_REJECT_FROM_SOURCES = 7
 
 # Vorläufige technische Parameter, keine validierte WP-Kennlinie!
 INDUSTRY_HP_ETA_CARNOT = 0.40
@@ -153,8 +156,30 @@ INDUSTRY_DIRECT_APPROACH_K = 5.0
 INDUSTRY_HP_EVAP_APPROACH_K = 5.0
 INDUSTRY_HP_COND_APPROACH_K = 5.0
 
+
 # Wird nur pro Python-Prozess einmal über die Konsole abgefragt.
 _PROMPT_CACHE = {}
+
+def _resolve_industry_thermal_model(source_count):
+    """Manuelle Modellwahl; Quellenlimit gilt ausschliesslich fuer Advanced."""
+    thermal_model = str(INDUSTRY_THERMAL_MODEL).strip().lower()
+    if thermal_model not in ("legacy", "advanced", "deterministic"):
+        raise ValueError(
+            f"Unbekanntes INDUSTRY_THERMAL_MODEL={INDUSTRY_THERMAL_MODEL!r}; "
+            "erlaubt sind 'legacy', 'advanced' und 'deterministic'."
+        )
+    if (not isinstance(INDUSTRY_ADVANCED_REJECT_FROM_SOURCES, int)
+            or INDUSTRY_ADVANCED_REJECT_FROM_SOURCES < 1):
+        raise ValueError("INDUSTRY_ADVANCED_REJECT_FROM_SOURCES muss eine positive ganze Zahl sein.")
+    if (thermal_model == "advanced"
+            and source_count >= INDUSTRY_ADVANCED_REJECT_FROM_SOURCES):
+        raise ValueError(
+            f"[WH1-ADVANCED] Standort mit {source_count} Quellen: "
+            f"Advanced ist ab {INDUSTRY_ADVANCED_REJECT_FROM_SOURCES} Quellen "
+            "gesperrt. Fuer diesen Standort INDUSTRY_THERMAL_MODEL "
+            "manuell auf 'legacy' setzen. Kein automatischer Fallback."
+        )
+    return thermal_model
 
 
 def _choose_setting(value, preset, kind):
@@ -165,6 +190,7 @@ def _choose_setting(value, preset, kind):
                      "forced": "forced", "optimizer": "optimizer"},
         'tes': {'1': 'off', '2': 'on', 'off': 'off', 'on': 'on'},
         'eh_peak': {'1': 'on', '2': 'off', 'on': 'on', 'off': 'off'},
+        'dual': {'1': 'off', '2': 'on', 'off': 'off', 'on': 'on'},
     }[kind]
     proposed = preset if value is None else value
     if proposed is not None:
@@ -190,6 +216,11 @@ def _choose_setting(value, preset, kind):
         print("\nENERGIEZENTRALE – KONSERVATIVE SPITZENLASTAUSLEGUNG")
         print("  1 = Ja: EH1 kann die Wärmelastspitze auch ohne Industrie immer versorgen (konservative Auslegung)")
         print("  2 = Nein: EHDO dimensioniert ohne diese zusätzliche Reserve (ökonomische Auslegung)")
+    elif kind == 'dual':
+        print("\nINDUSTRIESTANDORT WH1 – DUALSOURCE-WAERMEPUMPE")
+        print("  1 = Nicht als Technologie zulassen")
+        print("  2 = Als Option zulassen: Aussenluft ODER Industrieabwaerme als umschaltbare Quellen")
+        print("      (niemals gleichzeitig; +200 EUR/kW gegenueber Industrie-WP)")
     else:
         raise ValueError(f"Unbekannte Industrie-Einstellung: {kind}")
     while True:
@@ -558,26 +589,41 @@ def _apply_signed_flows(data, param, pipe_massflows):
         data.pipeline[key]["flow_reversal_hours"] = int(np.count_nonzero(flow < -1e-12))
 
 
-def _pipe_pressure_drop(data, param, t):
-    """Reibung und lokale Verluste für Vorlauf + Rücklauf (2 gleiche Rohre)."""
+def _pipe_velocity_and_friction_gradient(data, param, pipe, flow_m3_s):
+    """Geschwindigkeit [m/s] und Darcy-Reibungsgradient [Pa/m] fuer EIN Rohr.
+
+    Dieselbe stundenabhaengige Reibungszahl gilt fuer Pumpen und Postopt-Plots.
+    Einzelverluste und der zweite Rohrstrang sind hier nicht enthalten.
+    """
     import fluids
+    V = abs(float(flow_m3_s))
+    if V < 1e-12:
+        return 0.0, 0.0
     rho = float(data.heat_grid_data["fluid"]["rho_f"])
     nu = float(data.heat_grid_data["fluid"]["nu_f"])
+    props = param["pipe_dict"][pipe["DN"]]
+    d = float(props["Inner diameter (pipe) (mm)"]) / 1000.0
+    rough = float(props["Roughness (mm)"]) / 1000.0
+    if d <= 0 or nu <= 0:
+        raise ValueError("Industriehydraulik: Rohrdurchmesser und Viskositaet muessen positiv sein")
+    v = V / (math.pi * d * d / 4.0)
+    Re = v * d / nu
+    f = fluids.friction.friction_factor(Re=Re, eD=rough / d)
+    grad = f * rho * v * v / (2.0 * d)
+    return v, grad
+
+
+
+def _pipe_pressure_drop(data, param, t):
+    """Reibung und lokale Verluste für Vorlauf + Rücklauf (2 gleiche Rohre)."""
+    rho = float(data.heat_grid_data["fluid"]["rho_f"])
     result = {}
     for key, pipe in data.pipeline.items():
-        V = abs(float(pipe["flow"][t]))
-        if V < 1e-12:
-            result[key] = 0.0
-            continue
-        props = param["pipe_dict"][pipe["DN"]]
-        d = float(props["Inner diameter (pipe) (mm)"]) / 1000.0
-        rough = float(props["Roughness (mm)"]) / 1000.0
-        area = math.pi * d * d / 4
-        v = V / area
-        Re = v * d / nu
-        f = fluids.friction.friction_factor(Re=Re, eD=rough / d)
-        dp_pair = 2 * f * (float(pipe["length"]) / d) * rho * v * v / 2
-        dp_local = float(pipe.get("zeta", 0.0)) * rho * v * v / 2
+        v, grad = _pipe_velocity_and_friction_gradient(
+            data, param, pipe, pipe["flow"][t]
+        )
+        dp_pair = 2.0 * float(pipe["length"]) * grad
+        dp_local = float(pipe.get("zeta", 0.0)) * rho * v * v / 2.0
         result[key] = dp_pair + dp_local
     return result
 
@@ -614,9 +660,22 @@ def compute_dual_pumps(data, param, m_EH, m_WH):
                 ("EH1", m_EH, P_EH, head_EH, dp_EH),
                 ("WH1", m_WH, P_WH, head_WH, dp_WH),
         ):
-            if mass[t] <= 1e-12:
+            # Einheitliche Nullflussgrenze in m³/s
+            volume_m3_s = float(mass[t]) / rho
+
+            if volume_m3_s <= 1e-12:
                 continue
-            paths = nx.single_source_dijkstra_path_length(graph, source, weight="weight")
+
+            if source not in graph:
+                raise RuntimeError(
+                    f"Industriehydraulik: {source} fehlt im gerichteten Flussgraphen "
+                    f"(Stunde {t}, Massenstrom {float(mass[t]):.6g} kg/s, "
+                    f"Volumenstrom {volume_m3_s:.6g} m³/s)."
+                )
+
+            paths = nx.single_source_dijkstra_path_length(
+                graph, source, weight="weight"
+            )
             critical = max((dp for k, dp in paths.items() if k in consumers), default=0.0)
             total_dp = critical + dp_subst + dp_src
             head[t] = total_dp
@@ -764,9 +823,11 @@ def _make_industry_costs(data, param):
     pump_om = pump_om_eh + pump_om_wh
     pump_kWh_a = float(np.sum(grid["P_pump"])) / 1000.0
     costs = {
+        "pipe_investment_EUR": inv_pipes,
         "construction_investment_EUR": inv_construction,
+        "pipe_annuity_EUR_a": pipes_annual,
+        "pipe_om_EUR_a": pipes_om,
         "pump_investment_EUR": pump_inv,
-        "pump_investment_EH_EUR": pump_inv_eh,
         "pump_investment_WH_EUR": pump_inv_wh,
         "pump_annuity_EUR_a": pump_annual,
         "pump_annuity_EH_EUR_a": pump_annual_eh,
@@ -1144,8 +1205,19 @@ def plot_industry_network_after_optimization(data):
                           if 'tes_charge_W' in wh else np.zeros(steps))
             tes_discharge = (_series(wh, 'tes_discharge_W', steps)
                              if 'tes_discharge_W' in wh else np.zeros(steps))
+            if 'dual_industrial_W' in wh:
+                dual_ind_matrix = np.asarray(
+                    wh['dual_industrial_W'], dtype=float) / 1000.0
+                if dual_ind_matrix.shape != direct_matrix.shape:
+                    raise ValueError('DualSource: ungueltige Industriequellenmatrix')
+            else:
+                dual_ind_matrix = np.zeros_like(direct_matrix)
+            dual_air = (_series(wh, 'dual_air_W', steps)
+                        if 'dual_air_W' in wh else np.zeros(steps))
             gross_expected = (direct_matrix.sum(axis=0)
                               + hp_matrix.sum(axis=0)
+                              + dual_ind_matrix.sum(axis=0)
+                              + dual_air
                               - tes_charge + tes_discharge)
             if (not np.allclose(gross_expected, gross, atol=.01)
                     or not np.allclose(gross - net, wh_loss_opti, atol=.01)):
@@ -1215,13 +1287,14 @@ def plot_industry_network_after_optimization(data):
             for pipe_id, p in week.pipeline.items():
                 dest = accum[pipe_id]
                 q = np.asarray(p['flow'], dtype=float)
-                d = float(p['d_i'])/1000.0
-                if d <= 0:
-                    raise ValueError(f'Unzulässiger Rohrdurchmesser in {pipe_id}')
-                v = abs(q)/(np.pi*d*d/4.0)
-                vmax = float(np.max(v))
-                f = float(p.get('f_fric', g['pipe'].get('f_fric', .02)))
-                grad = f*rho*vmax*vmax/(2.0*d)  # Original: ein Rohr, reine Reibung.
+                vmax = 0.0
+                grad = 0.0
+                for flow_t in q:
+                    v_t, grad_t = _pipe_velocity_and_friction_gradient(
+                        week, p_week, p, flow_t
+                    )
+                    vmax = max(vmax, v_t)
+                    grad = max(grad, grad_t)
                 dest['velocity_max_m_s'] = max(dest['velocity_max_m_s'], vmax)
                 dest['pressure_gradient_max_Pa_m'] = max(dest['pressure_gradient_max_Pa_m'], grad)
                 dest['reversal_h'] += weight*float(np.count_nonzero(q < -1e-12))
@@ -1461,6 +1534,9 @@ def network_2leiter_industrie(
     mode_heat, mode_dispatch = resolve_industry_modes(heat_mode, dispatch_mode)
     tes_enabled = (_choose_setting(None, INDUSTRY_TES_MODE, 'tes') == 'on')
     eh_peak_reserve_enabled = _choose_setting(None, INDUSTRY_EH_PEAK_RESERVE_MODE, 'eh_peak') == 'on'
+    dual_allowed = (_choose_setting(None, INDUSTRY_DUALSOURCE_MODE, 'dual') == 'on')
+    if dual_allowed and not (mode_heat == 'all_sources_hp' and mode_dispatch == 'optimizer'):
+        raise ValueError('DualSource-WP erfordert Temperaturvariante 2 und Einsatzstrategie 2 (optimizer).')
     eta = INDUSTRY_HP_ETA_CARNOT if hp_eta_carnot is None else float(hp_eta_carnot)
     max_hp = INDUSTRY_HP_MAX_OUTPUT_KW if hp_max_output_kw is None else hp_max_output_kw
     approach = INDUSTRY_DIRECT_APPROACH_K if direct_approach_K is None else float(direct_approach_K)
@@ -1472,6 +1548,15 @@ def network_2leiter_industrie(
     if mode_dispatch == "optimizer" and optimized_hp_kW is not None and optimized_direct_kW is None:
         raise ValueError("Optimierer benötigt zusätzlich die Matrix der direkten Einspeisung")
     industry = load_industry(data, n)
+    source_count = int(industry["source_profiles_kW"].shape[0])
+    thermal_model = _resolve_industry_thermal_model(source_count)
+    data.heat_grid_data["industrial_thermal_model"] = thermal_model
+    print(f"[WH1-MODELL] Manuell gewaehlt: {thermal_model}; "
+          f"Industriequellen: {source_count}")
+    if thermal_model == "advanced":
+        print("[WH1-ADVANCED] Netzvorbereitung; Advanced-Pyomo folgt in EHDO.")
+    elif thermal_model == "deterministic":
+        print("[WH1-DET] Netzvorbereitung; mehrere feste Varianten folgen in EHDO.")
     attachment = attach_wh_to_topology(data, industry["position"])
     data, param = single.load_parameter_2leiter(data)
     folder = Path(data.resultPath) / "network" / f"{data.scenario_name}_road_2leiter_industrie"
@@ -1556,6 +1641,14 @@ def network_2leiter_industrie(
 
     m_wh = source_mass(dispatch["used_heat_to_grid_kW"])
     m_wh_design = source_mass(forced_possible["used_heat_to_grid_kW"])
+    if dual_allowed:
+        # Konservative WH1-Huelle: Luftmodus koennte gesamte Netzlast liefern.
+        m_wh_design = np.maximum(m_wh_design, source_mass(demand_dispatch_cap))
+    if thermal_model in ("advanced", "deterministic"):
+        # Advanced/Deterministik darf auch mit DIREKTER Vorwaermung plus WP eine Quelle
+        # Advanced kann das Netzwasser mit mehreren HX und WP-Stufen erwärmen.
+        # WH1-Netzleitungen auf volle potenzielle Abnahme auslegen.
+        m_wh_design = np.maximum(m_wh_design, source_mass(demand_dispatch_cap))
     # Für beliebige Zwischenwerte der Quellenentscheidung wird der
     # segmentweise Maximalbetrag aus EH-only und WH-priority verwendet.
     data, param = _dimension_for_operating_envelope(
@@ -1725,6 +1818,7 @@ def network_2leiter_industrie(
     data.heat_grid_data["industrial_dispatch_mode"] = mode_dispatch
     data.heat_grid_data['industrial_tes_enabled'] = bool(tes_enabled)
     data.heat_grid_data['industrial_eh_peak_reserve_enabled'] = bool(eh_peak_reserve_enabled)
+    data.heat_grid_data['industrial_dualsource_enabled'] = bool(dual_allowed)
 
 
     _save_industry_topology(data, folder)

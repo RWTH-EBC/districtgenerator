@@ -4130,6 +4130,11 @@ class CertificateBuilder(ReportComponent):
                 ("Industrie-WP installiert [kW]", "hp_capacity_kW"),
                 ("Industrie-WP Kapazitätskosten [EUR/a]", "hp_annual_cost_EUR_a"),
             ]
+            if k.get('dual_enabled', False):
+                static_items.extend([
+                    ('DualSource-WP installiert [kW]', 'dual_capacity_kW'),
+                    ('DualSource-WP Jahreskosten [EUR/a]', 'dual_annual_cost_EUR_a'),
+                ])
             if k.get('tes_enabled', False):
                 static_items.extend([
                     ('Industrie-TES installiert [kWh]', 'tes_capacity_kWh'),
@@ -4150,6 +4155,13 @@ class CertificateBuilder(ReportComponent):
                 ("Industrie-WP COP [-]", "hp_cop"),
                 ("Gewichtete Modellstunden [h/a]", "modelled_h_a"),
             ]
+            if k.get('dual_enabled', False):
+                year_items.extend([
+                    ('DualSource Industriewaerme [MWh/a]', 'dual_ind_heat_MWh_a'),
+                    ('DualSource Luftwaerme [MWh/a]', 'dual_air_heat_MWh_a'),
+                    ('DualSource COP [-]', 'dual_cop'),
+                    ('Alle WH1-WP COP [-]', 'all_hp_cop'),
+                ])
             if k.get('tes_enabled', False):
                 year_items.extend([
                     ('Industrie-TES Ladung [MWh/a]', 'tes_charge_MWh_a'),

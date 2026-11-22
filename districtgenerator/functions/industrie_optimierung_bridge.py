@@ -46,6 +46,13 @@ WH_HP_INV_EUR_PER_KW = 1110.0  # Ausgangsannahme wie zentrale HP
 WH_HP_LIFE_YEARS = 20
 WH_HP_OM_FRACTION = 0.033
 WH_HP_TEST_FIXED_KW = None
+#Dual Source WP Werte
+WH_DUAL_PREMIUM_EUR_PER_KW = 200.0
+WH_DUAL_INV_EUR_PER_KW = WH_HP_INV_EUR_PER_KW + WH_DUAL_PREMIUM_EUR_PER_KW
+WH_DUAL_AIR_ETA_CARNOT = 0.40
+WH_DUAL_AIR_EVAP_APPROACH_K = 5.0
+WH_DUAL_AIR_COND_APPROACH_K = 5.0
+
 
 # Industrie-TES: eigene Auslegungsgrenze; Kosten/Verluste werden
 # aus dem bereits vorhandenen zentralen TES-Datensatz übernommen.
@@ -53,6 +60,28 @@ INDUSTRY_TES_MAX_ENERGY_KWH = 5000.0
 INDUSTRY_TES_FULL_CHARGE_H = 2.0  # P_max = E_inst / 2 h
 INDUSTRY_TES_ETA_CH = 0.98
 INDUSTRY_TES_ETA_DCH = 0.98
+
+
+def _dual_enabled(data):
+    return bool(getattr(data, 'heat_grid_data', {}).get(
+        'industrial_dualsource_enabled', False))
+
+
+def _dual_air_electric_fraction(data):
+    """8760 h elektrische kW pro erzeugtem thermischen kW bei Luftbetrieb."""
+    air = np.asarray(data.site['T_e'], dtype=float)            # Grad Celsius
+    sup = np.asarray(data.heat_grid_data['T_supply_EH'], dtype=float)
+    if (air.shape != (8760,) or sup.shape != (8760,)
+            or not np.isfinite(air).all() or not np.isfinite(sup).all()):
+        raise ValueError('DualSource: 8760 gueltige Luft-/Netztemperaturen erforderlich')
+    condenser_K = sup + WH_DUAL_AIR_COND_APPROACH_K + 273.15
+    evaporator_K = air - WH_DUAL_AIR_EVAP_APPROACH_K + 273.15
+    lift = condenser_K - evaporator_K
+    if np.any(lift <= 0):
+        raise ValueError('DualSource: Luft-COP mit ungueltigem Temperaturhub')
+    cop = np.clip(WH_DUAL_AIR_ETA_CARNOT * condenser_K / lift, 1.05, 8.0)
+    return 1.0 / cop
+
 
 
 def _industry_tes_enabled(data):
@@ -252,6 +281,24 @@ def load_industry_bridge(data):
         raise ValueError('WH1-HX: statische Parameter pro Quelle erwartet')
     if not np.isfinite(b['hx_factor_kW_per_kW']).all() or (b['hx_factor_kW_per_kW'] < 0).any():
         raise ValueError('WH1-HX: ungueltige LMTD-Faktoren')
+    # Advanced-Datenadapter nur fuer die manuelle Advanced-Modellwahl.
+    # Verwendet den Stand der bereits berechneten 4G-Netztemperaturen.
+    # Die eigentliche Advanced-Pyomo-Formulierung ist NOCH NICHT enthalten.
+    advanced_input = None
+    if data.heat_grid_data.get('industrial_thermal_model', 'legacy') == 'advanced':
+        from districtgenerator.functions import industrie_advanced_preflight
+        advanced_input = industrie_advanced_preflight.prepare_from_data(data, demand_cap_kW=b['demand_massflow_cap_kW'])
+        # Rohdaten bleiben erhalten; nur das fuer Advanced nutzbare Profil
+        # wird mit der Massenstrom-Ersatzgroesse abgeglichen.
+        q0 = b['source_input_kW']
+        q_usable = advanced_input['advanced_source_usable_kW']
+        if np.any(q_usable > q0 + 1e-6):
+            raise ValueError('WH1-ADV: Effektive Quellleistung uebersteigt PFA-Rohdaten.')
+        qt = np.asarray(advanced_input['advanced_meta']['source_in_C'])[:, None]
+        recon = (advanced_input['advanced_source_mcp_kW_K']
+                 * (qt - advanced_input['advanced_air_C'][None, :]))
+        if not np.allclose(q_usable, recon, rtol=1e-8, atol=1e-6):
+            raise ValueError('WH1-ADV: Effektive PFA- und Bridge-Quellenleistungen weichen ab.')
     data.industry_optimization = {
         'mode': data.heat_grid_data['industrial_dispatch_mode'],
         'heat_mode': data.heat_grid_data['industrial_heat_mode'],
@@ -271,7 +318,17 @@ def load_industry_bridge(data):
             'ua_per_kw': b['hx_UA_W_K_per_kW'],
             'q_num': b['hx_q_number'],
         },
+        'dual_on': _dual_enabled(data),
+        'dual_air_el_frac': (_dual_air_electric_fraction(data) if _dual_enabled(data) else np.zeros(8760)),
     }
+    if advanced_input is not None:
+        # 1D/2D-Arrays gehoeren zur stundenweisen Clusterung,
+        # advanced_meta ist ein separates statisches Dictionary.
+        data.industry_optimization.update(advanced_input)
+    if data.heat_grid_data.get('industrial_thermal_model') == 'deterministic':
+        from districtgenerator.functions import industrie_deterministisch as det
+        data.industry_optimization['det_input'] = det.from_data(
+            data, b['source_input_kW'], demand_cap)
     print(f'[WH1-OPT] {sh[0]} Quellen geladen; Modus={data.industry_optimization["mode"]}.')
     return data.industry_optimization
 
@@ -301,11 +358,15 @@ def operating_window(data, cluster, steps):
     if len(selected) != int(data.time['clusterNumber']):
         raise RuntimeError('WH1: Anzahl repraesentativer Cluster stimmt nicht')
     sl = _week(data, selected[int(cluster)], steps)
-    return {k: (v[:, sl] if np.asarray(v).ndim == 2 else v[sl])
-            for k, v in ind.items() if isinstance(v, np.ndarray)} | {
-        'mode': ind['mode'], 'heat_mode': ind['heat_mode'],
-        'hp_fixed_max_kw': ind['hp_fixed_max_kw'],
-        'hx_static': ind['hx_static']}
+    result = {k: (v[:, sl] if np.asarray(v).ndim == 2 else v[sl])
+              for k, v in ind.items() if isinstance(v, np.ndarray)} | {
+                 'mode': ind['mode'], 'heat_mode': ind['heat_mode'],
+                 'hp_fixed_max_kw': ind['hp_fixed_max_kw'],
+                 'dual_on': bool(ind['dual_on']),
+                 'hx_static': ind['hx_static']}
+    if 'advanced_meta' in ind:
+        result['advanced_meta'] = ind['advanced_meta']
+    return result
 
 
 def design_windows(data, param, steps):
@@ -328,10 +389,14 @@ def design_windows(data, param, steps):
             windows[k] = np.stack([v[s] for s in sl], axis=0)
         else:
             raise ValueError('WH1: nicht unterstuetzte Datenmatrix ' + k)
-    return windows | {
+    result = windows | {
         'mode': ind['mode'], 'heat_mode': ind['heat_mode'],
         'hp_fixed_max_kw': ind['hp_fixed_max_kw'],
+        'dual_on': bool(ind['dual_on']),
         'hx_static': ind['hx_static']}
+    if 'advanced_meta' in ind:
+        result['advanced_meta'] = ind['advanced_meta']
+    return result
 
 
 def _cap_limit(ind):
@@ -367,6 +432,12 @@ def add_operational_source(model, data, cluster, steps):
 
     Aufruf NACH der Erstellung von model.t, VOR den Netzbilanzen.
     """
+    if data.heat_grid_data.get('industrial_thermal_model') == 'deterministic':
+        from districtgenerator.functions import industrie_deterministisch as det
+        return det.add_operation(model, data, cluster, steps)
+    if data.heat_grid_data.get('industrial_thermal_model', 'legacy') == 'advanced':
+        from districtgenerator.functions import industrie_advanced_pyomo
+        return industrie_advanced_pyomo.add_operation(model, data, cluster, steps)
     ind = operating_window(data, cluster, steps)
     if ind is None:
         return None
@@ -377,11 +448,37 @@ def add_operational_source(model, data, cluster, steps):
     model.wh_hp = pyo.Var(model.wh_sources, model.t, within=pyo.NonNegativeReals)
     model.wh_on = pyo.Var(model.t, within=pyo.Binary)
     model.wh_net = pyo.Var(model.t, within=pyo.NonNegativeReals)
-    model.wh_hp_el = pyo.Expression(model.t, rule=lambda m,t: sum(
-        m.wh_hp[s,t] * float(ind['hp_el_frac'][s,t]) for s in m.wh_sources))
+    dual_on = bool(ind['dual_on'])
+    if dual_on:
+        import pyomo.environ as pyo
+        caps = getattr(data, 'centralDevices', {}).get('capacities', {})
+        if 'industry_dual_capacity_kW' not in caps:
+            raise ValueError('DualSource: EHDO-Kapazitaet fehlt im Betrieb')
+        dual_cap_kw = float(caps['industry_dual_capacity_kW'])
+        full_demand_max = float(np.max(_bridge(data)['demand_cap']))
+        if (not np.isfinite(dual_cap_kw) or dual_cap_kw < -1e-8
+                or dual_cap_kw > full_demand_max + 1e-6):
+            raise ValueError('DualSource: ungueltige installierte Leistung')
+        dual_cap_W = max(0.0, dual_cap_kw)*1000.0
+        model.wh_dual_ind = pyo.Var(model.wh_sources, model.t,
+                                    within=pyo.NonNegativeReals)
+        model.wh_dual_air = pyo.Var(model.t, within=pyo.NonNegativeReals)
+        model.wh_dual_mode = pyo.Var(model.t, within=pyo.Binary)
+        # 0 = Industriequelle(n), 1 = Aussenluft
+        model.wh_dual_ind_el = pyo.Expression(model.t, rule=lambda m,t:
+        sum(m.wh_dual_ind[s,t]*float(ind['hp_el_frac'][s,t])
+            for s in m.wh_sources))
+        model.wh_dual_air_el = pyo.Expression(model.t, rule=lambda m,t:
+        m.wh_dual_air[t]*float(ind['dual_air_el_frac'][t]))
+    model.wh_hp_el = pyo.Expression(model.t, rule=lambda m,t:
+    sum(m.wh_hp[s,t] * float(ind['hp_el_frac'][s,t])
+        for s in m.wh_sources)
+    + (m.wh_dual_ind_el[t] + m.wh_dual_air_el[t] if dual_on else 0))
     tes_on = _tes_operating_variables(model, data)
     model.wh_gross = pyo.Expression(model.t, rule=lambda m,t:
-    sum(m.wh_direct[s,t]+m.wh_hp[s,t] for s in m.wh_sources)
+    sum(m.wh_direct[s,t] + m.wh_hp[s,t] for s in m.wh_sources)
+    + (sum(m.wh_dual_ind[s,t] for s in m.wh_sources)
+       + m.wh_dual_air[t] if dual_on else 0)
     - (m.wh_tes_charge[t]-m.wh_tes_discharge[t] if tes_on else 0))
     model.wh_constraints = pyo.ConstraintList()
     hx_caps = getattr(data, 'centralDevices', {}).get('capacities', {}).get(
@@ -397,7 +494,13 @@ def add_operational_source(model, data, cluster, steps):
     if designed is not None:
         capacity_kw = min(capacity_kw, float(designed))
     for t in model.t:
-        maxgross = max(0.,float(ind['demand_cap'][t]))*1000
+        # Netzseitige Einspeiseobergrenze gilt auch fuer DualSource-Luftbetrieb.
+        maxgross = max(0.0, float(ind['demand_cap'][t])) * 1000.0
+        if not dual_on and not tes_on:
+            # Ohne DualSource und TES bleibt die bisherige Quellendeckelung bestehen.
+            maxgross = min(
+                maxgross,
+                float((ind['direct_max'][:,t] + ind['hp_max'][:,t]).sum()) * 1000.0)
         if not tes_on:
             maxgross = min(maxgross, float((ind['direct_max'][:,t]+ind['hp_max'][:,t]).sum())*1000)
         model.wh_constraints.add(model.wh_gross[t] <= maxgross * model.wh_on[t])
@@ -407,12 +510,24 @@ def add_operational_source(model, data, cluster, steps):
         for s in model.wh_sources:
             model.wh_constraints.add(model.wh_direct[s,t] <= float(ind['direct_max'][s,t])*1000)
             model.wh_constraints.add(model.wh_direct[s,t] <= float(ind['hx_factor'][s,t]) * float(hx_caps[int(s)]) * 1000.0)
-            model.wh_constraints.add(model.wh_hp[s,t] <= float(ind['hp_max'][s,t])*1000)
-            model.wh_constraints.add(model.wh_direct[s,t] + model.wh_hp[s,t] *
-                                     (1-float(ind['hp_el_frac'][s,t])) <= float(ind['source_input'][s,t])*1000)
+            model.wh_constraints.add(
+                model.wh_hp[s,t]
+                + (model.wh_dual_ind[s,t] if dual_on else 0)
+                <= float(ind['hp_max'][s,t]) * 1000.0)
+            model.wh_constraints.add(
+                model.wh_direct[s,t]
+                + (model.wh_hp[s,t]
+                   + (model.wh_dual_ind[s,t] if dual_on else 0))
+                * (1-float(ind['hp_el_frac'][s,t]))
+                <= float(ind['source_input'][s,t])*1000.0)
             if ind['mode'] == 'forced' and not tes_on:
                 model.wh_direct[s,t].fix(float(ind['forced_direct'][s,t])*1000)
                 model.wh_hp[s,t].fix(float(ind['forced_hp'][s,t])*1000)
+            if dual_on:
+                q_ind = sum(model.wh_dual_ind[s,t] for s in model.wh_sources)
+                model.wh_constraints.add(q_ind + model.wh_dual_air[t] <= dual_cap_W)
+                model.wh_constraints.add(q_ind <= dual_cap_W * (1-model.wh_dual_mode[t]))
+                model.wh_constraints.add(model.wh_dual_air[t] <= dual_cap_W * model.wh_dual_mode[t])
         if ind['mode'] == 'forced':
             model.wh_on[t].fix(int(float(ind['forced_direct'][:,t].sum()+ind['forced_hp'][:,t].sum()) > 1e-8))
     _tes_operating_constraints(model, data)
@@ -421,6 +536,9 @@ def add_operational_source(model, data, cluster, steps):
 
 
 def operating_result(model):
+    if getattr(model, 'wh_deterministic', False):
+        from districtgenerator.functions import industrie_deterministisch as det
+        return det.operating_result(model)
     if not hasattr(model, 'wh_sources'):
         return None
     import pyomo.environ as pyo
@@ -439,11 +557,77 @@ def operating_result(model):
             'tes_discharge_W': [float(pyo.value(model.wh_tes_discharge[t])) for t in model.t],
             'tes_soc_Wh': [float(pyo.value(model.wh_tes_soc[t])) for t in model.t],
         })
+    if hasattr(model, 'wh_dual_air'):
+        dual_modes = []
+        for t in model.t:
+            mode = pyo.value(model.wh_dual_mode[t], exception=False)
+            if mode is None:
+                q_ind_W = sum(
+                    float(pyo.value(model.wh_dual_ind[s,t]))
+                    for s in model.wh_sources
+                )
+                q_air_W = float(pyo.value(model.wh_dual_air[t]))
+
+                if q_ind_W > 1e-3 or q_air_W > 1e-3:
+                    raise ValueError(
+                        f'DualSource-Modus fehlt in Stunde {t} '
+                        'trotz aktiver Waermeerzeugung!'
+                    )
+                mode = 0
+
+            dual_modes.append(int(round(mode)))
+
+        result.update({
+            'dual_industrial_W': [
+                [float(pyo.value(model.wh_dual_ind[s,t])) for t in model.t]
+                for s in model.wh_sources],
+            'dual_air_W': [float(pyo.value(model.wh_dual_air[t])) for t in model.t],
+            'dual_industrial_electric_W': [
+                float(pyo.value(model.wh_dual_ind_el[t])) for t in model.t],
+            'dual_air_electric_W': [
+                float(pyo.value(model.wh_dual_air_el[t])) for t in model.t],
+            'dual_mode': dual_modes,
+        })
+    if getattr(model, 'wh_graph_version', None) == 'graph-v1':
+        from districtgenerator.functions import industrie_advanced_pyomo as adv_wh
+        result.update(adv_wh.operating_graph_result(model))
+    elif getattr(model, 'wh_advanced', False):
+        paths = model.wh_advanced_paths
+        active_routes, water_flows = [], []
+        for t in model.t:
+            candidates = paths.get((int(t),), ())
+            active = [(r, float(pyo.value(model.wh_water_mcp[t,r])))
+                      for r in range(len(candidates))
+                      if float(pyo.value(model.wh_water_mcp[t,r])) > 1e-7]
+            if len(active) > 1:
+                raise ValueError(f'WH1-ADV: mehr als ein Wasserpfad in Stunde {t}.')
+            if active:
+                r, water_flow = active[0]
+                active_routes.append({
+                    'units': list(candidates[r].units),
+                    'temperatures_C': list(candidates[r].cold_nodes_C),
+                    'path_index': r,
+                })
+                water_flows.append(water_flow)
+            else:
+                active_routes.append(None)
+                water_flows.append(0.0)
+        result['advanced_paths'] = active_routes
+        result['advanced_water_mcp_W_K'] = water_flows
+        result['thermal_model'] = 'advanced'
     return result
 
 
 def add_design_source(model, data, param, steps, devs=None):
     """Pyomo-Variablen in kW fuer EHDO, auf param['typedays'] abgebildet."""
+    if data.heat_grid_data.get('industrial_thermal_model') == 'deterministic':
+        from districtgenerator.functions import industrie_deterministisch as det
+        return det.add_design(model, data, param, steps, devs)
+    if data.heat_grid_data.get('industrial_thermal_model', 'legacy') == 'advanced':
+        from districtgenerator.functions import industrie_advanced_pyomo
+        return industrie_advanced_pyomo.add_design(
+            model, data, param, steps, devs
+        )
     ind = design_windows(data, param, steps)
     if ind is None:
         return None
@@ -458,6 +642,21 @@ def add_design_source(model, data, param, steps, devs=None):
                           within=pyo.Binary)
     model.wh_net = pyo.Var(model.support_years, model.clusters, model.time_steps,
                            within=pyo.NonNegativeReals)
+    dual_on = bool(ind['dual_on'])
+    if dual_on:
+        max_dual_kw = max(0.0, float(np.max(_bridge(data)['demand_cap'])))
+        model.wh_dual_cap = pyo.Var(within=pyo.NonNegativeReals,
+                                    bounds=(0.0, max_dual_kw))
+        dual_big_M_kw = max_dual_kw  # Konstante fuer lineare Moduswahl
+        model.wh_dual_ind = pyo.Var(
+            model.wh_sources, model.support_years, model.clusters,
+            model.time_steps, within=pyo.NonNegativeReals)
+        model.wh_dual_air = pyo.Var(
+            model.support_years, model.clusters, model.time_steps,
+            within=pyo.NonNegativeReals)
+        model.wh_dual_mode = pyo.Var(
+            model.support_years, model.clusters, model.time_steps,
+            within=pyo.Binary)
     # Den Kapazitaetsdeckel aus dem VOLLSTAENDIGEN Jahr bestimmen, nicht nur
     # aus Repraesentanten. Sonst kann ein spaeterer Clusterlauf zu hoch liegen.
     full_ind = _bridge(data)
@@ -480,15 +679,27 @@ def add_design_source(model, data, param, steps, devs=None):
     # 1 = Kosten fuer einen installierten Quellwaermeuebertrager.
     model.wh_hx_built = pyo.Var(model.wh_sources, within=pyo.Binary)
 
-    model.wh_hp_el = pyo.Expression(model.support_years, model.clusters, model.time_steps,
-                                    rule=lambda m,y,d,t: sum(m.wh_hp[s,y,d,t]*float(ind['hp_el_frac'][s,d,t]) for s in m.wh_sources))
+    model.wh_hp_el = pyo.Expression(
+        model.support_years, model.clusters, model.time_steps,
+        rule=lambda m,y,d,t:
+        sum(m.wh_hp[s,y,d,t] * float(ind['hp_el_frac'][s,d,t])
+            for s in m.wh_sources)
+        + (sum(m.wh_dual_ind[s,y,d,t] * float(ind['hp_el_frac'][s,d,t])
+               for s in m.wh_sources)
+           + m.wh_dual_air[y,d,t] * float(ind['dual_air_el_frac'][d,t])
+           if dual_on else 0))
     if _industry_tes_enabled(data) and devs is None:
         raise ValueError('Industrie-TES: devs aus EHDO an die Bridge uebergeben')
     tes_on = _tes_design_variables(model, data, devs)
-    model.wh_gross = pyo.Expression(model.support_years, model.clusters, model.time_steps,
-                                    rule=lambda m,y,d,t:
-                                    sum(m.wh_direct[s,y,d,t]+m.wh_hp[s,y,d,t] for s in m.wh_sources)
-                                    - (m.wh_tes_charge[y,d,t]-m.wh_tes_discharge[y,d,t] if tes_on else 0))
+    model.wh_gross = pyo.Expression(
+        model.support_years, model.clusters, model.time_steps,
+        rule=lambda m,y,d,t:
+        sum(m.wh_direct[s,y,d,t] + m.wh_hp[s,y,d,t]
+            for s in m.wh_sources)
+        + (sum(m.wh_dual_ind[s,y,d,t] for s in m.wh_sources)
+           + m.wh_dual_air[y,d,t] if dual_on else 0)
+        - (m.wh_tes_charge[y,d,t]-m.wh_tes_discharge[y,d,t]
+           if tes_on else 0))
     model.wh_constraints = pyo.ConstraintList()
     for s in model.wh_sources:
         model.wh_constraints.add(
@@ -500,9 +711,15 @@ def add_design_source(model, data, param, steps, devs=None):
     for y in model.support_years:
         for d in model.clusters:
             for t in model.time_steps:
-                maxgross = max(0.,float(ind['demand_cap'][d,t]))
-                if not tes_on:
-                    maxgross = min(maxgross, float((ind['direct_max'][:,d,t]+ind['hp_max'][:,d,t]).sum()))
+                if dual_on:
+                    maxgross = max(0.0, float(ind['demand_cap'][d,t]))
+                else:
+                    # Ohne DS: TES und Quellenlimit wie bisher:
+                    maxgross = max(0.0, float(ind['demand_cap'][d,t]))
+                    if not tes_on:
+                        maxgross = min(
+                            maxgross,
+                            float((ind['direct_max'][:,d,t] + ind['hp_max'][:,d,t]).sum()))
                 model.wh_constraints.add(model.wh_gross[y,d,t] <= maxgross * model.wh_on[y,d,t])
                 model.wh_constraints.add(model.wh_net[y,d,t] == model.wh_gross[y,d,t]
                                          - float(ind['nominal_loss'][d,t])*model.wh_on[y,d,t])
@@ -510,12 +727,22 @@ def add_design_source(model, data, param, steps, devs=None):
                 for s in model.wh_sources:
                     model.wh_constraints.add(model.wh_direct[s,y,d,t] <= float(ind['direct_max'][s,d,t]))
                     model.wh_constraints.add(model.wh_direct[s,y,d,t] <= float(ind['hx_factor'][s,d,t]) * model.wh_hx_cap[s])
-                    model.wh_constraints.add(model.wh_hp[s,y,d,t] <= float(ind['hp_max'][s,d,t]))
-                    model.wh_constraints.add(model.wh_direct[s,y,d,t] + model.wh_hp[s,y,d,t] *
-                                             (1-float(ind['hp_el_frac'][s,d,t])) <= float(ind['source_input'][s,d,t]))
+                    model.wh_constraints.add(model.wh_hp[s,y,d,t] + (model.wh_dual_ind[s,y,d,t] if dual_on else 0) <= float(ind['hp_max'][s,d,t]))
+                    model.wh_constraints.add(
+                        model.wh_direct[s,y,d,t]
+                        + (model.wh_hp[s,y,d,t]
+                           + (model.wh_dual_ind[s,y,d,t] if dual_on else 0))
+                        * (1-float(ind['hp_el_frac'][s,d,t]))
+                        <= float(ind['source_input'][s,d,t]))
                     if ind['mode'] == 'forced':
                         model.wh_direct[s,y,d,t].fix(float(ind['forced_direct'][s,d,t]))
                         model.wh_hp[s,y,d,t].fix(float(ind['forced_hp'][s,d,t]))
+                    if dual_on:
+                        q_ind = sum(model.wh_dual_ind[s,y,d,t]
+                                    for s in model.wh_sources)
+                        model.wh_constraints.add(q_ind + model.wh_dual_air[y,d,t] <= model.wh_dual_cap)
+                        model.wh_constraints.add(q_ind <= dual_big_M_kw*(1-model.wh_dual_mode[y,d,t]))
+                        model.wh_constraints.add(model.wh_dual_air[y,d,t] <= dual_big_M_kw*model.wh_dual_mode[y,d,t])
                 if ind['mode'] == 'forced' and not tes_on:
                     model.wh_on[y,d,t].fix(int(float(ind['forced_direct'][:,d,t].sum()+
                                                      ind['forced_hp'][:,d,t].sum()) > 1e-8))
@@ -552,6 +779,10 @@ def add_design_source(model, data, param, steps, devs=None):
         raise ValueError('Zinssatz fuer Industrie-WP darf nicht negativ sein')
     crf = (i*(1+i)**WH_HP_LIFE_YEARS/((1+i)**WH_HP_LIFE_YEARS-1)) if i else 1/WH_HP_LIFE_YEARS
     model.wh_annual_capex = pyo.Expression(expr=model.wh_hp_cap * WH_HP_INV_EUR_PER_KW * (crf+WH_HP_OM_FRACTION))
+    if dual_on:
+        model.wh_dual_annual_cost = pyo.Expression(
+            expr=model.wh_dual_cap * WH_DUAL_INV_EUR_PER_KW
+                 * (crf + WH_HP_OM_FRACTION))
 
     # Preis-/Annuitaetslogik WIE bei bestehenden Uebergabestationen:
     # Investition in EUR/kW, lebensdauerspezifischer Annuitaetsfaktor,

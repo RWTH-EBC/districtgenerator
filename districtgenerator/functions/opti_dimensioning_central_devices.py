@@ -53,7 +53,8 @@ def _get_active_renewable_heat_share(config, year):
 
     return active_target
 
-def run_optim(data, devs, param, dem, result_dict):
+def run_optim(data, devs, param, dem, result_dict, *, _det_single=False):
+
     """
     Runs the Energy Hub Design Optimization using Pyomo.
 
@@ -76,6 +77,11 @@ def run_optim(data, devs, param, dem, result_dict):
         The populated result dictionary, or the original dict if no solution is found.
     """
 
+    if (not _det_single and data.heat_grid_data.get('industrial_thermal_model')
+            == 'deterministic'):
+        from districtgenerator.functions import industrie_deterministisch as runner
+        return runner.run_all(data, devs, param, dem, result_dict,
+                              lambda a, b, c, d, e: run_optim(a, b, c, d, e, _det_single=True))
     start_time = time.time()
     print("Starting Energy Hub Design Optimization...")
     # build the model
@@ -223,6 +229,13 @@ def build_model(model, data, devs, param, dem):
     model.constraints = pyo.ConstraintList()
     # Quellenspezifische WH1-Variablen nur bei 4G mit Industrieszenario.
     wh = industrie_opt.add_design_source(model, data, param, cluster_horizon, devs=devs)
+    if data.heat_grid_data.get('industrial_thermal_model') == 'advanced':
+        if wh is None or not getattr(model, 'wh_advanced', False):
+            raise RuntimeError(
+                'WH1-ADV: Advanced angefordert, aber EHDO hat kein '
+                'Advanced-Modell aufgebaut. Bridge/add_design_source pruefen.'
+            )
+    print('[WH1-ADV] EHDO-Modellzweig ist aktiv.')
 
     # Ohne Industriebeteiligung immer das bisherige EHDO-Verhalten erhalten.
     eh_peak_reserve_active = (wh is None or bool(data.heat_grid_data.get('industrial_eh_peak_reserve_enabled', True)))
@@ -465,16 +478,17 @@ def build_model(model, data, devs, param, dem):
 
     else:  # With STC, PV, WIND, HYDROPOWER (WAT)
         # Heating (with renewable sources)
-        model.constraints.add(model.cap["STC"] + model.cap["HP"] + model.cap["GroundHP"] + model.cap["EB"]
-                              + model.cap["CHP"] / devs["CHP"]["eta_el"] * devs["CHP"]["eta_th"]
-                              + model.cap["BOI"]
-                              + model.cap["GHP"]
-                              + model.cap["BCHP"] / devs["BCHP"]["eta_el"] * devs["BCHP"]["eta_th"]
-                              + model.cap["BBOI"]
-                              + model.cap["WCHP"] / devs["WCHP"]["eta_el"] * devs["WCHP"]["eta_th"]
-                              + model.cap["WBOI"]
-                              + model.cap["FC"] / devs["FC"]["eta_el"] * devs["FC"]["eta_th"]
-                              >= param["peak_heat"])
+        if eh_peak_reserve_active:
+            model.constraints.add(model.cap["STC"] + model.cap["HP"] + model.cap["GroundHP"] + model.cap["EB"]
+                                  + model.cap["CHP"] / devs["CHP"]["eta_el"] * devs["CHP"]["eta_th"]
+                                  + model.cap["BOI"]
+                                  + model.cap["GHP"]
+                                  + model.cap["BCHP"] / devs["BCHP"]["eta_el"] * devs["BCHP"]["eta_th"]
+                                  + model.cap["BBOI"]
+                                  + model.cap["WCHP"] / devs["WCHP"]["eta_el"] * devs["WCHP"]["eta_th"]
+                                  + model.cap["WBOI"]
+                                  + model.cap["FC"] / devs["FC"]["eta_el"] * devs["FC"]["eta_th"]
+                                  >= param["peak_heat"])
 
         # Cooling
         model.constraints.add(model.cap["CC"] + model.cap["AC"] >= param["peak_cool"])
@@ -677,6 +691,7 @@ def build_model(model, data, devs, param, dem):
         + ((model.wh_annual_capex
             + model.wh_hx_annual_cost
             + (model.wh_tes_annual_cost if hasattr(model, 'wh_tes_capacity') else 0))
+            + (model.wh_dual_annual_cost if hasattr(model, 'wh_dual_cap') else 0)
            if wh is not None else 0)
     )
 
@@ -798,10 +813,21 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
 
     model_name = f"ehdo_model"
 
-    results = solver_config.execute_and_diagnose(model = model,
-                                   pyomo_config = data.pyomo_config,
-                                   model_name = model_name,
-                                   result_dir = result_dir)
+    if data.heat_grid_data.get('industrial_thermal_model') == 'deterministic':
+        from districtgenerator.functions import industrie_deterministisch as det_bounds
+        results = det_bounds.execute(
+            model=model,
+            pyomo_config=data.pyomo_config,
+            model_name=model_name,
+            result_dir=result_dir,
+        )
+    else:
+        results = solver_config.execute_and_diagnose(
+            model=model,
+            pyomo_config=data.pyomo_config,
+            model_name=model_name,
+            result_dir=result_dir,
+        )
 
     if results.solver.termination_condition != pyo.TerminationCondition.optimal:
         return None
@@ -842,6 +868,15 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     if hasattr(model, "wh_hp_cap"):
         result_dict["industry_hp_capacity_kW"] = float(pyo.value(model.wh_hp_cap))
         result_dict["industry_hp_annuity_EUR_a"] = float(pyo.value(model.wh_annual_capex))
+    if hasattr(model, 'wh_dual_cap'):
+        dual_kw = float(pyo.value(model.wh_dual_cap))
+        result_dict['industry_dual_capacity_kW'] = dual_kw
+        result_dict['industry_dual_annuity_EUR_a'] = float(
+            pyo.value(model.wh_dual_annual_cost))
+        result_dict['industry_dual_price_EUR_per_kW'] = (
+            industrie_opt.WH_DUAL_INV_EUR_PER_KW)
+        result_dict['industry_dual_premium_EUR_per_kW'] = (
+            industrie_opt.WH_DUAL_PREMIUM_EUR_PER_KW)
     if hasattr(model, 'wh_tes_capacity'):
         result_dict['industry_tes_capacity_kWh'] = float(pyo.value(model.wh_tes_capacity))
         result_dict['industry_tes_sto_loss'] = float(model.wh_tes_loss)
@@ -853,6 +888,14 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     result_dict['industry_hx_annual_cost_EUR_a'] = float(
         pyo.value(model.wh_hx_annual_cost)
     )
+    if getattr(model, 'wh_advanced', False):
+        from districtgenerator.functions import industrie_advanced_pyomo as adv_wh
+        adv_wh.design_result(model, result_dict)
+        result_dict['industry_advanced_8760_screening'] = (
+            adv_wh.full_year_screening(data, param, threshold_fraction=0.10)
+        )
+
+    result_dict["tac_exact_EUR_a"] = float(safe_value_single(model.obj_tac))
     result_dict["tac"] = int(safe_value_single(model.obj_tac))  # EUR/a
     result_dict["co2"] = int(safe_value_single(model.obj_co2))  #  kg over full horizon
 
@@ -899,6 +942,22 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
         result_dict["total_ann_inv_cost_unsubsidized"] += int(round(wh_ann_inv))
         result_dict["total_om_cost"] += int(round(wh_om))
 
+    if hasattr(model, 'wh_dual_cap'):
+        kw = float(pyo.value(model.wh_dual_cap))
+        investment = kw * industrie_opt.WH_DUAL_INV_EUR_PER_KW
+        om = investment * industrie_opt.WH_HP_OM_FRACTION
+        annual_invest = float(pyo.value(model.wh_dual_annual_cost)) - om
+        premium_only = kw * industrie_opt.WH_DUAL_PREMIUM_EUR_PER_KW
+        result_dict['industry_dual_investment_EUR'] = investment
+        result_dict['industry_dual_premium_total_EUR'] = premium_only
+        result_dict['industry_dual_annual_om_EUR_a'] = om
+        result_dict['industry_dual_annual_investment_EUR_a'] = annual_invest
+        result_dict['total_inv_cost'] += int(round(investment))
+        result_dict['total_inv_cost_unsubsidized'] += int(round(investment))
+        result_dict['total_ann_inv_cost'] += int(round(annual_invest))
+        result_dict['total_ann_inv_cost_unsubsidized'] += int(round(annual_invest))
+        result_dict['total_om_cost'] += int(round(om))
+
     if hasattr(model, 'wh_hx_cap'):
         hx_cap = [float(pyo.value(model.wh_hx_cap[s]))
                   for s in model.wh_sources]
@@ -937,7 +996,12 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
         result_dict['total_ann_inv_cost_unsubsidized'] += int(round(ann_inv_base))
         result_dict['total_om_cost'] += int(round(om))
 
+    if getattr(model, "wh_deterministic", False):
+        from districtgenerator.functions import industrie_deterministisch as det
+        det.design_result(model, result_dict)
+
     # Total energy imports and exports - per support year
+
     result_dict["from_el_grid_total_by_year"] = {y: int(safe_value(model.from_el_grid_total, y) / 1000) for y in model.support_years} #MWh
     result_dict["to_el_grid_total_by_year"] = {y: int(safe_value(model.to_el_grid_total, y) / 1000) for y in model.support_years}       #MWh
     result_dict["from_gas_grid_total_by_year"] = {y: int(safe_value(model.from_gas_grid_total, y) / 1000) for y in model.support_years}  #MWh

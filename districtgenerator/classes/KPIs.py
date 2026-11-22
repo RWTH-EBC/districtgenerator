@@ -1371,6 +1371,10 @@ class KPIs:
             "hp_investment_EUR": float(caps.get("industry_hp_investment_EUR", 0.0)),
             "hp_annual_cost_EUR_a": float(caps.get("industry_hp_annuity_EUR_a", 0.0)),
             "hp_om_EUR_a": float(caps.get("industry_hp_annual_om_EUR_a", 0.0)),
+            'dual_enabled': bool(grid.get('industrial_dualsource_enabled', False)),
+            'dual_capacity_kW': float(caps.get('industry_dual_capacity_kW', 0.0)),
+            'dual_investment_EUR': float(caps.get('industry_dual_investment_EUR', 0.0)),
+            'dual_annual_cost_EUR_a': float(caps.get('industry_dual_annuity_EUR_a', 0.0)),
             'hx_capacities_kW': list(caps.get('industry_hx_capacities_kW', [])),
             'hx_q_codes': list(caps.get('industry_hx_q_codes', [])),
             'hx_annual_cost_EUR_a': float(caps.get('industry_hx_annual_cost_EUR_a', 0.0)),
@@ -1397,6 +1401,12 @@ class KPIs:
                 'tes_soc_max_kWh': 0.0,
                 'tes_full_discharge_cycles_a': None,
             })
+            values.update({
+                'dual_ind_heat_MWh_a': 0.0,
+                'dual_air_heat_MWh_a': 0.0,
+                'dual_ind_el_MWh_a': 0.0,
+                'dual_air_el_MWh_a': 0.0,
+            })
             values["modelled_h_a"] = 0.0
 
             for c, cluster_id in enumerate(self.inputData["clusters"]):
@@ -1419,6 +1429,24 @@ class KPIs:
                 values["net_MWh_a"] += weight * to_MWh("net_W")
                 values["loss_MWh_a"] += weight * to_MWh("connection_loss_W")
                 values["hp_el_MWh_a"] += weight * to_MWh("hp_electric_W")
+                if 'dual_air_W' in wh:
+                    dual_ind = np.asarray(wh['dual_industrial_W'], dtype=float)
+                    dual_air = np.asarray(wh['dual_air_W'], dtype=float)
+                    dual_ind_el = np.asarray(
+                        wh['dual_industrial_electric_W'], dtype=float)
+                    dual_air_el = np.asarray(wh['dual_air_electric_W'], dtype=float)
+                    if (dual_ind.ndim != 2 or dual_ind.shape[1] != dual_air.size
+                            or dual_ind_el.shape != dual_air.shape
+                            or dual_air_el.shape != dual_air.shape):
+                        raise ValueError('DualSource-KPI: falsche Zeitreihenform')
+                    values['dual_ind_heat_MWh_a'] += (
+                            weight*float(dual_ind.sum())*dt_h/1e6)
+                    values['dual_air_heat_MWh_a'] += (
+                            weight*float(dual_air.sum())*dt_h/1e6)
+                    values['dual_ind_el_MWh_a'] += (
+                            weight*float(dual_ind_el.sum())*dt_h/1e6)
+                    values['dual_air_el_MWh_a'] += (
+                            weight*float(dual_air_el.sum())*dt_h/1e6)
                 if tes_enabled:
                     required = ('tes_charge_W', 'tes_discharge_W', 'tes_soc_Wh')
                     missing = [name for name in required if name not in wh]
@@ -1450,9 +1478,12 @@ class KPIs:
 
             # Primaer genutzte industrielle Abwaerme, VOR dem Standort-TES:
             # Direkte Quellenwaerme + WP-Waerme minus WP-Strom.
+            # Nur tatsaechlich genutzte INDUSTRIE-Abwaerme:
             values['source_used_MWh_a'] = (
                     values['direct_MWh_a'] + values['hp_heat_MWh_a']
+                    + values['dual_ind_heat_MWh_a']
                     - values['hp_el_MWh_a']
+                    + values['dual_air_el_MWh_a']
             )
             if tes_enabled:
                 # Zyklische Wochen: Ladung - Entladung = innere Speicherverluste
@@ -1473,9 +1504,25 @@ class KPIs:
                     values['tes_full_discharge_cycles_a'] = (
                             values['tes_discharge_MWh_a'] * 1000.0 / capacity_kWh
                     )
-            values["hp_cop"] = (
-                values["hp_heat_MWh_a"] / values["hp_el_MWh_a"]
-                if values["hp_el_MWh_a"] > 1e-9 else None
+            normal_hp_el = (
+                    values['hp_el_MWh_a']
+                    - values['dual_ind_el_MWh_a']
+                    - values['dual_air_el_MWh_a']
+            )
+            if normal_hp_el < -1e-6:
+                raise ValueError('Industrie-KPI: negativer Strom der normalen Industrie-WP')
+            normal_hp_el = max(0.0, normal_hp_el)
+            dual_heat = values['dual_ind_heat_MWh_a'] + values['dual_air_heat_MWh_a']
+            dual_el = values['dual_ind_el_MWh_a'] + values['dual_air_el_MWh_a']
+            values['normal_hp_el_MWh_a'] = normal_hp_el
+            values['hp_cop'] = (
+                values['hp_heat_MWh_a'] / normal_hp_el
+                if normal_hp_el > 1e-9 else None
+            )
+            values['dual_cop'] = dual_heat / dual_el if dual_el > 1e-9 else None
+            values['all_hp_cop'] = (
+                (values['hp_heat_MWh_a'] + dual_heat) / values['hp_el_MWh_a']
+                if values['hp_el_MWh_a'] > 1e-9 else None
             )
             # Anteil am gesamten Gebäude-Wärmebedarf inkl. TWW.
             # Dies ist NICHT der exakte Deckungsgrad nur der Netzgebäude.
@@ -1577,6 +1624,13 @@ class KPIs:
                 "Industry HP Electricity (MWh/a)": "hp_el_MWh_a",
                 "Industry Waste Heat Actually Used (MWh/a)": "source_used_MWh_a",
                 "Industry HP Seasonal COP (-)": "hp_cop",
+                "Industry Normal HP Electricity (MWh/a)": "normal_hp_el_MWh_a",
+                "DualSource Industrial Heat (MWh/a)": "dual_ind_heat_MWh_a",
+                "DualSource Air Heat (MWh/a)": "dual_air_heat_MWh_a",
+                "DualSource Industrial Electricity (MWh/a)": "dual_ind_el_MWh_a",
+                "DualSource Air Electricity (MWh/a)": "dual_air_el_MWh_a",
+                "DualSource Seasonal COP (-)": "dual_cop",
+                "WH1 All Heat Pumps Seasonal COP (-)": "all_hp_cop",
                 "Industry Share of Total Building Heat + DHW (%)": "district_heat_share_pct",
                 "Industry Cluster-Represented Hours (h/a)": "modelled_h_a",
                 'Industry TES Charge (MWh/a)': 'tes_charge_MWh_a',
