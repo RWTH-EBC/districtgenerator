@@ -418,8 +418,12 @@ def load_parameter_2leiter(data):
     T_DHW_after_preheating = np.clip(T_sup_design_base - dT_HX_sup_DHW, T_cold_water, T_dhw_required)
 
     # Maximum fraction of the required DHW temperature lift supplied by the heat grid.
-    # For BEB this is applied only when the SH grid is already active.
     grid_fraction = (T_DHW_after_preheating - T_cold_water) / dhw_temperature_lift
+
+    # Any connected space-heating load enables BEB preheating across the network.
+    network_space_heating_active = np.logical_or.reduce(
+        [load > 0.0 for load in Q_SH_by_node.values()]
+    )
 
     # Store complete annual profiles for later clustering.
     data.heat_grid_data["T_DHW_after_preheating"] = T_DHW_after_preheating
@@ -442,8 +446,7 @@ def load_parameter_2leiter(data):
             building_grid_fraction = np.zeros(T_len, dtype=float)
 
         elif heater == "heat_grid_BEB":
-            active_sh_grid = np.asarray(Q_SH_by_node[node_key], dtype=float) > 0.0
-            building_grid_fraction = np.where(active_sh_grid, grid_fraction, 0.0)
+            building_grid_fraction = np.where(network_space_heating_active, grid_fraction, 0.0)
             Q_DHW_grid_useful = dhw_load * building_grid_fraction
             Q_DHW_booster = dhw_load * (1.0 - building_grid_fraction)
 
@@ -451,7 +454,7 @@ def load_parameter_2leiter(data):
             if grid_fraction_design > 0.0:
                 Q_DHW_design_W = building["bes_obj"].design_load_dhw * grid_fraction_design * (1.0 + h_loss_subst / 100.0)
                 T_cold_DHW_secondary_design = float(T_cold_water)
-                T_hot_DHW_secondary_design = float(np.max(T_DHW_after_preheating[active_sh_grid]))
+                T_hot_DHW_secondary_design = float(np.max(T_DHW_after_preheating[network_space_heating_active]))
                 T_s_DHW_primary_design = T_hot_DHW_secondary_design + dT_HX_sup_DHW
                 T_r_DHW_primary_design = T_cold_DHW_secondary_design + dT_HX_ret_DHW_min
 
