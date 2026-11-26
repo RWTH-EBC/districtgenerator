@@ -11,6 +11,7 @@ It holds the configuration and the district, and delegates each step to its doma
 5. ``optimization``: dimensioning and operation of the energy systems
 6. ``analysis``: KPIs, plots and the certificate
 """
+import logging
 import json
 import os
 import warnings
@@ -21,7 +22,7 @@ from districtgenerator.buildings import district as district_buildings
 from districtgenerator.buildings.district import parse_position  # noqa: F401, kept for existing imports
 from districtgenerator.buildings.profiles import demand_generation
 from districtgenerator.buildings.typology import mixed_use, sia2024
-from districtgenerator.config.settings import GlobalConfig, load_global_config
+from districtgenerator.config.settings import GlobalConfig, Scenario, load_global_config, resolve_config_file
 from districtgenerator.economics import price_paths
 from districtgenerator.energy_systems import building_energy_system, central_energy_system, heating_network
 from districtgenerator.environment import site as site_conditions
@@ -29,9 +30,12 @@ from districtgenerator.environment import soil, solar, weather
 from districtgenerator.optimization import operation
 from districtgenerator.file_io import district_store, profile_store
 from districtgenerator.time_series import clustering
+from districtgenerator.utilities.log import LOG_SUBFOLDER, setup_logging, use_log_dir
 from districtgenerator.utilities.paths import (DATA_DIR, PACKAGE_DIR, RESULTS_DIR, CONFIGS_DIR, SCENARIOS_DIR,
                                                REFERENCE_DIR, PROJECT_CONFIGS, PROJECT_SCENARIOS,
                                                PROJECT_RESULTS)
+
+logger = logging.getLogger(__name__)
 
 
 class Datahandler:
@@ -177,7 +181,30 @@ class Datahandler:
                 with open(self.progress_file, 'w') as f:
                     json.dump(progress_data, f)
             except Exception as e:
-                print(f"Couldn't save calculation progress: {e}")
+                logger.warning(f"Couldn't save calculation progress: {e}")
+
+    def setup_logging_from_config(self, env_path):
+        """
+        Set up logging from the config and put the default log file into the result folder.
+
+        If DG_LOG_LEVEL or DG_LOG_FILE is set in the config, :func:`districtgenerator.setup_logging` is called.
+        A relative DG_LOG_FILE is placed in the result folder. If both are empty, the logging setup of the
+        application is not changed. In both cases a default log file of ``setup_logging`` (without an explicit
+        ``log_file``) is moved to ``<result folder>/logs``.
+
+        Parameters
+        ----------
+        env_path : str, optional
+            Path or name of the environment configuration file, see :func:`load_global_config`.
+        """
+        log_dir = os.path.join(self.resultPath, LOG_SUBFOLDER)
+        scenario_config = Scenario(_env_file=resolve_config_file(env_path, self.config_dirs))
+        log_level, log_file = scenario_config.dg_log_level, scenario_config.dg_log_file
+        if log_level is not None or log_file is not None:
+            if log_file is not None and not os.path.isabs(log_file):
+                log_file = os.path.join(self.resultPath, log_file)
+            setup_logging(level=log_level or "INFO", log_file=log_file or None)
+        use_log_dir(log_dir)
 
     def load_all_data(self, env_path, scenario_name):
         """
@@ -194,6 +221,10 @@ class Datahandler:
         -------
         None.
         """
+        # --- 0. Set up logging if the config asks for it, so that all following messages are included ---
+        #        The default log file of setup_logging() is placed in <result folder>/logs
+        self.setup_logging_from_config(env_path)
+
         # --- 1. Load all configs into the dictionaries of the Datahandler ---
         global_config: GlobalConfig = load_global_config(env_file=env_path, config_dirs=self.config_dirs)
         sections = (
@@ -359,7 +390,7 @@ class Datahandler:
             self.designCentralDevices(saveGenerationProfiles=True)
             self.applyCentralDesignClusteringToOperationProfiles()
         else:
-            print("No thermal network detected and no energy hub requested — skipping thermal network design.")
+            logger.info("No thermal network detected and no energy hub requested — skipping thermal network design.")
             self.centralDevices = {}
             self.prepareClusteringInputs()
 
@@ -503,7 +534,7 @@ class Datahandler:
         """
         Prepare and cluster building-level demand and environmental data.
         """
-        print("Preparing initial clustering (pre-optimization)...")
+        logger.info("Preparing initial clustering (pre-optimization)...")
         self.clusterProfiles(centralEnergySupply=False)
 
 

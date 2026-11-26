@@ -5,6 +5,8 @@ import logging
 
 import numpy as np
 
+logger = logging.getLogger(__name__)
+
 
 def long_wave_radiation(theta_a, SSW):
     """
@@ -93,7 +95,7 @@ def impedence_parallel(R, C, T_RA=5.):
     # Check output quality
 
     if R1eq < 0. or C1eq < 0.:
-        logging.warning(
+        logger.warning(
             f"WARNING impedenceParallel function, There's something wrong with the calculation, R or C is negative.. R {R1eq}, C {C1eq}")
 
     return R1eq, C1eq
@@ -133,7 +135,7 @@ def tri2star(T1, T2, T3):
     # Check input data quality
 
     if T1 < 0. or T2 < 0. or T3 < 0.:
-        logging.warning(
+        logger.warning(
             f"WARNING tri2star funtion, There's something wrong with the input, one of them is negative.. T1 {T1}, T2 {T2}, T3 {T3}")
 
     T_sum = T1 + T2 + T3

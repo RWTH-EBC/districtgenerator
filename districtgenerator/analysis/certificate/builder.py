@@ -1,4 +1,5 @@
 """Entry point that builds the certificate PDF."""
+import logging
 from reportlab.platypus import NextPageTemplate, PageBreak, FrameBreak
 import os
 from districtgenerator.utilities.paths import RESULTS_DIR
@@ -6,6 +7,8 @@ from districtgenerator.analysis.certificate.components import ReportComponent
 from districtgenerator.analysis.certificate.data_extractor import DataExtractor
 from districtgenerator.analysis.certificate.layout import CertificateLayout, CertificateTemplate
 from districtgenerator.analysis.certificate.theme import ThemeManager
+
+logger = logging.getLogger(__name__)
 
 
 class CertificateBuilder(ReportComponent):
@@ -112,4 +115,4 @@ class CertificateBuilder(ReportComponent):
         story.append(PageBreak()) 
         
         self.doc.build(story)
-        print(f"Certificate saved to {self.outputpath}")
+        logger.info(f"Certificate saved to {self.outputpath}")

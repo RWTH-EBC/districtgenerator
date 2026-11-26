@@ -6,12 +6,15 @@ Created 26.02.2024
 ORIGINAL GUROBI VERSION ADJUSTED FOR PYOMO USAGE
 """
 
+import logging
 import pyomo.environ as pyo
 import numpy as np
 import os
 import time
 import districtgenerator.optimization.solver as solver_config
 from districtgenerator.energy_systems import technologies
+
+logger = logging.getLogger(__name__)
 
 # Sets of energy conversion systems in the buildings
 DOM_DEVS = ("HP", "EH", "CHP", "BOI", "BBOI", "OBOI", "H2BOI", "STC", "DH", "FC", "CC", "PV", "BAT", "TES", "TES_DHW", "EH_DHW")
@@ -105,13 +108,13 @@ def run_opti_central(data, year, cluster, sim_ecoData, resultPath) -> dict:
     model = pyo.ConcreteModel(name=f"Device_Operation_Optimization_Year_{year}_Cluster_{cluster}")
     build_model(model=model, data=data, year=year, cluster=cluster, sim_ecoData=sim_ecoData)
     model_building_time = time.time() - start_time
-    print(f"Pyomo model built successfully in {model_building_time:.2f} seconds.")
+    logger.info(f"Pyomo model built successfully in {model_building_time:.2f} seconds.")
 
     # solve the model and extract results
     results_dict = solve_model_and_extract_results(model=model, data=data, year=year, cluster=cluster, resultPath=resultPath)
     model_solve_time = time.time() - start_time - model_building_time
     if results_dict is not None:
-        print(f"Model solved to optimality in {model_solve_time:.2f} seconds.")
+        logger.info(f"Model solved to optimality in {model_solve_time:.2f} seconds.")
 
     return results_dict
 
@@ -2072,7 +2075,7 @@ def remove_previous_models_and_solutions(resultPath, model_name_prefix="opti_cen
             try:
                 os.remove(file_path)
             except Exception as e:
-                print(f"Warning: Could not remove file {file_path}: {e}")
+                logger.warning(f"Could not remove file {file_path}: {e}")
 
 
 def optimize_all_clusters(data):
@@ -2115,7 +2118,7 @@ def optimize_all_clusters(data):
         # Simulate each cluster every year
         for cluster in range(data.time["clusterNumber"]):
             # optimize operating costs of the district for current cluster
-            print(f"\nStarting optimization for cluster {cluster + 1}/{data.time['clusterNumber']} for year {i+1}/{len(simulated_years)}...")
+            logger.info(f"Starting optimization for cluster {cluster + 1}/{data.time['clusterNumber']} for year {i+1}/{len(simulated_years)}...")
             results_temp = run_opti_central(data=data, year=year, cluster=cluster,
                                                          sim_ecoData=sim_ecoData, resultPath=data.resultPath)
 
@@ -2139,4 +2142,4 @@ def optimize_all_clusters(data):
         raise Exception(error_message)
 
     end_time = time.time()
-    print(f"\nOptimization of all clusters for all simulated years completed in {end_time - start_time:.2f} seconds.")
+    logger.info(f"Optimization of all clusters for all simulated years completed in {end_time - start_time:.2f} seconds.")

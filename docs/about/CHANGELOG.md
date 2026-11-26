@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Logging: all messages of the package use the `logging` module instead of `print()`; the package only adds a
+  `NullHandler` and prints nothing unless logging is set up
+- New `districtgenerator.setup_logging(level, log_file)` for colored console output and a log file (by default
+  `<result folder>/logs/districtgenerator_<date>_<time>.log`); the examples call it with `level="INFO"`
+- New config parameters `DG_LOG_LEVEL` and `DG_LOG_FILE`: if set, the Datahandler sets up logging itself
+- Log messages of worker processes (demand generation, flats) are collected in the main process
+- Messages are mapped to levels: progress `INFO`, details per building `DEBUG`, fallbacks and corrections `WARNING`,
+  failed optimizations `ERROR`
 - `districtgenerator/data` separates user inputs from reference data: `data/config` moved to `data/inputs/configs`,
   `data/scenarios` to `data/inputs/scenarios`; `site`, `weather`, `buildings`, `energy_systems` and `report` moved to
   `data/reference`

@@ -17,6 +17,8 @@ from districtgenerator.buildings.typology.non_residential import GenericNonResid
 import logging
 from districtgenerator.buildings.thermal.vdi6007_common import impedence_parallel, long_wave_radiation, tri2star
 
+logger = logging.getLogger(__name__)
+
 class Surface:
     """
     Represent one building surface for the VDI 6007 thermal-network aggregation.
@@ -328,13 +330,13 @@ class Envelope:
 
             eta_temp_vent = 0
             if self.nwg_config.get_ventilation():
-                print("Calculating ventilation parameters for non-residential building based on SIA2024 data and building configuration.")
+                logger.debug("Calculating ventilation parameters for non-residential building based on SIA2024 data and building configuration.")
                 # Determine temperature efficiency of ventilation (eta_temp_vent) based on building standard (existing, standard, goal)
                 main_zone_name = self.nwg_config.get_main_zone_name()
                 for number, data in self.SIA2024.items():
                     zone_name = data.get('Zone_name_GER')
                     if zone_name == main_zone_name: # Main zone determines the ventilation heat recovery efficiency. Can be problematic if main zone has no heat recovery according to SIA2024, but other zones do. Maybe use weighted average of all zones instead?
-                        print(data.keys())
+                        logger.debug("SIA2024 zone data keys: %s", list(data.keys()))
                         eta_temp_vent = data['eta_temp_vent'][mode]
                         break
 

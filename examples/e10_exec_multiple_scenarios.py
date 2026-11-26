@@ -17,7 +17,7 @@ generated for each scenario. To do this right-hand click the example.py file
 """
 
 from pathlib import Path
-from districtgenerator import Datahandler
+from districtgenerator import Datahandler, setup_logging
 
 def example10_exec_multiple_scenarios(configs_dir: Path) -> list[Datahandler]:
     ### To run this example, you will need to set up a directory with configuration files.
@@ -75,6 +75,9 @@ def example10_exec_multiple_scenarios(configs_dir: Path) -> list[Datahandler]:
 
 
 if __name__ == '__main__':
+    # Show the progress messages of the districtgenerator in the console.
+    # A log file is written to the logs folder of the results. Use level="DEBUG" for more details.
+    setup_logging(level="INFO")
     # This helper code finds the 'data/inputs/configs' directory relative to this script's location.
     # Adjust the path if your directory structure is different.
     script_path = Path(__file__).resolve()

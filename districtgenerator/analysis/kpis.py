@@ -7,6 +7,7 @@ residual loads, peak demands, grid imports and exports, self-consumption and cov
 consumption, costs and CO2 emissions. It also triggers the PDF district energy certificate.
 """
 
+import logging
 import numpy as np
 import os
 import math
@@ -16,6 +17,8 @@ from districtgenerator.analysis.certificate import CertificateBuilder
 from districtgenerator.economics import annuity
 import pandas as pd
 from districtgenerator.utilities.paths import RESULTS_DIR
+
+logger = logging.getLogger(__name__)
 
 # Unit lookup for device capacities in the KPI export tables (saveKPIs); default is "kW" for anything not listed.
 DECENTRAL_DEVICE_UNIT_MAP = {"TES": "Liter", "TES_DHW": "Liter", "BAT": "kWh", "EV": "kWh", "PV": "m²", "STC": "m²"}
@@ -1359,7 +1362,7 @@ class KPIs:
                     kpi_df_cent_devices.to_excel(writer, sheet_name='Central Devices', index=False)
                 kpi_df_buildings.to_excel(writer, sheet_name='Building KPIs', index=False)
 
-            print(f"KPIs saved to: {filename}")
+            logger.info(f"KPIs saved to: {filename}")
 
         elif file_format == "csv":
             kpi_df_yearly.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_yearly.csv"), index=False, sep=';', decimal=',')
@@ -1369,12 +1372,12 @@ class KPIs:
                 kpi_df_cent_devices.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_central_devices.csv"), index=False, sep=';', decimal=',')
             kpi_df_buildings.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_buildings.csv"), index=False, sep=';', decimal=',')
 
-            print(f"KPIs saved to: {result_path} as CSV files: KPIs_{scenario_name}_*.csv")
+            logger.info(f"KPIs saved to: {result_path} as CSV files: KPIs_{scenario_name}_*.csv")
 
         elif file_format == None:
-            print("KPIs not saved to file as no file format specified in report configuration.")
+            logger.info("KPIs not saved to file as no file format specified in report configuration.")
         else:
-            print(f"Unsupported file format: {file_format}")
+            logger.warning(f"Unsupported file format: {file_format}")
 
 
     def create_certificate(self, data, result_path, file_name=None):

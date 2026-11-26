@@ -1,4 +1,5 @@
 """Charts of the certificate."""
+import logging
 from reportlab.lib import colors
 import math
 from reportlab.graphics.shapes import Drawing, Rect, String, Line, Circle, Polygon, Group
@@ -7,6 +8,8 @@ from reportlab.graphics.charts.legends import Legend
 from reportlab.graphics.charts.barcharts import VerticalBarChart
 from districtgenerator.analysis.certificate.components import BaseReportFlowable
 from districtgenerator.analysis.certificate.theme import DEBUG, debug_line_width
+
+logger = logging.getLogger(__name__)
 
 
 class EnergyPieChart(BaseReportFlowable):
@@ -362,12 +365,12 @@ class YearlyStackedBarCharts(BaseReportFlowable):
                     return self.style.get_source_color(color_key)
                 
                 # Fallback if the string is not in the explicit list
-                print(f"Warning: Category '{category}' not found in color mapping. Using secondary color as fallback. Check if color {mapping[category]} is defined in the config.")
+                logger.warning(f"Category '{category}' not found in color mapping. Using secondary color as fallback. Check if color {mapping[category]} is defined in the config.")
                 return self.style.get_color("secondary_color")
                 
             except KeyError:
                 # Fallback if the color key itself is missing in the theme config
-                print(f"Warning: Category '{category}' not defined in color mapping. Using secondary color as fallback.")
+                logger.warning(f"Category '{category}' not defined in color mapping. Using secondary color as fallback.")
                 return self.style.get_color("secondary_color")
  
         # --- Placement Calculations ---

@@ -17,6 +17,7 @@ aggregated district demands, design clustering, device parameters (including COP
 generation profiles) and economic parameters for every support year.
 """
 
+import logging
 import os
 import numpy as np
 import districtgenerator.time_series.medoid as clustering
@@ -29,6 +30,8 @@ from districtgenerator.environment.solar import SUN
 from districtgenerator.economics import annuity
 from districtgenerator.energy_systems import technologies, wind_turbine
 from districtgenerator.energy_systems.technologies import calc_COP
+
+logger = logging.getLogger(__name__)
 
 def get_params(data):
     """
@@ -158,7 +161,7 @@ def get_params(data):
     scalings = [False] * len(inputs)
 
     # Execute k-medoids algorithm
-    print("Cluster design days...")
+    logger.info("Cluster design days...")
     start = time.time()
     (clustered_series, nc, _, z, _) = clustering.cluster(inputs,
                                     data.time["clusterNumber"],
@@ -167,7 +170,7 @@ def get_params(data):
                                     scalings=scalings,
                                     pyomo_config=data.pyomo_config)
 
-    print("Design clustering finished. (" + str(time.time()-start) + ")\n")
+    logger.info(f"Design clustering finished ({time.time() - start:.2f} s).")
 
     # For every support year save the clustered demands - #! currently constant demands over the years
     dem = {"heat": {}, "cool": {}, "power": {}}

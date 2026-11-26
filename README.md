@@ -272,11 +272,54 @@ districtgenerator/
 ├── optimization/      # decentral heating concept, central dimensioning and operation
 ├── analysis/          # KPIs, plots and the certificate
 ├── file_io/           # saving and loading of profiles and districts
-├── utilities/         # paths (DATA_DIR, RESULTS_DIR) and helpers without domain knowledge
+├── utilities/         # paths (DATA_DIR, RESULTS_DIR), logging and helpers without domain knowledge
 └── data/              # input data, one subfolder per topic; raw/ holds source data that the code does not read
 ```
 
 Import the Datahandler with `from districtgenerator import Datahandler`.
+
+### Logging
+
+The districtgenerator reports its progress, warnings and errors with the `logging` module of Python, every module with
+its own logger below `districtgenerator`. As a library, it prints nothing unless logging is set up. The quickest way
+is `setup_logging`, which the examples also use:
+
+```python
+from districtgenerator import Datahandler, setup_logging
+
+setup_logging(level="INFO")                        # console + log file in results/logs
+setup_logging(level="DEBUG", log_file="run.log")   # more details, own log file
+setup_logging(level="INFO", log_file=False)        # console only
+```
+
+```
+2026-11-26 16:52:27 - settings - INFO - Using config: defaults from settings.py
+2026-11-26 16:52:28 - district - INFO - This calculation will take about 0:01:30.
+2026-11-26 16:52:41 - demand_generation - INFO - building 1/4 calculated (25.0%): example_decentral_0_SFH
+```
+
+* The console shows the last part of the logger name and colors the messages by level (set the environment variable
+  `NO_COLOR` or pass `color=False` to turn this off). The log file contains the full logger name.
+* Without `log_file`, a new file `districtgenerator_<date>_<time>.log` is written to the `logs` folder of the results,
+  i.e. `districtgenerator/results/logs` or `<project_path>/results/logs`. The results folder is ignored by git.
+* Levels: `INFO` shows the progress, `DEBUG` adds details per building, `WARNING` only shows fallbacks and automatic
+  corrections, `ERROR` only failed steps such as optimizations that did not terminate.
+* `setup_logging` only changes the logger of the districtgenerator, not the logging setup of your application.
+  Warnings of the `warnings` module (e.g. deprecations) are written to the log as well.
+* Messages of the worker processes of the demand generation are passed to the main process, so they appear in the
+  same console and log file.
+* Alternatively, set `DG_LOG_LEVEL` and/or `DG_LOG_FILE` in a `.env.CONFIG` file. The Datahandler then calls
+  `setup_logging` itself; a relative `DG_LOG_FILE` is placed in the result folder.
+
+If your application configures `logging` itself, do not call `setup_logging`. Add the logger `districtgenerator` to
+your configuration instead, e.g. with `logging.config.dictConfig`:
+
+```python
+"loggers": {
+    "app": {...},
+    "districtgenerator": {"level": "INFO", "handlers": ["console", "file"], "propagate": False},
+}
+```
 
 ## Final output of the DistrictGenerator
 

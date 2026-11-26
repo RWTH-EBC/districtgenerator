@@ -6,6 +6,7 @@ settings class with default values. :func:`load_global_config` reads a ``.env.CO
 ``data/inputs/configs`` (or a project folder or an absolute path) and overrides the defaults; the result is a :class:`GlobalConfig`.
 Nested parameters use a double underscore, e.g. ``SOLVER_OPTIONS__TIME_LIMIT=600``.
 """
+import logging
 from dataclasses import field
 import os
 import warnings
@@ -15,6 +16,8 @@ from typing import Dict, Literal, Optional, Set, Tuple, ClassVar, Annotated
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from districtgenerator.utilities.paths import CONFIGS_DIR
+
+logger = logging.getLogger(__name__)
 
 #############################
 # NOTE: After changing parameters, defaults or their comments in this file, regenerate the template:
@@ -372,11 +375,11 @@ class EcoConfig(BaseSettings):
                 last_value = current_list[-1]
                 extended_list = current_list + [last_value] * (self.observation_time - len(current_list))
                 setattr(self, param_name, extended_list)
-                print(f"Warning: {param_name} list was shorter than observation_time. Extended with last value to match length.")
+                logger.warning(f"{param_name} list was shorter than observation_time. Extended with last value to match length.")
             elif len(current_list) > self.observation_time:
                 # List too long - truncate
                 setattr(self, param_name, current_list[:self.observation_time])
-                print(f"Warning: {param_name} list was longer than observation_time. Truncated to match length.")
+                logger.warning(f"{param_name} list was longer than observation_time. Truncated to match length.")
             # else: length matches exactly, no change needed
 
         return self
@@ -648,13 +651,30 @@ class Scenario(BaseSettings):
     # 'none' keeps flats sequential; worker counts multiply with the building-level workers.
     flat_parallelization: Literal['none', 'threading', 'multiprocessing'] = 'none'
     flat_max_workers: Annotated[int, Field(ge=1)] = 4  # Max. number of workers for the flat parallelization.
+    # Logging: if DG_LOG_LEVEL or DG_LOG_FILE is set, the Datahandler calls districtgenerator.setup_logging().
+    # Leave both empty (None) to keep the logging setup of your application.
+    dg_log_level: Optional[str] = None  # Minimum level of the messages: DEBUG, INFO, WARNING or ERROR. INFO if only DG_LOG_FILE is set.
+    # Path of the log file; relative paths are relative to the result folder.
+    # None: a new file with a time stamp in <result folder>/logs.
+    dg_log_file: Optional[str] = None
 
-    @field_validator('random_seed', mode='before')
+    @field_validator('random_seed', 'dg_log_level', 'dg_log_file', mode='before')
     @classmethod
-    def parse_random_seed(cls, value):
-        """Convert '', 'none' or 'null' to None, so that no fixed seed is used."""
+    def parse_none(cls, value):
+        """Convert '', 'none' or 'null' to None, so that the parameter is not set."""
         if isinstance(value, str) and value.strip().lower() in ('', 'none', 'null'):
             return None
+        return value
+
+    @field_validator('dg_log_level')
+    @classmethod
+    def check_log_level(cls, value):
+        """Accept the level names of the logging module in any case."""
+        if value is None:
+            return None
+        value = value.strip().upper()
+        if value not in ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'):
+            raise ValueError(f"Unknown log level '{value}'. Options: DEBUG, INFO, WARNING, ERROR, CRITICAL")
         return value
 
     model_config = SettingsConfigDict(
@@ -1417,6 +1437,32 @@ class GlobalConfig(BaseModel):
     central: 'CentralDeviceConfig'
     report: 'ReportConfig'
 
+def resolve_config_file(env_file: Optional[str] = None, config_dirs: Optional[list] = None) -> Optional[str]:
+    """
+    Return the path of a configuration file, see :func:`load_global_config`.
+
+    Returns None if no ``env_file`` is given. Raises FileNotFoundError if the file does not exist.
+    """
+    if env_file is None:
+        return None
+    env_file = os.fspath(env_file)
+    if os.path.isabs(env_file):
+        # Absolute paths are used as given
+        candidates = [env_file]
+    else:
+        # Relative paths are searched in the config folders, the first match wins
+        search_dirs = [os.fspath(d) for d in (config_dirs or [CONFIGS_DIR])]
+        candidates = [os.path.join(d, env_file) for d in search_dirs]
+    env_file_path = next((c for c in candidates if os.path.isfile(c)), None)
+    if env_file_path is None:
+        looked_for = "\n".join(f"  - {c}" for c in candidates)
+        raise FileNotFoundError(
+            f"Configuration file '{env_file}' not found. Looked for:\n{looked_for}\n"
+            f"Pass an absolute path or put the file into one of these config folders."
+        )
+    return env_file_path
+
+
 def load_global_config(env_file: Optional[str] = None,
                        config_dirs: Optional[list] = None) -> GlobalConfig:
     """
@@ -1447,26 +1493,8 @@ def load_global_config(env_file: Optional[str] = None,
     FileNotFoundError
         If env_file is given but the file does not exist.
     """
-    if env_file is None:
-        env_file_path = None
-        print("Using config: defaults from settings.py")
-    else:
-        env_file = os.fspath(env_file)
-        if os.path.isabs(env_file):
-            # Absolute paths are used as given
-            candidates = [env_file]
-        else:
-            # Relative paths are searched in the config folders, the first match wins
-            search_dirs = [os.fspath(d) for d in (config_dirs or [CONFIGS_DIR])]
-            candidates = [os.path.join(d, env_file) for d in search_dirs]
-        env_file_path = next((c for c in candidates if os.path.isfile(c)), None)
-        if env_file_path is None:
-            looked_for = "\n".join(f"  - {c}" for c in candidates)
-            raise FileNotFoundError(
-                f"Configuration file '{env_file}' not found. Looked for:\n{looked_for}\n"
-                f"Pass an absolute path or put the file into one of these config folders."
-            )
-        print(f'Using config: {env_file_path}')
+    env_file_path = resolve_config_file(env_file, config_dirs)
+    logger.info(f"Using config: {env_file_path or 'defaults from settings.py'}")
 
     return GlobalConfig(
         location=LocationConfig(_env_file=env_file_path),

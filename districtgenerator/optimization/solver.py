@@ -3,6 +3,7 @@
 This script provides functions to create a Pyomo solver instance based on a given configuration,
 execute the optimization, and diagnose issues if the solver does not terminate with an optimal solution.
 """
+import logging
 import os
 import pyomo.environ as pyo
 from contextlib import redirect_stdout
@@ -10,6 +11,8 @@ from datetime import datetime
 
 from pyomo.environ import SolverFactory
 from districtgenerator.config.settings import PyomoConfig
+
+logger = logging.getLogger(__name__)
 
 # --- Global constants for solver ---
 SUPPORTED_SOLVERS = ['gurobi', 'cbc', 'glpk', 'highs', 'scip']
@@ -390,7 +393,7 @@ def _diagnose_solution(model, term_cond, result_dir, model_name, lp_filename, so
         except Exception as e:
             f.write(f"Could not read solver log: {e}\n")
 
-    print(f"Solver terminated with condition: {term_cond}\nFor further analysis see {errorfile_path}")
+    logger.error(f"Solver terminated with condition: {term_cond}\nFor further analysis see {errorfile_path}")
 
     # Check if Gurobi is available for further analysis
     try:
@@ -414,11 +417,11 @@ def _diagnose_solution(model, term_cond, result_dir, model_name, lp_filename, so
                 env.start()
                 m = gp.read("debug_model.lp", env=env)
                 m.setParam('DualReductions', 0) # Disable presolving reductions to get more accurate IIS
-                print("Running Gurobi optimization to determine source of termination...")
+                logger.info("Running Gurobi optimization to determine source of termination...")
                 m.optimize()
 
                 if m.status == gp.GRB.OPTIMAL:
-                    print(f"Gurobi resolved with status: {m.status}. Objective value: {m.objVal}")
+                    logger.info(f"Gurobi resolved with status: {m.status}. Objective value: {m.objVal}")
                     with open(errorfile_path, 'a') as f:
                         f.write(f"\nGurobi resolved with status: {m.status}. Objective value: {m.objVal}\n")
                         if term_cond == pyo.TerminationCondition.maxTimeLimit:
@@ -428,38 +431,38 @@ def _diagnose_solution(model, term_cond, result_dir, model_name, lp_filename, so
                     m.computeIIS()
                     iis_filename = os.path.join(result_dir, f"iis_{model_name}.ilp")
                     m.write(iis_filename)
-                    print(f"Gurobi model is infeasible. For further information, see {errorfile_path}")
+                    logger.error(f"Gurobi model is infeasible. For further information, see {errorfile_path}")
 
                     with open(errorfile_path, 'a') as f:
                         f.write(f"\nGurobi confirmed infeasible. IIS saved to: {iis_filename}\n")
 
                 elif m.status == gp.GRB.UNBOUNDED:
-                    print("Gurobi model is unbounded.")
+                    logger.error("Gurobi model is unbounded.")
                     with open(errorfile_path, 'a') as f:
                         f.write("\nGurobi confirmed unbounded.\n")
 
                 elif m.status == gp.GRB.INF_OR_UNBD:
-                    print("Gurobi model is either infeasible or unbounded.")
+                    logger.error("Gurobi model is either infeasible or unbounded.")
                     with open(errorfile_path, 'a') as f:
                         f.write("\nGurobi returned INF_OR_UNBD. Further diagnostics required.\n")
 
                 elif m.status in [gp.GRB.TIME_LIMIT, gp.GRB.ITERATION_LIMIT, gp.GRB.NODE_LIMIT]:
-                    print(f"Gurobi reached a limit (Code: {m.status}) before finishing.")
+                    logger.error(f"Gurobi reached a limit (Code: {m.status}) before finishing.")
                     with open(errorfile_path, 'a') as f:
                         f.write(f"\nGurobi stopped due to a limit. Status code: {m.status}\n")
 
                 elif m.status == gp.GRB.NUMERIC:
-                    print("Gurobi encountered numerical issues.")
+                    logger.error("Gurobi encountered numerical issues.")
                     with open(errorfile_path, 'a') as f:
                         f.write("\nGurobi stopped due to numeric instability.\n")
 
                 else:
-                    print(f"Gurobi resolved with status: {m.status}")
+                    logger.warning(f"Gurobi resolved with status: {m.status}")
                     with open(errorfile_path, 'a') as f:
                         f.write(f"\nGurobi resolved with status: {m.status}\n")
 
         except Exception as e:
-            print(f"Gurobi analysis failed. For further information, see {errorfile_path}")
+            logger.error(f"Gurobi analysis failed. For further information, see {errorfile_path}")
             with open(errorfile_path, 'a') as f:
                 f.write(f"\nGurobi analysis failed: {e}\n")
         
@@ -510,7 +513,7 @@ def write_solution_file(model, model_name, result_dir):
                         f.write(f"{var.name} {var.value:.6f}\n")
 
             f.write("# End of solution\n")
-        print(f"Solution written to {file_path}")
+        logger.info(f"Solution written to {file_path}")
 
     except Exception as e:
-        print(f"Warning: Could not write solution file {file_path}: {e}")
+        logger.warning(f"Could not write solution file {file_path}: {e}")

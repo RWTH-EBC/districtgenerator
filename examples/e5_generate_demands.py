@@ -9,7 +9,7 @@ Then choose 'Modify Run Configuration' and tick 'Run with Python Console'.
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from districtgenerator import Datahandler
+from districtgenerator import Datahandler, setup_logging
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -73,4 +73,7 @@ def exemplary_plot(data):
     plt.show()
 
 if __name__ == '__main__':
+    # Show the progress messages of the districtgenerator in the console.
+    # A log file is written to the logs folder of the results. Use level="DEBUG" for more details.
+    setup_logging(level="INFO")
     data = example5_generate_demands()

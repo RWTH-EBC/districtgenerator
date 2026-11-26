@@ -10,6 +10,7 @@ Most high-level functions operate on and mutate a DistrictGenerator ``data``
 object in place and return the same object for workflow chaining.
 """
 
+import logging
 import os
 
 import numpy as np
@@ -18,6 +19,8 @@ import math
 
 from districtgenerator.economics import annuity
 from districtgenerator.energy_systems import technologies
+
+logger = logging.getLogger(__name__)
 
 def heating_network(data):
     """
@@ -487,7 +490,7 @@ def load_pipe_data(generation, pipe_file_path):
         csv_path = os.path.join(pipe_file_path, 'pipe_specifications_PE.csv')
         pipe_data = pd.read_csv(csv_path, sep=";")
     else:
-        print("Please select from the 3rd, 4th, or 5th generation and enter it into the config file.")
+        logger.error("Please select from the 3rd, 4th, or 5th generation and enter it into the config file.")
 
     return pipe_data
 
@@ -547,13 +550,13 @@ def design_thermal_network(data):
 
     if has_thermal_grid(data.district):
         if missing_positions:
-            print("No district geometry found — running simple thermal network design.")
+            logger.info("No district geometry found — running simple thermal network design.")
             heating_network(data)
         else:
-            print("The districtgenerator currently does not support thermal networks based on building positions — running simple thermal network design.")
+            logger.warning("The districtgenerator currently does not support thermal networks based on building positions — running simple thermal network design.")
             heating_network(data)
 
-            # print("Generating and optimizing heating network...")
+            # logger.info("Generating and optimizing heating network...")
             # self.generateNetwork(topology_option="node")
             # self.prepareClusteringInputs()
             # self.optimization_heatingnetwork()

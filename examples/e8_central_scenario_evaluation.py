@@ -5,7 +5,7 @@ We reached the final step, to generate our first district: Generate demand profi
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from districtgenerator import Datahandler
+from districtgenerator import Datahandler, setup_logging
 
 def example8_central_scenario_evaluation():
 
@@ -42,6 +42,9 @@ def example8_central_scenario_evaluation():
 
 
 if __name__ == '__main__':
+    # Show the progress messages of the districtgenerator in the console.
+    # A log file is written to the logs folder of the results. Use level="DEBUG" for more details.
+    setup_logging(level="INFO")
     data = example8_central_scenario_evaluation()
 
 

@@ -6,7 +6,7 @@ Therefore the optimized operation of the devices is simulated and the key perfor
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from districtgenerator import Datahandler
+from districtgenerator import Datahandler, setup_logging
 
 def example7_decentral_scenario_evaluation():
 
@@ -49,6 +49,9 @@ def example7_decentral_scenario_evaluation():
 
 
 if __name__ == '__main__':
+    # Show the progress messages of the districtgenerator in the console.
+    # A log file is written to the logs folder of the results. Use level="DEBUG" for more details.
+    setup_logging(level="INFO")
     data = example7_decentral_scenario_evaluation()
 
 

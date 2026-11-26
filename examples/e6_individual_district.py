@@ -12,7 +12,7 @@ Then choose 'Modify Run Configuration' and tick 'Run with Python Console'.
 """
 
 # Import the Datahandler class to use the district generator.
-from districtgenerator import Datahandler
+from districtgenerator import Datahandler, setup_logging
 
 def example6_config_file_loading():
     ### How to change parameters
@@ -76,4 +76,7 @@ def example6_config_file_loading():
 
 
 if __name__ == '__main__':
+    # Show the progress messages of the districtgenerator in the console.
+    # A log file is written to the logs folder of the results. Use level="DEBUG" for more details.
+    setup_logging(level="INFO")
     data = example6_config_file_loading()

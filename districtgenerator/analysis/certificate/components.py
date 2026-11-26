@@ -1,4 +1,5 @@
 """Base classes for all certificate elements."""
+import logging
 import json
 from reportlab.lib import colors
 from reportlab.platypus import Flowable, Table, TableStyle, Paragraph, Spacer
@@ -6,6 +7,8 @@ import os
 from reportlab.platypus import Flowable
 from districtgenerator.utilities.paths import REFERENCE_DIR
 from districtgenerator.analysis.certificate.theme import DEBUG, ThemeManager, debug_line_width
+
+logger = logging.getLogger(__name__)
 
 
 class ReportComponent:
@@ -48,7 +51,7 @@ class ReportComponent:
                 translation_json = json.load(f)
 
         except (FileNotFoundError, json.JSONDecodeError) as e:
-            print(f"Warning: Could not load translations from {file_path}. Error: {e}")
+            logger.warning(f"Could not load translations from {file_path}. Error: {e}")
             cls.translations = {}
             return
         

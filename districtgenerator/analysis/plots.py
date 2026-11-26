@@ -6,12 +6,15 @@ Plots of the generated demand profiles.
 :func:`plot_district` is the entry point used by ``Datahandler.plot``.
 """
 
+import logging
 import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime
 import sys
 import os
 from districtgenerator.utilities.paths import RESULTS_DIR
+
+logger = logging.getLogger(__name__)
 
 
 class DemandPlots:
@@ -467,7 +470,7 @@ def plot_district(data, mode='default', initialTime=0, timeHorizon=31536000, sav
                             timeHorizon=timeHorizon, savePlots=savePlots, timeStamp=timeStamp, show=show)
     else:
         # print massage that input is not valid
-        print('\n Selected plot mode is not valid. So no plot could de generated. \n')
+        logger.warning('Selected plot mode is not valid. So no plot could de generated.')
 
 """
 

@@ -196,7 +196,7 @@ class BES:
                     nb_units = getattr(building["user"], "nb_units", 1)
                     nb_flats = getattr(building["user"], "nb_flats", 1)
                     #TODO: Check if this should be applied to nb_units or nb_flats
-                    # print(f"DEBUG: nb_flats: {nb_flats}, nb_units: {nb_units}, max_power_dhw: {max_power_dhw}, min_size_instantaneous_heater: {min_size_instantaneous_heater}")
+                    # logger.debug(f"nb_flats: {nb_flats}, nb_units: {nb_units}, max_power_dhw: {max_power_dhw}, min_size_instantaneous_heater: {min_size_instantaneous_heater}")
                     if nb_flats == None: nb_flats = 1 # For non-residential buildings
                     
                     BES["EH_DHW"] = max(max_power_dhw, nb_flats * min_size_instantaneous_heater)  # [W] 
