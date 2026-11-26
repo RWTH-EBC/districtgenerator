@@ -6,12 +6,16 @@ Created 26.02.2024
 ORIGINAL GUROBI VERSION ADJUSTED FOR PYOMO USAGE
 """
 
+import logging
 import pyomo.environ as pyo
 import numpy as np
 import os
 import time
 import districtgenerator.optimization.solver as solver_config
+from districtgenerator.utilities.log import progress_bar, progress_level
 from districtgenerator.energy_systems import technologies
+
+logger = logging.getLogger(__name__)
 
 # Sets of energy conversion systems in the buildings
 DOM_DEVS = ("HP", "EH", "CHP", "BOI", "BBOI", "OBOI", "H2BOI", "STC", "DH", "FC", "CC", "PV", "BAT", "TES", "TES_DHW", "EH_DHW")
@@ -105,13 +109,16 @@ def run_opti_central(data, year, cluster, sim_ecoData, resultPath) -> dict:
     model = pyo.ConcreteModel(name=f"Device_Operation_Optimization_Year_{year}_Cluster_{cluster}")
     build_model(model=model, data=data, year=year, cluster=cluster, sim_ecoData=sim_ecoData)
     model_building_time = time.time() - start_time
-    print(f"Pyomo model built successfully in {model_building_time:.2f} seconds.")
+    logger.debug(f"Pyomo model for simulated year {year}, cluster {cluster + 1} built in {model_building_time:.2f} s.")
 
     # solve the model and extract results
     results_dict = solve_model_and_extract_results(model=model, data=data, year=year, cluster=cluster, resultPath=resultPath)
     model_solve_time = time.time() - start_time - model_building_time
     if results_dict is not None:
-        print(f"Model solved to optimality in {model_solve_time:.2f} seconds.")
+        # With a progress bar this message is DEBUG, otherwise it shows the progress on INFO
+        logger.log(progress_level(),
+                   f"Simulated year {year}, cluster {cluster + 1}/{data.time['clusterNumber']}: solved to optimality "
+                   f"(model built in {model_building_time:.2f} s, solved in {model_solve_time:.2f} s).")
 
     return results_dict
 
@@ -2072,7 +2079,7 @@ def remove_previous_models_and_solutions(resultPath, model_name_prefix="opti_cen
             try:
                 os.remove(file_path)
             except Exception as e:
-                print(f"Warning: Could not remove file {file_path}: {e}")
+                logger.warning(f"Could not remove the result file {file_path} of a previous optimization: {e}")
 
 
 def optimize_all_clusters(data):
@@ -2109,18 +2116,23 @@ def optimize_all_clusters(data):
 
     # simulate all years
     start_time = time.time()
-    for i, year in enumerate(simulated_years):
-        sim_ecoData = data.all_sim_ecoData[year]
+    with progress_bar(total=len(simulated_years) * data.time["clusterNumber"], desc="Optimization",
+                      unit="cluster") as bar:
+        for i, year in enumerate(simulated_years):
+            sim_ecoData = data.all_sim_ecoData[year]
 
-        # Simulate each cluster every year
-        for cluster in range(data.time["clusterNumber"]):
-            # optimize operating costs of the district for current cluster
-            print(f"\nStarting optimization for cluster {cluster + 1}/{data.time['clusterNumber']} for year {i+1}/{len(simulated_years)}...")
-            results_temp = run_opti_central(data=data, year=year, cluster=cluster,
-                                                         sim_ecoData=sim_ecoData, resultPath=data.resultPath)
+            # Simulate each cluster every year
+            for cluster in range(data.time["clusterNumber"]):
+                # optimize operating costs of the district for current cluster
+                logger.debug(f"Starting optimization of cluster {cluster + 1}/{data.time['clusterNumber']} "
+                             f"for simulated year {year} ({i + 1}/{len(simulated_years)}).")
+                bar.set_postfix_str(f"year {year}, cluster {cluster + 1}", refresh=False)
+                results_temp = run_opti_central(data=data, year=year, cluster=cluster,
+                                                sim_ecoData=sim_ecoData, resultPath=data.resultPath)
 
-            # save results as attribute
-            data.resultsOptimization[year][cluster] = results_temp # Save the results of the optimization for each cluster
+                # save results as attribute
+                data.resultsOptimization[year][cluster] = results_temp # Save the results of the optimization for each cluster
+                bar.update(1)
 
     # Check which clusters were unsolvable
     failed_optimizations = []
@@ -2139,4 +2151,5 @@ def optimize_all_clusters(data):
         raise Exception(error_message)
 
     end_time = time.time()
-    print(f"\nOptimization of all clusters for all simulated years completed in {end_time - start_time:.2f} seconds.")
+    logger.info(f"Optimization of {data.time['clusterNumber']} clusters for {len(simulated_years)} simulated years "
+                f"finished in {end_time - start_time:.2f} s.")

@@ -1,7 +1,10 @@
 """Colors, fonts, sizes and paragraph and table styles of the certificate."""
+import logging
 from reportlab.lib.pagesizes import A4, A3, landscape
 from reportlab.lib.styles import StyleSheet1, ParagraphStyle
 from reportlab.platypus import Flowable, Table, TableStyle, Paragraph, Spacer
+
+logger = logging.getLogger(__name__)
 
 
 DEBUG = False # If set to True boxes are drawn around the different components to visualize the layout and available space
@@ -50,7 +53,7 @@ class ThemeManager:
 
         available_pagesizes = {"A3", "A4"}
         if self.pagesize not in available_pagesizes:
-            print(f"Warning: Pagesize '{self.pagesize}' not recognized. Available options are: {available_pagesizes}. Defaulting to 'A4'.")
+            logger.warning(f"Pagesize '{self.pagesize}' not recognized. Available options are: {available_pagesizes}. Defaulting to 'A4'.")
             self.pagesize = "A4"
 
         self.layout = self.FILE_LAYOUT["A4"].copy()

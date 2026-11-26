@@ -19,3 +19,4 @@ pydantic >= 2.8.2
 pyomo >= 6.9.2
 tsam == 4.0.0
 highspy >= 1.15.1
+tqdm>=4.66

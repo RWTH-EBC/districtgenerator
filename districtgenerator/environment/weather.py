@@ -7,7 +7,7 @@ import numpy as np
 
 from districtgenerator.config.settings import LocationConfig
 from districtgenerator.environment.site import get_holidays, select_plz_data
-from districtgenerator.utilities.paths import DATA_DIR
+from districtgenerator.utilities.paths import REFERENCE_DIR
 
 # Column index in the TRY file for each weather series in data.site
 TRY_COLUMNS = {
@@ -53,7 +53,7 @@ def load_weather(data):
     select_plz_data(data)
     # load weather data
     # select the correct file depending on the TRY weather station location
-    weatherData = np.loadtxt(os.path.join(DATA_DIR, "weather",
+    weatherData = np.loadtxt(os.path.join(REFERENCE_DIR, "weather",
                                           "TRY_" + data.site["TRYYear"][-4:] + "_" + data.site["TRYType"],
                                           data.site["TRYYear"] + "_" + str(data.site["weather_station"]) + "_"
                                           + str(data.site["TRYType"]) + ".dat"),

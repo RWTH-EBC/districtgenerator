@@ -6,9 +6,12 @@ energy supply with k-medoids (time_series.medoid). apply_design_clustering reuse
 during the design of the central devices instead, so that design and operation use the same periods.
 """
 
+import logging
 import numpy as np
 import districtgenerator.time_series.medoid as cm
 import sys
+
+logger = logging.getLogger(__name__)
 
 # Profiles of each building (attributes of building["user"]), clustered as "<name>_cluster"
 BUILDING_PROFILES = ("elec", "dhw", "heat", "cooling", "occ", "EV_carcharging_ondemand", "EV_carprofile",
@@ -238,7 +241,7 @@ def apply_design_clustering(data):
         The clustered profiles are saved in data (as in clustering_processing), as well as
         data.clusters, data.clusterAssignments and data.clusterWeights.
     """
-    print("Applying design clustering to operation profiles...")
+    logger.info("Applying design clustering to operation profiles...")
 
     cluster_meta = data.centralDevices["capacities"]["cluster_meta"]
     cluster_horizon = int(cluster_meta["clusterLength"])

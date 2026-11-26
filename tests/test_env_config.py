@@ -28,7 +28,7 @@ class TestEnvConfig(unittest.TestCase):
             "\n.env.CONFIG.EXAMPLE differs from settings.py. It is generated and must not be edited by hand.\n"
             "If settings.py changed, run: python -m districtgenerator.config.generate_env_example\n"
             "If you only wanted to change values for yourself, put them into your own .env.CONFIG file "
-            "and restore the EXAMPLE with: git restore districtgenerator/data/config/.env.CONFIG.EXAMPLE")
+            "and restore the EXAMPLE with: git restore districtgenerator/data/inputs/configs/.env.CONFIG.EXAMPLE")
 
     def test_example_roundtrip_equals_defaults(self):
         from districtgenerator.config import settings as s

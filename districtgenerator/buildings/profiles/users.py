@@ -6,6 +6,7 @@ Users of a building and their demand profiles.
 building, and generates its demand profiles (occupancy, electricity, domestic hot water, internal gains,
 space heating and cooling, electric vehicles) in worker processes or threads.
 """
+import logging
 import statistics
 import os
 import random as rd
@@ -21,7 +22,10 @@ import richardsonpy.classes.appliance as app_model
 import richardsonpy.classes.lighting as light_model
 from districtgenerator.buildings.typology.non_residential import GenericNonResidential, load_non_residential_json
 from districtgenerator.buildings import thermal
+from districtgenerator.utilities.log import worker_logging
 from districtgenerator.utilities.randomness import derive_seed, seeded_random_state
+
+logger = logging.getLogger(__name__)
 
 RES_BUILDINGS = {"SFH", "TH", "MFH", "AB"}
 FLAT_PARALLELIZATION_OPTIONS = ("none", "threading", "multiprocessing")
@@ -546,7 +550,8 @@ class Users:
             try:
                 jsonData = load_non_residential_json(file_name)
             except FileNotFoundError:
-                print(f"Error: File '{file_name}' not found.")
+                logger.error(f"Lighting data '{file_name}' for non-residential buildings not found: "
+                             f"the lighting of this building is not modelled.")
                 return
 
             # Process data for different building types
@@ -784,10 +789,14 @@ class Users:
 
         if parallelization == "multiprocessing":
             # "spawn" is required on Windows and safest cross-platform
-            executor = ProcessPoolExecutor(max_workers=workers, mp_context=mp.get_context("spawn"))
-        else:
-            executor = ThreadPoolExecutor(max_workers=workers)
-        with executor as ex:
+            mp_ctx = mp.get_context("spawn")
+            # Log records of the flat processes are passed on to this process (see worker_logging)
+            with worker_logging(mp_ctx) as (initializer, initargs):
+                with ProcessPoolExecutor(max_workers=workers, mp_context=mp_ctx,
+                                         initializer=initializer, initargs=initargs) as ex:
+                    # map returns results in flat order
+                    return list(ex.map(_calc_flat_profiles, tasks))
+        with ThreadPoolExecutor(max_workers=workers) as ex:
             # map returns results in flat order
             return list(ex.map(_calc_flat_profiles, tasks))
 

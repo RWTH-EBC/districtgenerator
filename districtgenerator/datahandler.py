@@ -11,6 +11,7 @@ It holds the configuration and the district, and delegates each step to its doma
 5. ``optimization``: dimensioning and operation of the energy systems
 6. ``analysis``: KPIs, plots and the certificate
 """
+import logging
 import json
 import os
 import warnings
@@ -21,7 +22,7 @@ from districtgenerator.buildings import district as district_buildings
 from districtgenerator.buildings.district import parse_position  # noqa: F401, kept for existing imports
 from districtgenerator.buildings.profiles import demand_generation
 from districtgenerator.buildings.typology import mixed_use, sia2024
-from districtgenerator.config.settings import GlobalConfig, load_global_config
+from districtgenerator.config.settings import GlobalConfig, Scenario, load_global_config, resolve_config_file
 from districtgenerator.economics import price_paths
 from districtgenerator.energy_systems import building_energy_system, central_energy_system, heating_network
 from districtgenerator.environment import site as site_conditions
@@ -29,7 +30,12 @@ from districtgenerator.environment import soil, solar, weather
 from districtgenerator.optimization import operation
 from districtgenerator.file_io import district_store, profile_store
 from districtgenerator.time_series import clustering
-from districtgenerator.utilities.paths import DATA_DIR, PACKAGE_DIR, RESULTS_DIR
+from districtgenerator.utilities.log import LOG_SUBFOLDER, setup_logging, use_log_dir
+from districtgenerator.utilities.paths import (DATA_DIR, PACKAGE_DIR, RESULTS_DIR, CONFIGS_DIR, SCENARIOS_DIR,
+                                               REFERENCE_DIR, PROJECT_CONFIGS, PROJECT_SCENARIOS,
+                                               PROJECT_RESULTS)
+
+logger = logging.getLogger(__name__)
 
 
 class Datahandler:
@@ -55,12 +61,14 @@ class Datahandler:
     srcPath:
         Package folder of the districtgenerator (``PACKAGE_DIR``).
     filePath:
-        Data folder (``DATA_DIR``). All input data is read from this folder.
+        Data folder of the package (``DATA_DIR``).
+    project_path:
+        Project folder with the subfolders ``configs``, ``scenarios`` and ``results``, or None.
     """
 
     def __init__(self, scenario_name = None, resultPath = None,  scenario_file_path = None,
                  srcPath = None, filePath = None,
-                 env_path = None):
+                 env_path = None, project_path = None):
         """
         Constructor of Datahandler class.
 
@@ -69,16 +77,22 @@ class Datahandler:
         scenario_name : str, optional
             Name of the scenario file. If none given, takes scenario_name from globalConfig else "example".
         resultPath : str, optional
-            Path to save results. If None, it defaults to ``RESULTS_DIR``.
+            Path to save results. If None, it defaults to '<project_path>/results' or ``RESULTS_DIR``.
         scenario_file_path : str, optional
-            Path to the scenario file. If None, it defaults to 'DATA_DIR/scenarios'.
+            Folder of the scenario file. If None, it defaults to '<project_path>/scenarios' or ``SCENARIOS_DIR``
+            (``data/inputs/scenarios``).
         srcPath : str, optional
             Deprecated and ignored. The package folder is always ``PACKAGE_DIR``.
         filePath : str, optional
-            Deprecated and ignored. All input data is read from ``DATA_DIR``.
+            Deprecated and ignored.
         env_path : str, optional
-            Path to the environment configuration file. Relative paths are resolved in ``DATA_DIR/config``.
-            If None, it defaults to the global configuration file.
+            Path to the environment configuration file. Relative paths are searched first in
+            '<project_path>/configs' (if given) and then in ``CONFIGS_DIR`` (``data/inputs/configs``).
+            If None, the defaults from settings.py are used.
+        project_path : str, optional
+            Own project folder outside the package, e.g. when the districtgenerator is installed with pip.
+            It has the same subfolders as ``data/inputs``: ``configs`` and ``scenarios``, plus ``results``.
+            Explicitly given ``scenario_file_path`` and ``resultPath`` take precedence.
 
         Returns
         -------
@@ -88,7 +102,7 @@ class Datahandler:
         # All input data comes from one folder, custom data folders are no longer supported
         for name, value in (("srcPath", srcPath), ("filePath", filePath)):
             if value is not None:
-                warnings.warn(f"'{name}' is deprecated and ignored, all input data is read from '{DATA_DIR}'.",
+                warnings.warn(f"'{name}' is deprecated and ignored, use 'project_path' for own input data.",
                               DeprecationWarning, stacklevel=2)
         srcPath = PACKAGE_DIR
         filePath = DATA_DIR
@@ -121,15 +135,29 @@ class Datahandler:
         self.srcPath = srcPath
         self.filePath = filePath
 
+        self.project_path = os.fspath(project_path) if project_path is not None else None
+        if self.project_path is not None and not os.path.isdir(self.project_path):
+            raise FileNotFoundError(f"Project folder '{self.project_path}' not found.")
+
         if scenario_file_path is not None:
             self.scenario_file_path = scenario_file_path
+        elif self.project_path is not None:
+            self.scenario_file_path = os.path.join(self.project_path, PROJECT_SCENARIOS)
         else:
-            self.scenario_file_path = os.path.join(DATA_DIR, 'scenarios')
+            self.scenario_file_path = SCENARIOS_DIR
 
         if resultPath is not None:
             self.resultPath = resultPath
+        elif self.project_path is not None:
+            self.resultPath = os.path.join(self.project_path, PROJECT_RESULTS)
+            os.makedirs(self.resultPath, exist_ok=True)
         else:
             self.resultPath = RESULTS_DIR
+
+        # Relative config names are searched in the project first, then in the package
+        self.config_dirs = [CONFIGS_DIR]
+        if self.project_path is not None:
+            self.config_dirs.insert(0, os.path.join(self.project_path, PROJECT_CONFIGS))
 
         self.load_all_data(env_path=env_path, scenario_name=scenario_name)
 
@@ -153,7 +181,30 @@ class Datahandler:
                 with open(self.progress_file, 'w') as f:
                     json.dump(progress_data, f)
             except Exception as e:
-                print(f"Couldn't save calculation progress: {e}")
+                logger.warning(f"Could not save the calculation progress to {self.progress_file}: {e}")
+
+    def setup_logging_from_config(self, env_path):
+        """
+        Set up logging from the config and put the default log file into the result folder.
+
+        If DG_LOG_LEVEL or DG_LOG_FILE is set in the config, :func:`districtgenerator.setup_logging` is called.
+        A relative DG_LOG_FILE is placed in the result folder. If both are empty, the logging setup of the
+        application is not changed. In both cases a default log file of ``setup_logging`` (without an explicit
+        ``log_file``) is moved to ``<result folder>/logs``.
+
+        Parameters
+        ----------
+        env_path : str, optional
+            Path or name of the environment configuration file, see :func:`load_global_config`.
+        """
+        log_dir = os.path.join(self.resultPath, LOG_SUBFOLDER)
+        scenario_config = Scenario(_env_file=resolve_config_file(env_path, self.config_dirs))
+        log_level, log_file = scenario_config.dg_log_level, scenario_config.dg_log_file
+        if log_level is not None or log_file is not None:
+            if log_file is not None and not os.path.isabs(log_file):
+                log_file = os.path.join(self.resultPath, log_file)
+            setup_logging(level=log_level or "INFO", log_file=log_file or None)
+        use_log_dir(log_dir)
 
     def load_all_data(self, env_path, scenario_name):
         """
@@ -170,8 +221,12 @@ class Datahandler:
         -------
         None.
         """
+        # --- 0. Set up logging if the config asks for it, so that all following messages are included ---
+        #        The default log file of setup_logging() is placed in <result folder>/logs
+        self.setup_logging_from_config(env_path)
+
         # --- 1. Load all configs into the dictionaries of the Datahandler ---
-        global_config: GlobalConfig = load_global_config(env_file=env_path)
+        global_config: GlobalConfig = load_global_config(env_file=env_path, config_dirs=self.config_dirs)
         sections = (
             (self.site, global_config.location),                        # site and weather
             (self.time, global_config.time),                            # time resolution and clustering
@@ -201,7 +256,7 @@ class Datahandler:
         self.scenario = district_buildings.load_scenario(self.scenario_file_path, self.scenario_name)
 
         # --- 3. Load the pipe catalogue of the selected heat grid generation ---
-        self.pipe_file_path = os.path.join(DATA_DIR, 'energy_systems')
+        self.pipe_file_path = os.path.join(REFERENCE_DIR, 'energy_systems')
         self.pipe_data = heating_network.load_pipe_data(self.heat_grid_data["generation"], self.pipe_file_path)
 
         # Prices and CO2 factors for each simulated year used in the optimizations
@@ -217,6 +272,7 @@ class Datahandler:
         -------
         None.
         """
+        logger.info(f"Loading site and weather data for postal code {self.site.get('zip')}.")
         weather.load_weather(self)
         site_conditions.load_site_conditions(self)
         solar.calculate_surface_irradiance(self)
@@ -255,6 +311,8 @@ class Datahandler:
         None.
         """
         district_buildings.initialize_buildings(self)
+        logger.info(f"Initialized {len(self.district)} buildings of scenario '{self.scenario_name}' "
+                    f"from {self.scenario_file_path}.")
 
     def split_mixed_buildings(self):
         """
@@ -270,6 +328,7 @@ class Datahandler:
         -------
         None.
         """
+        logger.info(f"Generating envelopes and users of {len(self.district)} buildings.")
         district_buildings.generate_buildings(self)
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_workers=None, gen_cars=True):
@@ -335,7 +394,7 @@ class Datahandler:
             self.designCentralDevices(saveGenerationProfiles=True)
             self.applyCentralDesignClusteringToOperationProfiles()
         else:
-            print("No thermal network detected and no energy hub requested — skipping thermal network design.")
+            logger.info("No building is connected to a thermal network and no energy hub is requested: skipping the design of central devices.")
             self.centralDevices = {}
             self.prepareClusteringInputs()
 
@@ -479,7 +538,7 @@ class Datahandler:
         """
         Prepare and cluster building-level demand and environmental data.
         """
-        print("Preparing initial clustering (pre-optimization)...")
+        logger.info(f"Clustering the profiles of all buildings into {self.time['clusterNumber']} typical periods for the optimization.")
         self.clusterProfiles(centralEnergySupply=False)
 
 
@@ -544,6 +603,8 @@ class Datahandler:
         -------
         None.
         """
+        logger.info(f"Optimizing the device operation for {self.time['clusterNumber']} typical periods and "
+                    f"{len(self.ecoData['interpolation_points'])} simulated years.")
         operation.optimize_all_clusters(self)
 
     def calculate_ecoData_per_cluster(self):
@@ -559,6 +620,7 @@ class Datahandler:
         None.
         """
 
+        logger.info("Calculating the key performance indicators (KPIs).")
         # initialize KPI class
         self.KPIs = KPIs(self)
         # calculate KPIs

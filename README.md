@@ -119,7 +119,7 @@ The minimal input data set was defined following the [TABULA archetype approach]
 - gammaPV: azimuth angle of roof side 1 in degrees (0° = south-facing orientation)
 - EV_charging: electric vehicle charging behavior (bidirectional = charging and discharging with use as electricity storage, on-demand = charging as needed, intelligent = optimized charging)
 
-The example_decentral.csv file can be used as [template](https://github.com/RWTH-EBC/districtgenerator/blob/master/districtgenerator/data/scenarios/example_decentral.csv).
+The example_decentral.csv file can be used as [template](https://github.com/RWTH-EBC/districtgenerator/blob/master/districtgenerator/data/inputs/scenarios/example_decentral.csv).
 
 ### Additional configuration categories and input data
 
@@ -127,33 +127,67 @@ All default values are defined in [settings.py](https://github.com/RWTH-EBC/dist
 source of truth. General modeling assumptions are managed through Pydantic-based configuration classes. Without
 `env_path`, the Datahandler uses these defaults.
 
-To override values, create your own file in [data/config](https://github.com/RWTH-EBC/districtgenerator/tree/master/districtgenerator/data/config)
+To override values, create your own file in [data/inputs/configs](https://github.com/RWTH-EBC/districtgenerator/tree/master/districtgenerator/data/inputs/configs)
 (e.g. `.env.CONFIG.MYPROJECT`) that contains **only the parameters you want to change**, and load it with
 `Datahandler(env_path=".env.CONFIG.MYPROJECT")`. Files in other locations can be loaded with an absolute path.
 
-[.env.CONFIG.EXAMPLE](https://github.com/RWTH-EBC/districtgenerator/blob/master/districtgenerator/data/config/.env.CONFIG.EXAMPLE) lists all parameters with description,
+[.env.CONFIG.EXAMPLE](https://github.com/RWTH-EBC/districtgenerator/blob/master/districtgenerator/data/inputs/configs/.env.CONFIG.EXAMPLE) lists all parameters with description,
 unit and default value. Copy the lines you need and remove the leading `# `. The EXAMPLE is generated from
 `settings.py` and must not be edited by hand. After changing `settings.py`, regenerate it with
-`python -m districtgenerator.config.generate_env_example`. Local `.env.CONFIG*` files in `data/config` are
-ignored by git (except EXAMPLE and FREIBURG).
+`python -m districtgenerator.config.generate_env_example`. Own files in `data/inputs` are
+ignored by git (except the shipped examples).
 
 The configuration includes assumptions and parameters related to location and weather, temporal resolution,
 heating and cooling periods, building design conditions, thermal building model, economic parameters, energy prices,
 emission factors, heating networks, central and decentralized technologies, optimization, solver settings, and
 report generation.
 
-All input data such as weather, postal codes, scenarios, pipes and SIA 2024 is read from `districtgenerator/data`, sorted into subfolders by topic:
+All data is located in `districtgenerator/data`. It separates user inputs from reference data:
 
-* `config`: configuration files (generated template `.env.CONFIG.EXAMPLE`, shared configs and your own `.env.CONFIG.*` files)
-* `scenarios`: scenario files (.csv) with the buildings of a district
-* `site`: postal codes, coordinates, weather stations and cooling load zones
-* `weather`: test reference years (TRY) of the DWD
-* `buildings`: SIA 2024, non-residential archetypes, lighting and car data
-* `energy_systems`: pipe specifications, wind turbine power curves and heat pump COP time series
-* `report`: translations for the PDF certificate
-* `raw`: source data and scripts used to create the files above; the districtgenerator does not read this folder
+* `inputs`: what you set up for a calculation
+  * `configs`: configuration files (generated template `.env.CONFIG.EXAMPLE`, shared configs and your own `.env.CONFIG.*` files)
+  * `scenarios`: scenario files (.csv) with the buildings of a district
+* `reference`: data read by the districtgenerator that usually does not have to be changed
+  * `site`: postal codes, coordinates, weather stations and cooling load zones
+  * `weather`: test reference years (TRY) of the DWD
+  * `buildings`: SIA 2024, non-residential archetypes, lighting and car data
+  * `energy_systems`: pipe specifications, wind turbine power curves and heat pump COP time series
+  * `report`: translations for the PDF certificate
+* `raw`: source data and scripts used to create the reference data; the districtgenerator does not read this folder
 
-Own scenario files can be placed in another folder with `Datahandler(scenario_file_path=...)`. 
+If you work directly in the repository, put your own files into `data/inputs`. Files there are ignored by git, except
+the shipped examples (`example_*.csv`, `.env.CONFIG.EXAMPLE`, `.env.CONFIG.FREIBURG`). To adapt an example, copy it
+under a new name instead of editing it.
+
+If you use the districtgenerator within an own project (e.g. installed with pip), create a folder for it anywhere in
+that project and pass it to the Datahandler as `project_path`. It does not have to be the top level of your project,
+a subfolder keeps it apart from your other data:
+
+```
+your_project/
+  data/
+    ...                          (other data of your project)
+    districtgenerator/           <- project_path
+      configs/     .env.CONFIG.MYPROJECT
+      scenarios/   my_district.csv
+      results/     (created automatically)
+```
+
+```python
+data = Datahandler(project_path="data/districtgenerator", scenario_name="my_district", env_path=".env.CONFIG.MYPROJECT")
+```
+
+The subfolders correspond to these folders in the repository:
+
+| Repository                                | Project folder               |
+|-------------------------------------------|------------------------------|
+| `districtgenerator/data/inputs/configs`   | `<project_path>/configs`     |
+| `districtgenerator/data/inputs/scenarios` | `<project_path>/scenarios`   |
+| `districtgenerator/results`               | `<project_path>/results`     |
+
+A relative `env_path` is searched first in `<project_path>/configs` and then in `data/inputs/configs`, so the shipped
+configs can still be used. Configuration files directly in `<project_path>` are not found by name. `scenario_file_path` and `resultPath` override the project subfolders if given.
+See [e11_own_project.py](https://github.com/RWTH-EBC/districtgenerator/blob/master/examples/e11_own_project.py) for a complete example.
 The former parameters `filePath` and `srcPath` are deprecated and ignored. 
 Fixed data such as the file format of the TRY weather data, the cooling load zones and the soil properties are constants
 in `config/settings.py` and cannot be changed via a config file.
@@ -238,11 +272,75 @@ districtgenerator/
 ├── optimization/      # decentral heating concept, central dimensioning and operation
 ├── analysis/          # KPIs, plots and the certificate
 ├── file_io/           # saving and loading of profiles and districts
-├── utilities/         # paths (DATA_DIR, RESULTS_DIR) and helpers without domain knowledge
+├── utilities/         # paths (DATA_DIR, RESULTS_DIR), logging and helpers without domain knowledge
 └── data/              # input data, one subfolder per topic; raw/ holds source data that the code does not read
 ```
 
 Import the Datahandler with `from districtgenerator import Datahandler`.
+
+### Logging
+
+The districtgenerator reports its progress, warnings and errors with the `logging` module of Python, every module with
+its own logger below `districtgenerator`. As a library, it prints nothing unless logging is set up. The quickest way
+is `setup_logging`, which the examples also use:
+
+```python
+from districtgenerator import Datahandler, setup_logging
+
+setup_logging(level="INFO")                        # console + log file in results/logs
+setup_logging(level="DEBUG", log_file="run.log")   # more details, own log file
+setup_logging(level="INFO", log_file=False)        # console only
+```
+
+```
+2026-11-26 16:52:27 - settings - INFO - Using config: defaults from settings.py
+2026-11-26 16:52:28 - district - INFO - Estimated calculation time for 4 buildings: about 0:01:30.
+2026-11-26 16:52:28 - datahandler - INFO - Initialized 4 buildings of scenario 'example_decentral' from ...
+2026-11-26 16:52:29 - demand_generation - INFO - Calculating demands of 4 buildings with multiprocessing (4 workers).
+Demands:  50%|█████     | 2/4 [00:12<00:12, 6.10s/building, example_decentral_3_TH]
+```
+
+* The demand generation and the optimization of the clusters show a progress bar; messages are printed above it.
+  With the bar, the messages per building and cluster are logged on `DEBUG` (they are still in the log file with
+  `level="DEBUG"`). `progress=False` turns the bars off, then these messages show the progress on `INFO`.
+
+* The console shows the last part of the logger name and colors the messages by level (set the environment variable
+  `NO_COLOR` or pass `color=False` to turn this off). The log file contains the full logger name.
+* Without `log_file`, a new file `districtgenerator_<date>_<time>.log` is written to the `logs` folder of the results,
+  i.e. `districtgenerator/results/logs` or `<project_path>/results/logs`. The results folder is ignored by git.
+* Levels: `INFO` shows the progress, `DEBUG` adds details per building, `WARNING` only shows fallbacks and automatic
+  corrections, `ERROR` only failed steps such as optimizations that did not terminate.
+* `setup_logging` only changes the logger of the districtgenerator, not the logging setup of your application.
+  Warnings of the `warnings` module (e.g. deprecations) are written to the log as well.
+* Messages of the worker processes of the demand generation are passed to the main process, so they appear in the
+  same console and log file.
+* The log file stays open until the process ends. `districtgenerator.utilities.log.reset_logging()` closes it, e.g.
+  before deleting a temporary result folder on Windows.
+* Alternatively, set `DG_LOG_LEVEL` and/or `DG_LOG_FILE` in a `.env.CONFIG` file. The Datahandler then calls
+  `setup_logging` itself; a relative `DG_LOG_FILE` is placed in the result folder.
+
+If your application configures `logging` itself, do not call `setup_logging`. Add the logger `districtgenerator` to
+your configuration instead, e.g. with `logging.config.dictConfig`:
+
+```python
+"loggers": {
+    "app": {...},
+    "districtgenerator": {"level": "INFO", "handlers": ["console", "file"], "propagate": False},
+}
+```
+
+To show the progress bars of the districtgenerator in your application, enable them and route the console output of
+the logger through tqdm, so that the messages appear above the bars:
+
+```python
+import logging
+from tqdm.contrib.logging import logging_redirect_tqdm
+import districtgenerator
+
+districtgenerator.set_progress(True)
+with logging_redirect_tqdm(loggers=[logging.getLogger("app"), logging.getLogger("districtgenerator")]):
+    ...
+```
 
 ## Final output of the DistrictGenerator
 

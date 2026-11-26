@@ -6,6 +6,7 @@ and its operation is optimized for the building alone. The concept with the lowe
 costs) is selected. 
 """
 
+import logging
 import copy
 import json
 from pathlib import Path
@@ -17,6 +18,8 @@ from districtgenerator.analysis.kpis import KPIs
 from districtgenerator.energy_systems import technologies
 from districtgenerator.optimization import solver as solver_config
 from districtgenerator.optimization import operation as opti_central
+
+logger = logging.getLogger(__name__)
 
 
 def annual_operation_weights(eco_data):
@@ -186,4 +189,4 @@ def choose_heating_concept(data, building, candidates):
     building["heating_selection"] = summary
     building["buildingFeatures"]["heater"] = selected
     building["capacities"] = sized[selected]
-    print(f"Building {building_id}: selected {selected}, total annual cost {best_cost:.2f} EUR/a.")
+    logger.info(f"Building {building_id}: selected {selected}, total annual cost {best_cost:.2f} EUR/a.")

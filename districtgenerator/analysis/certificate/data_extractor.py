@@ -1,7 +1,10 @@
 """Extraction of certificate data from the Datahandler and the KPIs."""
+import logging
 from collections import OrderedDict
 import pandas as pd
 from districtgenerator.analysis.certificate.components import ReportComponent
+
+logger = logging.getLogger(__name__)
 
 
 class DataExtractor(ReportComponent):
@@ -474,7 +477,7 @@ class DataExtractor(ReportComponent):
                 self.decentral_df = None
 
         except AttributeError as e:
-            print(f"Warning: Decentral device data could not be extracted. {e}")
+            logger.warning(f"Decentral device data could not be extracted. {e}")
             self.decentral_df = None
 
     def _extract_district_layout(self):

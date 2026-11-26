@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Generate ``data/config/.env.CONFIG.EXAMPLE`` from ``settings.py``.
+Generate ``data/inputs/configs/.env.CONFIG.EXAMPLE`` from ``settings.py``.
 
 ``settings.py`` is the single source of truth for all default values. The
 EXAMPLE file is only a template: it lists every parameter that can be
@@ -24,8 +24,10 @@ import tokenize
 from dataclasses import dataclass
 from pathlib import Path
 
+from districtgenerator.utilities.paths import CONFIGS_DIR
+
 CONFIG_PATH = Path(__file__).resolve().parent / "settings.py"
-EXAMPLE_PATH = Path(__file__).resolve().parent.parent / "data" / "config" / ".env.CONFIG.EXAMPLE"
+EXAMPLE_PATH = Path(CONFIGS_DIR) / ".env.CONFIG.EXAMPLE"
 
 HEADER = """\
 # =============================================================================
@@ -39,7 +41,8 @@ HEADER = """\
 # so loading this file changes nothing.
 #
 # How to override values:
-#   1. Create your own file in districtgenerator/data/config/, e.g. .env.CONFIG.MYPROJECT
+#   1. Create your own file in districtgenerator/data/inputs/configs/ (or in the
+#      configs/ folder of your project), e.g. .env.CONFIG.MYPROJECT
 #      (a file named .env.CONFIG is ignored by git and can be used for local tests).
 #   2. Copy ONLY the lines you want to change from this template into it,
 #      remove the leading "# " and adjust the value.
