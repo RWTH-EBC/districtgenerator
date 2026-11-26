@@ -14,7 +14,7 @@ from concurrent.futures import ProcessPoolExecutor
 from districtgenerator import setup_logging
 from districtgenerator import set_progress
 from districtgenerator.utilities.log import (PACKAGE_LOGGER, current_log_files, progress_bar, progress_enabled,
-                                             progress_level, use_log_dir, worker_logging)
+                                             progress_level, reset_logging, use_log_dir, worker_logging)
 
 
 def _log_in_worker(i):
@@ -25,16 +25,7 @@ def _log_in_worker(i):
 
 
 def _reset_logging():
-    for name in (PACKAGE_LOGGER, "py.warnings"):
-        logger = logging.getLogger(name)
-        for handler in list(logger.handlers):
-            if not isinstance(handler, logging.NullHandler):
-                logger.removeHandler(handler)
-                handler.close()
-        logger.propagate = True
-    logging.getLogger(PACKAGE_LOGGER).setLevel(logging.NOTSET)
-    logging.captureWarnings(False)
-    set_progress(False)
+    reset_logging()
 
 
 class TestLogging(unittest.TestCase):
@@ -91,6 +82,17 @@ class TestLogging(unittest.TestCase):
             use_log_dir(os.path.join(tmp, "elsewhere"))
             self.assertEqual(current_log_files(), [log_file])
             _reset_logging()
+
+    def test_reset_closes_log_file(self):
+        """After reset_logging the log file is closed, so that Windows can delete the result folder"""
+        with tempfile.TemporaryDirectory() as tmp:
+            setup_logging(level="INFO", log_file=os.path.join(tmp, "run.log"), console=False)
+            logging.getLogger("districtgenerator.tests").info("open the file")
+            handler = logging.getLogger(PACKAGE_LOGGER).handlers[-1]
+            reset_logging()
+            self.assertIsNone(handler.stream)
+            self.assertEqual(current_log_files(), [])
+            self.assertFalse(progress_enabled())
 
     def test_console_format(self):
         """Console: time without milliseconds, short logger name, level, colored"""

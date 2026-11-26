@@ -314,6 +314,8 @@ Demands:  50%|█████     | 2/4 [00:12<00:12, 6.10s/building, example_de
   Warnings of the `warnings` module (e.g. deprecations) are written to the log as well.
 * Messages of the worker processes of the demand generation are passed to the main process, so they appear in the
   same console and log file.
+* The log file stays open until the process ends. `districtgenerator.utilities.log.reset_logging()` closes it, e.g.
+  before deleting a temporary result folder on Windows.
 * Alternatively, set `DG_LOG_LEVEL` and/or `DG_LOG_FILE` in a `.env.CONFIG` file. The Datahandler then calls
   `setup_logging` itself; a relative `DG_LOG_FILE` is placed in the result folder.
 

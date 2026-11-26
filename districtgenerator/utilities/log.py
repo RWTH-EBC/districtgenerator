@@ -203,6 +203,22 @@ def setup_logging(level="INFO", log_file=None, console=True, color=None, capture
     return logger
 
 
+def reset_logging():
+    """
+    Undo :func:`setup_logging`: remove its handlers, close the log files and turn off the progress bars.
+
+    Log files stay open until this is called or the process ends. On Windows an open file cannot be deleted, so call
+    this function before removing the result folder, e.g. a temporary folder in tests.
+    """
+    for name in (PACKAGE_LOGGER, "py.warnings"):
+        logger = logging.getLogger(name)
+        _remove_own_handlers(logger)
+        logger.propagate = True
+    logging.getLogger(PACKAGE_LOGGER).setLevel(logging.NOTSET)
+    logging.captureWarnings(False)
+    set_progress(False)
+
+
 def use_log_dir(log_dir):
     """
     Move the default log file of :func:`setup_logging` to ``log_dir``.

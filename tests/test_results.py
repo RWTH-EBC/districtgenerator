@@ -20,6 +20,8 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 
+from districtgenerator.utilities.log import reset_logging
+
 TEST_DATA = Path(__file__).parent / "results_data"
 SCENARIOS = TEST_DATA / "scenarios"
 REFERENCE = TEST_DATA / "reference"
@@ -54,8 +56,12 @@ def run_example(module_name, function_name, result_path):
                       env_path=str(TEST_DATA / ".env.CONFIG.TEST"))
         return datahandler(*args, **kwargs)
 
-    with patch.object(module, "Datahandler", side_effect=test_datahandler), patch.dict(os.environ, OVERRIDES):
-        return getattr(module, function_name)()
+    try:
+        with patch.object(module, "Datahandler", side_effect=test_datahandler), patch.dict(os.environ, OVERRIDES):
+            return getattr(module, function_name)()
+    finally:
+        # Close log files in result_path, otherwise Windows cannot delete the temporary folder
+        reset_logging()
 
 
 def demand_profiles(data):

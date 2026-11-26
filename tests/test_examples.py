@@ -72,8 +72,13 @@ class TestExamples(unittest.TestCase):
         import tempfile
         from examples import e11_own_project as e11
 
+        from districtgenerator.utilities.log import reset_logging
+
         with tempfile.TemporaryDirectory() as project_path:
-            data_e11 = e11.example11_own_project(project_path=project_path)
+            try:
+                data_e11 = e11.example11_own_project(project_path=project_path)
+            finally:
+                reset_logging()  # close log files, otherwise Windows cannot delete the folder
             # Scenario, config and results are taken from the project folder, not from the package
             self.assertEqual(data_e11.scenario_file_path, os.path.join(project_path, "scenarios"))
             self.assertEqual(data_e11.resultPath, os.path.join(project_path, "results"))

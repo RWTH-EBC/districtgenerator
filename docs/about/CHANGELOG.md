@@ -9,6 +9,7 @@
 - Progress bars (tqdm, new dependency) for the demand generation (threading and multiprocessing) and the optimization
   of the clusters; enabled by `setup_logging` or `districtgenerator.set_progress(True)`, then the messages per building
   and cluster are logged on `DEBUG`
+- `utilities.log.reset_logging()` removes the handlers of `setup_logging` and closes the log file
 - New config parameters `DG_LOG_LEVEL` and `DG_LOG_FILE`: if set, the Datahandler sets up logging itself
 - Log messages of worker processes (demand generation, flats) are collected in the main process
 - Messages are mapped to levels: progress `INFO`, details per building `DEBUG`, fallbacks and corrections `WARNING`,
