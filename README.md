@@ -119,7 +119,7 @@ The minimal input data set was defined following the [TABULA archetype approach]
 - gammaPV: azimuth angle of roof side 1 in degrees (0° = south-facing orientation)
 - EV_charging: electric vehicle charging behavior (bidirectional = charging and discharging with use as electricity storage, on-demand = charging as needed, intelligent = optimized charging)
 
-The example_decentral.csv file can be used as [template](https://github.com/RWTH-EBC/districtgenerator/blob/master/districtgenerator/data/scenarios/example_decentral.csv).
+The example_decentral.csv file can be used as [template](https://github.com/RWTH-EBC/districtgenerator/blob/master/districtgenerator/data/inputs/scenarios/example_decentral.csv).
 
 ### Additional configuration categories and input data
 
@@ -127,33 +127,67 @@ All default values are defined in [settings.py](https://github.com/RWTH-EBC/dist
 source of truth. General modeling assumptions are managed through Pydantic-based configuration classes. Without
 `env_path`, the Datahandler uses these defaults.
 
-To override values, create your own file in [data/config](https://github.com/RWTH-EBC/districtgenerator/tree/master/districtgenerator/data/config)
+To override values, create your own file in [data/inputs/configs](https://github.com/RWTH-EBC/districtgenerator/tree/master/districtgenerator/data/inputs/configs)
 (e.g. `.env.CONFIG.MYPROJECT`) that contains **only the parameters you want to change**, and load it with
 `Datahandler(env_path=".env.CONFIG.MYPROJECT")`. Files in other locations can be loaded with an absolute path.
 
-[.env.CONFIG.EXAMPLE](https://github.com/RWTH-EBC/districtgenerator/blob/master/districtgenerator/data/config/.env.CONFIG.EXAMPLE) lists all parameters with description,
+[.env.CONFIG.EXAMPLE](https://github.com/RWTH-EBC/districtgenerator/blob/master/districtgenerator/data/inputs/configs/.env.CONFIG.EXAMPLE) lists all parameters with description,
 unit and default value. Copy the lines you need and remove the leading `# `. The EXAMPLE is generated from
 `settings.py` and must not be edited by hand. After changing `settings.py`, regenerate it with
-`python -m districtgenerator.config.generate_env_example`. Local `.env.CONFIG*` files in `data/config` are
-ignored by git (except EXAMPLE and FREIBURG).
+`python -m districtgenerator.config.generate_env_example`. Own files in `data/inputs` are
+ignored by git (except the shipped examples).
 
 The configuration includes assumptions and parameters related to location and weather, temporal resolution,
 heating and cooling periods, building design conditions, thermal building model, economic parameters, energy prices,
 emission factors, heating networks, central and decentralized technologies, optimization, solver settings, and
 report generation.
 
-All input data such as weather, postal codes, scenarios, pipes and SIA 2024 is read from `districtgenerator/data`, sorted into subfolders by topic:
+All data is located in `districtgenerator/data`. It separates user inputs from reference data:
 
-* `config`: configuration files (generated template `.env.CONFIG.EXAMPLE`, shared configs and your own `.env.CONFIG.*` files)
-* `scenarios`: scenario files (.csv) with the buildings of a district
-* `site`: postal codes, coordinates, weather stations and cooling load zones
-* `weather`: test reference years (TRY) of the DWD
-* `buildings`: SIA 2024, non-residential archetypes, lighting and car data
-* `energy_systems`: pipe specifications, wind turbine power curves and heat pump COP time series
-* `report`: translations for the PDF certificate
-* `raw`: source data and scripts used to create the files above; the districtgenerator does not read this folder
+* `inputs`: what you set up for a calculation
+  * `configs`: configuration files (generated template `.env.CONFIG.EXAMPLE`, shared configs and your own `.env.CONFIG.*` files)
+  * `scenarios`: scenario files (.csv) with the buildings of a district
+* `reference`: data read by the districtgenerator that usually does not have to be changed
+  * `site`: postal codes, coordinates, weather stations and cooling load zones
+  * `weather`: test reference years (TRY) of the DWD
+  * `buildings`: SIA 2024, non-residential archetypes, lighting and car data
+  * `energy_systems`: pipe specifications, wind turbine power curves and heat pump COP time series
+  * `report`: translations for the PDF certificate
+* `raw`: source data and scripts used to create the reference data; the districtgenerator does not read this folder
 
-Own scenario files can be placed in another folder with `Datahandler(scenario_file_path=...)`. 
+If you work directly in the repository, put your own files into `data/inputs`. Files there are ignored by git, except
+the shipped examples (`example_*.csv`, `.env.CONFIG.EXAMPLE`, `.env.CONFIG.FREIBURG`). To adapt an example, copy it
+under a new name instead of editing it.
+
+If you use the districtgenerator within an own project (e.g. installed with pip), create a folder for it anywhere in
+that project and pass it to the Datahandler as `project_path`. It does not have to be the top level of your project,
+a subfolder keeps it apart from your other data:
+
+```
+your_project/
+  data/
+    ...                          (other data of your project)
+    districtgenerator/           <- project_path
+      configs/     .env.CONFIG.MYPROJECT
+      scenarios/   my_district.csv
+      results/     (created automatically)
+```
+
+```python
+data = Datahandler(project_path="data/districtgenerator", scenario_name="my_district", env_path=".env.CONFIG.MYPROJECT")
+```
+
+The subfolders correspond to these folders in the repository:
+
+| Repository                                | Project folder               |
+|-------------------------------------------|------------------------------|
+| `districtgenerator/data/inputs/configs`   | `<project_path>/configs`     |
+| `districtgenerator/data/inputs/scenarios` | `<project_path>/scenarios`   |
+| `districtgenerator/results`               | `<project_path>/results`     |
+
+A relative `env_path` is searched first in `<project_path>/configs` and then in `data/inputs/configs`, so the shipped
+configs can still be used. Configuration files directly in `<project_path>` are not found by name. `scenario_file_path` and `resultPath` override the project subfolders if given.
+See [e11_own_project.py](https://github.com/RWTH-EBC/districtgenerator/blob/master/examples/e11_own_project.py) for a complete example.
 The former parameters `filePath` and `srcPath` are deprecated and ignored. 
 Fixed data such as the file format of the TRY weather data, the cooling load zones and the soil properties are constants
 in `config/settings.py` and cannot be changed via a config file.

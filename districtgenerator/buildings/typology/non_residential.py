@@ -10,7 +10,7 @@ DistrictGenerator:
   loaded from ``non_residential_behavior.json``.
 
 Envelope properties and surface-estimation factors are loaded from the
-packaged JSON data in ``data/buildings``. The implementation follows the
+packaged JSON data in ``data/reference/buildings``. The implementation follows the
 DistrictGenerator non-residential archetype approach and provides the geometry
 and use-specific parameters required by the building, profile, and thermal
 models.
@@ -20,26 +20,26 @@ import json
 import functools
 from dataclasses import dataclass
 from typing import List
-from districtgenerator.utilities.paths import DATA_DIR
+from districtgenerator.utilities.paths import REFERENCE_DIR
 
 
 @functools.lru_cache(maxsize=None)
 def load_non_residential_json(file_name):
-    """Read a JSON file of ``data/buildings`` once per process and cache it.
+    """Read a JSON file of ``data/reference/buildings`` once per process and cache it.
 
     The returned dict is shared between all callers and must not be modified.
 
     Parameters
     ----------
     file_name : str
-        File name inside ``data/buildings``, e.g. ``"non_residential_envelope.json"``.
+        File name inside ``data/reference/buildings``, e.g. ``"non_residential_envelope.json"``.
 
     Returns
     -------
     dict
         Content of the JSON file.
     """
-    with open(os.path.join(DATA_DIR, 'buildings', file_name), 'r', encoding='utf-8') as file:
+    with open(os.path.join(REFERENCE_DIR, 'buildings', file_name), 'r', encoding='utf-8') as file:
         return json.load(file)
 
 
@@ -229,7 +229,7 @@ class NonResidential(object):
     def load_surface_estimation_factors(self):
         """
         Load use- and age-specific surface-estimation factors.
-        Read ``data/buildings/surface_estimation_factors.json`` and
+        Read ``data/reference/buildings/surface_estimation_factors.json`` and
         select the parameter set corresponding to ``usage`` and
         ``year_of_construction``.
 
@@ -404,7 +404,7 @@ class GenericNonResidential:
 
         if self.usage_string not in data:
             raise ValueError(f"NWG '{self.usage_string}' not found in JSON. path: "
-                             f"{os.path.join(DATA_DIR, 'buildings', file_name)}")
+                             f"{os.path.join(REFERENCE_DIR, 'buildings', file_name)}")
 
         return NonResidentialConfig(**data[self.usage_string])
 

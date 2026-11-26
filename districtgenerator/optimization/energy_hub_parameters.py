@@ -21,6 +21,7 @@ import os
 import numpy as np
 import districtgenerator.time_series.medoid as clustering
 from districtgenerator.time_series.resolution import changeResolution
+from districtgenerator.utilities.paths import REFERENCE_DIR
 from districtgenerator.time_series.clustering import select_profile_periods
 import time
 import copy
@@ -470,7 +471,7 @@ def get_params(data):
             devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
         elif all_models["HP"]["CSV_feasible"]:
-            COP_unclustered = np.loadtxt(os.path.join(data.filePath, 'energy_systems', 'coefficient_of_performance.txt'))
+            COP_unclustered = np.loadtxt(os.path.join(REFERENCE_DIR, 'energy_systems', 'coefficient_of_performance.txt'))
             # The COP file has an hourly resolution; adapt it to the time resolution of the model
             if data.time["timeResolution"] != 3600:
                 COP_unclustered = changeResolution(COP_unclustered, 3600, data.time["timeResolution"], "mean")
