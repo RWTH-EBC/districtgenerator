@@ -239,6 +239,16 @@ class Users:
 
             area_categories = [(20, 39), (40, 59), (60, 79), (80, 99), (100, 119), (120, 139), (140, 159), (160, 179), (180, 199)]
             probabilities = [0.05896, 0.181403, 0.23811, 0.17094, 0.118865, 0.107155, 0.067465, 0.0350566, 0.02204]
+
+            # The loop below only terminates if round(area / chosen_area) > 1 is reachable, i.e. for the smallest
+            # possible flat size: area / min_flat_area >= 1.5. For smaller areas it would loop forever.
+            min_flat_area = min((lo + hi) // 2 for lo, hi in area_categories)
+            if area / min_flat_area < 1.5:
+                warnings.warn(f"Area of {area} m² is too small for building type '{self.building}' "
+                              f"(minimum {1.5 * min_flat_area} m² for 2 flats). Setting number of flats to 2.")
+                self.nb_flats = 2
+                return
+
             while True:
                 # Choose one consistent flat size for the entire building
                 chosen_area_range = rd.choices(area_categories, weights=probabilities, k=1)[0]
@@ -289,7 +299,9 @@ class Users:
                 raise ValueError(f"Main space proportion is 0. Check 'main_room_zones' for '{self.building}'.")
 
             if self.nb_rooms < 1:
-                raise ValueError(f"Calculated total rooms is 0 (due to small area). Building area must be larger.")
+                warnings.warn(f"Calculated total rooms is 0 for building type '{self.building}' due to small area "
+                              f"({area} m²). Setting number of rooms to 1.")
+                self.nb_rooms = 1
 
             if self.nb_main_rooms > self.nb_rooms:
                 self.nb_main_rooms = self.nb_rooms # Number of main rooms limited by total rooms. Maybe a warning here?
