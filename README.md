@@ -294,9 +294,15 @@ setup_logging(level="INFO", log_file=False)        # console only
 
 ```
 2026-11-26 16:52:27 - settings - INFO - Using config: defaults from settings.py
-2026-11-26 16:52:28 - district - INFO - This calculation will take about 0:01:30.
-2026-11-26 16:52:41 - demand_generation - INFO - building 1/4 calculated (25.0%): example_decentral_0_SFH
+2026-11-26 16:52:28 - district - INFO - Estimated calculation time for 4 buildings: about 0:01:30.
+2026-11-26 16:52:28 - datahandler - INFO - Initialized 4 buildings of scenario 'example_decentral' from ...
+2026-11-26 16:52:29 - demand_generation - INFO - Calculating demands of 4 buildings with multiprocessing (4 workers).
+Demands:  50%|█████     | 2/4 [00:12<00:12, 6.10s/building, example_decentral_3_TH]
 ```
+
+* The demand generation and the optimization of the clusters show a progress bar; messages are printed above it.
+  With the bar, the messages per building and cluster are logged on `DEBUG` (they are still in the log file with
+  `level="DEBUG"`). `progress=False` turns the bars off, then these messages show the progress on `INFO`.
 
 * The console shows the last part of the logger name and colors the messages by level (set the environment variable
   `NO_COLOR` or pass `color=False` to turn this off). The log file contains the full logger name.
@@ -319,6 +325,19 @@ your configuration instead, e.g. with `logging.config.dictConfig`:
     "app": {...},
     "districtgenerator": {"level": "INFO", "handlers": ["console", "file"], "propagate": False},
 }
+```
+
+To show the progress bars of the districtgenerator in your application, enable them and route the console output of
+the logger through tqdm, so that the messages appear above the bars:
+
+```python
+import logging
+from tqdm.contrib.logging import logging_redirect_tqdm
+import districtgenerator
+
+districtgenerator.set_progress(True)
+with logging_redirect_tqdm(loggers=[logging.getLogger("app"), logging.getLogger("districtgenerator")]):
+    ...
 ```
 
 ## Final output of the DistrictGenerator

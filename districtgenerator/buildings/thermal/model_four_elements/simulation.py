@@ -133,9 +133,9 @@ def _extract_element_params(envelope, dt_s: float) -> Dict[str, float]:
 
     # Helper to safely extract parameters or apply defaults
     def _safe_get(attr, default=1e-5):
-        """Return an envelope attribute as float, or print a message and return `default` if it is missing."""
+        """Return an envelope attribute as float, or log a warning and return `default` if it is missing."""
         if not hasattr(envelope, attr):
-            logger.warning(f"Attribute {attr} not found in envelope object.")
+            logger.warning(f"Envelope has no attribute '{attr}', using {default}.")
         return float(getattr(envelope, attr, default))
 
     return {

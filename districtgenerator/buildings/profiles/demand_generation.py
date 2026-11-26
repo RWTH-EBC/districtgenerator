@@ -5,13 +5,14 @@ import contextlib
 import logging
 import multiprocessing as mp
 import os
+import time
 import warnings
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 
 from districtgenerator.buildings import thermal
 from districtgenerator.buildings.typology import mixed_use
 from districtgenerator.file_io import profile_store
-from districtgenerator.utilities.log import worker_logging
+from districtgenerator.utilities.log import progress_bar, progress_level, worker_logging
 from districtgenerator.utilities.randomness import seeded_demand_worker
 
 logger = logging.getLogger(__name__)
@@ -69,7 +70,7 @@ def run_demand_worker(context, building, calcUserProfiles, saveUserProfiles, gen
         Result payload merged back into self.district in the main process.
     """
     warnings.filterwarnings("ignore", category=FutureWarning)
-    logger.debug(f'starting {building["unique_name"]}')
+    logger.debug(f'Starting demand calculation of building {building["unique_name"]}')
 
     site = context["site"]
     calendar = context["calendar"]
@@ -120,7 +121,7 @@ def run_demand_worker(context, building, calcUserProfiles, saveUserProfiles, gen
          building["envelope"].bivalent, building["envelope"].heatlimit,
          building["user"].individual_car_profiles) = profile_store.load_profiles(
             building["unique_name"], demands_path, time_cfg, gen_cars=gen_cars)
-        logger.debug("Load demands of building " + building["unique_name"])
+        logger.debug(f"Loaded demand profiles of building {building['unique_name']} from {demands_path}")
 
     # checking the choosen buidling model and adding further model parameters depending on gains and weather
     thermal.prepare_simulation(building["envelope"], building.get("thermal_model"), site, building["user"].gains)
@@ -200,6 +201,10 @@ def generate_demands(data, calcUserProfiles=True, saveUserProfiles=True, max_wor
     # ------------------------------------------------------------------
     # The same worker and context are used in threads and in processes
     context = demand_context(data)
+    action = "Calculating" if calcUserProfiles else "Loading"
+    logger.info(f"{action} demands of {data.buildings_total} buildings with {data.parallelization} "
+                f"({max_workers} workers).")
+    start_time = time.perf_counter()
     with contextlib.ExitStack() as stack:
         if data.parallelization == "multiprocessing":
             # "spawn" is required on Windows and safest cross-platform
@@ -209,10 +214,8 @@ def generate_demands(data, calcUserProfiles=True, saveUserProfiles=True, max_wor
             initializer, initargs = stack.enter_context(worker_logging(mp_ctx))
             executor = ProcessPoolExecutor(max_workers=max_workers, mp_context=mp_ctx,
                                            initializer=initializer, initargs=initargs)
-            parallelization_method = "multiprocessing"
         elif data.parallelization == "threading":
             executor = ThreadPoolExecutor(max_workers=max_workers)
-            parallelization_method = "threading"
         else:
             raise ValueError(f"Unknown parallelization '{data.parallelization}'. "
                              f"Options: 'multiprocessing', 'threading'")
@@ -221,6 +224,8 @@ def generate_demands(data, calcUserProfiles=True, saveUserProfiles=True, max_wor
         # Execute workers
         # ------------------------------------------------------------------
         ex = stack.enter_context(executor)
+        # The bar is updated here in the main thread when a building is finished, for threads and processes alike
+        bar = stack.enter_context(progress_bar(total=data.buildings_total, desc="Demands", unit="building"))
         future_map = {ex.submit(run_demand_worker, context, building, calcUserProfiles, saveUserProfiles, gen_cars):
                       building["unique_name"] for building in data.district}
         for fut in as_completed(future_map):
@@ -231,8 +236,12 @@ def generate_demands(data, calcUserProfiles=True, saveUserProfiles=True, max_wor
             results.append(result)
             data.save_progress()
 
-            logger.info(f"building {data.buildings_completed}/{data.buildings_total} calculated "
-                        f"({data.buildings_completed / data.buildings_total * 100:.1f}%): {unique_name}")
+            bar.set_postfix_str(unique_name, refresh=False)
+            bar.update(1)
+            # With a progress bar this message is DEBUG, otherwise it shows the progress on INFO
+            logger.log(progress_level(),
+                       f"Demands of building {data.buildings_completed}/{data.buildings_total} done "
+                       f"({data.buildings_completed / data.buildings_total * 100:.0f} %): {unique_name}")
 
     # ------------------------------------------------------------------
     # Write results back to district
@@ -260,6 +269,6 @@ def generate_demands(data, calcUserProfiles=True, saveUserProfiles=True, max_wor
         building["buildingFeatures"] = building_features
 
     data.save_progress()
-    logger.info(f"Finished generating demands with "f"{parallelization_method}!")
+    logger.info(f"Demands of {data.buildings_total} buildings generated in {time.perf_counter() - start_time:.0f} s.")
     # Combine demand profiles for mixed-use buildings
     mixed_use.combine_mixed_building_demands(data, saveUserProfiles)

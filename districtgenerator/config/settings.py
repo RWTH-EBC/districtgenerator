@@ -375,11 +375,13 @@ class EcoConfig(BaseSettings):
                 last_value = current_list[-1]
                 extended_list = current_list + [last_value] * (self.observation_time - len(current_list))
                 setattr(self, param_name, extended_list)
-                logger.warning(f"{param_name} list was shorter than observation_time. Extended with last value to match length.")
+                logger.warning(f"{param_name.upper()} has {len(current_list)} values, but OBSERVATION_TIME is "
+                               f"{self.observation_time} years: the last value ({last_value}) is used for the remaining years.")
             elif len(current_list) > self.observation_time:
                 # List too long - truncate
                 setattr(self, param_name, current_list[:self.observation_time])
-                logger.warning(f"{param_name} list was longer than observation_time. Truncated to match length.")
+                logger.warning(f"{param_name.upper()} has {len(current_list)} values, but OBSERVATION_TIME is "
+                               f"{self.observation_time} years: only the first {self.observation_time} values are used.")
             # else: length matches exactly, no change needed
 
         return self
@@ -439,7 +441,7 @@ class PyomoConfig(BaseSettings):
     """
     PyomoConfig class to manage the configuration of the Pyomo optimization solver.
     """
-    solver_name: str = "highs"     # Name of the solver to be used. Options: 'gurobi', 'highs', 'cbc' etc. highs does not require any additional download or license. Already available if all packages in requirements.txt are installed.
+    solver_name: str = "gurobi"     # Name of the solver to be used. Options: 'gurobi', 'highs', 'cbc' etc. highs does not require any additional download or license. Already available if all packages in requirements.txt are installed.
     solver_executable: Optional[str] = None   # Path to solver executable, if needed
     solver_options__time_limit: int = 600          # Time limit in seconds for each optimization run
     solver_options__mip_gap: float = 0.01            # Acceptable MIP gap from optimal solution
@@ -653,7 +655,7 @@ class Scenario(BaseSettings):
     flat_max_workers: Annotated[int, Field(ge=1)] = 4  # Max. number of workers for the flat parallelization.
     # Logging: if DG_LOG_LEVEL or DG_LOG_FILE is set, the Datahandler calls districtgenerator.setup_logging().
     # Leave both empty (None) to keep the logging setup of your application.
-    dg_log_level: Optional[str] = None  # Minimum level of the messages: DEBUG, INFO, WARNING or ERROR. INFO if only DG_LOG_FILE is set.
+    dg_log_level: Optional[str] = "DEBUG" # Minimum level of the messages: DEBUG, INFO, WARNING or ERROR. INFO if only DG_LOG_FILE is set.
     # Path of the log file; relative paths are relative to the result folder.
     # None: a new file with a time stamp in <result folder>/logs.
     dg_log_file: Optional[str] = None

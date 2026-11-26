@@ -12,7 +12,9 @@ import warnings
 from concurrent.futures import ProcessPoolExecutor
 
 from districtgenerator import setup_logging
-from districtgenerator.utilities.log import PACKAGE_LOGGER, current_log_files, use_log_dir, worker_logging
+from districtgenerator import set_progress
+from districtgenerator.utilities.log import (PACKAGE_LOGGER, current_log_files, progress_bar, progress_enabled,
+                                             progress_level, use_log_dir, worker_logging)
 
 
 def _log_in_worker(i):
@@ -32,6 +34,7 @@ def _reset_logging():
         logger.propagate = True
     logging.getLogger(PACKAGE_LOGGER).setLevel(logging.NOTSET)
     logging.captureWarnings(False)
+    set_progress(False)
 
 
 class TestLogging(unittest.TestCase):
@@ -100,6 +103,22 @@ class TestLogging(unittest.TestCase):
         _reset_logging()
         line = buffer.getvalue()
         self.assertRegex(line, r"^\x1b\[33m\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} - demand_generation - WARNING - hello")
+
+    def test_progress_bars(self):
+        """Bars only with setup_logging (or set_progress); then the messages per step move to DEBUG"""
+        self.assertFalse(progress_enabled())
+        self.assertEqual(progress_level(), logging.INFO)
+        with progress_bar(total=2, desc="Test", unit="step") as bar:
+            bar.update(2)
+        self.assertTrue(bar.disable)
+
+        setup_logging(level="INFO", log_file=False)
+        self.assertTrue(progress_enabled())
+        self.assertEqual(progress_level(), logging.DEBUG)
+        setup_logging(level="INFO", log_file=False, progress=False)
+        self.assertFalse(progress_enabled())
+        setup_logging(level="INFO", log_file=False, console=False)
+        self.assertFalse(progress_enabled())  # no bar without console output
 
     def test_worker_processes(self):
         """Messages of worker processes end up in the log file of the main process"""

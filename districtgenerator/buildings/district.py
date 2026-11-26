@@ -128,7 +128,8 @@ def initialize_buildings(data):
         # Unique name = "<id>_<building type>"
         name = f"{data.scenario_name}_{bldg_id}_{row['building']}"
         if name in name_pool:
-            logger.warning(f"Duplicate name: {name}, skipping")
+            logger.warning(f"Building id {bldg_id} ({row['building']}) appears more than once in the scenario: "
+                           f"only the first row is used.")
             continue
         name_pool.append(name)
 
@@ -144,7 +145,7 @@ def initialize_buildings(data):
 
     # Rough time estimate
     duration += datetime.timedelta(seconds=3 * num_sfh + 12 * num_mfh)
-    logger.info(f"This calculation will take about {duration}.")
+    logger.info(f"Estimated calculation time for {len(data.district)} buildings: about {duration}.")
     # split mixed-use buildings into main and secondary parts
     mixed_use.split_mixed_buildings(data)
 

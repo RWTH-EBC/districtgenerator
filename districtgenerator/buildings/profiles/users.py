@@ -550,7 +550,8 @@ class Users:
             try:
                 jsonData = load_non_residential_json(file_name)
             except FileNotFoundError:
-                logger.error(f"File '{file_name}' not found.")
+                logger.error(f"Lighting data '{file_name}' for non-residential buildings not found: "
+                             f"the lighting of this building is not modelled.")
                 return
 
             # Process data for different building types

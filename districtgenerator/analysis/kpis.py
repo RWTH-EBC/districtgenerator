@@ -1362,7 +1362,7 @@ class KPIs:
                     kpi_df_cent_devices.to_excel(writer, sheet_name='Central Devices', index=False)
                 kpi_df_buildings.to_excel(writer, sheet_name='Building KPIs', index=False)
 
-            logger.info(f"KPIs saved to: {filename}")
+            logger.info(f"KPIs saved to {filename}")
 
         elif file_format == "csv":
             kpi_df_yearly.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_yearly.csv"), index=False, sep=';', decimal=',')
@@ -1372,12 +1372,12 @@ class KPIs:
                 kpi_df_cent_devices.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_central_devices.csv"), index=False, sep=';', decimal=',')
             kpi_df_buildings.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_buildings.csv"), index=False, sep=';', decimal=',')
 
-            logger.info(f"KPIs saved to: {result_path} as CSV files: KPIs_{scenario_name}_*.csv")
+            logger.info(f"KPIs saved to {result_path} as KPIs_{scenario_name}_*.csv")
 
         elif file_format == None:
-            logger.info("KPIs not saved to file as no file format specified in report configuration.")
+            logger.info("KPIs are not saved to a file: KPI_SAVE_TYPE is not set in the config.")
         else:
-            logger.warning(f"Unsupported file format: {file_format}")
+            logger.warning(f"KPIs are not saved: unknown KPI_SAVE_TYPE '{file_format}'. Options: 'xlsx', 'csv'.")
 
 
     def create_certificate(self, data, result_path, file_name=None):

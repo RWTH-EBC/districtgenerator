@@ -7,6 +7,10 @@ of the calling application. Users who just want output call :func:`setup_logging
 
 Worker processes of the demand generation do not inherit the handlers of the main process. :func:`worker_logging`
 sends their log records through a queue to the main process, where they are handled by the same handlers.
+
+Long loops (demand generation, optimization of the clusters) show a tqdm progress bar if progress bars are enabled
+(:func:`setup_logging` does this by default, applications call :func:`set_progress`). With a bar, the messages per
+building or cluster are logged on DEBUG instead of INFO, so that the console is not flooded.
 """
 
 import contextlib
@@ -24,6 +28,9 @@ CONSOLE_FORMAT = "%(asctime)s - %(shortname)s - %(levelname)s - %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 #: Subfolder of the result folder for the default log files.
 LOG_SUBFOLDER = "logs"
+
+# Progress bars are off by default, so that the package does not print anything without setup
+_progress_enabled = False
 
 # Marks the handlers added by setup_logging, so that a repeated call replaces them instead of adding more
 _HANDLER_FLAG = "_districtgenerator_handler"
@@ -56,6 +63,51 @@ class ColorFormatter(logging.Formatter):
         return text
 
 
+class TqdmStreamHandler(logging.StreamHandler):
+    """Console handler that writes with ``tqdm.write``, so that messages appear above an active progress bar."""
+
+    def emit(self, record):
+        try:
+            from tqdm import tqdm
+            tqdm.write(self.format(record), file=self.stream)
+        except Exception:
+            self.handleError(record)
+
+
+def set_progress(enabled=True):
+    """
+    Enable or disable the progress bars of the districtgenerator.
+
+    :func:`setup_logging` enables them by default. Applications with their own logging setup call this function and
+    should route the console output of the logger ``districtgenerator`` through tqdm as well, e.g. with
+    ``tqdm.contrib.logging.logging_redirect_tqdm``.
+    """
+    global _progress_enabled
+    _progress_enabled = bool(enabled)
+
+
+def progress_enabled():
+    """Return True if progress bars are shown."""
+    return _progress_enabled
+
+
+def progress_level():
+    """Level for messages per step of a loop: DEBUG if a progress bar shows the progress, otherwise INFO."""
+    return logging.DEBUG if _progress_enabled else logging.INFO
+
+
+def progress_bar(total, desc, unit):
+    """
+    Return a tqdm progress bar, disabled if progress bars are off.
+
+    The bar is written to stdout like the console messages of :func:`setup_logging`. Inside another bar (e.g. of the
+    calling application) it is removed when finished.
+    """
+    from tqdm import tqdm
+    return tqdm(total=total, desc=desc, unit=unit, file=sys.stdout, disable=not _progress_enabled,
+                leave=None, dynamic_ncols=True)
+
+
 def _remove_own_handlers(logger):
     for handler in list(logger.handlers):
         if getattr(handler, _HANDLER_FLAG, False):
@@ -81,7 +133,7 @@ class _LazyFileHandler(logging.FileHandler):
         return super()._open()
 
 
-def setup_logging(level="INFO", log_file=None, console=True, color=None, capture_warnings=True):
+def setup_logging(level="INFO", log_file=None, console=True, color=None, capture_warnings=True, progress=True):
     """
     Set up console output and a log file for the districtgenerator.
 
@@ -103,6 +155,9 @@ def setup_logging(level="INFO", log_file=None, console=True, color=None, capture
         Color the console messages by level. Default is True unless the environment variable NO_COLOR is set.
     capture_warnings : bool, optional
         Route warnings of the ``warnings`` module (e.g. deprecations) into the log as well. Default is True.
+    progress : bool, optional
+        Show progress bars for the demand generation and the optimization (only with ``console=True``).
+        The messages per building and cluster are then logged on DEBUG. Default is True.
 
     Returns
     -------
@@ -121,7 +176,7 @@ def setup_logging(level="INFO", log_file=None, console=True, color=None, capture
 
     handlers = []
     if console:
-        handler = logging.StreamHandler(sys.stdout)
+        handler = TqdmStreamHandler(sys.stdout)
         handler.setFormatter(ColorFormatter(color=color))
         handlers.append(handler)
     if log_file is not False:
@@ -144,6 +199,7 @@ def setup_logging(level="INFO", log_file=None, console=True, color=None, capture
     else:
         warnings_logger.propagate = True
 
+    set_progress(progress and console)
     return logger
 
 

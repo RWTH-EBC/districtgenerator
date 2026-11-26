@@ -470,7 +470,7 @@ def plot_district(data, mode='default', initialTime=0, timeHorizon=31536000, sav
                             timeHorizon=timeHorizon, savePlots=savePlots, timeStamp=timeStamp, show=show)
     else:
         # print massage that input is not valid
-        logger.warning('Selected plot mode is not valid. So no plot could de generated.')
+        logger.warning(f"Unknown plot mode '{mode}': no plot generated. Options: 'default', {', '.join(plotTypes)}.")
 
 """
 

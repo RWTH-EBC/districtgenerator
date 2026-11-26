@@ -330,14 +330,15 @@ class Envelope:
 
             eta_temp_vent = 0
             if self.nwg_config.get_ventilation():
-                logger.debug("Calculating ventilation parameters for non-residential building based on SIA2024 data and building configuration.")
+                logger.debug("Calculating the ventilation parameters of a non-residential building from SIA 2024.")
                 # Determine temperature efficiency of ventilation (eta_temp_vent) based on building standard (existing, standard, goal)
                 main_zone_name = self.nwg_config.get_main_zone_name()
                 for number, data in self.SIA2024.items():
                     zone_name = data.get('Zone_name_GER')
                     if zone_name == main_zone_name: # Main zone determines the ventilation heat recovery efficiency. Can be problematic if main zone has no heat recovery according to SIA2024, but other zones do. Maybe use weighted average of all zones instead?
-                        logger.debug("SIA2024 zone data keys: %s", list(data.keys()))
                         eta_temp_vent = data['eta_temp_vent'][mode]
+                        logger.debug(f"Ventilation heat recovery of main zone '{main_zone_name}' ({mode}): "
+                                     f"eta = {eta_temp_vent}")
                         break
 
             # Ventilation is sum of required ventilation over all zones

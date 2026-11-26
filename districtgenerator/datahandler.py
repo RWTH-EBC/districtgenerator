@@ -181,7 +181,7 @@ class Datahandler:
                 with open(self.progress_file, 'w') as f:
                     json.dump(progress_data, f)
             except Exception as e:
-                logger.warning(f"Couldn't save calculation progress: {e}")
+                logger.warning(f"Could not save the calculation progress to {self.progress_file}: {e}")
 
     def setup_logging_from_config(self, env_path):
         """
@@ -272,6 +272,7 @@ class Datahandler:
         -------
         None.
         """
+        logger.info(f"Loading site and weather data for postal code {self.site.get('zip')}.")
         weather.load_weather(self)
         site_conditions.load_site_conditions(self)
         solar.calculate_surface_irradiance(self)
@@ -310,6 +311,8 @@ class Datahandler:
         None.
         """
         district_buildings.initialize_buildings(self)
+        logger.info(f"Initialized {len(self.district)} buildings of scenario '{self.scenario_name}' "
+                    f"from {self.scenario_file_path}.")
 
     def split_mixed_buildings(self):
         """
@@ -325,6 +328,7 @@ class Datahandler:
         -------
         None.
         """
+        logger.info(f"Generating envelopes and users of {len(self.district)} buildings.")
         district_buildings.generate_buildings(self)
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_workers=None, gen_cars=True):
@@ -390,7 +394,7 @@ class Datahandler:
             self.designCentralDevices(saveGenerationProfiles=True)
             self.applyCentralDesignClusteringToOperationProfiles()
         else:
-            logger.info("No thermal network detected and no energy hub requested — skipping thermal network design.")
+            logger.info("No building is connected to a thermal network and no energy hub is requested: skipping the design of central devices.")
             self.centralDevices = {}
             self.prepareClusteringInputs()
 
@@ -534,7 +538,7 @@ class Datahandler:
         """
         Prepare and cluster building-level demand and environmental data.
         """
-        logger.info("Preparing initial clustering (pre-optimization)...")
+        logger.info(f"Clustering the profiles of all buildings into {self.time['clusterNumber']} typical periods for the optimization.")
         self.clusterProfiles(centralEnergySupply=False)
 
 
@@ -599,6 +603,8 @@ class Datahandler:
         -------
         None.
         """
+        logger.info(f"Optimizing the device operation for {self.time['clusterNumber']} typical periods and "
+                    f"{len(self.ecoData['interpolation_points'])} simulated years.")
         operation.optimize_all_clusters(self)
 
     def calculate_ecoData_per_cluster(self):
@@ -614,6 +620,7 @@ class Datahandler:
         None.
         """
 
+        logger.info("Calculating the key performance indicators (KPIs).")
         # initialize KPI class
         self.KPIs = KPIs(self)
         # calculate KPIs

@@ -393,7 +393,8 @@ def _diagnose_solution(model, term_cond, result_dir, model_name, lp_filename, so
         except Exception as e:
             f.write(f"Could not read solver log: {e}\n")
 
-    logger.error(f"Solver terminated with condition: {term_cond}\nFor further analysis see {errorfile_path}")
+    logger.error(f"Optimization of {model_name} failed: solver terminated with condition '{term_cond}'. "
+                 f"Details: {errorfile_path}")
 
     # Check if Gurobi is available for further analysis
     try:
@@ -417,11 +418,12 @@ def _diagnose_solution(model, term_cond, result_dir, model_name, lp_filename, so
                 env.start()
                 m = gp.read("debug_model.lp", env=env)
                 m.setParam('DualReductions', 0) # Disable presolving reductions to get more accurate IIS
-                logger.info("Running Gurobi optimization to determine source of termination...")
+                logger.info(f"Solving {model_name} again with Gurobi to find the cause of the termination.")
                 m.optimize()
 
                 if m.status == gp.GRB.OPTIMAL:
-                    logger.info(f"Gurobi resolved with status: {m.status}. Objective value: {m.objVal}")
+                    logger.warning(f"Gurobi solved {model_name} to optimality (objective {m.objVal}), although the selected solver "
+                                   f"did not. Consider using Gurobi or changing the solver options.")
                     with open(errorfile_path, 'a') as f:
                         f.write(f"\nGurobi resolved with status: {m.status}. Objective value: {m.objVal}\n")
                         if term_cond == pyo.TerminationCondition.maxTimeLimit:
@@ -431,38 +433,40 @@ def _diagnose_solution(model, term_cond, result_dir, model_name, lp_filename, so
                     m.computeIIS()
                     iis_filename = os.path.join(result_dir, f"iis_{model_name}.ilp")
                     m.write(iis_filename)
-                    logger.error(f"Gurobi model is infeasible. For further information, see {errorfile_path}")
+                    logger.error(f"Gurobi confirms that {model_name} is infeasible. Conflicting constraints (IIS): {iis_filename}, "
+                                 f"details: {errorfile_path}")
 
                     with open(errorfile_path, 'a') as f:
                         f.write(f"\nGurobi confirmed infeasible. IIS saved to: {iis_filename}\n")
 
                 elif m.status == gp.GRB.UNBOUNDED:
-                    logger.error("Gurobi model is unbounded.")
+                    logger.error(f"Gurobi confirms that {model_name} is unbounded. Details: {errorfile_path}")
                     with open(errorfile_path, 'a') as f:
                         f.write("\nGurobi confirmed unbounded.\n")
 
                 elif m.status == gp.GRB.INF_OR_UNBD:
-                    logger.error("Gurobi model is either infeasible or unbounded.")
+                    logger.error(f"Gurobi: {model_name} is infeasible or unbounded. Details: {errorfile_path}")
                     with open(errorfile_path, 'a') as f:
                         f.write("\nGurobi returned INF_OR_UNBD. Further diagnostics required.\n")
 
                 elif m.status in [gp.GRB.TIME_LIMIT, gp.GRB.ITERATION_LIMIT, gp.GRB.NODE_LIMIT]:
-                    logger.error(f"Gurobi reached a limit (Code: {m.status}) before finishing.")
+                    logger.error(f"Gurobi stopped at a time, iteration or node limit (status {m.status}) for {model_name}. "
+                                 f"Details: {errorfile_path}")
                     with open(errorfile_path, 'a') as f:
                         f.write(f"\nGurobi stopped due to a limit. Status code: {m.status}\n")
 
                 elif m.status == gp.GRB.NUMERIC:
-                    logger.error("Gurobi encountered numerical issues.")
+                    logger.error(f"Gurobi stopped due to numerical issues for {model_name}. Details: {errorfile_path}")
                     with open(errorfile_path, 'a') as f:
                         f.write("\nGurobi stopped due to numeric instability.\n")
 
                 else:
-                    logger.warning(f"Gurobi resolved with status: {m.status}")
+                    logger.warning(f"Gurobi finished {model_name} with status {m.status}. Details: {errorfile_path}")
                     with open(errorfile_path, 'a') as f:
                         f.write(f"\nGurobi resolved with status: {m.status}\n")
 
         except Exception as e:
-            logger.error(f"Gurobi analysis failed. For further information, see {errorfile_path}")
+            logger.error(f"Gurobi analysis of {model_name} failed: {e}. Details: {errorfile_path}")
             with open(errorfile_path, 'a') as f:
                 f.write(f"\nGurobi analysis failed: {e}\n")
         
@@ -513,7 +517,7 @@ def write_solution_file(model, model_name, result_dir):
                         f.write(f"{var.name} {var.value:.6f}\n")
 
             f.write("# End of solution\n")
-        logger.info(f"Solution written to {file_path}")
+        logger.debug(f"Solution of {model_name} written to {file_path}")
 
     except Exception as e:
-        logger.warning(f"Could not write solution file {file_path}: {e}")
+        logger.warning(f"Could not write the solution of {model_name} to {file_path}: {e}")

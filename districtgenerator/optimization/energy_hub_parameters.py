@@ -161,7 +161,7 @@ def get_params(data):
     scalings = [False] * len(inputs)
 
     # Execute k-medoids algorithm
-    logger.info("Cluster design days...")
+    logger.info(f"Clustering design days into {data.time['clusterNumber']} typical periods.")
     start = time.time()
     (clustered_series, nc, _, z, _) = clustering.cluster(inputs,
                                     data.time["clusterNumber"],

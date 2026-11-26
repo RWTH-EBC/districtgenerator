@@ -490,7 +490,7 @@ def load_pipe_data(generation, pipe_file_path):
         csv_path = os.path.join(pipe_file_path, 'pipe_specifications_PE.csv')
         pipe_data = pd.read_csv(csv_path, sep=";")
     else:
-        logger.error("Please select from the 3rd, 4th, or 5th generation and enter it into the config file.")
+        raise ValueError(f"Unknown heat grid generation '{generation}'. Set GENERATION in the config to '3rd', '4th' or '5th'.")
 
     return pipe_data
 
@@ -550,10 +550,10 @@ def design_thermal_network(data):
 
     if has_thermal_grid(data.district):
         if missing_positions:
-            logger.info("No district geometry found — running simple thermal network design.")
+            logger.info("No building positions in the scenario: designing a simple thermal network.")
             heating_network(data)
         else:
-            logger.warning("The districtgenerator currently does not support thermal networks based on building positions — running simple thermal network design.")
+            logger.warning("Thermal networks based on building positions are not supported yet: designing a simple thermal network.")
             heating_network(data)
 
             # logger.info("Generating and optimizing heating network...")

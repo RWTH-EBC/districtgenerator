@@ -62,7 +62,7 @@ def calculate_eco_data_per_simulated_year(eco_data):
     interest_factor = eco_data['interest_rate']
     q = 1 + interest_factor
     if q < 1:
-        logger.warning(f"interest factor q < 1 (q={q}). If not wanted check ecoData interest rate.")
+        logger.warning(f"INTEREST_RATE is negative ({interest_factor}), i.e. q = {q} < 1. Check the economic config if this is not intended.")
 
     for year in simulated_years:
         relevant_years = year_segments[year]
