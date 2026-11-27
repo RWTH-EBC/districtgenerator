@@ -653,6 +653,9 @@ class Scenario(BaseSettings):
     # 'none' keeps flats sequential; worker counts multiply with the building-level workers.
     flat_parallelization: Literal['none', 'threading', 'multiprocessing'] = 'none'
     flat_max_workers: Annotated[int, Field(ge=1)] = 4  # Max. number of workers for the flat parallelization.
+    # Household electricity profiles with the numba-compiled FastElectricityProfile of richardsonpy (about 100x faster).
+    # Statistically equivalent, but not bit-identical to the original model; False uses the original richardsonpy model.
+    fast_el_profiles: bool = False
     # Logging: if DG_LOG_LEVEL or DG_LOG_FILE is set, the Datahandler calls districtgenerator.setup_logging().
     # Leave both empty (None) to keep the logging setup of your application.
     dg_log_level: Optional[str] = None # Minimum level of the messages: DEBUG, INFO, WARNING or ERROR. INFO if only DG_LOG_FILE is set.

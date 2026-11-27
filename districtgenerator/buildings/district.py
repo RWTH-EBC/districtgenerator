@@ -225,7 +225,8 @@ def generate_buildings(data):
                                      area=building["buildingFeatures"]["area"],
                                      year_of_construction=building["buildingFeatures"]["year"],
                                      retrofit=building["buildingFeatures"]["retrofit"],
-                                     SIA2024=data.SIA2024, random_seed=user_seed)
+                                     SIA2024=data.SIA2024, random_seed=user_seed,
+                                     fast_el_profiles=data.fast_el_profiles)
 
         night_setback = building["buildingFeatures"]["night_setback"]
         # %% calculate design heat loads

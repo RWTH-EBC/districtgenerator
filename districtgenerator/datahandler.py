@@ -249,6 +249,7 @@ class Datahandler:
         self.random_seed = global_config.scenario.random_seed
         self.flat_parallelization = global_config.scenario.flat_parallelization
         self.flat_max_workers = global_config.scenario.flat_max_workers
+        self.fast_el_profiles = global_config.scenario.fast_el_profiles
         self.building_max_workers = global_config.scenario.building_max_workers
         self.design_energy_hub = global_config.scenario.design_energy_hub
 

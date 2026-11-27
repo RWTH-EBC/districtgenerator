@@ -10,6 +10,7 @@ import warnings
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 
 from districtgenerator.buildings import thermal
+from districtgenerator.buildings.profiles.users import warm_up_fast_el_profiles
 from districtgenerator.buildings.typology import mixed_use
 from districtgenerator.file_io import profile_store
 from districtgenerator.utilities.log import progress_bar, progress_level, worker_logging
@@ -207,6 +208,7 @@ def generate_demands(data, calcUserProfiles=True, saveUserProfiles=True, max_wor
     start_time = time.perf_counter()
     with contextlib.ExitStack() as stack:
         if data.parallelization == "multiprocessing":
+            warm_up_fast_el_profiles(data.fast_el_profiles)
             # "spawn" is required on Windows and safest cross-platform
             mp_ctx = mp.get_context("spawn")
             # Log records of the worker processes are sent to this process and end up in the same handlers.
