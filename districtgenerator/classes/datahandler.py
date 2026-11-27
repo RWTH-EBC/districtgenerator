@@ -539,30 +539,44 @@ class Datahandler:
                 # - Randomly selecting a value within the assigned range using the TABULA German Building Typology.
                 # - Calculating the total number of floors by dividing the building’s total floor area
                 #   by the selected single-floor area.
+                # The random draw is only done for retrofit 0 and reused for retrofit 1/2, otherwise the
+                # geometry (wall, roof and ground area) differs between the retrofit variants.
 
-                if building_type == "single_family_house":
-                    one_floor_area = rd.randint(62, 115)  # Source: TABULA German Building Typology
-                    # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
-                    number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
+                retrofit = int(building["buildingFeatures"]["retrofit"])
+                floors_path = os.path.join(self.resultPath, "demands",
+                                           f"floors_{building['buildingFeatures']['id']}.pkl")
 
-                elif building_type == "terraced_house":
-                    one_floor_area = rd.randint(50, 73)  # Source: TABULA German Building Typology
-                    # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
-                    number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
+                if retrofit == 0:
 
-                elif building_type == "multi_family_house":
-                    # Generate a valid one-floor area and number of floors in one step
-                    one_floor_area = rd.randint(102, 971) # Source: TABULA German Building Typology
-                    # Calculate the number of floors, rounding to the nearest integer and ensuring at least 2
-                    number_of_floors = max(2, round(building["buildingFeatures"]["area"] / one_floor_area))
-                    # Cap the number of floors to a maximum of 8
-                    if number_of_floors > 8:
-                        number_of_floors = 8
+                    if building_type == "single_family_house":
+                        one_floor_area = rd.randint(62, 115)  # Source: TABULA German Building Typology
+                        number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
 
-                elif building_type == "apartment_block":
-                    one_floor_area = rd.randint(350, 540)  # Source: TABULA German Building Typology
-                    # Calculate the number of floors, rounding to the nearest integer and ensuring at least 3
-                    number_of_floors = max(3, round(building["buildingFeatures"]["area"] / one_floor_area))
+                    elif building_type == "terraced_house":
+                        one_floor_area = rd.randint(50, 73)  # Source: TABULA German Building Typology
+                        number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
+
+                    elif building_type == "multi_family_house":
+                        one_floor_area = rd.randint(102, 971)  # Source: TABULA German Building Typology
+                        number_of_floors = max(2, round(building["buildingFeatures"]["area"] / one_floor_area))
+                        if number_of_floors > 8:
+                            number_of_floors = 8
+
+                    elif building_type == "apartment_block":
+                        one_floor_area = rd.randint(350, 540)  # Source: TABULA German Building Typology
+                        number_of_floors = max(3, round(building["buildingFeatures"]["area"] / one_floor_area))
+
+                    os.makedirs(os.path.dirname(floors_path), exist_ok=True)
+                    with open(floors_path, "wb") as f:
+                        pickle.dump(number_of_floors, f)
+
+                else:
+                    ref_floors_path = floors_path.replace(f"retrofit_{retrofit}", "retrofit_0")
+                    if ref_floors_path == floors_path or not os.path.isfile(ref_floors_path):
+                        raise FileNotFoundError(f"Number of floors of retrofit_0 is missing: {ref_floors_path}. "
+                                                f"Run retrofit_0 first.")
+                    with open(ref_floors_path, "rb") as f:
+                        number_of_floors = pickle.load(f)
 
                 # Determining the typical floor height based on the building's construction year.
                 # Older buildings (constructed before 1960) generally have higher ceilings, while newer buildings

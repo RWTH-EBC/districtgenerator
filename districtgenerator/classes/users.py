@@ -653,18 +653,32 @@ class Users:
             #  Create wrapper object only for lighting
             self.el_wrapper.append(wrap_light.ElectricityProfile(lights, self.building))
 
-    def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, building_devices_data, path, initial_day, gen_cars=True):
+    def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, building_devices_data, path,
+                     initial_day, gen_cars=True):
         """
-        Calculate profiles for every flat and summarize them for the whole building
+        Calculate profiles for every flat and summarize them for the whole building.
+
+        All stochastically generated user profiles (occupancy, dhw, electricity, internal gains, cars)
+        are generated only for retrofit 0 and stored in <path>/profiles_<building_id>.pkl.
+        For retrofit 1 and 2 these profiles are loaded from the corresponding retrofit_0 folder,
+        so that differences between the retrofit variants result solely from the building envelope.
 
         Parameters
         ----------
         site: dict
             Site data, e.g. weather.
+        holidays : list
+            Holidays (day of the year).
         time_resolution : integer
             Resolution of time steps of output array in seconds.
         time_horizon : integer
             Time horizon for which a stochastic profile is generated.
+        building : dict
+            Building of the district (buildingFeatures, envelope, user, ...).
+        building_devices_data : dict
+            Data of the decentral devices (needed for the car profiles).
+        path : string
+            Path of the 'demands' folder. Must contain 'retrofit_<n>' for retrofit 1 and 2.
         initial_day : integer, optional
             Day of the week with which the generation starts.
             1-7 for monday-sunday. The default is 1.
@@ -676,98 +690,90 @@ class Users:
         None.
         """
 
-        if hasattr(self, 'create_el_wrapper'):
+        # Stochastically generated attributes which have to be identical for all retrofit variants
+        profile_keys = ("occ", "dhw", "elec", "gains",
+                        "EV_carprofile", "EV_carcharging_ondemand", "ev_capacity",
+                        "ice_carprofile", "individual_car_profiles")
+
+        n_steps = int(time_horizon / time_resolution)
+        retrofit = int(building["buildingFeatures"]["retrofit"])
+        building_id = str(building["buildingFeatures"]["id"])
+        cache_path = os.path.join(path, f"profiles_{building_id}.pkl")
+
+        # ------------------------------------------------------------------------------------------
+        # retrofit 1/2: load the profiles of retrofit 0
+        # ------------------------------------------------------------------------------------------
+        if retrofit != 0:
+            ref_path = cache_path.replace(f"retrofit_{retrofit}", "retrofit_0")
+
+            if ref_path == cache_path:
+                raise ValueError(f"Path does not contain 'retrofit_{retrofit}', "
+                                 f"reference profiles of retrofit_0 cannot be found: {path}")
+            if not os.path.isfile(ref_path):
+                raise FileNotFoundError(f"Reference profiles of retrofit_0 are missing: {ref_path}. "
+                                        f"Run retrofit_0 first.")
+
+            with open(ref_path, "rb") as f:
+                ref = pickle.load(f)
+
+            if len(ref["elec"]) != n_steps:
+                raise ValueError(f"Reference profiles in {ref_path} have {len(ref['elec'])} time steps, "
+                                 f"expected {n_steps}.")
+            if ref.get("gen_cars", True) != gen_cars:
+                print(f"Warning: gen_cars={gen_cars}, but reference profiles were generated with "
+                      f"gen_cars={ref.get('gen_cars')}. Car profiles are taken from retrofit_0.")
+
+            for key in profile_keys:
+                setattr(self, key, ref[key])
+
+            print(f"Profiles of building {building_id} loaded from: {ref_path}")
+            return
+
+        # ------------------------------------------------------------------------------------------
+        # retrofit 0: generate profiles
+        # ------------------------------------------------------------------------------------------
+
+        # el_wrapper is already created in __init__ (retrofit 0) -> only create if missing,
+        # otherwise the list grows and consumes random numbers unnecessarily
+        if not self.el_wrapper:
             self.create_el_wrapper()
 
         irradiation = site["SunTotal"]
-        T_e = site["T_e"]
 
         time_day = 24 * 60 * 60
-        nb_days = int(time_horizon/time_day)
+        nb_days = int(time_horizon / time_day)
 
-        self.occ = np.zeros(int(time_horizon / time_resolution))
-        self.dhw = np.zeros(int(time_horizon / time_resolution))
-        self.elec = np.zeros(int(time_horizon / time_resolution))
-        self.gains = np.zeros(int(time_horizon / time_resolution))
-        self.EV_carprofile = np.zeros(int(time_horizon / time_resolution))
-        self.EV_carcharging_ondemand = np.zeros(int(time_horizon / time_resolution))
+        self.occ = np.zeros(n_steps)
+        self.dhw = np.zeros(n_steps)
+        self.elec = np.zeros(n_steps)
+        self.gains = np.zeros(n_steps)
+        self.EV_carprofile = np.zeros(n_steps)
+        self.EV_carcharging_ondemand = np.zeros(n_steps)
         self.ev_capacity = [0.0]
-        self.ice_carprofile = np.zeros(int(time_horizon / time_resolution))
+        self.ice_carprofile = np.zeros(n_steps)
         self.individual_car_profiles = []
 
-        building_id = str(building['buildingFeatures']['id'])
-
         # Residential buildings
-        if self.building in {"SFH", "TH", "MFH", "AB"}:
+        if self.building in RES_BUILDINGS:
 
             current_index = 0  # To keep track of the starting index for car profiles Id in each flat
             for flat in range(self.nb_flats):
 
-                flat_id = f"{building_id}" + f"_{flat}"
-
-                # Hier wird die activity überschrieben bei retrofit > 0
                 temp_obj = Profiles(number_occupants=self.nb_occ[flat], number_occupants_building=sum(self.nb_occ),
                                     initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,
                                     building=self.building)
 
+                # Sum over all flats of the building
+                # Order matters: gains need occ_profile (occupancy) and app_load/light_load (elec) of temp_obj
                 self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building, holidays=holidays)
+                self.occ = self.occ + temp_obj.generate_occupancy_profiles_residential()
+                self.elec = self.elec + temp_obj.generate_el_profile_residential(holidays=holidays,
+                                                                                 irradiance=irradiation,
+                                                                                 el_wrapper=self.el_wrapper[flat],
+                                                                                 annual_demand=
+                                                                                 self.annual_el_demand_per_flat[flat])
+                self.gains = self.gains + temp_obj.generate_gain_profile_residential()
 
-                # Occupancy profile in a flat
-                occ_path = os.path.join(path, f"occ_{flat_id}.pkl")
-                gains_path = os.path.join(path, f"gains_{flat_id}.pkl")
-                if "retrofit_0" in str(occ_path):
-
-                    occ_flat = temp_obj.generate_occupancy_profiles_residential()
-
-                    with open(occ_path, "wb") as f:
-                        pickle.dump(occ_flat, f)
-                    print(f"DHW-Profil gespeichert unter: {occ_path}")
-
-                else:
-
-                    if "retrofit_1" in str(occ_path):
-                        occ_new_path = occ_path.replace("retrofit_1", "retrofit_0")
-                    elif "retrofit_2" in str(occ_path):
-                        occ_new_path = occ_path.replace("retrofit_2", "retrofit_0")
-
-                    # → Laden aktivitätsprofil
-                    with open(occ_new_path, "rb") as f:
-                        occ_flat = pickle.load(f)
-                    print(f"OCC geladen von: {occ_new_path}")
-
-                self.occ = self.occ + occ_flat
-
-                # elec ############################################################
-                occ_path = os.path.join(path, f"elec_{flat_id}.pkl")
-
-                if "retrofit_0" in str(path):
-
-                    elec_flat = temp_obj.generate_el_profile_residential(holidays=holidays,
-                                                                         irradiance=irradiation,
-                                                                         el_wrapper=self.el_wrapper[flat],
-                                                                         annual_demand=self.annual_el_demand_per_flat[flat])
-
-                    gains_flat = temp_obj.generate_gain_profile_residential()
-                    with open(gains_path, "wb") as f:
-                        pickle.dump(gains_flat, f)
-
-                    self.gains = self.gains + gains_flat
-
-                else:
-                    temp_obj.generate_el_profile_residential(holidays=holidays,
-                                                             irradiance=irradiation,
-                                                             el_wrapper=self.el_wrapper[flat],
-                                                             annual_demand=self.annual_el_demand_per_flat[flat])
-
-                    if "retrofit_1" in str(gains_path):
-                        gains_path = gains_path.replace("retrofit_1", "retrofit_0")
-                    elif "retrofit_2" in str(gains_path):
-                        gains_path = gains_path.replace("retrofit_2", "retrofit_0")
-
-                    with open(gains_path, "rb") as f:
-                        gains_flat = pickle.load(f)
-
-                    self.gains = self.gains + gains_flat
                 if gen_cars:
                     (EV_carprofile, EV_on_demand_charging, ev_capacity,
                      ice_carprofile, individual_car_profiles) = temp_obj.generate_car_profile(
@@ -782,7 +788,8 @@ class Users:
                     self.ev_capacity += ev_capacity
                     self.ice_carprofile = self.ice_carprofile + ice_carprofile
                     self.individual_car_profiles.extend(individual_car_profiles)
-                    current_index += len(individual_car_profiles)  # Update the starting index for the next flat of the building
+                    current_index += len(
+                        individual_car_profiles)  # Update the starting index for the next flat of the building
 
         else:
             # Non-residential buildings
@@ -805,10 +812,15 @@ class Users:
                 holidays.update(school_holiday_days)
                 holidays = sorted(list(holidays))  # keep format consistent
 
-            temp_obj = Profiles(number_occupants=round(statistics.mean(self.nb_occ)), number_occupants_building=sum(self.nb_occ),initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,building=self.building,SIA2024=self.SIA2024)
+            temp_obj = Profiles(number_occupants=round(statistics.mean(self.nb_occ)),
+                                number_occupants_building=sum(self.nb_occ),
+                                initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,
+                                building=self.building, SIA2024=self.SIA2024)
             # Occupancy profile in the building
-            _,self.occ,_ = temp_obj.generate_profiles_non_residential(holidays = holidays)
-            self.elec = temp_obj.generate_el_profile_non_residential(irradiance=irradiation,el_wrapper=self.el_wrapper[0],annual_demand_app=self.annual_el_demand_zones)
+            _, self.occ, _ = temp_obj.generate_profiles_non_residential(holidays=holidays)
+            self.elec = temp_obj.generate_el_profile_non_residential(irradiance=irradiation,
+                                                                     el_wrapper=self.el_wrapper[0],
+                                                                     annual_demand_app=self.annual_el_demand_zones)
 
             gains_persons, gains_others = temp_obj.generate_gain_profile_non_residential()
             self.gains = gains_persons + gains_others
@@ -818,7 +830,7 @@ class Users:
             # In the case of non-residential buildings, EVs are only for office buildings
             if self.building in {"OB"} and gen_cars:
                 (EV_carprofile, EV_on_demand_charging, ev_capacity,
-                ice_carprofile, individual_car_profiles) = temp_obj.generate_car_profile(
+                 ice_carprofile, individual_car_profiles) = temp_obj.generate_car_profile(
                     building=building,
                     building_devices_data=building_devices_data,
                     holidays=holidays
@@ -828,6 +840,14 @@ class Users:
                 self.ev_capacity += ev_capacity
                 self.ice_carprofile += ice_carprofile
                 self.individual_car_profiles.extend(individual_car_profiles)
+
+        # Store all stochastic profiles as reference for retrofit 1/2
+        os.makedirs(path, exist_ok=True)
+        cache = {key: getattr(self, key) for key in profile_keys}
+        cache["gen_cars"] = gen_cars
+        with open(cache_path, "wb") as f:
+            pickle.dump(cache, f)
+        print(f"Profiles of building {building_id} saved to: {cache_path}")
 
     def calcHeatingProfile(self, site, envelope, thermal_model, night_setback, is_cooled, calendar, time_resolution, initial_day):
         """
