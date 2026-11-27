@@ -133,6 +133,7 @@ class Datahandler:
         self.calcThick = global_config.flags.calcThick
         self.saveOccProf = global_config.flags.save_occ_prof
         self.fastElProfiles = global_config.flags.fast_el_profiles
+        self.compressProfiles = global_config.flags.compress_profiles
         self.building_dict = {} # Dictionary to store Residential Building IDs
         self.demand_variant = demand_variant
         self.system_variant = system_variant
@@ -723,13 +724,15 @@ class Datahandler:
                                   thick_req=combined_building["envelope"].thick_req,
                                   path=self.demands_path,
                                   time_cfg=self.time,
-                                  individual_car_profiles=combined_building["user"].individual_car_profiles)
+                                  individual_car_profiles=combined_building["user"].individual_car_profiles,
+                                  compress=self.compressProfiles)
 
                 _save_heating_profile_worker(heat=combined_building["user"].heat,
                                              cooling=combined_building["user"].cooling,
                                              name=combined_building["unique_name"],
                                              gmlId=_building_gml_id(combined_building),
-                                             path=self.demands_path)
+                                             path=self.demands_path,
+                                             compress=self.compressProfiles)
 
             # Mark both buildings for removal
             buildings_to_remove.append(main_idx)
@@ -1300,6 +1303,7 @@ class Datahandler:
             "userProfilesMap": user_profiles_map,
             "initial_day": self.initial_day,
             "design_building_data": self.design_building_data,
+            "compress_profiles": self.compressProfiles,
         }
 
         results = []
@@ -1536,15 +1540,14 @@ class Datahandler:
                     _set_solar_areas(building, roof_areas, self.decentral_device_data, f_pv, f_stc)
 
                     # ---- SAVE GENERATION PROFILES (Optional) ----
-                    # np.savetxt compresses automatically because of the .gz suffix; np.loadtxt/pd.read_csv read it directly.
                     # Same naming scheme as the demand profiles ("<unique_name>_timeseries.csv"):
                     # files are overwritten on recompute instead of accumulating when the
                     # gmlId changes; zone/scenario are already encoded in generation_path.
                     if saveGenerationProfiles:
-                        np.savetxt(os.path.join(self.generation_path, f'{building["unique_name"]}_generationPV.csv.gz'),
-                                   building["user"].generationPV, delimiter=';', fmt='%.2f')
-                        np.savetxt(os.path.join(self.generation_path, f'{building["unique_name"]}_generationSTC.csv.gz'),
-                                   building["user"].generationSTC, delimiter=';', fmt='%.2f')
+                        for kind in ("PV", "STC"):
+                            _save_generation_profile(self.generation_path, building["unique_name"], kind,
+                                                     getattr(building["user"], f"generation{kind}"),
+                                                     compress=self.compressProfiles)
 
                 else:
                     raise Exception("Using standard PV calculation")
@@ -1575,15 +1578,14 @@ class Datahandler:
                                  self.decentral_device_data, f_pv, f_stc)
 
                 # ---- SAVE GENERATION PROFILES (Optional) ----
-                # np.savetxt compresses automatically because of the .gz suffix; np.loadtxt/pd.read_csv read it directly.
                 # Same naming scheme as the demand profiles ("<unique_name>_timeseries.csv"):
                 # files are overwritten on recompute instead of accumulating when the
                 # gmlId changes; zone/scenario are already encoded in generation_path.
                 if saveGenerationProfiles:
-                    np.savetxt(os.path.join(self.generation_path, f'{building["unique_name"]}_generationPV.csv.gz'),
-                               building["user"].generationPV, delimiter=';', fmt='%.2f')
-                    np.savetxt(os.path.join(self.generation_path, f'{building["unique_name"]}_generationSTC.csv.gz'),
-                               building["user"].generationSTC, delimiter=';', fmt='%.2f')
+                    for kind in ("PV", "STC"):
+                        _save_generation_profile(self.generation_path, building["unique_name"], kind,
+                                                 getattr(building["user"], f"generation{kind}"),
+                                                 compress=self.compressProfiles)
 
 
     def designCentralDevices(self, saveGenerationProfiles):
@@ -1892,17 +1894,30 @@ def parse_position(val):
     return val
 
 # CHANGE AIX HEAT, rm dhw_minutely
-# Timeseries are written gzip-compressed with 3 decimals (hourly profiles compress very well).
-# Readers accept both formats, so folders with uncompressed files from older runs stay usable.
+# Timeseries are written with 3 decimals, gzip-compressed by default (flag compress_profiles,
+# hourly profiles compress very well). Readers accept both formats, so folders with files of the
+# other format (e.g. from older runs) stay usable.
 TS_SUFFIX = "_timeseries.csv.gz"
 TS_SUFFIX_LEGACY = "_timeseries.csv"
-TS_CSV_OPTIONS = {"sep": ";", "index": False,
-                  "compression": {"method": "gzip", "compresslevel": 6}}
+TS_CSV_OPTIONS = {"sep": ";", "index": False}
+GZIP_OPTIONS = {"method": "gzip", "compresslevel": 6}
 
 
-def _ts_write_path(path, name):
-    """Path for writing the timeseries of a building (always the compressed format)."""
-    return os.path.join(path, f"{name}{TS_SUFFIX}")
+def _ts_write_path(path, name, compress=True):
+    """Path for writing the timeseries of a building in the selected format."""
+    return os.path.join(path, f"{name}{TS_SUFFIX if compress else TS_SUFFIX_LEGACY}")
+
+
+def _remove_other_format(written_path):
+    """
+    Remove the file of the same profile in the other format (.csv <-> .csv.gz).
+
+    Readers prefer the compressed file, so a stale .csv.gz next to a freshly written .csv
+    would otherwise be read instead of the new results.
+    """
+    other = written_path[:-3] if written_path.endswith(".gz") else written_path + ".gz"
+    if os.path.exists(other):
+        os.remove(other)
 
 
 def _ts_read_path(path, name):
@@ -1917,19 +1932,26 @@ def _ts_read_path(path, name):
     return gz_path
 
 
-def _write_ts(df_ts, path, name):
-    """Write a timeseries DataFrame compressed and remove an uncompressed file of an older run."""
+def _write_ts(df_ts, path, name, compress=True):
+    """Write a timeseries DataFrame in the selected format and remove the file in the other format."""
+    ts_path = _ts_write_path(path, name, compress)
     # Round instead of a fixed float_format: same precision, but no trailing zeros ("5.0" instead of "5.000")
-    df_ts.round(3).to_csv(_ts_write_path(path, name), **TS_CSV_OPTIONS)
-    legacy_path = os.path.join(path, f"{name}{TS_SUFFIX_LEGACY}")
-    if os.path.exists(legacy_path):
-        os.remove(legacy_path)
+    df_ts.round(3).to_csv(ts_path, compression=GZIP_OPTIONS if compress else None, **TS_CSV_OPTIONS)
+    _remove_other_format(ts_path)
+
+
+def _save_generation_profile(generation_path, name, kind, values, compress=True):
+    """Save a generation profile (kind 'PV' or 'STC') in the selected format, one value per line."""
+    # np.savetxt compresses automatically because of the .gz suffix; np.loadtxt/pd.read_csv read it directly
+    gen_path = os.path.join(generation_path, f"{name}_generation{kind}.csv{'.gz' if compress else ''}")
+    np.savetxt(gen_path, values, delimiter=';', fmt='%.2f')
+    _remove_other_format(gen_path)
 
 
 def _save_profiles_worker(name, elec, dhw, occ, gains, EV_carcharging_ondemand,
                           EV_carprofile, ev_capacity, ice_carprofile, nb_units,
                           nb_occ, heatload, bivalent, heatlimit, thick_req, path,
-                          time_cfg, individual_car_profiles=None):
+                          time_cfg, individual_car_profiles=None, compress=True):
     """
     Save profiles to csv. Standalone counterpart of Datahandler.saveProfiles,
     usable inside a worker process (no access to self).
@@ -1973,7 +1995,7 @@ def _save_profiles_worker(name, elec, dhw, occ, gains, EV_carcharging_ondemand,
                 ts_dict[f'Car_availability_car_{i}'] = car['availability_profile']
 
     df_ts = pd.DataFrame(ts_dict)
-    _write_ts(df_ts, path, name)
+    _write_ts(df_ts, path, name, compress)
 
     # Singular Data points (static)
     static_dict = {
@@ -2012,7 +2034,7 @@ def _save_profiles_worker(name, elec, dhw, occ, gains, EV_carcharging_ondemand,
     # )
 
 
-def _save_heating_profile_worker(heat, cooling, name, gmlId, path):
+def _save_heating_profile_worker(heat, cooling, name, gmlId, path, compress=True):
     """
     Save heating demand to csv. Standalone counterpart of
     Datahandler.saveHeatingProfile, usable inside a worker process.
@@ -2025,7 +2047,7 @@ def _save_heating_profile_worker(heat, cooling, name, gmlId, path):
 
     df_ts['heating'] = heat
     df_ts['cooling'] = cooling
-    _write_ts(df_ts, path, name)
+    _write_ts(df_ts, path, name, compress)
 
     static_path = os.path.join(path, f"{name}_static.csv")
     if os.path.exists(static_path):
@@ -2238,7 +2260,8 @@ def _run_demand_worker(context, building, calcUserProfiles, saveUserProfiles, ge
                                   thick_req=building["envelope"].thick_req,
                                   path=demands_path,
                                   time_cfg=time_cfg,
-                                  individual_car_profiles=building["user"].individual_car_profiles)
+                                  individual_car_profiles=building["user"].individual_car_profiles,
+                                  compress=context.get("compress_profiles", True))
     else:
         # Läuft hier rein, wenn calcUserProfiles=False ODER skip_calculation=True (Hybrid)
         if not calcUserProfiles:
@@ -2294,7 +2317,8 @@ def _run_demand_worker(context, building, calcUserProfiles, saveUserProfiles, ge
                                          cooling=building["user"].cooling,
                                          name=building["unique_name"],
                                          gmlId=build_id,
-                                         path=demands_path)
+                                         path=demands_path,
+                                         compress=context.get("compress_profiles", True))
         else:
             # Wenn nicht gespeichert werden soll, müssen die zuvor berechneten Werte nicht neu geladen werden.
             # (Die alte Logik hatte hier einen redundanten Aufruf, der jetzt sauber übersprungen wird).

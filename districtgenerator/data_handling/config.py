@@ -615,6 +615,9 @@ class flags(BaseSettings):
     save_occ_prof: bool = False
     # numba-compiled household electricity simulation (functions/fast_richardson.py), env FAST_EL_PROFILES
     fast_el_profiles: bool = False
+    # Write demand timeseries and generation profiles gzip-compressed (*.csv.gz), env COMPRESS_PROFILES.
+    # False writes plain *.csv. Readers accept both formats either way.
+    compress_profiles: bool = True
     model_config = SettingsConfigDict(
         extra="ignore"
     )
