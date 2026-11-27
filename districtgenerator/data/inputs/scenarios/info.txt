@@ -1,0 +1,6 @@
+Own scenario files in this folder are ignored by git, only example_*.csv files are tracked.
+To adapt an example, copy it under a new name instead of editing it.
+
+Please note when setting up a scenario:
+
+1) Minimum construction year has to be 1860.

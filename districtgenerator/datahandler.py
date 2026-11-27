@@ -29,7 +29,9 @@ from districtgenerator.environment import soil, solar, weather
 from districtgenerator.optimization import operation
 from districtgenerator.file_io import district_store, profile_store
 from districtgenerator.time_series import clustering
-from districtgenerator.utilities.paths import DATA_DIR, PACKAGE_DIR, RESULTS_DIR
+from districtgenerator.utilities.paths import (DATA_DIR, PACKAGE_DIR, RESULTS_DIR, CONFIGS_DIR, SCENARIOS_DIR,
+                                               REFERENCE_DIR, PROJECT_CONFIGS, PROJECT_SCENARIOS,
+                                               PROJECT_RESULTS)
 
 
 class Datahandler:
@@ -55,12 +57,14 @@ class Datahandler:
     srcPath:
         Package folder of the districtgenerator (``PACKAGE_DIR``).
     filePath:
-        Data folder (``DATA_DIR``). All input data is read from this folder.
+        Data folder of the package (``DATA_DIR``).
+    project_path:
+        Project folder with the subfolders ``configs``, ``scenarios`` and ``results``, or None.
     """
 
     def __init__(self, scenario_name = None, resultPath = None,  scenario_file_path = None,
                  srcPath = None, filePath = None,
-                 env_path = None):
+                 env_path = None, project_path = None):
         """
         Constructor of Datahandler class.
 
@@ -69,16 +73,22 @@ class Datahandler:
         scenario_name : str, optional
             Name of the scenario file. If none given, takes scenario_name from globalConfig else "example".
         resultPath : str, optional
-            Path to save results. If None, it defaults to ``RESULTS_DIR``.
+            Path to save results. If None, it defaults to '<project_path>/results' or ``RESULTS_DIR``.
         scenario_file_path : str, optional
-            Path to the scenario file. If None, it defaults to 'DATA_DIR/scenarios'.
+            Folder of the scenario file. If None, it defaults to '<project_path>/scenarios' or ``SCENARIOS_DIR``
+            (``data/inputs/scenarios``).
         srcPath : str, optional
             Deprecated and ignored. The package folder is always ``PACKAGE_DIR``.
         filePath : str, optional
-            Deprecated and ignored. All input data is read from ``DATA_DIR``.
+            Deprecated and ignored.
         env_path : str, optional
-            Path to the environment configuration file. Relative paths are resolved in ``DATA_DIR/config``.
-            If None, it defaults to the global configuration file.
+            Path to the environment configuration file. Relative paths are searched first in
+            '<project_path>/configs' (if given) and then in ``CONFIGS_DIR`` (``data/inputs/configs``).
+            If None, the defaults from settings.py are used.
+        project_path : str, optional
+            Own project folder outside the package, e.g. when the districtgenerator is installed with pip.
+            It has the same subfolders as ``data/inputs``: ``configs`` and ``scenarios``, plus ``results``.
+            Explicitly given ``scenario_file_path`` and ``resultPath`` take precedence.
 
         Returns
         -------
@@ -88,7 +98,7 @@ class Datahandler:
         # All input data comes from one folder, custom data folders are no longer supported
         for name, value in (("srcPath", srcPath), ("filePath", filePath)):
             if value is not None:
-                warnings.warn(f"'{name}' is deprecated and ignored, all input data is read from '{DATA_DIR}'.",
+                warnings.warn(f"'{name}' is deprecated and ignored, use 'project_path' for own input data.",
                               DeprecationWarning, stacklevel=2)
         srcPath = PACKAGE_DIR
         filePath = DATA_DIR
@@ -121,15 +131,29 @@ class Datahandler:
         self.srcPath = srcPath
         self.filePath = filePath
 
+        self.project_path = os.fspath(project_path) if project_path is not None else None
+        if self.project_path is not None and not os.path.isdir(self.project_path):
+            raise FileNotFoundError(f"Project folder '{self.project_path}' not found.")
+
         if scenario_file_path is not None:
             self.scenario_file_path = scenario_file_path
+        elif self.project_path is not None:
+            self.scenario_file_path = os.path.join(self.project_path, PROJECT_SCENARIOS)
         else:
-            self.scenario_file_path = os.path.join(DATA_DIR, 'scenarios')
+            self.scenario_file_path = SCENARIOS_DIR
 
         if resultPath is not None:
             self.resultPath = resultPath
+        elif self.project_path is not None:
+            self.resultPath = os.path.join(self.project_path, PROJECT_RESULTS)
+            os.makedirs(self.resultPath, exist_ok=True)
         else:
             self.resultPath = RESULTS_DIR
+
+        # Relative config names are searched in the project first, then in the package
+        self.config_dirs = [CONFIGS_DIR]
+        if self.project_path is not None:
+            self.config_dirs.insert(0, os.path.join(self.project_path, PROJECT_CONFIGS))
 
         self.load_all_data(env_path=env_path, scenario_name=scenario_name)
 
@@ -171,7 +195,7 @@ class Datahandler:
         None.
         """
         # --- 1. Load all configs into the dictionaries of the Datahandler ---
-        global_config: GlobalConfig = load_global_config(env_file=env_path)
+        global_config: GlobalConfig = load_global_config(env_file=env_path, config_dirs=self.config_dirs)
         sections = (
             (self.site, global_config.location),                        # site and weather
             (self.time, global_config.time),                            # time resolution and clustering
@@ -201,7 +225,7 @@ class Datahandler:
         self.scenario = district_buildings.load_scenario(self.scenario_file_path, self.scenario_name)
 
         # --- 3. Load the pipe catalogue of the selected heat grid generation ---
-        self.pipe_file_path = os.path.join(DATA_DIR, 'energy_systems')
+        self.pipe_file_path = os.path.join(REFERENCE_DIR, 'energy_systems')
         self.pipe_data = heating_network.load_pipe_data(self.heat_grid_data["generation"], self.pipe_file_path)
 
         # Prices and CO2 factors for each simulated year used in the optimizations

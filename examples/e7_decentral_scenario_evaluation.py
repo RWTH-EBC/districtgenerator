@@ -11,7 +11,7 @@ from districtgenerator import Datahandler
 def example7_decentral_scenario_evaluation():
 
     # Initialize District
-    # Runs with the defaults from config.py. To change parameters, create your own file in districtgenerator/data/config
+    # Runs with the defaults from config.py. To change parameters, create your own file in districtgenerator/data/inputs/configs
     # (see e6 and .env.CONFIG.EXAMPLE) and load it with Datahandler(env_path=".env.CONFIG.MYPROJECT").
     data = Datahandler(scenario_name = "example_decentral")
 
@@ -32,7 +32,7 @@ def example7_decentral_scenario_evaluation():
     # A value between 0 and 1 can be entered for “EV”. The value indicates the share of electric vehicles in the
     # building compared to the total number of vehicles. The total number of vehicles is estimated based on
     # the number of occupants in the building. The electric vehicle capacity is choosen based on the proportion
-    # of electric vehicles in Germany (see data/buildings/car_segment.json).
+    # of electric vehicles in Germany (see data/reference/buildings/car_segment.json).
     # In addition, you can choose between the following charging behaviors: on_demand, intelligent and bi_directional
     data.generateDistrictComplete(calcUserProfiles=True, saveUserProfiles=False, gen_cars=True, designEnergyhub=True)
 

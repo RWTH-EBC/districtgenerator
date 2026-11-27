@@ -10,7 +10,7 @@ Enercon E40 reference turbine so it can scale to the optimized capacity.
 import pandas as pd
 import numpy as np
 import os
-from districtgenerator.utilities.paths import PACKAGE_DIR
+from districtgenerator.utilities.paths import REFERENCE_DIR
 
 
 def windSpeed_h(windSpeed_ref, h_ref, h, exponent):
@@ -92,7 +92,7 @@ def powerCurve(wind_turbine_model):
     Parameters
     ----------
     wind_turbine_model : str
-        Model identifier used in ``data/energy_systems/WT_<model>.csv``,
+        Model identifier used in ``data/reference/energy_systems/WT_<model>.csv``,
         for example ``"Enercon_E40"``.
 
     Returns
@@ -102,7 +102,7 @@ def powerCurve(wind_turbine_model):
         speed in m/s in the first column and electrical output in kW.
     """
     power_curve_path = os.path.join(
-        PACKAGE_DIR, "data", "energy_systems", "WT_" + wind_turbine_model + ".csv"
+        REFERENCE_DIR, "energy_systems", "WT_" + wind_turbine_model + ".csv"
     )
     return pd.read_csv(power_curve_path, header=0, delimiter=";")
 
