@@ -1896,7 +1896,7 @@ def parse_position(val):
 # Readers accept both formats, so folders with uncompressed files from older runs stay usable.
 TS_SUFFIX = "_timeseries.csv.gz"
 TS_SUFFIX_LEGACY = "_timeseries.csv"
-TS_CSV_OPTIONS = {"sep": ";", "index": False, "float_format": "%.3f",
+TS_CSV_OPTIONS = {"sep": ";", "index": False,
                   "compression": {"method": "gzip", "compresslevel": 6}}
 
 
@@ -1919,7 +1919,8 @@ def _ts_read_path(path, name):
 
 def _write_ts(df_ts, path, name):
     """Write a timeseries DataFrame compressed and remove an uncompressed file of an older run."""
-    df_ts.to_csv(_ts_write_path(path, name), **TS_CSV_OPTIONS)
+    # Round instead of a fixed float_format: same precision, but no trailing zeros ("5.0" instead of "5.000")
+    df_ts.round(3).to_csv(_ts_write_path(path, name), **TS_CSV_OPTIONS)
     legacy_path = os.path.join(path, f"{name}{TS_SUFFIX_LEGACY}")
     if os.path.exists(legacy_path):
         os.remove(legacy_path)
