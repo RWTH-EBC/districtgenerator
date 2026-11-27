@@ -84,7 +84,18 @@ non-residential buildings use archetype data and usage profiles of SIA 2024. The
 ## Execution of multiple scenarios
 
 Within this example the districtgenerator runs one after another for all configuration files in a folder whose
-names start with `.env`, by default `districtgenerator/data/config`. Each configuration file describes one scenario
+names start with `.env`, by default `districtgenerator/data/inputs/configs`. Each configuration file describes one scenario
 with its own assumptions, so different scenarios can be compared and the configuration files can be reused or shared.
 
 - [Multiple Scenarios](https://github.com/RWTH-EBC/districtgenerator/blob/develop/examples/e10_exec_multiple_scenarios.py)
+
+## How to work with an own project folder
+
+Within this example we show how to keep configuration files, scenario files and results in an own project folder
+outside the districtgenerator, e.g. when it is installed with pip. The folder can be located anywhere in your project,
+e.g. `data/districtgenerator`, has the subfolders `configs`, `scenarios` and `results` and is passed with
+`Datahandler(project_path=...)`. The example creates such a folder,
+copies an example scenario and the configuration template into it and generates the demand profiles.
+Working directly in the repository instead uses `districtgenerator/data/inputs`, as in the examples above.
+
+- [Own Project](https://github.com/RWTH-EBC/districtgenerator/blob/develop/examples/e11_own_project.py)

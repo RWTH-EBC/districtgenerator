@@ -17,10 +17,12 @@ aggregated district demands, design clustering, device parameters (including COP
 generation profiles) and economic parameters for every support year.
 """
 
+import logging
 import os
 import numpy as np
 import districtgenerator.time_series.medoid as clustering
 from districtgenerator.time_series.resolution import changeResolution
+from districtgenerator.utilities.paths import REFERENCE_DIR
 from districtgenerator.time_series.clustering import select_profile_periods
 import time
 import copy
@@ -28,6 +30,8 @@ from districtgenerator.environment.solar import SUN
 from districtgenerator.economics import annuity
 from districtgenerator.energy_systems import technologies, wind_turbine
 from districtgenerator.energy_systems.technologies import calc_COP
+
+logger = logging.getLogger(__name__)
 
 def get_params(data):
     """
@@ -157,7 +161,7 @@ def get_params(data):
     scalings = [False] * len(inputs)
 
     # Execute k-medoids algorithm
-    print("Cluster design days...")
+    logger.info(f"Clustering design days into {data.time['clusterNumber']} typical periods.")
     start = time.time()
     (clustered_series, nc, _, z, _) = clustering.cluster(inputs,
                                     data.time["clusterNumber"],
@@ -166,7 +170,7 @@ def get_params(data):
                                     scalings=scalings,
                                     pyomo_config=data.pyomo_config)
 
-    print("Design clustering finished. (" + str(time.time()-start) + ")\n")
+    logger.info(f"Design clustering finished ({time.time() - start:.2f} s).")
 
     # For every support year save the clustered demands - #! currently constant demands over the years
     dem = {"heat": {}, "cool": {}, "power": {}}
@@ -470,7 +474,7 @@ def get_params(data):
             devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
         elif all_models["HP"]["CSV_feasible"]:
-            COP_unclustered = np.loadtxt(os.path.join(data.filePath, 'energy_systems', 'coefficient_of_performance.txt'))
+            COP_unclustered = np.loadtxt(os.path.join(REFERENCE_DIR, 'energy_systems', 'coefficient_of_performance.txt'))
             # The COP file has an hourly resolution; adapt it to the time resolution of the model
             if data.time["timeResolution"] != 3600:
                 COP_unclustered = changeResolution(COP_unclustered, 3600, data.time["timeResolution"], "mean")

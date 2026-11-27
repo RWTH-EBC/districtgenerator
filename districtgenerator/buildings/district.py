@@ -1,6 +1,7 @@
 """
 The buildings of a district: scenario file, initialization and creation of building models.
 """
+import logging
 import datetime
 import os
 import random as rd
@@ -14,6 +15,8 @@ from districtgenerator.buildings.profiles.users import Users
 from districtgenerator.buildings.typology import mixed_use, non_residential, residential
 from districtgenerator.energy_systems.technologies import get_cooling_supply, get_heating_candidates
 from districtgenerator.utilities.randomness import building_seed, seeded_random_state
+
+logger = logging.getLogger(__name__)
 
 
 def parse_position(val):
@@ -125,7 +128,8 @@ def initialize_buildings(data):
         # Unique name = "<id>_<building type>"
         name = f"{data.scenario_name}_{bldg_id}_{row['building']}"
         if name in name_pool:
-            print(f"Duplicate name: {name}, skipping")
+            logger.warning(f"Building id {bldg_id} ({row['building']}) appears more than once in the scenario: "
+                           f"only the first row is used.")
             continue
         name_pool.append(name)
 
@@ -141,7 +145,7 @@ def initialize_buildings(data):
 
     # Rough time estimate
     duration += datetime.timedelta(seconds=3 * num_sfh + 12 * num_mfh)
-    print(f"This calculation will take about {duration}.")
+    logger.info(f"Estimated calculation time for {len(data.district)} buildings: about {duration}.")
     # split mixed-use buildings into main and secondary parts
     mixed_use.split_mixed_buildings(data)
 
@@ -221,7 +225,8 @@ def generate_buildings(data):
                                      area=building["buildingFeatures"]["area"],
                                      year_of_construction=building["buildingFeatures"]["year"],
                                      retrofit=building["buildingFeatures"]["retrofit"],
-                                     SIA2024=data.SIA2024, random_seed=user_seed)
+                                     SIA2024=data.SIA2024, random_seed=user_seed,
+                                     fast_el_profiles=data.fast_el_profiles)
 
         night_setback = building["buildingFeatures"]["night_setback"]
         # %% calculate design heat loads

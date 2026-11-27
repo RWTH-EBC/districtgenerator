@@ -5,6 +5,7 @@ A mixed-use building is written as ``"MAIN+SECONDARY"`` in the scenario file, fo
 ``"MFH+RETAIL"``. Each part is modelled as its own building and combined again after the
 demand generation.
 """
+import logging
 import copy
 import os
 import random as rd
@@ -16,6 +17,8 @@ from districtgenerator.buildings.typology.non_residential import NonResidential
 from districtgenerator.buildings.typology.residential import one_floor_area_range
 from districtgenerator.file_io import profile_store
 from districtgenerator.utilities.randomness import building_seed
+
+logger = logging.getLogger(__name__)
 
 
 def is_mixed_building(building_type):
@@ -58,7 +61,7 @@ def combine_mixed_building_demands(data, saveUserProfiles):
             mixed_buildings[parent_id].append((idx, building))
 
     if mixed_buildings:
-        print(f"Found {len(mixed_buildings)} mixed-use building groups to recombine.")
+        logger.info(f"Found {len(mixed_buildings)} mixed-use building groups to recombine.")
 
     # Combine each group of mixed buildings
     buildings_to_remove = []
@@ -205,8 +208,8 @@ def combine_mixed_building_demands(data, saveUserProfiles):
         # Sum up DHW power and generation
         combined_building["envelope"].dhwpower = main_building["envelope"].dhwpower + secondary_building["envelope"].dhwpower
 
-        print(f"Combined mixed building {parent_id}: "
-              f"{main_type} + {secondary_type} -> NEW combined building")
+        logger.debug(f"Combined mixed building {parent_id}: "
+                     f"{main_type} + {secondary_type} -> NEW combined building")
 
         # Save combined profiles to Excel file
         if saveUserProfiles:
@@ -377,10 +380,10 @@ def split_mixed_buildings(data):
             secondary_building["unique_name"] = f"{data.scenario_name}_{idx}_{secondary_type}_Secondary"
             buildings_to_process.append(secondary_building)
 
-            print(f"Split mixed building {building['buildingFeatures']['original_bldg_id']}: "
-                  f"{building['buildingFeatures']['building']} (Total: {total_area:.0f} m², {total_floors} floors) -> "
-                  f"{main_type} ({main_area:.0f} m², {main_floors} floors) + "
-                  f"{secondary_type} ({secondary_area:.0f} m², {secondary_floors} floor)")
+            logger.debug(f"Split mixed building {building['buildingFeatures']['original_bldg_id']}: "
+                         f"{building['buildingFeatures']['building']} (Total: {total_area:.0f} m², {total_floors} floors) -> "
+                         f"{main_type} ({main_area:.0f} m², {main_floors} floors) + "
+                         f"{secondary_type} ({secondary_area:.0f} m², {secondary_floors} floor)")
 
     # Replace district with processed buildings
     new_district = []

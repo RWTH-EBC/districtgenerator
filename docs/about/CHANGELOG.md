@@ -1,5 +1,30 @@
 # Version History
 
+## Unreleased
+
+- Logging: all messages of the package use the `logging` module instead of `print()`; the package only adds a
+  `NullHandler` and prints nothing unless logging is set up
+- New `districtgenerator.setup_logging(level, log_file)` for colored console output and a log file (by default
+  `<result folder>/logs/districtgenerator_<date>_<time>.log`); the examples call it with `level="INFO"`
+- Progress bars (tqdm, new dependency) for the demand generation (threading and multiprocessing) and the optimization
+  of the clusters; enabled by `setup_logging` or `districtgenerator.set_progress(True)`, then the messages per building
+  and cluster are logged on `DEBUG`
+- `utilities.log.reset_logging()` removes the handlers of `setup_logging` and closes the log file
+- New config parameters `DG_LOG_LEVEL` and `DG_LOG_FILE`: if set, the Datahandler sets up logging itself
+- Log messages of worker processes (demand generation, flats) are collected in the main process
+- Messages are mapped to levels: progress `INFO`, details per building `DEBUG`, fallbacks and corrections `WARNING`,
+  failed optimizations `ERROR`
+- `districtgenerator/data` separates user inputs from reference data: `data/config` moved to `data/inputs/configs`,
+  `data/scenarios` to `data/inputs/scenarios`; `site`, `weather`, `buildings`, `energy_systems` and `report` moved to
+  `data/reference`
+- New paths in `utilities.paths`: `INPUTS_DIR`, `CONFIGS_DIR`, `SCENARIOS_DIR`, `REFERENCE_DIR`
+- New `Datahandler(project_path=...)` for an own project folder with `configs`, `scenarios` and `results`, e.g. when
+  the package is installed with pip; relative config names are searched in the project first, then in the package
+- New example `e11_own_project.py` for working with an own project folder
+- `load_global_config` accepts `config_dirs` with the folders in which a relative config name is searched
+- Renamed `tabula_test.csv` to `example_tabula.csv`; removed the ineffective `data/scenarios/.gitignore`
+- `.gitignore`: own files in `data/inputs` are ignored, only the shipped examples are tracked
+
 ## v1.0.1
 
 - Added project description, project links and classifiers for PyPI

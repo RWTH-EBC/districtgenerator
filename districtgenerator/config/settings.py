@@ -3,9 +3,10 @@ Configuration of the districtgenerator.
 
 Each topic (location, time, buildings, economics, solver, heat grid, devices, report, ...) is a pydantic
 settings class with default values. :func:`load_global_config` reads a ``.env.CONFIG`` file from
-``data/config`` (or an absolute path) and overrides the defaults; the result is a :class:`GlobalConfig`.
+``data/inputs/configs`` (or a project folder or an absolute path) and overrides the defaults; the result is a :class:`GlobalConfig`.
 Nested parameters use a double underscore, e.g. ``SOLVER_OPTIONS__TIME_LIMIT=600``.
 """
+import logging
 from dataclasses import field
 import os
 import warnings
@@ -14,7 +15,9 @@ from typing import Dict, Literal, Optional, Set, Tuple, ClassVar, Annotated
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from districtgenerator.utilities.paths import DATA_DIR
+from districtgenerator.utilities.paths import CONFIGS_DIR
+
+logger = logging.getLogger(__name__)
 
 #############################
 # NOTE: After changing parameters, defaults or their comments in this file, regenerate the template:
@@ -372,11 +375,13 @@ class EcoConfig(BaseSettings):
                 last_value = current_list[-1]
                 extended_list = current_list + [last_value] * (self.observation_time - len(current_list))
                 setattr(self, param_name, extended_list)
-                print(f"Warning: {param_name} list was shorter than observation_time. Extended with last value to match length.")
+                logger.warning(f"{param_name.upper()} has {len(current_list)} values, but OBSERVATION_TIME is "
+                               f"{self.observation_time} years: the last value ({last_value}) is used for the remaining years.")
             elif len(current_list) > self.observation_time:
                 # List too long - truncate
                 setattr(self, param_name, current_list[:self.observation_time])
-                print(f"Warning: {param_name} list was longer than observation_time. Truncated to match length.")
+                logger.warning(f"{param_name.upper()} has {len(current_list)} values, but OBSERVATION_TIME is "
+                               f"{self.observation_time} years: only the first {self.observation_time} values are used.")
             # else: length matches exactly, no change needed
 
         return self
@@ -648,13 +653,33 @@ class Scenario(BaseSettings):
     # 'none' keeps flats sequential; worker counts multiply with the building-level workers.
     flat_parallelization: Literal['none', 'threading', 'multiprocessing'] = 'none'
     flat_max_workers: Annotated[int, Field(ge=1)] = 4  # Max. number of workers for the flat parallelization.
+    # Household electricity profiles with the numba-compiled FastElectricityProfile of richardsonpy (about 100x faster).
+    # Statistically equivalent, but not bit-identical to the original model; False uses the original richardsonpy model.
+    fast_el_profiles: bool = False
+    # Logging: if DG_LOG_LEVEL or DG_LOG_FILE is set, the Datahandler calls districtgenerator.setup_logging().
+    # Leave both empty (None) to keep the logging setup of your application.
+    dg_log_level: Optional[str] = None # Minimum level of the messages: DEBUG, INFO, WARNING or ERROR. INFO if only DG_LOG_FILE is set.
+    # Path of the log file; relative paths are relative to the result folder.
+    # None: a new file with a time stamp in <result folder>/logs.
+    dg_log_file: Optional[str] = None
 
-    @field_validator('random_seed', mode='before')
+    @field_validator('random_seed', 'dg_log_level', 'dg_log_file', mode='before')
     @classmethod
-    def parse_random_seed(cls, value):
-        """Convert '', 'none' or 'null' to None, so that no fixed seed is used."""
+    def parse_none(cls, value):
+        """Convert '', 'none' or 'null' to None, so that the parameter is not set."""
         if isinstance(value, str) and value.strip().lower() in ('', 'none', 'null'):
             return None
+        return value
+
+    @field_validator('dg_log_level')
+    @classmethod
+    def check_log_level(cls, value):
+        """Accept the level names of the logging module in any case."""
+        if value is None:
+            return None
+        value = value.strip().upper()
+        if value not in ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'):
+            raise ValueError(f"Unknown log level '{value}'. Options: DEBUG, INFO, WARNING, ERROR, CRITICAL")
         return value
 
     model_config = SettingsConfigDict(
@@ -1417,20 +1442,51 @@ class GlobalConfig(BaseModel):
     central: 'CentralDeviceConfig'
     report: 'ReportConfig'
 
-def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
+def resolve_config_file(env_file: Optional[str] = None, config_dirs: Optional[list] = None) -> Optional[str]:
+    """
+    Return the path of a configuration file, see :func:`load_global_config`.
+
+    Returns None if no ``env_file`` is given. Raises FileNotFoundError if the file does not exist.
+    """
+    if env_file is None:
+        return None
+    env_file = os.fspath(env_file)
+    if os.path.isabs(env_file):
+        # Absolute paths are used as given
+        candidates = [env_file]
+    else:
+        # Relative paths are searched in the config folders, the first match wins
+        search_dirs = [os.fspath(d) for d in (config_dirs or [CONFIGS_DIR])]
+        candidates = [os.path.join(d, env_file) for d in search_dirs]
+    env_file_path = next((c for c in candidates if os.path.isfile(c)), None)
+    if env_file_path is None:
+        looked_for = "\n".join(f"  - {c}" for c in candidates)
+        raise FileNotFoundError(
+            f"Configuration file '{env_file}' not found. Looked for:\n{looked_for}\n"
+            f"Pass an absolute path or put the file into one of these config folders."
+        )
+    return env_file_path
+
+
+def load_global_config(env_file: Optional[str] = None,
+                       config_dirs: Optional[list] = None) -> GlobalConfig:
     """
     Load the global configuration.
 
     Without an environment file, the defaults defined in the config classes of this module are used.
     With an environment file, every parameter set in it overrides the corresponding default.
     Environment variables of the process (e.g. RANDOM_SEED=42) override both.
-    See data/config/.env.CONFIG.EXAMPLE for all parameters that can be set.
+    See data/inputs/configs/.env.CONFIG.EXAMPLE for all parameters that can be set.
 
     Parameters
     ----------
     env_file : Optional[str]
-        Name of an environment file in ``DATA_DIR/config`` (e.g. ".env.CONFIG.FREIBURG")
-        or an absolute path (e.g. "c:/path/to/.env.CONFIG.MYPROJECT"). If None, only the defaults are used.
+        Name of an environment file (e.g. ".env.CONFIG.FREIBURG") or an absolute path
+        (e.g. "c:/path/to/.env.CONFIG.MYPROJECT"). If None, only the defaults are used.
+    config_dirs : Optional[list]
+        Folders in which a relative ``env_file`` is searched, in this order. The first match is used.
+        Defaults to ``[CONFIGS_DIR]`` (``data/inputs/configs``). The Datahandler puts the ``configs`` folder
+        of the project in front when ``project_path`` is given.
 
     Returns
     -------
@@ -1442,20 +1498,8 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
     FileNotFoundError
         If env_file is given but the file does not exist.
     """
-    if env_file is None:
-        env_file_path = None
-        print("Using config: defaults from settings.py")
-    else:
-        # Absolute paths are used as given, relative paths are resolved in the config folder of the data
-        env_file_path = env_file if os.path.isabs(env_file) else os.path.join(DATA_DIR, 'config', env_file)
-        if not os.path.isfile(env_file_path):
-            raise FileNotFoundError(
-                f"Configuration file '{env_file}' not found.\n"
-                f"  - Looked for: {env_file_path}\n"
-                f"  - Config folder: {os.path.join(DATA_DIR, 'config')}\n"
-                f"Pass an absolute path or put the file into the config folder."
-            )
-        print(f'Using config: {env_file_path}')
+    env_file_path = resolve_config_file(env_file, config_dirs)
+    logger.info(f"Using config: {env_file_path or 'defaults from settings.py'}")
 
     return GlobalConfig(
         location=LocationConfig(_env_file=env_file_path),

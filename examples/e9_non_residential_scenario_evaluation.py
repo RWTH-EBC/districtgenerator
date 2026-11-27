@@ -6,12 +6,12 @@ non-residential buildings, as well as mixed-use buildings.
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from districtgenerator import Datahandler
+from districtgenerator import Datahandler, setup_logging
 
 def example9_non_residential_scenario_evaluation():
 
     # Initialize District for the chosen scenario.
-    # Runs with the defaults from config.py. To change parameters, create your own file in districtgenerator/data/config
+    # Runs with the defaults from config.py. To change parameters, create your own file in districtgenerator/data/inputs/configs
     # (see e6 and .env.CONFIG.EXAMPLE) and load it with Datahandler(env_path=".env.CONFIG.MYPROJECT").
     data = Datahandler(scenario_name = "example_non_residential")
 
@@ -31,6 +31,9 @@ def example9_non_residential_scenario_evaluation():
 
 
 if __name__ == '__main__':
+    # Show the progress messages of the districtgenerator in the console.
+    # A log file is written to the logs folder of the results. Use level="DEBUG" for more details.
+    setup_logging(level="INFO")
     data = example9_non_residential_scenario_evaluation()
 
 

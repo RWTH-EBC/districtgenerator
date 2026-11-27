@@ -6,6 +6,7 @@ Users of a building and their demand profiles.
 building, and generates its demand profiles (occupancy, electricity, domestic hot water, internal gains,
 space heating and cooling, electric vehicles) in worker processes or threads.
 """
+import logging
 import statistics
 import os
 import random as rd
@@ -17,14 +18,64 @@ from districtgenerator.buildings.profiles.profiles import Profiles
 from districtgenerator.buildings.profiles import non_residential_electricity as wrap_light
 import richardsonpy
 import richardsonpy.classes.stochastic_el_load_wrapper as wrap
+import richardsonpy.classes.fast_el_load_wrapper as fast_wrap
 import richardsonpy.classes.appliance as app_model
 import richardsonpy.classes.lighting as light_model
 from districtgenerator.buildings.typology.non_residential import GenericNonResidential, load_non_residential_json
 from districtgenerator.buildings import thermal
+from districtgenerator.utilities.log import worker_logging
 from districtgenerator.utilities.randomness import derive_seed, seeded_random_state
+
+logger = logging.getLogger(__name__)
 
 RES_BUILDINGS = {"SFH", "TH", "MFH", "AB"}
 FLAT_PARALLELIZATION_OPTIONS = ("none", "threading", "multiprocessing")
+
+_fast_fallback_logged = False
+
+
+def electricity_profile_class(fast_el_profiles):
+    """
+    Class for the household electricity profiles of richardsonpy.
+
+    Parameters
+    ----------
+    fast_el_profiles : bool
+        If True, use the numba-compiled FastElectricityProfile. Falls back to the
+        original ElectricityProfile (with one warning per process) if numba is missing.
+
+    Returns
+    -------
+    type
+        FastElectricityProfile or ElectricityProfile.
+    """
+    global _fast_fallback_logged
+    if fast_el_profiles and not fast_wrap.FAST_AVAILABLE:
+        # Logged here (not only in richardsonpy), so the warning ends up in the districtgenerator log
+        if not _fast_fallback_logged:
+            _fast_fallback_logged = True
+            logger.warning(f"FAST_EL_PROFILES is set, but not available ({fast_wrap.FAST_UNAVAILABLE_REASON}); "
+                           f"using the original richardsonpy model.")
+        return wrap.ElectricityProfile
+    return fast_wrap.get_electricity_profile_class(fast_el_profiles)
+
+
+def warm_up_fast_el_profiles(fast_el_profiles):
+    """
+    Compile the numba kernels once before worker processes are started.
+
+    Without this, every new worker process ("spawn") would compile the kernels on its
+    first call, and on the first run all workers would do so at the same time. After
+    this call the workers only load the kernels from the numba cache.
+
+    Parameters
+    ----------
+    fast_el_profiles : bool
+        Whether FastElectricityProfile is used. Nothing happens if False or numba is missing.
+    """
+    if fast_el_profiles and fast_wrap.FAST_AVAILABLE:
+        duration = fast_wrap.warm_up()
+        logger.debug(f"Fast electricity profile kernels ready after {duration:.2f} s.")
 
 
 def _calc_flat_profiles(task):
@@ -138,9 +189,16 @@ class Users:
         else:
             self.nb_main_rooms = int(value)
 
-    def __init__(self, building, area, year_of_construction, retrofit, SIA2024=None, random_seed=None):
+    def __init__(self, building, area, year_of_construction, retrofit, SIA2024=None, random_seed=None,
+                 fast_el_profiles=False):
         """
         Constructor of Users class.
+
+        Parameters
+        ----------
+        fast_el_profiles : bool, optional
+            Use the numba-compiled FastElectricityProfile of richardsonpy for the household
+            electricity profiles (statistically equivalent, not bit-identical). The default is False.
 
         Returns
         -------
@@ -149,6 +207,7 @@ class Users:
 
         self.building = building
         self.random_seed = random_seed
+        self.fast_el_profiles = fast_el_profiles
         self.nb_flats = None
         self.annual_el_demand_per_flat = None
         self.nb_rooms = None
@@ -546,7 +605,8 @@ class Users:
             try:
                 jsonData = load_non_residential_json(file_name)
             except FileNotFoundError:
-                print(f"Error: File '{file_name}' not found.")
+                logger.error(f"Lighting data '{file_name}' for non-residential buildings not found: "
+                             f"the lighting of this building is not modelled.")
                 return
 
             # Process data for different building types
@@ -580,6 +640,8 @@ class Users:
         None.
         """
         if self.is_residential:
+            # getattr: Users objects pickled before this option existed
+            profile_class = electricity_profile_class(getattr(self, "fast_el_profiles", False))
             src_path = os.path.dirname(richardsonpy.__file__)
             path_app = os.path.join(src_path, 'inputs', 'Appliances.csv')
             path_light = os.path.join(src_path, 'inputs', 'LightBulbs.csv')
@@ -604,7 +666,7 @@ class Users:
                                                            index=self.lighting_index[j])
 
                 #  Create wrapper object
-                self.el_wrapper.append(wrap.ElectricityProfile(appliances, lights))
+                self.el_wrapper.append(profile_class(appliances, lights))
 
         else:
 
@@ -783,11 +845,16 @@ class Users:
             return [_calc_flat_profiles(task) for task in tasks]
 
         if parallelization == "multiprocessing":
+            warm_up_fast_el_profiles(getattr(self, "fast_el_profiles", False))
             # "spawn" is required on Windows and safest cross-platform
-            executor = ProcessPoolExecutor(max_workers=workers, mp_context=mp.get_context("spawn"))
-        else:
-            executor = ThreadPoolExecutor(max_workers=workers)
-        with executor as ex:
+            mp_ctx = mp.get_context("spawn")
+            # Log records of the flat processes are passed on to this process (see worker_logging)
+            with worker_logging(mp_ctx) as (initializer, initargs):
+                with ProcessPoolExecutor(max_workers=workers, mp_context=mp_ctx,
+                                         initializer=initializer, initargs=initargs) as ex:
+                    # map returns results in flat order
+                    return list(ex.map(_calc_flat_profiles, tasks))
+        with ThreadPoolExecutor(max_workers=workers) as ex:
             # map returns results in flat order
             return list(ex.map(_calc_flat_profiles, tasks))
 

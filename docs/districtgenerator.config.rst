@@ -12,7 +12,8 @@ overrides them for a scenario:
 
    data = Datahandler(scenario_name="example_decentral", env_path=".env.CONFIG.EXAMPLE")
 
-A relative ``env_path`` is looked up in ``districtgenerator/data/config``, an absolute path is used as given.
+A relative ``env_path`` is looked up in ``<project_path>/configs`` (if a ``project_path`` is given) and then in
+``districtgenerator/data/inputs/configs``, an absolute path is used as given.
 Use ``.env.CONFIG.EXAMPLE`` as a reference and save own assumptions in a new file, e.g. ``.env.CONFIG.MYDISTRICT``.
 Only the parameters that differ from the defaults have to be set in the file.
 

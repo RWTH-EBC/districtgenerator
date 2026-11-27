@@ -66,6 +66,24 @@ class TestExamples(unittest.TestCase):
         # Check functionality works as expected with exemplary output
         self.assertIsInstance(data_e5.district[0]["user"].heat, np.ndarray)
 
+    def test_e11_own_project(self):
+        """Tests the executability of example 11 with a temporary project folder"""
+        import os
+        import tempfile
+        from examples import e11_own_project as e11
+
+        from districtgenerator.utilities.log import reset_logging
+
+        with tempfile.TemporaryDirectory() as project_path:
+            try:
+                data_e11 = e11.example11_own_project(project_path=project_path)
+            finally:
+                reset_logging()  # close log files, otherwise Windows cannot delete the folder
+            # Scenario, config and results are taken from the project folder, not from the package
+            self.assertEqual(data_e11.scenario_file_path, os.path.join(project_path, "scenarios"))
+            self.assertEqual(data_e11.resultPath, os.path.join(project_path, "results"))
+            self.assertTrue(os.path.isdir(os.path.join(project_path, "results", "demands")))
+
 if __name__ == '__main__':
     unittest.main()
 

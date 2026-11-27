@@ -16,14 +16,17 @@ districtgenerator.egg-info/
 
 # --- Project-specific data & results ---
 districtgenerator/results/
-districtgenerator/data/scenarios/
-districtgenerator/data/weather/
+districtgenerator/data/reference/weather/
 errorfile.txt
-# local, personal config overrides (template: districtgenerator/data/.env.CONFIG.EXAMPLE)
-# local, personal config overrides (template: districtgenerator/data/config/.env.CONFIG.EXAMPLE)
-/districtgenerator/data/config/.env.CONFIG*
-!/districtgenerator/data/config/.env.CONFIG.EXAMPLE
-!/districtgenerator/data/config/.env.CONFIG.FREIBURG
+# --- user inputs: own configs and scenarios stay local, only the shipped examples are tracked ---
+/districtgenerator/data/inputs/configs/*
+!/districtgenerator/data/inputs/configs/.env.CONFIG.EXAMPLE
+!/districtgenerator/data/inputs/configs/.env.CONFIG.FREIBURG
+/districtgenerator/data/inputs/scenarios/*
+!/districtgenerator/data/inputs/scenarios/example_*.csv
+!/districtgenerator/data/inputs/scenarios/info.txt
+# project folder created by examples/e11_own_project.py when run from the repository root
+/data/districtgenerator/
 
 # --- temporary data, backup & logs ---
 *.bk

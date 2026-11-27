@@ -3,6 +3,14 @@ Utilities
 
 .. automodule:: districtgenerator.utilities
 
+districtgenerator.utilities.log
+-------------------------------
+
+.. automodule:: districtgenerator.utilities.log
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 districtgenerator.utilities.paths
 ---------------------------------
 

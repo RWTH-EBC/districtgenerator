@@ -20,6 +20,8 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 
+from districtgenerator.utilities.log import reset_logging
+
 TEST_DATA = Path(__file__).parent / "results_data"
 SCENARIOS = TEST_DATA / "scenarios"
 REFERENCE = TEST_DATA / "reference"
@@ -30,6 +32,8 @@ OVERRIDES = {
     "SOLVER_OPTIONS__THREADS": "1",
     "SOLVER_OPTIONS__TIME_LIMIT": "1800",
     "SOLVER_NAME": "highs",
+    # The references were generated with the original richardsonpy model (FastElectricityProfile is not bit-identical)
+    "FAST_EL_PROFILES": "False",
 }
 
 # Demand profiles of each building that are compared as time series
@@ -44,8 +48,13 @@ DEMAND_KPIS = ("total_heating_demand", "total_cooling_demand", "total_electricit
 UPDATE = os.environ.get("UPDATE_REFERENCE_RESULTS") == "1"
 
 
-def run_example(module_name, function_name, result_path):
-    """Run an example with the test scenarios and write all outputs to result_path."""
+def run_example(module_name, function_name, result_path, overrides=None):
+    """
+    Run an example with the test scenarios and write all outputs to result_path.
+
+    overrides : dict, optional
+        Additional environment settings, applied on top of OVERRIDES.
+    """
     module = import_module(f"examples.{module_name}")
     datahandler = module.Datahandler
 
@@ -54,8 +63,13 @@ def run_example(module_name, function_name, result_path):
                       env_path=str(TEST_DATA / ".env.CONFIG.TEST"))
         return datahandler(*args, **kwargs)
 
-    with patch.object(module, "Datahandler", side_effect=test_datahandler), patch.dict(os.environ, OVERRIDES):
-        return getattr(module, function_name)()
+    environment = {**OVERRIDES, **(overrides or {})}
+    try:
+        with patch.object(module, "Datahandler", side_effect=test_datahandler), patch.dict(os.environ, environment):
+            return getattr(module, function_name)()
+    finally:
+        # Close log files in result_path, otherwise Windows cannot delete the temporary folder
+        reset_logging()
 
 
 def demand_profiles(data):
