@@ -48,3 +48,14 @@ def test_write_removes_legacy_file(tmp_path):
 
 def test_write_path_is_always_compressed(tmp_path):
     assert _ts_write_path(str(tmp_path), "0_MFH").endswith(TS_SUFFIX)
+
+
+def test_savetxt_with_gz_suffix_is_compressed_and_readable(tmp_path):
+    # Generation profiles are written with np.savetxt; the .gz suffix alone enables compression
+    profile = np.r_[np.zeros(4000), np.linspace(0, 5000, 4760)]
+    np.savetxt(tmp_path / "0_MFH_generationPV.csv.gz", profile, delimiter=";", fmt="%.2f")
+    np.savetxt(tmp_path / "plain.csv", profile, delimiter=";", fmt="%.2f")
+    assert (tmp_path / "0_MFH_generationPV.csv.gz").stat().st_size < (tmp_path / "plain.csv").stat().st_size / 3
+    np.testing.assert_allclose(np.loadtxt(tmp_path / "0_MFH_generationPV.csv.gz", delimiter=";"), profile, atol=5e-3)
+    np.testing.assert_allclose(pd.read_csv(tmp_path / "0_MFH_generationPV.csv.gz", sep=";", header=None)[0],
+                               profile, atol=5e-3)

@@ -1536,13 +1536,14 @@ class Datahandler:
                     _set_solar_areas(building, roof_areas, self.decentral_device_data, f_pv, f_stc)
 
                     # ---- SAVE GENERATION PROFILES (Optional) ----
+                    # np.savetxt compresses automatically because of the .gz suffix; np.loadtxt/pd.read_csv read it directly.
                     # Same naming scheme as the demand profiles ("<unique_name>_timeseries.csv"):
                     # files are overwritten on recompute instead of accumulating when the
                     # gmlId changes; zone/scenario are already encoded in generation_path.
                     if saveGenerationProfiles:
-                        np.savetxt(os.path.join(self.generation_path, f'{building["unique_name"]}_generationPV.csv'),
+                        np.savetxt(os.path.join(self.generation_path, f'{building["unique_name"]}_generationPV.csv.gz'),
                                    building["user"].generationPV, delimiter=';', fmt='%.2f')
-                        np.savetxt(os.path.join(self.generation_path, f'{building["unique_name"]}_generationSTC.csv'),
+                        np.savetxt(os.path.join(self.generation_path, f'{building["unique_name"]}_generationSTC.csv.gz'),
                                    building["user"].generationSTC, delimiter=';', fmt='%.2f')
 
                 else:
@@ -1574,13 +1575,14 @@ class Datahandler:
                                  self.decentral_device_data, f_pv, f_stc)
 
                 # ---- SAVE GENERATION PROFILES (Optional) ----
+                # np.savetxt compresses automatically because of the .gz suffix; np.loadtxt/pd.read_csv read it directly.
                 # Same naming scheme as the demand profiles ("<unique_name>_timeseries.csv"):
                 # files are overwritten on recompute instead of accumulating when the
                 # gmlId changes; zone/scenario are already encoded in generation_path.
                 if saveGenerationProfiles:
-                    np.savetxt(os.path.join(self.generation_path, f'{building["unique_name"]}_generationPV.csv'),
+                    np.savetxt(os.path.join(self.generation_path, f'{building["unique_name"]}_generationPV.csv.gz'),
                                building["user"].generationPV, delimiter=';', fmt='%.2f')
-                    np.savetxt(os.path.join(self.generation_path, f'{building["unique_name"]}_generationSTC.csv'),
+                    np.savetxt(os.path.join(self.generation_path, f'{building["unique_name"]}_generationSTC.csv.gz'),
                                building["user"].generationSTC, delimiter=';', fmt='%.2f')
 
 
